@@ -97,3 +97,8 @@ Every action is logged: SalaryHistory (with `rule_applied` explanation), PlayerH
 - AppConfig stores global state flags (current_season, offseason_mode, offseason_step, etc.)
 - Players added via Sleeper sync are marked `needs_review=True`
 - K/DEF excluded from salary cap calculations in some contexts
+
+## Version Control
+
+Git initialized. Tag: `manager-v1.0` (hash `f2271ba`).
+dynasty.db is the source of truth consumed by fantasy_optimizer and predictor.
