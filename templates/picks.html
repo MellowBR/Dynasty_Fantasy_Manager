@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Draft Picks{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">📋 Draft Picks</h1>
+  <p class="page-subtitle">Picks 2025–2028. Picks em azul = trocados.</p>
+</div>
+
+<div class="toolbar">
+  <label>Filtrar por equipe:</label>
+  <select id="filter-team" onchange="filterTeam(this.value)">
+    <option value="">Todas</option>
+    {% for t in teams %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+  </select>
+</div>
+
+{% for season in seasons %}
+<section class="picks-year-section">
+  <h2 class="picks-year-title">{{ season }}</h2>
+  <div class="picks-round-grid">
+    {% for rnd in rounds %}
+    <div class="picks-round-col">
+      <h3 class="round-header">Round {{ rnd }}</h3>
+      {% set rnd_picks = grid.get(season, {}).get(rnd, []) %}
+      {% if rnd_picks %}
+        {% for pick in rnd_picks %}
+        <div class="pick-card {{ 'pick-traded' if pick.traded_away }}"
+             data-orig="{{ pick.original_team_name }}"
+             data-cur="{{ pick.current_team_name }}">
+          <div class="pick-owners">
+            <span class="pick-number text-dim" style="font-size:.75rem;min-width:1.5rem;display:inline-block">{{ loop.index }}.</span>
+            <span class="pick-orig text-dim">{{ pick.original_team_name }}</span>
+            {% if pick.traded_away %}
+              <span class="pick-arrow">→</span>
+              <span class="pick-cur">{{ pick.current_team_name }}</span>
+            {% endif %}
+          </div>
+          <div class="pick-btns">
+            <button class="btn-xs btn-secondary"
+              onclick="openPickEdit({{ pick.id }}, '{{ pick.current_team_name | replace("'", "\\'") }}')">
+              Editar
+            </button>
+            {% if pick.traded_away %}
+            <button class="btn-xs btn-danger-outline" onclick="resetPick({{ pick.id }})">Reset</button>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-dim small-text">Sem picks</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+<!-- Lottery odds -->
+<div class="card">
+  <h2 class="card-title">🎰 Lottery Odds — 1ª Rodada</h2>
+  <p class="text-dim" style="margin-bottom:.75rem">Equipes não-playoff disputam picks 1–6 via lottery.</p>
+  <table class="data-table" style="max-width:360px">
+    <thead><tr><th>Posição (não-playoff)</th><th>Odds</th></tr></thead>
+    <tbody>
+      {% for pos, info in lottery_odds.items() %}
+      <tr><td>{{ info.label }}</td><td><strong>{{ info.pct }}%</strong></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="text-dim" style="margin-top:.75rem;font-size:.82rem">
+    Equipes de playoff: picks 7–12 por classificação na temporada regular. Campeão = 12ª pick.
+  </p>
+</div>
+
+<!-- Edit pick modal -->
+<div id="pick-modal" class="modal" style="display:none">
+  <div class="modal-overlay" onclick="closePick()"></div>
+  <div class="modal-box modal-sm">
+    <h2>Editar Pick</h2>
+    <input type="hidden" id="modal-pick-id" />
+    <div class="form-group" style="margin-bottom:1rem">
+      <label>Dono Atual</label>
+      <select id="modal-owner">
+        {% for t in teams %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closePick()">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePick()">Salvar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterTeam(name) {
+  document.querySelectorAll('.pick-card').forEach(el => {
+    if (!name) { el.style.display = ''; return; }
+    el.style.display = (el.dataset.orig === name || el.dataset.cur === name) ? '' : 'none';
+  });
+}
+
+function openPickEdit(pickId, currentOwner) {
+  document.getElementById('modal-pick-id').value = pickId;
+  const sel = document.getElementById('modal-owner');
+  for (const opt of sel.options) opt.selected = (opt.value === currentOwner);
+  document.getElementById('pick-modal').style.display = 'flex';
+}
+
+function closePick() {
+  document.getElementById('pick-modal').style.display = 'none';
+}
+
+function savePick() {
+  const id = document.getElementById('modal-pick-id').value;
+  const owner = document.getElementById('modal-owner').value;
+  fetch(`/api/picks/${id}`, {
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({current_team_name: owner})
+  }).then(r => r.json()).then(() => { closePick(); location.reload(); });
+}
+
+function resetPick(id) {
+  if (!confirm('Resetar pick para o dono original?')) return;
+  fetch(`/api/picks/${id}/reset`, {method:'POST'})
+    .then(r => r.json()).then(() => location.reload());
+}
+</script>
+{% endblock %}

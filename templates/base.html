@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Dynasty SB{% endblock %} — Dynasty SB</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/" class="nav-brand">
+    <span class="nav-logo">🏈</span>
+    <span class="nav-title">Dynasty SB</span>
+  </a>
+
+  <ul class="nav-links" id="nav-links">
+    <li><a href="/"              class="{% if request.path == '/' %}active{% endif %}">Roster</a></li>
+    <li><a href="/salary"        class="{% if '/salary' in request.path and 'history' not in request.path and 'cap' not in request.path %}active{% endif %}">Calculadora</a></li>
+    <li><a href="/cap_projector" class="{% if 'cap_projector' in request.path %}active{% endif %}">Cap Projector</a></li>
+    <li><a href="/trades"        class="{% if 'trades' in request.path %}active{% endif %}">Trades</a></li>
+    <li><a href="/picks"         class="{% if 'picks' in request.path %}active{% endif %}">Picks</a></li>
+    <li><a href="/auction"       class="{% if 'auction' in request.path %}active{% endif %}">Auction</a></li>
+    <li><a href="/salary_history" class="{% if 'salary_history' in request.path %}active{% endif %}">Histórico</a></li>
+    <li><a href="/admin"         class="{% if 'admin' in request.path and 'offseason' not in request.path %}active{% endif %}">Admin</a></li>
+    <li><a href="/offseason"     class="{% if 'offseason' in request.path %}active{% endif %}">
+      {% if g_offseason_mode %}⚙️ {% endif %}Offseason</a></li>
+  </ul>
+
+  <div class="nav-right">
+    <span class="cap-chip" id="nav-cap-chip" title="Cap: Cangaceiros da Colina"></span>
+    <button class="btn-sync" id="btn-sync-nav" onclick="triggerSync()" title="Sincronizar com Sleeper">
+      🔄 <span class="sync-label">Sync</span>
+    </button>
+  </div>
+</nav>
+
+<!-- Sync status banner (hidden by default) -->
+<div id="sync-banner" class="sync-banner" style="display:none"></div>
+
+{% if g_offseason_mode %}
+<div class="offseason-banner">
+  ⚙️ Offseason {{ g_current_season }} — <a href="/offseason">Painel de Intertemporada</a>
+</div>
+{% endif %}
+
+<main class="container">
+  {% block content %}{% endblock %}
+</main>
+
+{# Player history modal — available on all pages #}
+<div id="player-modal" class="modal" style="display:none">
+  <div class="modal-overlay" onclick="closePlayerModal()"></div>
+  <div class="modal-box modal-sm">
+    <div id="player-modal-content"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closePlayerModal()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">
+  Dynasty SB &bull; 12 Teams &bull; PPR &bull; Cap $200 &bull;
+  <a href="/admin">Admin</a>
+  &bull; <span id="footer-sync-time"></span>
+</footer>
+
+<script>
+// ── Global cap chip ─────────────────────────────────────────────────────────
+(function loadCapChip() {
+  fetch('/api/teams').then(r => r.json()).then(teams => {
+    const me = teams.find(t => t.is_my_team);
+    if (!me) return;
+    const chip = document.getElementById('nav-cap-chip');
+    const pct = (me.active_salary / 200 * 100).toFixed(0);
+    const cls = me.active_salary > 190 ? 'chip-danger' : (me.active_salary > 160 ? 'chip-warn' : 'chip-ok');
+    chip.className = 'cap-chip ' + cls;
+    chip.textContent = `$${me.active_salary}/$200`;
+  }).catch(()=>{});
+})();
+
+// ── Last sync time in footer ─────────────────────────────────────────────────
+(function loadSyncTime() {
+  fetch('/api/admin/last_sync').then(r => r.json()).then(d => {
+    const el = document.getElementById('footer-sync-time');
+    if (el && d.synced_at) el.textContent = 'Último sync: ' + d.synced_at;
+  }).catch(()=>{});
+})();
+
+// ── Sync trigger ─────────────────────────────────────────────────────────────
+function triggerSync() {
+  const btn = document.getElementById('btn-sync-nav');
+  const banner = document.getElementById('sync-banner');
+  btn.disabled = true;
+  btn.textContent = '⏳ Sincronizando...';
+  banner.style.display = 'block';
+  banner.className = 'sync-banner sync-loading';
+  banner.textContent = '⏳ Sincronizando com Sleeper...';
+
+  fetch('/api/admin/sync', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        banner.className = 'sync-banner sync-ok';
+        const newU = data.new_unknown || [];
+        let msg = `✅ Sync concluído — ${data.players_updated} atualizados, ${data.players_added} novos, ${data.picks_updated} picks.`;
+        if (newU.length > 0) msg += ` ⚠️ ${newU.length} jogador(es) precisam de revisão.`;
+        banner.textContent = msg;
+        setTimeout(() => { banner.style.display = 'none'; location.reload(); }, 3000);
+      } else {
+        banner.className = 'sync-banner sync-error';
+        banner.textContent = '❌ Erro no sync: ' + (data.error || 'desconhecido');
+      }
+    })
+    .catch(err => {
+      banner.className = 'sync-banner sync-error';
+      banner.textContent = '❌ Falha de conexão: ' + err.message;
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerHTML = '🔄 <span class="sync-label">Sync</span>';
+    });
+}
+
+// ── Player history modal ────────────────────────────────────────────────────
+function showPlayerHistory(playerId) {
+  const modal = document.getElementById('player-modal');
+  const content = document.getElementById('player-modal-content');
+  content.innerHTML = '<div class="loading-msg">Carregando...</div>';
+  modal.style.display = 'flex';
+
+  fetch(`/api/player/${playerId}/history`)
+    .then(r => r.json())
+    .then(data => {
+      const p = data.player;
+      let html = `<h2 style="margin-bottom:.5rem">${p.name}</h2>
+        <div class="text-dim" style="margin-bottom:.75rem;font-size:.82rem">
+          ${p.position} · ${p.nfl_team || ''} · ${p.fantasy_team} · $${Math.round(p.salary)} · ${p.contract_display}
+        </div>`;
+
+      if (data.history.length) {
+        html += '<div class="timeline">';
+        data.history.forEach(h => {
+          const badge = {trade:'tag-trade', cut:'tag-review', renewal:'tag-renewal',
+            rookie_draft:'tag-current', auction_draft:'tag-current', fa_auction:'tag-trade',
+            fa_waiver:'tag-trade', rollover:'tag-prov'}[h.event_type] || '';
+          html += `<div class="timeline-item">
+            <span class="timeline-dot"></span>
+            <div class="timeline-content">
+              <span class="tag ${badge}">${h.event_type}</span>
+              <span class="text-dim" style="font-size:.75rem">${h.created_at} · ${h.team_name}</span>
+              <span style="font-size:.82rem">$${Math.round(h.salary)} · Ano ${h.contract_year}</span>
+              ${h.notes ? '<span class="text-dim" style="font-size:.72rem">' + h.notes + '</span>' : ''}
+            </div>
+          </div>`;
+        });
+        html += '</div>';
+      } else {
+        html += '<p class="text-dim">Sem historico registrado.</p>';
+      }
+      content.innerHTML = html;
+    });
+}
+
+function closePlayerModal() {
+  document.getElementById('player-modal').style.display = 'none';
+}
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

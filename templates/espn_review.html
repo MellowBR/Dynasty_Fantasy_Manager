@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Revisao ESPN Import{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">🔍 Revisao da Importacao ESPN</h1>
+  <p class="page-subtitle">
+    {{ data.total_parsed }} jogadores parseados do PDF |
+    Temporada {{ data.season }} |
+    {{ "Final" if data.is_final else "Provisorio" }}
+  </p>
+</div>
+
+<div class="review-stats">
+  <span class="review-stat stat-ok">{{ data.matched | length }} matched</span>
+  <span class="review-stat stat-warn">{{ data.approximate | length }} aproximados</span>
+  <span class="review-stat stat-err">{{ data.not_found | length }} nao encontrados</span>
+  <span class="review-stat stat-dim">{{ data.absent | length }} ausentes no PDF</span>
+</div>
+
+{# ── Section 1: Direct matches (collapsible) ── #}
+<div class="card">
+  <h2 class="card-title" style="cursor:pointer" onclick="toggleSection('sec-matched')">
+    ✅ Matches Diretos ({{ data.matched | length }})
+    <span class="text-dim" style="font-size:.8rem">— clique para expandir</span>
+  </h2>
+  <div id="sec-matched" style="display:none">
+    <table class="data-table">
+      <thead><tr><th style="width:30px"></th><th>ESPN</th><th>Banco</th><th>Pos</th><th>$Raw</th><th>$Adj</th></tr></thead>
+      <tbody>
+        {% for m in data.matched %}
+        <tr>
+          <td><input type="checkbox" class="match-cb" data-pid="{{ m.player_id }}" checked></td>
+          <td>{{ m.name }}</td>
+          <td>{{ m.db_name }}</td>
+          <td><span class="pos-badge pos-{{ m.position }}">{{ m.position }}</span></td>
+          <td class="text-dim">${{ m.espn_raw | int }}</td>
+          <td><strong>${{ m.espn_adjusted | int }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ── Section 2: Approximate matches (must resolve) ── #}
+{% if data.approximate %}
+<div class="card card-warn-border">
+  <h2 class="card-title">⚠️ Matches Aproximados ({{ data.approximate | length }}) — resolver antes de confirmar</h2>
+  <div class="approx-list">
+    {% for a in data.approximate %}
+    <div class="approx-row" id="approx-{{ loop.index0 }}">
+      <div class="approx-left">
+        <strong>{{ a.name }}</strong>
+        <span class="text-dim">{{ a.nfl_team }} · ${{ a.espn_raw | int }} → ${{ a.espn_adjusted | int }}</span>
+        <span class="text-dim" style="font-size:.75rem">Similaridade: {{ (a.similarity * 100) | round(1) }}%</span>
+      </div>
+      <div class="approx-right">
+        <select class="approx-select" data-espn-name="{{ a.name }}">
+          <option value="">— selecionar —</option>
+          {% for c in a.candidates %}
+          <option value="{{ c.player_id }}" {{ 'selected' if c.player_id == a.player_id }}>
+            {{ c.name }} ({{ c.position }}) — {{ (c.similarity * 100) | round(1) }}%
+          </option>
+          {% endfor %}
+          <option value="skip">Nenhum (aplicar $1)</option>
+        </select>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ── Section 3: Not found ── #}
+{% if data.not_found %}
+<div class="card">
+  <h2 class="card-title" style="cursor:pointer" onclick="toggleSection('sec-notfound')">
+    ❌ Nao Encontrados ({{ data.not_found | length }})
+    <span class="text-dim" style="font-size:.8rem">— todos receberao $1</span>
+  </h2>
+  <div id="sec-notfound" style="display:none">
+    <div class="tag-list">
+      {% for nf in data.not_found %}
+      <span class="tag">{{ nf.name }} ({{ nf.nfl_team }}, ${{ nf.espn_raw | int }})</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Section 4: Absent from PDF ── #}
+{% if data.absent %}
+<div class="card">
+  <h2 class="card-title" style="cursor:pointer" onclick="toggleSection('sec-absent')">
+    📋 Ausentes no PDF ({{ data.absent | length }})
+    <span class="text-dim" style="font-size:.8rem">— receberao $1</span>
+  </h2>
+  <div id="sec-absent" style="display:none">
+    <div class="tag-list">
+      {% for ab in data.absent %}
+      <span class="tag">{{ ab.name }} ({{ ab.position }})</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Confirm button ── #}
+<div class="confirm-bar">
+  <span id="confirm-status" class="text-dim"></span>
+  <button id="btn-confirm" class="btn btn-primary" onclick="confirmImport()"
+          data-tooltip="Salva os valores ESPN no banco,&#10;atualiza Player.espn_ref_value&#10;e registra log da importacao.">
+    ✅ Confirmar e Importar
+  </button>
+</div>
+<div id="confirm-result" class="result-box" style="display:none;margin-top:1rem"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+function getApproxResolutions() {
+  const res = {};
+  let unresolved = 0;
+  document.querySelectorAll('.approx-select').forEach(sel => {
+    const espnName = sel.dataset.espnName;
+    if (sel.value) {
+      res[espnName] = sel.value;
+    } else {
+      unresolved++;
+    }
+  });
+  return { res, unresolved };
+}
+
+function getExcludedIds() {
+  const excluded = [];
+  document.querySelectorAll('.match-cb').forEach(cb => {
+    if (!cb.checked) excluded.push(parseInt(cb.dataset.pid));
+  });
+  return excluded;
+}
+
+function updateStatus() {
+  const { unresolved } = getApproxResolutions();
+  const status = document.getElementById('confirm-status');
+  const btn = document.getElementById('btn-confirm');
+  if (unresolved > 0) {
+    status.textContent = `${unresolved} match(es) aproximado(s) pendente(s)`;
+    status.className = 'text-warn';
+    btn.disabled = true;
+  } else {
+    status.textContent = 'Pronto para importar';
+    status.className = 'text-ok';
+    btn.disabled = false;
+  }
+}
+
+function confirmImport() {
+  const { res } = getApproxResolutions();
+  const excluded = getExcludedIds();
+
+  document.getElementById('btn-confirm').disabled = true;
+  document.getElementById('btn-confirm').textContent = '⏳ Importando...';
+
+  fetch('/api/admin/espn_import/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      approximate_resolutions: res,
+      excluded_ids: excluded,
+    })
+  })
+  .then(r => r.json())
+  .then(d => {
+    const box = document.getElementById('confirm-result');
+    box.style.display = 'block';
+    if (d.success) {
+      box.className = 'result-box result-ok';
+      box.textContent = `✅ Importado: ${d.total_matched} matched, ${d.total_approximate} aproximados, ${d.total_notfound} com $1.`;
+      setTimeout(() => window.location.href = '/admin/espn_import', 2500);
+    } else {
+      box.className = 'result-box result-error';
+      box.textContent = '❌ ' + (d.error || 'Erro desconhecido');
+      document.getElementById('btn-confirm').disabled = false;
+      document.getElementById('btn-confirm').textContent = '✅ Confirmar e Importar';
+    }
+  });
+}
+
+// Listen for changes on approximate selects
+document.querySelectorAll('.approx-select').forEach(sel => {
+  sel.addEventListener('change', updateStatus);
+});
+updateStatus();
+</script>
+{% endblock %}

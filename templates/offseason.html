@@ -1,0 +1,405 @@
+{% extends "base.html" %}
+{% block title %}Offseason {{ season }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">⚙️ Intertemporada {{ season }}/{{ season + 1 }}</h1>
+  <p class="page-subtitle">Checklist sequencial — complete cada etapa em ordem.</p>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="alert {{ 'alert-ok' if cat == 'ok' else ('alert-warn' if cat == 'warn' else 'alert-danger') }}">{{ msg }}</div>
+  {% endfor %}
+{% endwith %}
+
+{# ── Step checklist ── #}
+<div class="offseason-steps">
+{% for step in steps %}
+  <div class="step-card step-{{ step.status }}" id="step-{{ step.num }}">
+    <div class="step-header" onclick="toggleStep({{ step.num }})">
+      <span class="step-badge step-badge-{{ step.status }}">
+        {% if step.status == 'done' %}✅{% elif step.status == 'locked' %}🔒{% else %}⏳{% endif %}
+      </span>
+      <span class="step-title">{{ step.num }}. {{ step.name }}</span>
+      <span class="step-status-text">
+        {% if step.status == 'done' %}Concluido{% elif step.status == 'locked' %}Bloqueado{% else %}Pendente{% endif %}
+      </span>
+    </div>
+
+    <div class="step-body" id="step-body-{{ step.num }}" style="{{ '' if step.status == 'pending' or (step.status == 'done' and step.num <= 2) else 'display:none' }}">
+    {% if step.num == 1 %}
+      {# ── STEP 1: Close Season ── #}
+      <div class="step-content">
+        <h3>Standings da Temporada {{ season }}</h3>
+        <div class="step-actions" style="margin-bottom:1rem">
+          <button class="btn btn-secondary" onclick="checkPreviousLeague()"
+                  data-tooltip="Verifica se o Sleeper tem a liga de {{ season }}&#10;e importa standings automaticamente.">
+            🔍 Verificar Sleeper
+          </button>
+          <span id="sleeper-check-status" class="text-dim"></span>
+        </div>
+        <div id="sleeper-import-btn" style="display:none">
+          <button class="btn btn-primary" onclick="importFromSleeper()"
+                  data-tooltip="Busca W/L, pontos e brackets do Sleeper.">
+            📥 Importar do Sleeper
+          </button>
+        </div>
+
+        <table class="data-table" id="standings-table">
+          <thead><tr><th>#</th><th>Time</th><th>W</th><th>L</th><th>Pts</th><th>🏆</th><th>🥈</th></tr></thead>
+          <tbody>
+          {% if standings %}
+            {% for s in standings %}
+            <tr>
+              <td><input type="number" class="input-sm" value="{{ s.rank }}" data-field="rank" data-id="{{ s.id }}" min="1" max="12" style="width:40px"></td>
+              <td>{{ s.team_name }}</td>
+              <td><input type="number" class="input-sm" value="{{ s.wins }}" data-field="wins" data-id="{{ s.id }}" min="0" style="width:40px"></td>
+              <td><input type="number" class="input-sm" value="{{ s.losses }}" data-field="losses" data-id="{{ s.id }}" min="0" style="width:40px"></td>
+              <td class="text-dim">{{ s.points_for | round(1) }}</td>
+              <td><input type="checkbox" data-field="is_champion" data-id="{{ s.id }}" {{ 'checked' if s.is_champion }}></td>
+              <td><input type="checkbox" data-field="is_runner_up" data-id="{{ s.id }}" {{ 'checked' if s.is_runner_up }}></td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="7" class="text-dim">Sem standings. Importe do Sleeper ou preencha manualmente.</td></tr>
+          {% endif %}
+          </tbody>
+        </table>
+
+        {% if not standings %}
+        <div style="margin-top:.75rem">
+          <h4>Preencher manualmente</h4>
+          <table class="data-table" id="manual-standings">
+            <thead><tr><th>#</th><th>Time</th><th>W</th><th>L</th><th>Pts</th><th>🏆</th><th>🥈</th></tr></thead>
+            <tbody>
+            {% for i in range(1, 13) %}
+            <tr>
+              <td>{{ i }}</td>
+              <td><select class="manual-team" data-rank="{{ i }}">
+                <option value="">— selecionar —</option>
+                {% for t in teams %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}
+              </select></td>
+              <td><input type="number" class="input-sm manual-wins" value="0" min="0" style="width:40px"></td>
+              <td><input type="number" class="input-sm manual-losses" value="0" min="0" style="width:40px"></td>
+              <td><input type="number" class="input-sm manual-pts" value="0" step="0.1" min="0" style="width:60px"></td>
+              <td><input type="checkbox" class="manual-champ"></td>
+              <td><input type="checkbox" class="manual-runner"></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          <button class="btn btn-primary" style="margin-top:.75rem" onclick="saveManualStandings()">
+            💾 Salvar Standings
+          </button>
+        </div>
+        {% endif %}
+        <div id="step1-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+      </div>
+
+    {% elif step.num == 2 %}
+      {# ── STEP 2: Draft Lottery ── #}
+      <div class="step-content">
+        {% set any_locked = lottery and lottery[0].locked %}
+
+        {% if not standings %}
+          <p class="text-dim">Complete a etapa 1 primeiro.</p>
+        {% elif any_locked %}
+          <div class="alert alert-ok">🔒 Sorteio travado — resultado oficial.</div>
+          <table class="data-table">
+            <thead><tr><th>Pick</th><th>Time</th><th>Origem</th></tr></thead>
+            <tbody>
+            {% for l in lottery %}
+            <tr>
+              <td><strong>{{ l.pick_number }}</strong></td>
+              <td>{{ l.team_name }}</td>
+              <td><span class="tag {{ 'tag-trade' if l.source == 'lottery' else 'tag-current' }}">{{ l.source }}</span></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <h3>Probabilidades do Lottery (picks 1-5)</h3>
+          <p class="text-dim">Times 8o-12o do standings. Pesos sao normalizados automaticamente.</p>
+          <div class="lottery-weights">
+            {% for seed, pct in lottery_weights.items() %}
+            <div class="weight-row">
+              <label>Seed {{ seed }} — {{ lottery_seeds.get(seed, '?') }} ({{ 13 - seed }}o lugar):</label>
+              <input type="number" class="input-sm lottery-weight" data-seed="{{ seed }}" value="{{ pct }}" min="0" style="width:60px">
+              <span class="text-dim">%</span>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="step-actions" style="margin-top:1rem">
+            <button class="btn btn-primary" onclick="runLottery()">🎲 Realizar Sorteio</button>
+            <button class="btn btn-secondary" onclick="runLottery()">🔄 Refazer Sorteio</button>
+          </div>
+
+          <div id="lottery-results" style="margin-top:1rem">
+            {% if lottery %}
+            <table class="data-table">
+              <thead><tr><th>Pick</th><th>Time</th><th>Origem</th></tr></thead>
+              <tbody>
+              {% for l in lottery %}
+              <tr>
+                <td><strong>{{ l.pick_number }}</strong></td>
+                <td>{{ l.team_name }}</td>
+                <td><span class="tag {{ 'tag-trade' if l.source == 'lottery' else 'tag-current' }}">{{ l.source }}</span></td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            {% endif %}
+          </div>
+
+          <div id="lock-lottery-wrap" class="step-actions" style="margin-top:1rem;{{ '' if lottery else 'display:none' }}">
+            <button class="btn btn-danger" onclick="lockLottery()"
+                    data-tooltip="Acao irreversivel! Trava o resultado do&#10;sorteio e libera o Season Rollover.">
+              🔒 Travar Sorteio (irreversivel)
+            </button>
+          </div>
+        {% endif %}
+        <div id="step2-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+      </div>
+
+    {% elif step.num == 3 %}
+      {# ── STEP 3: ESPN Values ── #}
+      <div class="step-content">
+        <p class="text-dim">Importe os valores ESPN PPR antes do rollover.</p>
+        <div class="step-actions">
+          <a href="/admin/espn_import" class="btn btn-secondary">📥 Ir para Importacao ESPN</a>
+          <button class="btn btn-primary" onclick="confirmEspn()"
+                  data-tooltip="Marcar ESPN values como atualizados.&#10;Necessario para desbloquear o Rollover.">
+            ✅ Confirmar ESPN Atualizado
+          </button>
+        </div>
+        <div id="step3-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+      </div>
+
+    {% elif step.num == 4 %}
+      {# ── STEP 4: Season Rollover ── #}
+      <div class="step-content">
+        {% if step.status == 'locked' %}
+          <div class="alert alert-warn">🔒 Bloqueado — complete etapas 2 e 3 primeiro.</div>
+        {% elif step.done %}
+          <div class="alert alert-ok">✅ Rollover concluido. Temporada {{ season + 1 }}.</div>
+        {% else %}
+          <p class="text-dim" style="margin-bottom:.75rem">
+            Avanca contratos, recalcula salarios e muda a temporada para {{ season + 1 }}.
+          </p>
+          <button class="btn btn-danger" onclick="doRollover()"
+                  data-tooltip="Irreversivel! Avanca todos os contratos e&#10;recalcula salarios baseados nos ESPN values.">
+            ⚡ Executar Season Rollover
+          </button>
+        {% endif %}
+        <div id="step4-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+      </div>
+
+    {% elif step.num == 5 %}
+      {# ── STEP 5: Rookie Draft ── #}
+      <div class="step-content">
+        <p class="text-dim" style="margin-bottom:.75rem">
+          Realizar o rookie draft na plataforma Sleeper e registrar em Auction Log.
+        </p>
+        {% if step.done %}
+          <div class="alert alert-ok" style="margin-bottom:.75rem">✅ Rookie Draft concluido.</div>
+          <button class="btn btn-secondary" onclick="toggleFlag('/api/offseason/rookie_draft_done', true, 'step5-result')">
+            ↩ Reverter
+          </button>
+        {% else %}
+          <div class="step-actions">
+            <a href="/auction" class="btn btn-secondary">📝 Ir para Auction Log</a>
+            <button class="btn btn-primary" onclick="toggleFlag('/api/offseason/rookie_draft_done', false, 'step5-result')">
+              ✅ Marcar como concluido
+            </button>
+          </div>
+        {% endif %}
+        <div id="step5-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+      </div>
+
+    {% elif step.num == 6 %}
+      {# ── STEP 6: Keepers/Cuts (informational) ── #}
+      <div class="step-content">
+        <p class="text-dim">Definir quais jogadores manter e quais cortar.</p>
+      </div>
+
+    {% elif step.num == 7 %}
+      {# ── STEP 7: FA Auction ── #}
+      <div class="step-content">
+        <p class="text-dim" style="margin-bottom:.75rem">
+          Realizar a FA auction e registrar resultados no Auction Log.
+        </p>
+        {% if step.done %}
+          <div class="alert alert-ok" style="margin-bottom:.75rem">✅ FA Auction concluido.</div>
+          <button class="btn btn-secondary" onclick="toggleFlag('/api/offseason/auction_done', true, 'step7-result')">
+            ↩ Reverter
+          </button>
+        {% else %}
+          <div class="step-actions">
+            <a href="/auction" class="btn btn-secondary">📝 Ir para Auction Log</a>
+            <button class="btn btn-primary" onclick="toggleFlag('/api/offseason/auction_done', false, 'step7-result')">
+              ✅ Marcar como concluido
+            </button>
+          </div>
+        {% endif %}
+        <div id="step7-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+      </div>
+    {% endif %}
+    </div>
+  </div>
+{% endfor %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let previousLeagueId = null;
+
+function toggleStep(num) {
+  const el = document.getElementById('step-body-' + num);
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+// ── Step 1: Standings ──
+
+function checkPreviousLeague() {
+  const status = document.getElementById('sleeper-check-status');
+  status.textContent = 'Verificando...';
+  fetch('/api/offseason/check_previous_league')
+    .then(r => r.json()).then(d => {
+      if (d.available) {
+        previousLeagueId = d.previous_league_id;
+        status.textContent = 'Liga encontrada! Season ' + d.season;
+        status.className = 'text-ok';
+        document.getElementById('sleeper-import-btn').style.display = '';
+      } else {
+        status.textContent = d.reason;
+        status.className = 'text-warn';
+      }
+    });
+}
+
+function importFromSleeper() {
+  if (!previousLeagueId) return;
+  fetch('/api/offseason/import_standings', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({previous_league_id: previousLeagueId})
+  }).then(r => r.json()).then(d => {
+    showResult('step1-result', d.success, d.error || `${d.count} times importados`);
+    if (d.success) setTimeout(() => location.reload(), 1500);
+  });
+}
+
+function saveManualStandings() {
+  const rows = document.querySelectorAll('#manual-standings tbody tr');
+  const standings = [];
+  rows.forEach((row, i) => {
+    const team = row.querySelector('.manual-team').value;
+    if (!team) return;
+    standings.push({
+      rank: i + 1,
+      team_name: team,
+      wins: parseInt(row.querySelector('.manual-wins').value) || 0,
+      losses: parseInt(row.querySelector('.manual-losses').value) || 0,
+      points_for: parseFloat(row.querySelector('.manual-pts').value) || 0,
+      is_champion: row.querySelector('.manual-champ').checked,
+      is_runner_up: row.querySelector('.manual-runner').checked,
+    });
+  });
+  fetch('/api/offseason/save_standings', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({standings})
+  }).then(r => r.json()).then(d => {
+    showResult('step1-result', d.success, d.error || 'Standings salvos');
+    if (d.success) setTimeout(() => location.reload(), 1500);
+  });
+}
+
+// ── Step 2: Lottery ──
+
+function runLottery() {
+  const weights = {};
+  document.querySelectorAll('.lottery-weight').forEach(el => {
+    weights[el.dataset.seed] = parseFloat(el.value) || 0;
+  });
+  fetch('/api/offseason/run_lottery', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({weights})
+  }).then(r => r.json()).then(d => {
+    if (d.error) { showResult('step2-result', false, d.error); return; }
+    let html = '<table class="data-table"><thead><tr><th>Pick</th><th>Time</th><th>Origem</th></tr></thead><tbody>';
+    d.results.sort((a, b) => a.pick_number - b.pick_number);
+    d.results.forEach(r => {
+      const cls = r.source === 'lottery' ? 'tag-trade' : 'tag-current';
+      html += `<tr><td><strong>${r.pick_number}</strong></td><td>${r.team_name}</td>
+               <td><span class="tag ${cls}">${r.source}</span></td></tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('lottery-results').innerHTML = html;
+    document.getElementById('lock-lottery-wrap').style.display = '';
+    showResult('step2-result', true, 'Sorteio realizado! Trave quando estiver satisfeito.');
+  });
+}
+
+function lockLottery() {
+  if (!confirm('ATENCAO: Travar o sorteio e IRREVERSIVEL.\n\nTem certeza?')) return;
+  if (!confirm('Ultima chance — confirmar travamento do sorteio?')) return;
+  fetch('/api/offseason/lock_lottery', {method: 'POST'})
+    .then(r => r.json()).then(d => {
+      showResult('step2-result', d.success, d.error || 'Sorteio travado!');
+      if (d.success) setTimeout(() => location.reload(), 1500);
+    });
+}
+
+// ── Step 3: ESPN ──
+
+function confirmEspn() {
+  fetch('/api/offseason/confirm_espn', {method: 'POST'})
+    .then(r => r.json()).then(d => {
+      showResult('step3-result', true, 'ESPN values marcados como atualizados.');
+      setTimeout(() => location.reload(), 1000);
+    });
+}
+
+// ── Step 4: Rollover ──
+
+function doRollover() {
+  if (!confirm('A tabela ESPN esta atualizada?\n\nO rollover usa os valores ESPN para calcular salarios.')) return;
+  if (!confirm('Executar Season Rollover? IRREVERSIVEL.\n\nFaca backup do dynasty.db antes.')) return;
+
+  fetch('/api/offseason/rollover', {method: 'POST'})
+    .then(r => r.json()).then(d => {
+      showResult('step4-result', d.success,
+        d.error || `Rollover aplicado: ${d.applied} jogadores, ${d.renewals} renovacoes. Nova temporada: ${d.new_season}.`);
+      if (d.success) setTimeout(() => location.reload(), 2000);
+    });
+}
+
+// ── Generic flag toggle (steps 5, 7) ──
+
+function toggleFlag(url, undo, resultId) {
+  const action = undo ? 'Reverter' : 'Marcar como concluido';
+  if (!confirm(`${action}? Confirmar?`)) return;
+
+  fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({undo: undo})
+  }).then(r => r.json()).then(d => {
+    showResult(resultId, d.ok, d.message || 'OK');
+    if (d.ok) setTimeout(() => location.reload(), 1000);
+  });
+}
+
+// ── Utils ──
+
+function showResult(id, success, msg) {
+  const el = document.getElementById(id);
+  el.style.display = 'block';
+  el.className = 'result-box ' + (success ? 'result-ok' : 'result-error');
+  el.textContent = (success ? '✅ ' : '❌ ') + msg;
+}
+</script>
+{% endblock %}

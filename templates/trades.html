@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}Trade Manager{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">🔄 Trade Manager</h1>
+  <p class="page-subtitle">Trocas entre equipes. O contrato do jogador não muda.</p>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Nova Trade</h2>
+
+  <div class="trade-layout">
+    <!-- Team A -->
+    <div class="trade-side">
+      <div class="trade-side-header">
+        <label>Equipe A (envia):</label>
+        <div class="trade-team-row">
+          <img id="avatar-a" class="owner-avatar-sm" style="display:none" onerror="this.style.display='none'">
+          <select id="sel-a" onchange="loadSide('a', this.value)">
+            <option value="">— selecionar —</option>
+            {% for t in teams %}<option value="{{ t.name }}" data-avatar="{{ t.owner_avatar or '' }}">{{ t.name }}{% if t.owner_name %} ({{ t.owner_name }}){% endif %}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="cap-mini" id="cap-a"></div>
+      </div>
+      <div class="trade-cols">
+        <div>
+          <p class="col-label">Jogadores</p>
+          <div class="asset-list" id="players-a"></div>
+        </div>
+        <div>
+          <p class="col-label">Picks</p>
+          <div class="asset-list" id="picks-a"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="trade-arrow">⇄</div>
+
+    <!-- Team B -->
+    <div class="trade-side">
+      <div class="trade-side-header">
+        <label>Equipe B (envia):</label>
+        <div class="trade-team-row">
+          <img id="avatar-b" class="owner-avatar-sm" style="display:none" onerror="this.style.display='none'">
+          <select id="sel-b" onchange="loadSide('b', this.value)">
+            <option value="">— selecionar —</option>
+            {% for t in teams %}<option value="{{ t.name }}" data-avatar="{{ t.owner_avatar or '' }}">{{ t.name }}{% if t.owner_name %} ({{ t.owner_name }}){% endif %}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="cap-mini" id="cap-b"></div>
+      </div>
+      <div class="trade-cols">
+        <div>
+          <p class="col-label">Jogadores</p>
+          <div class="asset-list" id="players-b"></div>
+        </div>
+        <div>
+          <p class="col-label">Picks</p>
+          <div class="asset-list" id="picks-b"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="trade-actions">
+    <button class="btn btn-secondary" onclick="previewTrade()">👁 Preview Cap Impact</button>
+    <button class="btn btn-primary" onclick="previewTrade()">✅ Confirmar Trade</button>
+  </div>
+</div>
+
+<!-- Preview modal -->
+<div id="trade-modal" class="modal" style="display:none">
+  <div class="modal-overlay" onclick="closeModal()"></div>
+  <div class="modal-box">
+    <h2>Preview da Trade</h2>
+    <div id="modal-content"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="executeTrade()">✅ Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Recent trades -->
+<div class="card">
+  <h2 class="card-title">📜 Trades Recentes</h2>
+  {% if recent_trades %}
+  <table class="data-table">
+    <thead><tr><th>Data</th><th>Equipe A</th><th>Equipe B</th><th>Descrição</th></tr></thead>
+    <tbody>
+      {% for t in recent_trades %}
+      <tr>
+        <td class="text-dim" style="white-space:nowrap">{{ t.trade_date.strftime('%d/%m/%Y') if t.trade_date else '—' }}</td>
+        <td class="team-cell">
+          {% if avatar_map.get(t.team_a) %}<img src="https://sleepercdn.com/avatars/{{ avatar_map[t.team_a] }}" class="owner-avatar-sm" onerror="this.style.display='none'">{% endif %}
+          {{ t.team_a }}{% if owner_map.get(t.team_a) %} <span class="owner-hint">({{ owner_map[t.team_a] }})</span>{% endif %}
+        </td>
+        <td class="team-cell">
+          {% if avatar_map.get(t.team_b) %}<img src="https://sleepercdn.com/avatars/{{ avatar_map[t.team_b] }}" class="owner-avatar-sm" onerror="this.style.display='none'">{% endif %}
+          {{ t.team_b }}{% if owner_map.get(t.team_b) %} <span class="owner-hint">({{ owner_map[t.team_b] }})</span>{% endif %}
+        </td>
+        <td class="text-dim small-text">{{ t.description }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-dim">Nenhuma trade registrada.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const selected = { players: {a: new Set(), b: new Set()}, picks: {a: new Set(), b: new Set()} };
+const sideData = { players: {a:[], b:[]}, picks: {a:[], b:[]} };
+
+function loadSide(side, teamName) {
+  if (!teamName) return;
+  selected.players[side].clear();
+  selected.picks[side].clear();
+
+  // Show avatar for selected team
+  const sel = document.getElementById('sel-' + side);
+  const opt = sel.options[sel.selectedIndex];
+  const avatarId = opt ? opt.dataset.avatar : '';
+  const img = document.getElementById('avatar-' + side);
+  if (avatarId) {
+    img.src = 'https://sleepercdn.com/avatars/' + avatarId;
+    img.style.display = '';
+  } else {
+    img.style.display = 'none';
+  }
+
+  fetch('/api/roster/by_name/' + encodeURIComponent(teamName))
+    .then(r => r.json()).then(players => {
+      sideData.players[side] = players;
+      const div = document.getElementById('players-' + side);
+      if (!players.length) { div.innerHTML = '<p class="text-dim">Sem jogadores.</p>'; return; }
+      div.innerHTML = players.map(p => `
+        <label class="asset-item">
+          <input type="checkbox" onchange="toggleAsset('${side}','players',${p.id})">
+          <span class="pos-badge pos-${p.position.replace('/','')}">${p.position}</span>
+          <span class="asset-name">${p.name}</span>
+          <span class="text-dim small-text">$${Math.round(p.salary)} · ${p.contract_display}</span>
+        </label>`).join('');
+    });
+
+  fetch('/api/picks?team=' + encodeURIComponent(teamName))
+    .then(r => r.json()).then(picks => {
+      sideData.picks[side] = picks;
+      const div = document.getElementById('picks-' + side);
+      if (!picks.length) { div.innerHTML = '<p class="text-dim">Sem picks.</p>'; return; }
+      div.innerHTML = picks.map(p => {
+        let label = `${p.season} Rd${p.round}`;
+        if (p.projected_pick) {
+          const prefix = p.projection_locked ? '#' : '~#';
+          label += ` ${prefix}${p.projected_pick}`;
+        }
+        const extra = p.traded_away ? ' (via trade)' : '';
+        return `<label class="asset-item">
+          <input type="checkbox" onchange="toggleAsset('${side}','picks',${p.id})">
+          <span class="pick-chip">${label}</span>
+          <span class="text-dim small-text">${extra}</span>
+        </label>`;
+      }).join('');
+    });
+
+  fetch('/api/teams').then(r => r.json()).then(teams => {
+    const t = teams.find(t => t.name === teamName);
+    if (t) document.getElementById('cap-' + side).textContent =
+      `Cap: $${t.active_salary}/$200 · Restante: $${t.cap_remaining}`;
+  });
+}
+
+function toggleAsset(side, type, id) {
+  const set = selected[type][side];
+  set.has(id) ? set.delete(id) : set.add(id);
+}
+
+function getPayload() {
+  return {
+    team_a: document.getElementById('sel-a').value,
+    team_b: document.getElementById('sel-b').value,
+    players_a: [...selected.players.a],
+    players_b: [...selected.players.b],
+    picks_a: [...selected.picks.a],
+    picks_b: [...selected.picks.b],
+  };
+}
+
+function previewTrade() {
+  const p = getPayload();
+  if (!p.team_a || !p.team_b) { alert('Selecione ambas as equipes.'); return; }
+
+  fetch('/api/trades/preview', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(p)
+  }).then(r => r.json()).then(data => {
+    if (data.error) { alert(data.error); return; }
+    renderPreview(data);
+    document.getElementById('trade-modal').style.display = 'flex';
+  });
+}
+
+function renderPreview(data) {
+  function side(s) {
+    const out_p = s.players_out.map(p => `${p.name} ($${Math.round(p.salary)})`).join(', ') || '—';
+    const in_p  = s.players_in.map(p => `${p.name} ($${Math.round(p.salary)})`).join(', ')  || '—';
+    const out_k = s.picks_out.map(p => `${p.season} Rd${p.round}`).join(', ') || '—';
+    const in_k  = s.picks_in.map(p  => `${p.season} Rd${p.round}`).join(', ')  || '—';
+    const capCls = s.over_cap ? 'text-danger' : 'text-ok';
+    return `<div class="preview-side">
+      <h3>${s.name}</h3>
+      <p>📤 Envia: <strong>${out_p}</strong> | picks: ${out_k}</p>
+      <p>📥 Recebe: <strong>${in_p}</strong> | picks: ${in_k}</p>
+      <p>Cap: $${s.cap_before} → <span class="${capCls}">$${s.cap_after.toFixed(0)}</span>
+         (restante: <span class="${capCls}">$${s.cap_remaining_after.toFixed(0)}</span>)</p>
+      ${s.over_cap ? '<p class="text-danger">⚠️ Acima do cap!</p>' : ''}
+    </div>`;
+  }
+  document.getElementById('modal-content').innerHTML =
+    `<div class="preview-grid">${side(data.team_a)}${side(data.team_b)}</div>`;
+}
+
+function executeTrade() {
+  fetch('/api/trades/confirm', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(getPayload())
+  }).then(r => r.json()).then(d => {
+    if (d.error) { alert(d.error); return; }
+    closeModal();
+    alert('Trade confirmada!');
+    location.reload();
+  });
+}
+
+function closeModal() {
+  document.getElementById('trade-modal').style.display = 'none';
+}
+</script>
+{% endblock %}

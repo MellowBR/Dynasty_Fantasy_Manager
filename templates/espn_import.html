@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Importar ESPN Values{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">📥 Importar ESPN Values (PDF)</h1>
+  <p class="page-subtitle">Baixa o PDF da ESPN PPR, extrai valores e faz matching com jogadores do banco.</p>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="alert {{ 'alert-ok' if cat == 'ok' else ('alert-warn' if cat == 'warn' else 'alert-danger') }}">
+    {{ msg }}
+  </div>
+  {% endfor %}
+{% endwith %}
+
+<div class="card">
+  <h2 class="card-title">Configurar Importacao</h2>
+  <form method="POST" action="/admin/espn_import">
+    <div class="form-grid">
+      <div class="form-group" style="grid-column: 1 / -1">
+        <label>URL do PDF ESPN PPR</label>
+        <input type="url" name="url" value="{{ default_url }}" class="input-full"
+               placeholder="https://g.espncdn.com/...">
+      </div>
+      <div class="form-group">
+        <label>Temporada (aplica para)</label>
+        <input type="number" name="season" value="{{ default_season }}" min="2025" max="2030">
+      </div>
+      <div class="form-group">
+        <label>Tipo</label>
+        <label class="checkbox-label">
+          <input type="checkbox" name="is_final">
+          Importacao final (valores definitivos)
+        </label>
+        <span class="text-dim" style="font-size:.78rem">Deixe desmarcado para provisorio (pode reimportar depois)</span>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary" style="margin-top:1rem"
+            data-tooltip="Baixa o PDF, extrai jogadores e valores,&#10;e mostra tela de revisao antes de salvar.">
+      📥 Baixar e Parsear PDF
+    </button>
+  </form>
+</div>
+
+{% if last_import %}
+<div class="card">
+  <h2 class="card-title">Ultima Importacao</h2>
+  <div class="stat-grid">
+    <div class="stat-item">
+      <span class="stat-num">{{ last_import.season }}</span>
+      <span class="stat-label">Temporada</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num">{{ last_import.total_matched }}</span>
+      <span class="stat-label">Matched</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num">{{ last_import.total_approximate }}</span>
+      <span class="stat-label">Aproximados</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num">{{ last_import.total_notfound }}</span>
+      <span class="stat-label">Nao encontrados</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num {{ 'text-ok' if last_import.status == 'final' else 'text-warn' }}">
+        {{ last_import.status }}
+      </span>
+      <span class="stat-label">Status</span>
+    </div>
+  </div>
+  <p class="text-dim" style="margin-top:.5rem">{{ last_import.imported_at.strftime('%d/%m/%Y %H:%M') }}</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2 class="card-title">Formato Esperado do PDF</h2>
+  <p class="text-dim">O parser espera linhas no formato padrao da ESPN PPR Rankings:</p>
+  <pre class="code-block">1. (WR1) Ja'Marr Chase, CIN $57 10
+45. (WR18) Marvin Harrison Jr., ARI $17 8
+243. (RB72) Kyle Monangai, CHI $0 5</pre>
+  <p class="text-dim" style="margin-top:.5rem">
+    Valores sao para 10 times — o sistema aplica <code>x1.2</code> automaticamente para 12 times.
+    Jogadores com $0 recebem <code>espn_adjusted = $1</code>.
+  </p>
+</div>
+{% endblock %}

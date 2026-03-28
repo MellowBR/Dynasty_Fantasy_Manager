@@ -1,0 +1,21 @@
+# Database files
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+
+# Data files (CSVs, PDFs — imported, not source)
+*.csv
+*.pdf

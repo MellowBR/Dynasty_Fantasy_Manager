@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">⚙️ Admin Panel</h1>
+</div>
+
+<div class="admin-grid">
+
+  <!-- Stats -->
+  <div class="card">
+    <h2 class="card-title">📊 Status do Banco</h2>
+    <div class="stat-grid">
+      <div class="stat-item"><span class="stat-num">{{ player_count }}</span><span class="stat-label">Jogadores</span></div>
+      <div class="stat-item"><span class="stat-num">{{ teams_count }}</span><span class="stat-label">Times</span></div>
+      <div class="stat-item {{ 'stat-warn' if review_count > 0 else '' }}">
+        <span class="stat-num">{{ review_count }}</span><span class="stat-label">Revisão pendente</span>
+      </div>
+      <div class="stat-item"><span class="stat-num">{{ current_season or g_current_season }}</span><span class="stat-label">Temporada atual</span></div>
+    </div>
+  </div>
+
+  <!-- Playoffs -->
+  <div class="card">
+    <h2 class="card-title">🏈 Temporada</h2>
+    {% if playoffs_started %}
+      <div class="alert alert-warn" style="margin-bottom:.75rem">⚡ Playoffs em andamento</div>
+      <button class="btn btn-secondary" onclick="togglePlayoffs(true)">↩ Reverter para temporada regular</button>
+    {% else %}
+      <p class="text-dim" style="margin-bottom:.75rem">Temporada regular</p>
+      <button class="btn btn-primary" onclick="togglePlayoffs(false)"
+              data-tooltip="Marca o inicio dos playoffs (semana 13).&#10;Usado pelo optimizer para detectar fase sazonal.">
+        ⚡ Iniciar Playoffs
+      </button>
+    {% endif %}
+    <div id="playoffs-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+  </div>
+
+  <!-- Sleeper Sync -->
+  <div class="card">
+    <h2 class="card-title">🔄 Sleeper Sync</h2>
+    {% if last_sync %}
+    <p class="text-dim">Último sync: <strong>{{ last_sync.synced_at.strftime('%d/%m/%Y %H:%M') }}</strong></p>
+    <p class="text-dim" style="margin:.4rem 0 1rem">{{ last_sync.summary }}</p>
+    {% if last_sync.had_errors %}
+    <div class="alert alert-warn" style="margin-bottom:.75rem">⚠️ Último sync teve erros.</div>
+    {% endif %}
+    {% else %}
+    <p class="text-dim" style="margin-bottom:1rem">Nenhum sync realizado ainda.</p>
+    {% endif %}
+    <button class="btn btn-primary" id="btn-sync-admin" onclick="triggerSync()"
+            data-tooltip="Busca rosters, IR e picks atualizados da API do Sleeper.&#10;Atualiza nomes, posições e times.&#10;Salários e contratos NÃO são alterados.">
+      🔄 Sincronizar com Sleeper
+    </button>
+    <div id="sync-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+  </div>
+
+  <!-- Pre-season workflow order -->
+  <div class="card workflow-card">
+    <h2 class="card-title">📋 Ordem do Fluxo Pré-Temporada</h2>
+    <ol class="workflow-steps">
+      <li><span class="step-num">1</span> <strong>Atualizar ESPN Values</strong> — importar valores PPR atualizados (usado no cálculo de salários)</li>
+      <li><span class="step-num">2</span> <strong>Season Rollover</strong> — avançar contratos e recalcular salários com base nos ESPN values</li>
+      <li><span class="step-num">3</span> <strong>FA Auction / Rookie Draft</strong> — registrar aquisições da nova temporada</li>
+    </ol>
+  </div>
+
+  <!-- Season Rollover -->
+  <div class="card">
+    <h2 class="card-title">📅 Season Rollover</h2>
+    <p class="text-dim" style="margin-bottom:.75rem">
+      Avança a temporada: incrementa contract_year, aplica VALORIZAÇÃO, loga histórico.
+      <strong>Use com cuidado — irreversível sem backup.</strong>
+    </p>
+    <button class="btn btn-secondary" onclick="previewRollover()"
+            data-tooltip="Avança todos os contratos em 1 ano e recalcula&#10;salários pelas regras de VALORIZAÇÃO do cap.&#10;Mostra preview antes de aplicar.">
+      👁 Preview Rollover
+    </button>
+    <div id="rollover-preview" style="display:none;margin-top:1rem">
+      <div id="rollover-summary"></div>
+      <div style="max-height:360px;overflow-y:auto;margin-top:.75rem">
+        <table class="data-table" id="rollover-table"></table>
+      </div>
+      <button class="btn btn-danger" style="margin-top:.75rem" onclick="confirmRollover()"
+              data-tooltip="Aplica o rollover de forma irreversível.&#10;Faça backup do dynasty.db antes!">
+        ⚡ Aplicar Rollover
+      </button>
+    </div>
+    <div id="rollover-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+  </div>
+
+  <!-- ESPN PDF Import -->
+  <div class="card workflow-card">
+    <h2 class="card-title">📥 Importar ESPN Values (PDF)</h2>
+    <p class="text-dim" style="margin-bottom:.75rem">
+      Importa valores PPR diretamente do PDF da ESPN. Faz matching automatico com jogadores do banco
+      e permite revisao antes de salvar. Valores provisorios podem ser reimportados multiplas vezes.
+    </p>
+    <a href="/admin/espn_import" class="btn btn-primary"
+       data-tooltip="Deve ser feito ANTES do Season Rollover.&#10;Valores provisorios podem ser importados&#10;multiplas vezes ate a versao final.">
+      📥 Importar ESPN PDF
+    </a>
+  </div>
+
+  <!-- ESPN Bulk Update (manual fallback) -->
+  <div class="card">
+    <h2 class="card-title">📋 Atualizar ESPN Values (CSV manual)</h2>
+    <p class="text-dim" style="margin-bottom:.5rem">
+      Alternativa manual: cole um CSV com colunas <code>name,espn_value</code> (um por linha):
+    </p>
+    <textarea id="espn-csv" rows="8"
+      placeholder="Saquon Barkley,55.0&#10;Travis Kelce,25.0&#10;Justin Jefferson,55.0"></textarea>
+    <button class="btn btn-primary" style="margin-top:.75rem" onclick="bulkESPN()"
+            data-tooltip="Importa valores ESPN PPR (raw) e aplica x1.2 automaticamente.&#10;Use antes do draft para calcular salários corretamente.&#10;Formato: name,espn_value (um por linha)">
+      Atualizar ESPN Values
+    </button>
+    <div id="espn-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+  </div>
+
+  <!-- Team Owners -->
+  <div class="card">
+    <h2 class="card-title">👤 Donos dos Times</h2>
+    <p class="text-dim" style="margin-bottom:.75rem">
+      Populado automaticamente pelo Sleeper Sync. Edite manualmente se necessário.
+    </p>
+    <table class="data-table" id="owners-table">
+      <thead><tr><th>Time</th><th>Owner</th><th></th></tr></thead>
+      <tbody id="owners-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Players needing review -->
+  <div class="card" id="review-card" style="display:none">
+    <h2 class="card-title">🔍 Jogadores para Revisão</h2>
+    <div id="review-list"></div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Override the nav sync to update the admin result box too
+function togglePlayoffs(undo) {
+  const action = undo ? 'Reverter para temporada regular' : 'Iniciar Playoffs';
+  if (!confirm(action + '? Confirmar?')) return;
+  fetch('/api/admin/playoffs_started', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({undo: undo})
+  }).then(r => r.json()).then(d => {
+    const res = document.getElementById('playoffs-result');
+    res.style.display = 'block';
+    res.className = 'result-box ' + (d.ok ? 'result-ok' : 'result-error');
+    res.textContent = d.ok ? ('✅ ' + d.message) : ('❌ Erro');
+    if (d.ok) setTimeout(() => location.reload(), 1000);
+  });
+}
+
+function triggerSync() {
+  const btn = document.getElementById('btn-sync-admin');
+  const res = document.getElementById('sync-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Sincronizando...';
+
+  fetch('/api/admin/sync', {method:'POST'})
+    .then(r => r.json())
+    .then(d => {
+      res.style.display = 'block';
+      if (d.success) {
+        res.className = 'result-box result-ok';
+        const newU = (d.new_unknown || []).length;
+        res.textContent = `✅ ${d.players_updated} atualizados, ${d.players_added} novos, ${d.picks_updated} picks.` +
+          (newU ? ` ⚠️ ${newU} para revisão.` : '');
+        setTimeout(() => location.reload(), 2000);
+      } else {
+        res.className = 'result-box result-error';
+        res.textContent = '❌ ' + (d.error || 'Erro desconhecido');
+      }
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = '🔄 Sincronizar com Sleeper';
+    });
+}
+
+function previewRollover() {
+  fetch('/api/admin/rollover/preview').then(r => r.json()).then(d => {
+    const sum = document.getElementById('rollover-summary');
+    sum.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-item"><span class="stat-num">${d.player_count}</span><span class="stat-label">Jogadores</span></div>
+        <div class="stat-item"><span class="stat-num stat-warn">${d.renewals}</span><span class="stat-label">Renovações</span></div>
+        <div class="stat-item"><span class="stat-num">$${d.total_current}</span><span class="stat-label">Cap Atual</span></div>
+        <div class="stat-item"><span class="stat-num">$${d.total_next}</span><span class="stat-label">Cap Próxima Temp.</span></div>
+      </div>`;
+
+    let html = `<thead><tr><th>Jogador</th><th>Equipe</th><th>Sal Atual</th><th>Próx Sal</th><th>Δ</th><th>Regra</th></tr></thead><tbody>`;
+    d.players.forEach(p => {
+      const d2 = p.salary_delta;
+      const dCls = d2 > 0 ? 'text-warn' : (d2 < 0 ? 'text-ok' : 'text-dim');
+      html += `<tr class="${p.is_renewal ? 'row-renewal' : ''}">
+        <td>${p.name} ${p.is_renewal ? '<span class="tag tag-renewal">RENOV.</span>' : ''}</td>
+        <td class="text-dim">${p.fantasy_team}</td>
+        <td>$${p.current_salary}</td>
+        <td class="salary-cell">$${p.new_salary}</td>
+        <td class="${dCls}">${d2 >= 0 ? '+' : ''}$${d2}</td>
+        <td class="text-dim small-text">${p.rule}</td>
+      </tr>`;
+    });
+    html += '</tbody>';
+    document.getElementById('rollover-table').innerHTML = html;
+    document.getElementById('rollover-preview').style.display = 'block';
+  });
+}
+
+function confirmRollover() {
+  if (!confirm('⚠️ A tabela ESPN está atualizada?\n\nO rollover usa os valores ESPN atuais para calcular salários.\nSe não atualizou, cancele e vá em "Atualizar ESPN Values" primeiro.')) return;
+  if (!confirm('Aplicar Season Rollover? Esta ação NÃO pode ser desfeita automaticamente.\n\nCertifique-se de ter um backup do dynasty.db.')) return;
+  fetch('/api/admin/rollover/apply', {method:'POST'})
+    .then(r => r.json()).then(d => {
+      const res = document.getElementById('rollover-result');
+      res.style.display = 'block';
+      if (d.success) {
+        res.className = 'result-box result-ok';
+        res.textContent = `✅ Rollover aplicado: ${d.applied} jogadores, ${d.renewals} renovações. Nova temporada: ${d.next_season}.`;
+        setTimeout(() => location.reload(), 2500);
+      } else {
+        res.className = 'result-box result-error';
+        res.textContent = '❌ ' + (d.error || 'Erro');
+      }
+    });
+}
+
+function bulkESPN() {
+  const text = document.getElementById('espn-csv').value.trim();
+  if (!text) return;
+  fetch('/api/admin/espn_bulk', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({csv_text: 'name,espn_value\n' + text})
+  }).then(r => r.json()).then(d => {
+    const res = document.getElementById('espn-result');
+    res.style.display = 'block';
+    res.className = 'result-box ' + (d.not_found_count ? 'result-warn' : 'result-ok');
+    let msg = `✅ ${d.updated} valores atualizados.`;
+    if (d.not_found_count) msg += ` ⚠️ ${d.not_found_count} não encontrado(s): ${(d.not_found || []).slice(0,5).join(', ')}`;
+    res.textContent = msg;
+  });
+}
+
+// Load team owners
+fetch('/api/admin/teams').then(r => r.json()).then(teams => {
+  const body = document.getElementById('owners-body');
+  body.innerHTML = teams.map(t => `
+    <tr>
+      <td>${t.name}</td>
+      <td>
+        <input type="text" class="owner-input" id="owner-${t.id}"
+               value="${t.owner_name || ''}" placeholder="sem owner">
+      </td>
+      <td>
+        <button class="btn-sm btn-secondary" onclick="saveOwner(${t.id})">Salvar</button>
+      </td>
+    </tr>`).join('');
+});
+
+function saveOwner(teamId) {
+  const input = document.getElementById('owner-' + teamId);
+  fetch(`/api/admin/teams/${teamId}/owner`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({owner_name: input.value})
+  }).then(r => r.json()).then(d => {
+    if (d.success) {
+      input.style.borderColor = 'var(--green)';
+      setTimeout(() => input.style.borderColor = '', 1500);
+    }
+  });
+}
+
+// Load review players
+fetch('/api/admin/review_players').then(r => r.json()).then(players => {
+  if (!players.length) return;
+  const card = document.getElementById('review-card');
+  card.style.display = '';
+  const list = document.getElementById('review-list');
+  list.innerHTML = players.map(p => `
+    <div class="player-row" style="margin-bottom:.4rem">
+      <span class="pos-badge pos-${p.position.replace('/','')}">${p.position || '?'}</span>
+      <div class="player-info">
+        <span class="player-name">${p.name}</span>
+        <span class="player-meta text-dim">${p.fantasy_team} · $${Math.round(p.salary)} · ${p.acquisition_type}</span>
+      </div>
+      <div class="player-right">
+        <button class="btn-sm btn-secondary" onclick="clearReview(${p.id}, this)">✓ Revisado</button>
+      </div>
+    </div>`).join('');
+});
+
+function clearReview(id, btn) {
+  fetch(`/api/admin/review_players/${id}/clear`, {method:'POST'})
+    .then(() => btn.closest('.player-row').remove());
+}
+</script>
+{% endblock %}

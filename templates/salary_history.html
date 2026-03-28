@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Histórico de Salários{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">📈 Histórico de Salários</h1>
+  <p class="page-subtitle">Histórico completo de salários por temporada, equipe ou jogador. Clique no nome para ver o histórico de transações.</p>
+</div>
+
+<div class="toolbar">
+  <label>Equipe:</label>
+  <select id="hist-team" onchange="loadHistory()">
+    <option value="">Todas</option>
+    {% for t in teams %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+  </select>
+  <label>Jogador:</label>
+  <input type="text" id="hist-player" placeholder="Nome..." style="width:180px"
+         oninput="loadHistoryDebounced()" />
+  <label>Temporada:</label>
+  <input type="number" id="hist-season" placeholder="2025" style="width:90px"
+         onchange="loadHistory()" />
+  <button class="btn btn-secondary" onclick="loadHistory()">Filtrar</button>
+</div>
+
+<div id="history-wrap">
+  <div class="loading-msg">Carregando...</div>
+</div>
+
+<style>
+.player-name-link {
+  cursor: pointer;
+  color: var(--accent, #6ea8fe);
+  text-decoration: none;
+  transition: color .15s;
+}
+.player-name-link:hover {
+  color: var(--accent-hover, #9ec5fe);
+  text-decoration: underline;
+}
+.player-name-link::before {
+  content: '▶ ';
+  font-size: .7em;
+  display: inline-block;
+  transition: transform .2s;
+}
+.player-name-link.expanded::before {
+  transform: rotate(90deg);
+}
+.history-subrow td {
+  background: rgba(255,255,255,.03);
+  border-top: none;
+  padding-top: .25rem;
+  padding-bottom: .25rem;
+  font-size: .82rem;
+}
+.history-subrow .timeline-inline {
+  padding-left: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.history-subrow .timeline-inline .tag {
+  font-size: .72rem;
+  padding: .1rem .4rem;
+  border-radius: 3px;
+}
+.history-subrow .text-dim {
+  font-size: .75rem;
+}
+.history-loading td {
+  color: var(--text-dim, #888);
+  font-style: italic;
+  font-size: .82rem;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let histDebounce;
+const expandedPlayers = new Set();
+
+function loadHistoryDebounced() {
+  clearTimeout(histDebounce);
+  histDebounce = setTimeout(loadHistory, 350);
+}
+
+function loadHistory() {
+  const team   = document.getElementById('hist-team').value;
+  const player = document.getElementById('hist-player').value.trim();
+  const season = document.getElementById('hist-season').value;
+
+  let url = '/api/salary_history?';
+  if (team)   url += 'team=' + encodeURIComponent(team) + '&';
+  if (player) url += 'player=' + encodeURIComponent(player) + '&';
+  if (season) url += 'season=' + season + '&';
+
+  document.getElementById('history-wrap').innerHTML = '<div class="loading-msg">Carregando...</div>';
+  expandedPlayers.clear();
+
+  fetch(url).then(r => r.json()).then(records => {
+    if (!records.length) {
+      document.getElementById('history-wrap').innerHTML = '<p class="text-dim">Nenhum registro encontrado.</p>';
+      return;
+    }
+    let html = `<table class="data-table">
+      <thead><tr>
+        <th>Temporada</th><th>Jogador</th><th>Salário</th><th>Ano Contrato</th>
+        <th>Regra</th><th>ESPN Ref</th>
+      </tr></thead><tbody>`;
+    records.forEach(r => {
+      const pid = r.player_id || 0;
+      html += `<tr data-player-id="${pid}" data-player-name="${r.player_name}">
+        <td>${r.season}</td>
+        <td><span class="player-name-link" onclick="togglePlayerHistory(this, ${pid})">${r.player_name}</span></td>
+        <td class="salary-cell">$${r.salary}</td>
+        <td>Ano ${r.contract_year}/${4}</td>
+        <td class="text-dim small-text">${r.rule_applied || '—'}</td>
+        <td class="text-dim">$${(r.espn_ref_value || 0).toFixed(1)}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('history-wrap').innerHTML = html;
+  });
+}
+
+function togglePlayerHistory(el, playerId) {
+  if (!playerId) return;
+
+  const row = el.closest('tr');
+  const key = playerId + '_' + row.rowIndex;
+
+  // Check if already expanded — collapse
+  const existingSubs = [];
+  let next = row.nextElementSibling;
+  while (next && next.classList.contains('history-subrow')) {
+    existingSubs.push(next);
+    next = next.nextElementSibling;
+  }
+
+  if (existingSubs.length > 0) {
+    existingSubs.forEach(sub => sub.remove());
+    el.classList.remove('expanded');
+    expandedPlayers.delete(key);
+    return;
+  }
+
+  // Expand — show loading
+  el.classList.add('expanded');
+  expandedPlayers.add(key);
+
+  const loadingRow = document.createElement('tr');
+  loadingRow.className = 'history-subrow history-loading';
+  loadingRow.innerHTML = '<td colspan="6">Carregando histórico...</td>';
+  row.after(loadingRow);
+
+  fetch(`/api/player/${playerId}/history`)
+    .then(r => r.json())
+    .then(data => {
+      loadingRow.remove();
+
+      // Check if still expanded (user might have toggled during fetch)
+      if (!expandedPlayers.has(key)) return;
+
+      if (!data.history || !data.history.length) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.className = 'history-subrow';
+        emptyRow.innerHTML = '<td colspan="6" class="text-dim" style="padding-left:2rem;font-size:.82rem">Nenhum histórico registrado</td>';
+        row.after(emptyRow);
+        return;
+      }
+
+      // Insert history rows in reverse (so they appear in correct order after row)
+      const fragment = document.createDocumentFragment();
+      data.history.forEach(h => {
+        const subRow = document.createElement('tr');
+        subRow.className = 'history-subrow';
+        const badge = {
+          trade:'tag-trade', cut:'tag-review', renewal:'tag-renewal',
+          rookie_draft:'tag-current', auction_draft:'tag-current',
+          fa_auction:'tag-trade', fa_waiver:'tag-trade', rollover:'tag-prov'
+        }[h.event_type] || '';
+        subRow.innerHTML = `
+          <td></td>
+          <td colspan="3">
+            <div class="timeline-inline">
+              <span class="tag ${badge}">${h.event_type}</span>
+              <span>${h.team_name}</span>
+              <span class="text-dim">$${Math.round(h.salary)} · Ano ${h.contract_year}</span>
+            </div>
+          </td>
+          <td class="text-dim" style="font-size:.75rem">${h.notes || ''}</td>
+          <td class="text-dim" style="font-size:.75rem">${h.created_at || ''}</td>`;
+        fragment.appendChild(subRow);
+      });
+
+      // Insert all at once after the parent row
+      row.after(fragment);
+    })
+    .catch(() => {
+      loadingRow.innerHTML = '<td colspan="6" class="text-dim" style="padding-left:2rem">Erro ao carregar histórico</td>';
+    });
+}
+
+loadHistory();
+</script>
+{% endblock %}

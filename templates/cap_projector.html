@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Cap Projector 2026{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">📊 Cap Projector 2026</h1>
+  <p class="page-subtitle">Simule keeper vs. corte e veja o draft budget disponível.</p>
+</div>
+
+<div class="toolbar">
+  <label>Equipe:</label>
+  <select id="proj-team" onchange="loadTeam(this.value)">
+    {% for t in teams %}
+    <option value="{{ t }}" {{ 'selected' if t == my_team }}>{{ t }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-secondary" onclick="toggleAll(true)">Manter todos</button>
+  <button class="btn btn-danger-outline" onclick="toggleAll(false)">Cortar todos</button>
+</div>
+
+<div id="proj-cap-bar" class="cap-summary-card" style="display:none">
+  <div class="cap-summary-grid">
+    <div class="cap-summary-item">
+      <span class="cap-label">Cap Projetado 2026</span>
+      <span class="cap-value" id="proj-total">—</span>
+    </div>
+    <div class="cap-summary-item">
+      <span class="cap-label">Restante</span>
+      <span class="cap-value" id="proj-remaining">—</span>
+    </div>
+    <div class="cap-summary-item">
+      <span class="cap-label">Budget Draft Bruto</span>
+      <span class="cap-value" id="proj-budget">—</span>
+    </div>
+    <div class="cap-summary-item">
+      <span class="cap-label">Budget Usável</span>
+      <span class="cap-value" id="proj-usable">—</span>
+    </div>
+    <div class="cap-summary-item">
+      <span class="cap-label">Spots vazios</span>
+      <span class="cap-value" id="proj-spots">—</span>
+    </div>
+  </div>
+  <div class="cap-bar" style="margin-top:.75rem">
+    <div class="cap-bar-fill" id="proj-bar" style="width:0%"></div>
+  </div>
+  <div id="proj-warnings"></div>
+</div>
+
+<div id="espn-banner"></div>
+
+<div id="proj-table-wrap">
+  <div class="loading-msg">Carregando...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SALARY_CAP = 200;
+const MAX_ROSTER = 22;
+let teamData = null;
+let keepState = {};
+
+function loadTeam(name) {
+  document.getElementById('proj-table-wrap').innerHTML = '<div class="loading-msg">Carregando...</div>';
+  fetch('/api/cap_projector/' + encodeURIComponent(name))
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        document.getElementById('proj-table-wrap').innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+        return;
+      }
+      teamData = data;
+      data.players.forEach(p => {
+        if (keepState[p.id] === undefined) keepState[p.id] = true;
+      });
+      renderEspnBanner(data.espn_status);
+      render();
+    });
+}
+
+function render() {
+  if (!teamData) return;
+  const pos_order = {QB:0,RB:1,WR:2,TE:3,K:4,DST:5,'D/ST':5};
+  const sorted = [...teamData.players].sort((a, b) => {
+    const pa = pos_order[a.position] ?? 9;
+    const pb = pos_order[b.position] ?? 9;
+    return pa !== pb ? pa - pb : b.next_salary - a.next_salary;
+  });
+
+  let html = `<table class="data-table">
+    <thead><tr>
+      <th style="width:44px">Keep</th>
+      <th>Pos</th><th>Jogador</th><th>Equipe NFL</th>
+      <th>Contrato</th><th>Sal 2025</th><th>ESPN Ref</th><th>Sal 2026</th><th>Δ</th><th>Tipo</th>
+    </tr></thead><tbody>`;
+
+  sorted.forEach(p => {
+    const keep = keepState[p.id] !== false;
+    const delta = p.next_salary - p.salary;
+    const dSign = delta >= 0 ? '+' : '';
+    const dCls = delta > 0 ? 'text-warn' : (delta < 0 ? 'text-ok' : 'text-dim');
+    const isRenewal = p.contract_year >= 4;
+    html += `<tr class="${keep ? '' : 'row-cut'}" id="prow-${p.id}">
+      <td><label class="toggle-wrap">
+        <input type="checkbox" ${keep ? 'checked' : ''} onchange="toggleKeep(${p.id})">
+        <span class="toggle-slider"></span>
+      </label></td>
+      <td><span class="pos-badge pos-${p.position.replace('/','')}">${p.position}</span></td>
+      <td class="player-name-cell">
+        ${p.name}
+        ${isRenewal ? '<span class="tag tag-renewal">ANO 4</span>' : ''}
+        ${p.needs_review ? '<span class="tag tag-review">REVISÃO</span>' : ''}
+      </td>
+      <td class="text-dim">${p.nfl_team || '—'}</td>
+      <td>${p.contract_display}</td>
+      <td>$${Math.round(p.salary)}</td>
+      <td class="text-dim">${p.espn_ref_value ? '$' + Math.round(p.espn_ref_value) : '—'}${p.espn_is_final === false ? ' <span class="tag tag-prov">PROV</span>' : ''}</td>
+      <td class="${keep ? 'salary-cell' : 'text-dim'}">$${p.next_salary}</td>
+      <td class="${dCls}">${dSign}$${delta}</td>
+      <td class="acq-${p.acquisition_type}">${p.acquisition_type}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('proj-table-wrap').innerHTML = html;
+  updateSummary();
+}
+
+function toggleKeep(id) {
+  keepState[id] = !keepState[id];
+  render();
+}
+
+function toggleAll(state) {
+  if (!teamData) return;
+  teamData.players.forEach(p => keepState[p.id] = state);
+  render();
+}
+
+function updateSummary() {
+  if (!teamData) return;
+  const kept = teamData.players.filter(p => keepState[p.id] !== false);
+  const total = kept.reduce((s, p) => s + p.next_salary, 0);
+  const remaining = SALARY_CAP - total;
+  const numKept = kept.length;
+  const spots = Math.max(0, MAX_ROSTER - numKept);
+  const minRequired = spots;          // $1 per spot
+  const usable = remaining - minRequired;
+  const pct = Math.min((total / SALARY_CAP) * 100, 100);
+
+  document.getElementById('proj-total').textContent = '$' + total;
+  document.getElementById('proj-remaining').textContent = '$' + remaining;
+  document.getElementById('proj-budget').textContent = '$' + remaining;
+  document.getElementById('proj-usable').textContent = '$' + usable;
+  document.getElementById('proj-spots').textContent = spots + ' (min $' + minRequired + ')';
+
+  ['proj-total', 'proj-remaining', 'proj-usable'].forEach(id => {
+    const el = document.getElementById(id);
+    const val = parseInt(el.textContent.replace('$', ''));
+    el.className = 'cap-value ' + (val < 0 ? 'text-danger' : (val < 10 ? 'text-warn' : ''));
+  });
+
+  const bar = document.getElementById('proj-bar');
+  bar.style.width = pct + '%';
+  bar.className = 'cap-bar-fill ' + (pct >= 100 ? 'cap-danger' : pct > 80 ? 'cap-warn' : 'cap-ok');
+
+  const warnings = [];
+  if (total > SALARY_CAP) warnings.push('⚠️ Projeção acima do cap de $200!');
+  if (usable < 0) warnings.push(`⚠️ Budget insuficiente: faltam $${Math.abs(usable)} para preencher ${spots} spots.`);
+  const wEl = document.getElementById('proj-warnings');
+  wEl.innerHTML = warnings.map(w => `<div class="alert alert-warn" style="margin-top:.5rem">${w}</div>`).join('');
+
+  document.getElementById('proj-cap-bar').style.display = 'block';
+}
+
+function renderEspnBanner(status) {
+  const el = document.getElementById('espn-banner');
+  if (!status) {
+    el.innerHTML = '<div class="alert alert-dim" style="margin-bottom:1rem">ℹ️ Valores ESPN nao importados — projecoes baseadas em dados anteriores</div>';
+  } else if (status.status === 'final') {
+    el.innerHTML = `<div class="alert alert-ok" style="margin-bottom:1rem">✅ Valores ESPN finais de ${status.date}</div>`;
+  } else {
+    el.innerHTML = `<div class="alert alert-warn" style="margin-bottom:1rem">⚠️ Valores ESPN provisorios — salarios 2026 sao estimativas</div>`;
+  }
+}
+
+loadTeam(document.getElementById('proj-team').value);
+</script>
+{% endblock %}

@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}Roster{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <div class="team-header-row">
+      {% if summary and summary.team.owner_avatar %}
+      <img src="https://sleepercdn.com/avatars/{{ summary.team.owner_avatar }}"
+           class="owner-avatar" onerror="this.style.display='none'">
+      {% endif %}
+      <div>
+        <h1 class="page-title">
+          {% if summary and summary.team.is_my_team %}🏆 {% endif %}
+          {{ summary.team.name if summary else "Sem dados" }}
+        </h1>
+        {% if summary and summary.team.owner_name %}
+        <span class="owner-label">{{ summary.team.owner_name }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% if summary %}
+    <div class="cap-bar-wrap">
+      <div class="cap-bar-labels">
+        <span>Salary usado:
+          <strong class="{{ 'text-danger' if summary.total_cap > cap else '' }}">
+            ${{ summary.total_cap | int }}
+          </strong>
+        </span>
+        <span>Restante:
+          <strong class="{{ 'text-danger' if summary.cap_remaining < 0 else ('text-warn' if summary.cap_remaining < 20 else 'text-ok') }}">
+            ${{ summary.cap_remaining | int }}
+          </strong>
+        </span>
+        <span class="{{ 'text-danger' if summary.cap_pct >= 100 else 'text-dim' }}">
+          {{ summary.cap_pct }}% de ${{ cap }}
+          {% if summary.cap_pct >= 100 %} ⚠️{% endif %}
+        </span>
+      </div>
+      <div class="cap-bar">
+        <div class="cap-bar-fill {{ 'cap-danger' if summary.cap_pct >= 100 else ('cap-warn' if summary.cap_pct > 80 else 'cap-ok') }}"
+             style="width: {{ [summary.cap_pct, 100] | min }}%"></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="page-header-right">
+    <label class="label-sm">Equipe:</label>
+    <div class="team-filter-wrap">
+      <input type="text" id="team-filter" class="team-filter-input"
+             placeholder="Buscar time ou owner..."
+             autocomplete="off"
+             onfocus="showTeamDropdown()" oninput="filterTeams()">
+      <div id="team-dropdown" class="team-dropdown" style="display:none">
+        {% for t in teams %}
+        <div class="team-option {{ 'team-option-active' if t.name == selected_team }}"
+             data-name="{{ t.name }}" data-owner="{{ t.owner_name or '' }}"
+             onclick="switchTeam('{{ t.name }}')">
+          <span class="team-option-name">{{ t.name }}</span>
+          {% if t.owner_name %}<span class="team-option-owner">{{ t.owner_name }}</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if summary %}
+
+{% if summary.renewal_candidates %}
+<div class="alert alert-warn">
+  ⚠️ <strong>{{ summary.renewal_candidates | length }} jogador(es) no Ano 4</strong> — renovar ou cortar:
+  {% for p in summary.renewal_candidates %}
+    <a href="#player-{{ p.id }}" class="tag tag-renewal">{{ p.name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if summary.needs_review %}
+<div class="alert alert-info">
+  🔍 <strong>{{ summary.needs_review | length }} jogador(es) precisam de revisão</strong> (adicionados pelo Sleeper Sync):
+  {% for p in summary.needs_review %}
+    <span class="tag tag-review">{{ p.name }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# Roster grouped by position — IR players inline at end of each group #}
+{% if summary.ir_count %}
+<div class="alert alert-ir">
+  🏥 <strong>{{ summary.ir_count }} jogador(es) no IR</strong> — salary IR: ${{ summary.ir_cap | int }}
+</div>
+{% endif %}
+
+{% for pos, pos_players in summary.players_by_pos %}
+  {% set healthy = pos_players | rejectattr('is_on_ir') | list %}
+  {% set ir = pos_players | selectattr('is_on_ir') | list %}
+  <section class="roster-section">
+    <h2 class="section-title">
+      <span class="pos-badge pos-{{ pos | replace('/', '') }}">{{ pos }}</span>
+      <span class="count-badge">{{ pos_players | length }}</span>
+      {% if ir %}<span class="ir-count-badge">{{ ir | length }} IR</span>{% endif %}
+    </h2>
+    <div class="player-list">
+      {% for p in pos_players %}
+      <div class="player-row {{ 'player-ir-row' if p.is_on_ir }} {{ 'renewal-flag' if p.is_renewal_candidate() }}" id="player-{{ p.id }}">
+        <span class="pos-badge pos-{{ p.position | replace('/', '') }}">{{ p.position }}</span>
+        <div class="player-info">
+          <span class="player-name">
+            <a href="javascript:void(0)" onclick="showPlayerHistory({{ p.id }})" class="player-name-link">{{ p.name }}</a>
+            {% if p.is_on_ir %}<span class="tag tag-ir">🏥 IR</span>{% endif %}
+            {% if p.via_trade %}<span class="tag tag-trade">TRADE</span>{% endif %}
+            {% if p.is_renewal_candidate() %}<span class="tag tag-renewal">ANO 4</span>{% endif %}
+            {% if p.needs_review %}<span class="tag tag-review">REVISÃO</span>{% endif %}
+          </span>
+          <span class="player-meta">
+            {{ p.nfl_team or '—' }} ·
+            {{ p.contract_display() }} ·
+            <span class="acq-{{ p.acquisition_type }}">{{ p.acquisition_type }}</span>
+          </span>
+          <span class="player-meta text-dim">
+            ESPN: ${{ p.espn_ref_value | round(1) }} · Projeção 2026: <strong>${{ p.projected_next_salary() }}</strong>
+          </span>
+        </div>
+        <div class="player-right">
+          <span class="salary-tag {{ 'salary-high' if p.salary >= 30 else '' }}">${{ p.salary | int }}</span>
+          <div class="player-actions">
+            {% if p.is_on_ir %}
+            <button class="btn-sm btn-ir-remove" onclick="toggleIR({{ p.id }}, false)">↑ Tirar IR</button>
+            {% else %}
+            <button class="btn-sm btn-danger-sm" onclick="toggleIR({{ p.id }}, true)" title="Mover para IR">IR</button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+{% endfor %}
+
+{% else %}
+<div class="empty-state">
+  <p>Nenhum dado encontrado. Verifique o CSV e rode o import.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTeam(name) {
+  window.location.href = '/?team=' + encodeURIComponent(name);
+}
+
+function showTeamDropdown() {
+  document.getElementById('team-dropdown').style.display = 'block';
+  filterTeams();
+}
+
+function filterTeams() {
+  const q = document.getElementById('team-filter').value.toLowerCase();
+  const opts = document.querySelectorAll('.team-option');
+  opts.forEach(el => {
+    const name = (el.dataset.name || '').toLowerCase();
+    const owner = (el.dataset.owner || '').toLowerCase();
+    el.style.display = (name.includes(q) || owner.includes(q)) ? '' : 'none';
+  });
+}
+
+document.addEventListener('click', function(e) {
+  const wrap = document.querySelector('.team-filter-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('team-dropdown').style.display = 'none';
+  }
+});
+
+function toggleIR(playerId, toIR) {
+  fetch(`/api/player/${playerId}/ir`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({is_on_ir: toIR})
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.error) { showToast(d.error, 'error'); }
+    else location.reload();
+  });
+}
+
+function showToast(msg, type='info') {
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+</script>
+{% endblock %}

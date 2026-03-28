@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}Auction & Rookie Draft{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">🏷️ Auction Log</h1>
+  <p class="page-subtitle">Registre resultados de FA auction e picks de rookie draft.</p>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="alert {{ 'alert-ok' if cat == 'ok' else ('alert-warn' if cat == 'warn' else 'alert-danger') }}" style="margin-bottom:1rem">
+    {{ msg }}
+  </div>
+  {% endfor %}
+{% endwith %}
+
+<div class="tabs-wrap">
+  <button class="tab-btn active" onclick="showTab('fa')">FA Auction</button>
+  <button class="tab-btn" onclick="showTab('rookie')">Rookie Draft</button>
+  <button class="tab-btn" onclick="showTab('bulk')">Bulk Entry</button>
+  <button class="tab-btn" onclick="showTab('excel')">Upload Excel</button>
+</div>
+
+<!-- FA Auction Tab -->
+<div id="tab-fa" class="tab-pane card">
+  <h2 class="card-title">Registrar FA Auction</h2>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Nome do Jogador</label>
+      <input type="text" id="fa-name" placeholder="Ex: Travis Kelce" />
+    </div>
+    <div class="form-group">
+      <label>Equipe</label>
+      <select id="fa-team">
+        {% for t in teams %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Valor do Bid ($)</label>
+      <input type="number" id="fa-bid" placeholder="Ex: 25" min="1" />
+    </div>
+    <div class="form-group">
+      <label>ESPN Ref Value (PPR)</label>
+      <input type="number" id="fa-espn" placeholder="Ex: 30.0" step="0.1" min="0" />
+    </div>
+    <div class="form-group">
+      <label>Temporada</label>
+      <input type="number" id="fa-season" value="{{ now_year if now_year else 2025 }}" />
+    </div>
+    <div class="form-group">
+      <label>Notas</label>
+      <input type="text" id="fa-notes" placeholder="Opcional" />
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="registerFA()">Registrar</button>
+  <div id="fa-result" class="result-box" style="display:none"></div>
+</div>
+
+<!-- Rookie Draft Tab -->
+<div id="tab-rookie" class="tab-pane card" style="display:none">
+  <h2 class="card-title">Registrar Rookie Draft</h2>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Nome do Jogador</label>
+      <input type="text" id="rk-name" placeholder="Ex: Caleb Williams" />
+    </div>
+    <div class="form-group">
+      <label>Equipe</label>
+      <select id="rk-team">
+        {% for t in teams %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Round</label>
+      <select id="rk-round">
+        <option value="1">1ª Rodada</option>
+        <option value="2">2ª Rodada</option>
+        <option value="3">3ª Rodada</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>ESPN Ref Value (PPR)</label>
+      <input type="number" id="rk-espn" placeholder="Ex: 8.5" step="0.1" min="0" />
+    </div>
+    <div class="form-group">
+      <label>Temporada</label>
+      <input type="number" id="rk-season" value="2025" />
+    </div>
+  </div>
+  <p class="text-dim" style="margin-bottom:.75rem">
+    Salário = <code>floor(ESPN × 1.2)</code>, mínimo $1. Novo contrato de 4 anos.
+  </p>
+  <button class="btn btn-primary" onclick="registerRookie()">Registrar</button>
+  <div id="rk-result" class="result-box" style="display:none"></div>
+</div>
+
+<!-- Bulk Tab -->
+<div id="tab-bulk" class="tab-pane card" style="display:none">
+  <h2 class="card-title">Bulk Entry — FA Auction</h2>
+  <p class="text-dim" style="margin-bottom:.5rem">Cole abaixo no formato: <code>Jogador, Equipe, Valor Bid, ESPN Ref</code> (uma entrada por linha)</p>
+  <textarea id="bulk-text" rows="10" placeholder="Saquon Barkley, Cangaceiros da Colina, 35, 55.0&#10;Travis Kelce, AlexTheDawg, 20, 25.0"></textarea>
+  <button class="btn btn-primary" style="margin-top:.75rem" onclick="bulkRegister()">Registrar Bulk</button>
+  <div id="bulk-result" class="result-box" style="display:none"></div>
+</div>
+
+<!-- Excel Upload Tab -->
+<div id="tab-excel" class="tab-pane card" style="display:none">
+  <h2 class="card-title">📁 Upload Excel — FA Auction</h2>
+  <p class="text-dim" style="margin-bottom:.5rem">
+    Importe resultados de FA auction de um arquivo <code>.xlsx</code> ou <code>.xls</code>.
+  </p>
+  <p class="text-dim hint-box">
+    Colunas obrigatórias: <code>player_name</code>, <code>team_name</code>, <code>value_paid</code>, <code>season</code>
+  </p>
+  <form action="/auction/upload_excel" method="POST" enctype="multipart/form-data" style="margin-top:.75rem">
+    <div class="form-group">
+      <label>Arquivo Excel</label>
+      <input type="file" name="file" accept=".xlsx,.xls" class="file-input" />
+    </div>
+    <button type="submit" class="btn btn-primary"
+            data-tooltip="Lê o Excel e registra cada linha como FA Auction.&#10;Jogadores são buscados por nome (parcial).&#10;Linhas sem match são puladas.">
+      📤 Importar
+    </button>
+  </form>
+</div>
+
+<!-- Recent entries -->
+<div class="card">
+  <h2 class="card-title">📜 Lançamentos Recentes</h2>
+  {% if recent_entries %}
+  <table class="data-table">
+    <thead><tr><th>Tipo</th><th>Jogador</th><th>Equipe</th><th>Valor</th><th>ESPN</th><th>Temporada</th></tr></thead>
+    <tbody>
+      {% for e in recent_entries %}
+      <tr>
+        <td><span class="tag {{ 'tag-trade' if e.entry_type == 'fa_auction' else 'tag-renewal' }}">{{ e.entry_type }}</span></td>
+        <td>{{ e.player_name }}</td>
+        <td class="text-dim">{{ e.team_name }}</td>
+        <td>${{ e.value_paid | int }}</td>
+        <td class="text-dim">{{ e.espn_ref_value_at_time | round(1) }}</td>
+        <td class="text-dim">{{ e.season }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-dim">Nenhum lançamento ainda.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showTab(name) {
+  ['fa','rookie','bulk','excel'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = (t === name ? '' : 'none');
+  });
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', ['fa','rookie','bulk','excel'][i] === name);
+  });
+}
+
+function registerFA() {
+  const payload = {
+    player_name: document.getElementById('fa-name').value.trim(),
+    team_name: document.getElementById('fa-team').value,
+    value_paid: parseFloat(document.getElementById('fa-bid').value) || 1,
+    espn_ref_value: parseFloat(document.getElementById('fa-espn').value) || 0,
+    season: parseInt(document.getElementById('fa-season').value) || 2025,
+    notes: document.getElementById('fa-notes').value,
+  };
+  fetch('/api/auction/fa', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  }).then(r => r.json()).then(d => {
+    const box = document.getElementById('fa-result');
+    box.style.display = 'block';
+    if (d.error) { box.className = 'result-box result-error'; box.textContent = '❌ ' + d.error; }
+    else { box.className = 'result-box result-ok'; box.textContent = `✅ ${d.player.name} → ${payload.team_name} por $${payload.value_paid}`; }
+  });
+}
+
+function registerRookie() {
+  const payload = {
+    player_name: document.getElementById('rk-name').value.trim(),
+    team_name: document.getElementById('rk-team').value,
+    round: parseInt(document.getElementById('rk-round').value),
+    espn_ref_value: parseFloat(document.getElementById('rk-espn').value) || 0,
+    season: parseInt(document.getElementById('rk-season').value) || 2025,
+  };
+  fetch('/api/auction/rookie', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  }).then(r => r.json()).then(d => {
+    const box = document.getElementById('rk-result');
+    box.style.display = 'block';
+    if (d.error) { box.className = 'result-box result-error'; box.textContent = '❌ ' + d.error; }
+    else { box.className = 'result-box result-ok'; box.textContent = `✅ ${d.player.name} → ${payload.team_name} (Rd${payload.round}) por $${d.player.salary}`; }
+  });
+}
+
+function bulkRegister() {
+  const text = document.getElementById('bulk-text').value.trim();
+  if (!text) return;
+  const lines = text.split('\n').filter(l => l.trim());
+  const entries = lines.map(line => {
+    const parts = line.split(',').map(s => s.trim());
+    return {
+      type: 'fa_auction',
+      player_name: parts[0] || '',
+      team_name: parts[1] || '',
+      value_paid: parseFloat(parts[2]) || 1,
+      espn_ref_value: parseFloat(parts[3]) || 0,
+      season: 2025,
+    };
+  });
+
+  fetch('/api/auction/bulk', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({entries})
+  }).then(r => r.json()).then(d => {
+    const box = document.getElementById('bulk-result');
+    box.style.display = 'block';
+    let msg = `✅ ${d.registered} registrado(s).`;
+    if (d.errors && d.errors.length) msg += '\n❌ Erros:\n' + d.errors.join('\n');
+    box.className = 'result-box ' + (d.errors && d.errors.length ? 'result-warn' : 'result-ok');
+    box.textContent = msg;
+  });
+}
+</script>
+{% endblock %}

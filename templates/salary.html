@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Calculadora de Salário{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">💰 Calculadora de Salário</h1>
+  <p class="page-subtitle">Projete o salário de um jogador para todos os anos do contrato.</p>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Parâmetros</h2>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Jogador (opcional)</label>
+      <input type="text" id="player-name" placeholder="Ex: Saquon Barkley" />
+    </div>
+    <div class="form-group">
+      <label>ESPN Ref Value (PPR)</label>
+      <input type="number" id="espn-ref" placeholder="Ex: 55.0" step="0.1" min="0" />
+    </div>
+    <div class="form-group">
+      <label>Tipo de Aquisição</label>
+      <select id="acq-type">
+        <option value="auction_draft">Auction Draft</option>
+        <option value="keeper">Keeper</option>
+        <option value="rookie_draft">Rookie Draft</option>
+        <option value="waiver">Waiver</option>
+        <option value="free_agent">Free Agent</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Valor Pago no Ano 1 ($)</label>
+      <input type="number" id="year1-value" placeholder="Ex: 35" min="1" />
+    </div>
+    <div class="form-group">
+      <label>Ano Atual de Contrato</label>
+      <input type="number" id="cur-year" placeholder="Ex: 2" min="1" max="4" value="1" />
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="calculate()">Calcular →</button>
+</div>
+
+<div id="result-wrap" style="display:none">
+  <div class="card">
+    <h2 class="card-title" id="result-title">Tabela de Contrato</h2>
+    <p class="text-dim" id="result-meta"></p>
+    <table class="data-table" style="margin-top:.75rem">
+      <thead>
+        <tr><th>Ano</th><th>Label</th><th>Salário</th><th></th></tr>
+      </thead>
+      <tbody id="salary-table"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2 class="card-title">📋 Regras de Salário</h2>
+  <div class="rules-grid">
+    <div class="rule-block">
+      <h3>Auction Draft / Keeper</h3>
+      <p>Ano 1 = valor pago</p>
+      <p>Anos 2–4: <code>VALORIZAÇÃO</code></p>
+    </div>
+    <div class="rule-block">
+      <h3>Rookie Draft</h3>
+      <p>Ano 1 = <code>floor(ESPN×1.2)</code></p>
+      <p>Anos 2–4: <code>VALORIZAÇÃO</code></p>
+    </div>
+    <div class="rule-block">
+      <h3>Waiver / Free Agent</h3>
+      <p>Ano 1 = $1</p>
+      <p>Ano 2 = <code>floor(0.80×ESPN×1.2)</code></p>
+      <p>Anos 3–4: <code>VALORIZAÇÃO</code></p>
+    </div>
+    <div class="rule-block">
+      <h3>Renovação (Ano 5+)</h3>
+      <p>Novo contrato 4 anos</p>
+      <p>Ano 1 = <code>floor(ESPN×1.2)</code></p>
+      <p>Anos 2–4: <code>VALORIZAÇÃO</code></p>
+    </div>
+  </div>
+  <div class="rule-highlight">
+    <strong>VALORIZAÇÃO:</strong>
+    <code>MAX(sal. anterior, floor(0.5 × ESPN × 1.2))</code> — mínimo $1
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function calculate() {
+  const payload = {
+    player_name: document.getElementById('player-name').value,
+    espn_ref_value: parseFloat(document.getElementById('espn-ref').value) || 0,
+    acquisition_type: document.getElementById('acq-type').value,
+    year1_value: parseFloat(document.getElementById('year1-value').value) || 1,
+    contract_year: parseInt(document.getElementById('cur-year').value) || 1,
+  };
+
+  fetch('/api/salary/calculate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) { alert(data.error); return; }
+
+    document.getElementById('result-title').textContent =
+      data.player_name ? `Contrato: ${data.player_name}` : 'Tabela de Contrato';
+    document.getElementById('result-meta').textContent =
+      `ESPN: $${data.espn_ref_value} × 1.2 = $${data.espn_adjusted.toFixed(1)} | Tipo: ${data.acquisition_type}`;
+
+    const tbody = document.getElementById('salary-table');
+    tbody.innerHTML = '';
+    data.table.forEach(row => {
+      const tr = document.createElement('tr');
+      if (row.is_current) tr.classList.add('row-current');
+      if (row.is_renewal) tr.classList.add('row-renewal');
+      tr.innerHTML = `
+        <td>${row.year}</td>
+        <td>${row.label}</td>
+        <td class="salary-cell">$${row.salary}</td>
+        <td>
+          ${row.is_renewal ? '<span class="tag tag-renewal">Renovação</span>' : ''}
+          ${row.is_current ? '<span class="tag tag-current">Atual</span>' : ''}
+        </td>`;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('result-wrap').style.display = 'block';
+    document.getElementById('result-wrap').scrollIntoView({behavior:'smooth'});
+  });
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
+</script>
+{% endblock %}
