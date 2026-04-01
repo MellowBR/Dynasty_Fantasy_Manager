@@ -1,5 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify
+from flask_login import login_required
 from models import db, Pick, Team, DraftLotteryResult, SeasonStandings, get_config, get_current_season
+from routes.auth import admin_required
 
 picks_bp = Blueprint("picks", __name__)
 
@@ -18,6 +20,7 @@ LOTTERY_ODDS = {
 
 
 @picks_bp.route("/picks")
+@login_required
 def picks_page():
     teams = Team.query.order_by(Team.name).all()
     all_picks = Pick.query.order_by(Pick.season, Pick.round, Pick.original_team_name).all()
@@ -48,6 +51,7 @@ def picks_page():
 # ── API ──────────────────────────────────────────────────────────────────────
 
 @picks_bp.route("/api/picks")
+@login_required
 def api_picks():
     season = request.args.get("season", type=int)
     team_name = request.args.get("team")
@@ -189,6 +193,7 @@ def _apply_standings_order(proj: dict, standings_season: int,
 
 
 @picks_bp.route("/api/picks/<int:pick_id>", methods=["PATCH"])
+@admin_required
 def update_pick(pick_id):
     pick = db.get_or_404(Pick, pick_id)
     data = request.get_json() or {}
@@ -206,6 +211,7 @@ def update_pick(pick_id):
 
 
 @picks_bp.route("/api/picks/<int:pick_id>/reset", methods=["POST"])
+@admin_required
 def reset_pick(pick_id):
     pick = db.get_or_404(Pick, pick_id)
     pick.current_team_id = pick.original_team_id

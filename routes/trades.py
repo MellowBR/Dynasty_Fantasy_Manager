@@ -1,11 +1,14 @@
 from flask import Blueprint, render_template, request, jsonify
+from flask_login import login_required
 from models import db, Player, Pick, Trade, Team, PlayerHistory, SALARY_CAP, MY_TEAM_NAME, get_current_season
 from datetime import datetime
+from routes.auth import admin_required
 
 trades_bp = Blueprint("trades", __name__)
 
 
 @trades_bp.route("/trades")
+@login_required
 def trades_page():
     teams = Team.query.order_by(Team.name).all()
     recent = Trade.query.order_by(Trade.created_at.desc()).limit(30).all()
@@ -21,6 +24,7 @@ def trades_page():
 # ── API ──────────────────────────────────────────────────────────────────────
 
 @trades_bp.route("/api/trades/preview", methods=["POST"])
+@login_required
 def preview_trade():
     data = request.get_json() or {}
     team_a_name = data.get("team_a", "")
@@ -70,6 +74,7 @@ def preview_trade():
 
 
 @trades_bp.route("/api/trades/confirm", methods=["POST"])
+@admin_required
 def confirm_trade():
     data = request.get_json() or {}
     team_a_name = data.get("team_a", "")
@@ -141,12 +146,14 @@ def confirm_trade():
 
 
 @trades_bp.route("/api/trades")
+@login_required
 def list_trades():
     trades = Trade.query.order_by(Trade.created_at.desc()).limit(50).all()
     return jsonify([t.to_dict() for t in trades])
 
 
 @trades_bp.route("/api/trades/<int:tid>", methods=["DELETE"])
+@admin_required
 def delete_trade(tid):
     trade = db.get_or_404(Trade, tid)
     db.session.delete(trade)

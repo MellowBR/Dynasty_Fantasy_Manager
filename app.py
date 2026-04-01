@@ -1,5 +1,10 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from flask import Flask, redirect, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 from models import db
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -11,6 +16,10 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dynasty-sb-2025-secret")
 
+    # PythonAnywhere runs behind a reverse proxy — ProxyFix ensures
+    # url_for(_external=True) generates https:// URLs correctly
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
     db.init_app(app)
 
     with app.app_context():
@@ -21,11 +30,15 @@ def create_app():
         fresh_import = run_import()
         if fresh_import:
             print("[app] First run — running Sleeper sync to assign teams...")
-            from sync_sleeper import run_sync
-            summary = run_sync()
-            print(f"[app] Sync done: {summary['teams_updated']} teams, "
-                  f"{summary['players_updated']} assigned, "
-                  f"{summary['players_added']} new from Sleeper")
+            try:
+                from sync_sleeper import run_sync
+                summary = run_sync()
+                print(f"[app] Sync done: {summary['teams_updated']} teams, "
+                      f"{summary['players_updated']} assigned, "
+                      f"{summary['players_added']} new from Sleeper")
+            except Exception as e:
+                import logging
+                logging.warning(f"[app] Sleeper sync failed on startup: {e} — app loading normally")
             # Backfill player history from imported data
             from routes.admin import _backfill_player_history
             hist_count = _backfill_player_history()
@@ -41,6 +54,11 @@ def create_app():
             "g_current_season": get_current_season(),
             "g_offseason_step": int(get_config("offseason_step", "0")),
         }
+
+    # Initialize authentication (Flask-Login + Google OAuth)
+    from routes.auth import auth_bp, init_auth
+    init_auth(app)
+    app.register_blueprint(auth_bp)
 
     # Register blueprints
     from routes.roster  import roster_bp
@@ -76,15 +94,32 @@ def create_app():
 
 
 def _run_migrations():
-    """Add columns that db.create_all() won't add to existing tables."""
+    """Add columns/tables that db.create_all() won't add to existing tables."""
     from sqlalchemy import inspect, text
     insp = inspect(db.engine)
+
+    # Migration 1: espn_values.is_final
     if "espn_values" in insp.get_table_names():
         cols = [c["name"] for c in insp.get_columns("espn_values")]
         if "is_final" not in cols:
             db.session.execute(text("ALTER TABLE espn_values ADD COLUMN is_final BOOLEAN DEFAULT 0"))
             db.session.commit()
             print("[migrate] Added is_final to espn_values")
+
+    # Migration 2: users table (X1 — multi-user access)
+    if "users" not in insp.get_table_names():
+        db.session.execute(text("""
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                name TEXT,
+                team_id INTEGER REFERENCES teams(id),
+                is_admin BOOLEAN DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        db.session.commit()
+        print("[migrate] Created users table")
 
 
 def _seed_app_config():
@@ -115,4 +150,5 @@ if __name__ == "__main__":
     print("  Dynasty SB — Fantasy Manager")
     print("  http://127.0.0.1:5000")
     print("=" * 60)
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    debug = os.getenv("APP_ENV") != "production"
+    app.run(debug=debug, host="0.0.0.0", port=5000)

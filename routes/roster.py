@@ -1,5 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify
+from flask_login import login_required
 from models import db, Team, Player, SALARY_CAP, MAX_IR, MY_TEAM_NAME
+from routes.auth import admin_required
 
 roster_bp = Blueprint("roster", __name__)
 
@@ -48,6 +50,7 @@ def _build_players_by_pos(all_players):
 
 
 @roster_bp.route("/")
+@login_required
 def index():
     team_query = request.args.get("team", MY_TEAM_NAME)
     teams = Team.query.order_by(Team.name).all()
@@ -92,18 +95,21 @@ def index():
 # ── API ──────────────────────────────────────────────────────────────────────
 
 @roster_bp.route("/api/teams")
+@login_required
 def api_teams():
     teams = Team.query.order_by(Team.name).all()
     return jsonify([t.to_dict() for t in teams])
 
 
 @roster_bp.route("/api/roster/<int:team_id>")
+@login_required
 def api_roster_by_id(team_id):
     players = Player.query.filter_by(team_id=team_id, is_dropped=False).all()
     return jsonify([p.to_dict() for p in players])
 
 
 @roster_bp.route("/api/roster/by_name/<path:team_name>")
+@login_required
 def api_roster_by_name(team_name):
     team = Team.query.filter_by(name=team_name).first()
     if not team:
@@ -113,6 +119,7 @@ def api_roster_by_name(team_name):
 
 
 @roster_bp.route("/api/player/<int:player_id>/ir", methods=["POST"])
+@admin_required
 def toggle_ir(player_id):
     player = db.get_or_404(Player, player_id)
     data = request.get_json() or {}
@@ -131,6 +138,7 @@ def toggle_ir(player_id):
 
 
 @roster_bp.route("/api/player/<int:player_id>", methods=["PATCH"])
+@admin_required
 def update_player(player_id):
     player = db.get_or_404(Player, player_id)
     data = request.get_json() or {}
@@ -144,6 +152,7 @@ def update_player(player_id):
 
 
 @roster_bp.route("/api/player/<int:player_id>/history")
+@login_required
 def player_history(player_id):
     from models import PlayerHistory
     history = PlayerHistory.query.filter_by(player_id=player_id)\
@@ -156,6 +165,7 @@ def player_history(player_id):
 
 
 @roster_bp.route("/api/player/search")
+@login_required
 def search_players():
     q = request.args.get("q", "").strip()
     team_id = request.args.get("team_id", type=int)

@@ -12,12 +12,14 @@ Steps:
 import random
 import requests as req
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask_login import login_required
 from models import (
     db, Team, Pick, Player, SalaryHistory,
     SeasonStandings, DraftLotteryResult, AppConfig,
     get_config, set_config, get_current_season, is_offseason,
     SALARY_CAP, MY_OWNER_ID, MY_TEAM_NAME, LEAGUE_ID,
 )
+from routes.auth import admin_required
 
 offseason_bp = Blueprint("offseason", __name__)
 
@@ -72,6 +74,7 @@ def _get_step_statuses():
 # ── Page route ───────────────────────────────────────────────────────────────
 
 @offseason_bp.route("/offseason")
+@login_required
 def offseason_page():
     season = get_current_season()
     steps = _get_step_statuses()
@@ -100,6 +103,7 @@ def offseason_page():
 
 
 @offseason_bp.route("/api/offseason/status")
+@login_required
 def offseason_status():
     return jsonify({
         "season": get_current_season(),
@@ -113,6 +117,7 @@ def offseason_status():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @offseason_bp.route("/api/offseason/check_previous_league")
+@login_required
 def check_previous_league():
     """Check if Sleeper has a previous league matching current_season."""
     season = get_current_season()
@@ -140,6 +145,7 @@ def check_previous_league():
 
 
 @offseason_bp.route("/api/offseason/import_standings", methods=["POST"])
+@admin_required
 def import_standings():
     """Import standings from Sleeper previous league."""
     season = get_current_season()
@@ -218,6 +224,7 @@ def import_standings():
 
 
 @offseason_bp.route("/api/offseason/save_standings", methods=["POST"])
+@admin_required
 def save_standings():
     """Save manually edited standings."""
     season = get_current_season()
@@ -249,6 +256,7 @@ def save_standings():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @offseason_bp.route("/api/offseason/run_lottery", methods=["POST"])
+@admin_required
 def run_lottery():
     """
     Run weighted lottery for picks 1-5 and assign fixed picks 6-12.
@@ -350,6 +358,7 @@ def run_lottery():
 
 
 @offseason_bp.route("/api/offseason/save_lottery", methods=["POST"])
+@admin_required
 def save_lottery():
     """Save manually edited lottery results (picks 1-5)."""
     season = get_current_season()
@@ -381,6 +390,7 @@ def save_lottery():
 
 
 @offseason_bp.route("/api/offseason/lock_lottery", methods=["POST"])
+@admin_required
 def lock_lottery():
     """Irreversibly lock lottery results."""
     season = get_current_season()
@@ -404,6 +414,7 @@ def lock_lottery():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @offseason_bp.route("/api/offseason/confirm_espn", methods=["POST"])
+@admin_required
 def confirm_espn():
     """Mark ESPN values as updated."""
     set_config("espn_values_updated", "true")
@@ -415,6 +426,7 @@ def confirm_espn():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @offseason_bp.route("/api/offseason/rollover", methods=["POST"])
+@admin_required
 def do_rollover():
     """Execute season rollover (gated by steps 2+3)."""
     steps = _get_step_statuses()
@@ -465,6 +477,7 @@ def do_rollover():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @offseason_bp.route("/api/offseason/rookie_draft_done", methods=["POST"])
+@admin_required
 def toggle_rookie_draft():
     data = request.get_json() or {}
     undo = data.get("undo", False)
@@ -479,6 +492,7 @@ def toggle_rookie_draft():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @offseason_bp.route("/api/offseason/auction_done", methods=["POST"])
+@admin_required
 def toggle_auction():
     data = request.get_json() or {}
     undo = data.get("undo", False)
@@ -500,6 +514,7 @@ SEASON_FLAG_KEYS = [
 
 
 @offseason_bp.route("/api/offseason/season_flags")
+@login_required
 def season_flags():
     return jsonify({k: get_config(k, "false") for k in SEASON_FLAG_KEYS})
 

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="error-page">
+  <div class="error-code" style="font-size:3rem">🏈</div>
+  <h2 style="margin-bottom:.5rem">Dynasty SB</h2>
+  <p class="error-msg" style="margin-bottom:1.5rem">Faça login para acessar o Manager da liga.</p>
+  <a href="{{ url_for('auth.login_google') }}" class="btn btn-primary" style="font-size:1rem;padding:.75rem 2rem">
+    Entrar com Google
+  </a>
+</div>
+{% endblock %}

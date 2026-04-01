@@ -1,18 +1,22 @@
 from flask import Blueprint, render_template, request, jsonify
+from flask_login import login_required
 from models import db, Player, Team, SalaryHistory, SALARY_CAP, MAX_ROSTER
 from salary_engine import (
     full_contract_table, project_next_salary, draft_budget
 )
+from routes.auth import admin_required
 
 salary_bp = Blueprint("salary", __name__)
 
 
 @salary_bp.route("/salary")
+@login_required
 def salary_page():
     return render_template("salary.html")
 
 
 @salary_bp.route("/cap_projector")
+@login_required
 def cap_projector_page():
     teams = Team.query.order_by(Team.name).all()
     my_team = Team.query.filter_by(is_my_team=True).first()
@@ -22,6 +26,7 @@ def cap_projector_page():
 
 
 @salary_bp.route("/salary_history")
+@login_required
 def salary_history_page():
     teams = Team.query.order_by(Team.name).all()
     return render_template("salary_history.html", teams=[t.name for t in teams])
@@ -30,6 +35,7 @@ def salary_history_page():
 # ── API ──────────────────────────────────────────────────────────────────────
 
 @salary_bp.route("/api/salary/calculate", methods=["POST"])
+@login_required
 def calculate():
     data = request.get_json() or {}
     try:
@@ -53,6 +59,7 @@ def calculate():
 
 
 @salary_bp.route("/api/cap_projector/<path:team_name>")
+@login_required
 def cap_projector_data(team_name):
     from models import ESPNValue, ESPNImportLog, get_current_season
     team = Team.query.filter_by(name=team_name).first()
@@ -99,6 +106,7 @@ def cap_projector_data(team_name):
 
 
 @salary_bp.route("/api/salary_history")
+@login_required
 def salary_history_data():
     team_name = request.args.get("team")
     player_name = request.args.get("player")
@@ -120,6 +128,7 @@ def salary_history_data():
 
 
 @salary_bp.route("/api/espn_values/update", methods=["POST"])
+@admin_required
 def update_espn_values():
     """
     Bulk update ESPN ref values.

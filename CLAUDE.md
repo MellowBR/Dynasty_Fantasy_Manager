@@ -19,6 +19,11 @@ python app.py
 
 # Run salary engine unit tests
 python salary_engine_test.py
+
+# Seed users (after first deploy)
+python seed_users.py --csv users.csv
+python seed_users.py --email user@gmail.com --name "Name" --team-id 1 --admin
+python seed_users.py --list
 ```
 
 ## Architecture
@@ -35,18 +40,21 @@ python salary_engine_test.py
 
 ### App Startup Sequence (app.py)
 
-1. `create_app()` → Flask + SQLAlchemy init
-2. `db.create_all()` → create tables
-3. `_run_migrations()` → add columns to existing tables
-4. `_seed_app_config()` → seed default AppConfig key-value pairs
-5. `run_import()` → one-time CSV import (players without team assignment)
-6. `run_sync()` → Sleeper API sync (assigns players to teams)
-7. `_backfill_player_history()` → create history records
+1. `load_dotenv()` → load `.env` variables (before `create_app()`)
+2. `create_app()` → Flask + SQLAlchemy init + ProxyFix
+3. `db.create_all()` → create tables
+4. `_run_migrations()` → add columns/tables to existing schema (incl. `users` table)
+5. `_seed_app_config()` → seed default AppConfig key-value pairs
+6. `init_auth(app)` → Flask-Login + Google OAuth setup
+7. `run_import()` → one-time CSV import (players without team assignment)
+8. `run_sync()` → Sleeper API sync (with try/except — app loads even if Sleeper is down)
+9. `_backfill_player_history()` → create history records
 
-### Route Blueprints (7)
+### Route Blueprints (8)
 
 | Blueprint | URL | Purpose |
 |-----------|-----|---------|
+| auth | `/login`, `/logout`, `/auth/callback` | Google OAuth authentication |
 | roster | `/` | Team rosters, IR management, cap bar |
 | salary | `/salary` | Salary calculator, cap projector, salary history |
 | trades | `/trades` | Trade preview/confirmation with cap impact |
@@ -57,7 +65,7 @@ python salary_engine_test.py
 
 ### Models (models.py)
 
-15+ SQLAlchemy models. Key ones: Team, Player, SalaryHistory, Pick, AuctionLog, Trade, ESPNValue, AppConfig (key-value global state), SeasonStandings, DraftLotteryResult, PlayerHistory.
+14 SQLAlchemy models. Key ones: **User** (email, team_id, is_admin), Team, Player, SalaryHistory, Pick, AuctionLog, Trade, ESPNValue, AppConfig (key-value global state), SeasonStandings, DraftLotteryResult, PlayerHistory.
 
 ### Salary Cap Rules
 
@@ -76,10 +84,22 @@ python salary_engine_test.py
 4. Season Rollover → apply salary rules, increment contract years
 5-7. Informational: rookie draft, keepers/cuts, FA auction (manual via /auction)
 
+### Authentication & Permissions
+
+- **Google OAuth** via `authlib` + `flask-login` (blueprint `routes/auth.py`)
+- **User model**: email → team_id + is_admin. Seeded via `seed_users.py` (CSV or CLI)
+- **`@login_required`**: all routes except `/login`, `/logout`, `/auth/callback`
+- **`@admin_required`**: POST/PATCH/DELETE that alter calculated data or are irreversible
+- **Exception**: `POST /api/admin/sync` uses `@login_required` only (reflexive, never overwrites salary/contract data)
+- **Unauthorized handler**: `/api/*` routes return 401/403 JSON; page routes redirect to `/login`
+- **WSGI**: `wsgi.py` as entry point for PythonAnywhere; `ProxyFix` for reverse proxy headers
+- **Environment**: `.env` with `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_ENV`
+
 ### External Integrations
 
-- **Sleeper API** (`sync_sleeper.py`): rosters, team info, winners bracket, previous league. Player DB cached weekly (~15MB `.sleeper_players_cache.json`)
+- **Sleeper API** (`sync_sleeper.py`): rosters, team info, winners bracket, previous league. Player DB cached weekly (~15MB `.sleeper_players_cache.json`). Startup sync wrapped in try/except for graceful degradation.
 - **ESPN PDF** (`espn_pdf_parser.py`): parse draft value sheets, match to DB players with 3-tier matching (exact → case-insensitive → normalized)
+- **Google OAuth**: OpenID Connect via Google's well-known endpoint
 
 ### Player Name Matching (player_lookup.py)
 
@@ -102,3 +122,11 @@ Every action is logged: SalaryHistory (with `rule_applied` explanation), PlayerH
 
 Git initialized. Tag: `manager-v1.0` (hash `f2271ba`).
 dynasty.db is the source of truth consumed by fantasy_optimizer and predictor.
+
+## Deployment
+
+- **PythonAnywhere** (~$5/mês) — WSGI via `wsgi.py`
+- `APP_ENV=production` disables debug mode
+- `SECRET_KEY` must be fixed (changing it logs out all users)
+- `.env` excluded from git via `.gitignore`
+- `ProxyFix` ensures correct `https://` URLs behind reverse proxy

@@ -1,11 +1,14 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, session
+from flask_login import login_required
 from models import db, Player, Team, SalaryHistory, SyncLog, ESPNValue, ESPNImportLog, CURRENT_SEASON, get_current_season
 from salary_engine import apply_season_rollover, CONTRACT_LENGTH
+from routes.auth import admin_required
 
 admin_bp = Blueprint("admin", __name__)
 
 
 @admin_bp.route("/admin")
+@login_required
 def admin_page():
     last_sync = SyncLog.query.order_by(SyncLog.synced_at.desc()).first()
     player_count = Player.query.filter_by(is_dropped=False).count()
@@ -25,6 +28,7 @@ def admin_page():
 # ── Sleeper Sync ──────────────────────────────────────────────────────────────
 
 @admin_bp.route("/api/admin/sync", methods=["POST"])
+@login_required
 def trigger_sync():
     try:
         from sync_sleeper import run_sync
@@ -35,6 +39,7 @@ def trigger_sync():
 
 
 @admin_bp.route("/api/admin/last_sync")
+@login_required
 def last_sync():
     log = SyncLog.query.order_by(SyncLog.synced_at.desc()).first()
     if log:
@@ -45,6 +50,7 @@ def last_sync():
 # ── Season Rollover ───────────────────────────────────────────────────────────
 
 @admin_bp.route("/api/admin/rollover/preview", methods=["GET"])
+@login_required
 def rollover_preview():
     """Preview what season rollover will do — no DB changes."""
     next_season = get_current_season() + 1
@@ -78,6 +84,7 @@ def rollover_preview():
 
 
 @admin_bp.route("/api/admin/rollover/apply", methods=["POST"])
+@admin_required
 def rollover_apply():
     """Apply season rollover: increment year, recalc salaries, log history."""
     next_season = get_current_season() + 1
@@ -130,6 +137,7 @@ def rollover_apply():
 # ── ESPN Value Bulk Upload ────────────────────────────────────────────────────
 
 @admin_bp.route("/api/admin/espn_bulk", methods=["POST"])
+@admin_required
 def espn_bulk_upload():
     """
     CSV paste or JSON list of ESPN value updates.
@@ -176,12 +184,14 @@ def espn_bulk_upload():
 # ── Team owner management ────────────────────────────────────────────────────
 
 @admin_bp.route("/api/admin/teams")
+@login_required
 def list_teams():
     teams = Team.query.order_by(Team.name).all()
     return jsonify([t.to_dict() for t in teams])
 
 
 @admin_bp.route("/api/admin/teams/<int:team_id>/owner", methods=["PATCH"])
+@admin_required
 def update_team_owner(team_id):
     """Manually set or update a team's owner_name."""
     team = db.get_or_404(Team, team_id)
@@ -198,6 +208,7 @@ ESPN_DEFAULT_URL = "https://g.espncdn.com/s/ffldraftkit/25/NFL25_CS_PPR300.pdf?a
 
 
 @admin_bp.route("/admin/espn_import", methods=["GET", "POST"])
+@admin_required
 def espn_import_page():
     """Form to fetch ESPN PDF and parse it."""
     last_import = ESPNImportLog.query.order_by(ESPNImportLog.imported_at.desc()).first()
@@ -254,6 +265,7 @@ def espn_import_page():
 
 
 @admin_bp.route("/admin/espn_import/review", methods=["GET"])
+@admin_required
 def espn_review_page():
     """Review page showing matched, approximate, and not-found players."""
     import json, os
@@ -268,6 +280,7 @@ def espn_review_page():
 
 
 @admin_bp.route("/api/admin/espn_import/confirm", methods=["POST"])
+@admin_required
 def espn_import_confirm():
     """Confirm and save ESPN import after review."""
     import json, os
@@ -362,6 +375,7 @@ def _save_espn_value(player_id: int, season: int, espn_raw: float, espn_adjusted
 
 
 @admin_bp.route("/api/admin/espn_import/status")
+@login_required
 def espn_import_status():
     """Return info about the most recent ESPN import."""
     last = ESPNImportLog.query.order_by(ESPNImportLog.imported_at.desc()).first()
@@ -371,12 +385,14 @@ def espn_import_status():
 
 
 @admin_bp.route("/api/admin/review_players")
+@login_required
 def review_players():
     players = Player.query.filter_by(needs_review=True, is_dropped=False).all()
     return jsonify([p.to_dict() for p in players])
 
 
 @admin_bp.route("/api/admin/review_players/<int:pid>/clear", methods=["POST"])
+@admin_required
 def clear_review(pid):
     player = db.get_or_404(Player, pid)
     player.needs_review = False
@@ -387,6 +403,7 @@ def clear_review(pid):
 # ── Playoffs Flag ────────────────────────────────────────────────────────────
 
 @admin_bp.route("/api/admin/playoffs_started", methods=["POST"])
+@admin_required
 def toggle_playoffs():
     from models import set_config, get_config
     data = request.get_json() or {}
@@ -400,6 +417,7 @@ def toggle_playoffs():
 # ── Player History Backfill ──────────────────────────────────────────────────
 
 @admin_bp.route("/api/admin/backfill_history", methods=["POST"])
+@admin_required
 def backfill_history():
     """Generate initial history entries from existing player data."""
     from models import PlayerHistory

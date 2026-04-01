@@ -1,4 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
 from datetime import datetime
 
 db = SQLAlchemy()
@@ -43,6 +44,28 @@ def _table_exists(name: str) -> bool:
         return name in inspect(db.engine).get_table_names()
     except Exception:
         return False
+
+
+class User(UserMixin, db.Model):
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(200), unique=True, nullable=False)
+    name = db.Column(db.String(120), nullable=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=True)
+    is_admin = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    team_rel = db.relationship("Team", foreign_keys=[team_id])
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "email": self.email,
+            "name": self.name,
+            "team_id": self.team_id,
+            "is_admin": self.is_admin,
+        }
 
 
 class Team(db.Model):

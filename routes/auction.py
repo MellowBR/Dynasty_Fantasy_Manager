@@ -1,12 +1,15 @@
 import io
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask_login import login_required
 from models import db, Player, Team, AuctionLog, SalaryHistory, CURRENT_SEASON, get_current_season
 from salary_engine import year1_salary, _floor
+from routes.auth import admin_required
 
 auction_bp = Blueprint("auction", __name__)
 
 
 @auction_bp.route("/auction")
+@login_required
 def auction_page():
     teams = Team.query.order_by(Team.name).all()
     recent = AuctionLog.query.order_by(AuctionLog.created_at.desc()).limit(50).all()
@@ -18,6 +21,7 @@ def auction_page():
 # ── FA Auction ────────────────────────────────────────────────────────────────
 
 @auction_bp.route("/api/auction/fa", methods=["POST"])
+@admin_required
 def register_fa_auction():
     """
     Register a free agent auction result.
@@ -101,6 +105,7 @@ def register_fa_auction():
 # ── Rookie Draft ──────────────────────────────────────────────────────────────
 
 @auction_bp.route("/api/auction/rookie", methods=["POST"])
+@admin_required
 def register_rookie():
     """
     Register a rookie draft pick.
@@ -180,6 +185,7 @@ def register_rookie():
 
 
 @auction_bp.route("/api/auction/bulk", methods=["POST"])
+@admin_required
 def bulk_register():
     """
     Bulk register: list of FA auction or rookie entries.
@@ -242,6 +248,7 @@ def bulk_register():
 # ── Excel Upload ─────────────────────────────────────────────────────────────
 
 @auction_bp.route("/auction/upload_excel", methods=["POST"])
+@admin_required
 def upload_excel():
     """
     Import FA auction entries from an Excel file (.xlsx/.xls).
