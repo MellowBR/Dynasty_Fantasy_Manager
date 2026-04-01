@@ -1,21 +1,36 @@
-# Database files
-*.db
-
 # Python
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 
 # Environment
 .env
+.env.*
+
+# Database
+*.db
+dynasty.db
+
+# Flask
+instance/
+
+# Virtual env
+.venv/
+venv/
+env/
 
 # IDE
 .vscode/
 .idea/
 
-# Claude Code
+# OS
+.DS_Store
+Thumbs.db
+
+# Project-specific
 .claude/
 
-# Data files (CSVs, PDFs — imported, not source)
+# Data files
 *.csv
 *.pdf
