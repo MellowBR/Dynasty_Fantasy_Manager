@@ -12,13 +12,15 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def create_app():
     app = Flask(__name__)
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(BASE_DIR, 'dynasty.db')}"
+    db_path = os.environ.get("DYNASTY_DB", os.path.join(BASE_DIR, "dynasty.db"))
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dynasty-sb-2025-secret")
 
     # PythonAnywhere runs behind a reverse proxy — ProxyFix ensures
     # url_for(_external=True) generates https:// URLs correctly
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    if os.environ.get("APP_ENV") == "production":
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
     db.init_app(app)
 
@@ -26,6 +28,28 @@ def create_app():
         db.create_all()
         _run_migrations()
         _seed_app_config()
+        # Auto-seed users from CSV (skip existing emails)
+        users_csv = os.path.join(BASE_DIR, "data", "users.csv")
+        if os.path.exists(users_csv):
+            import csv as csv_mod
+            from models import User
+            added = 0
+            with open(users_csv, encoding="utf-8") as f:
+                for row in csv_mod.DictReader(f):
+                    email = row.get("email", "").strip().lower()
+                    if not email or User.query.filter_by(email=email).first():
+                        continue
+                    db.session.add(User(
+                        email=email,
+                        name=row.get("name", "").strip() or None,
+                        team_id=int(row["team_id"]) if row.get("team_id") else None,
+                        is_admin=str(row.get("is_admin", "0")).strip() in ("1", "true", "True", "yes"),
+                    ))
+                    added += 1
+            if added:
+                db.session.commit()
+                print(f"[app] {added} user(s) seeded from {users_csv}")
+
         from import_csv import run_import
         fresh_import = run_import()
         if fresh_import:
@@ -148,7 +172,7 @@ app = create_app()
 if __name__ == "__main__":
     print("=" * 60)
     print("  Dynasty SB — Fantasy Manager")
-    print("  http://127.0.0.1:5000")
+    print("  http://localhost:5000")
     print("=" * 60)
     debug = os.getenv("APP_ENV") != "production"
-    app.run(debug=debug, host="0.0.0.0", port=5000)
+    app.run(debug=debug, host="localhost", port=5000)

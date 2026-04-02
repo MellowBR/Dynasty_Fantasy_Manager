@@ -721,28 +721,29 @@ textarea { resize: vertical; min-height: 100px; }
 .col-label { margin-bottom: .4rem; }
 
 .asset-list {
-  max-height: 260px;
+  max-height: 65vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: .25rem;
+  gap: 2px;
 }
 
 .asset-item {
   display: flex;
   align-items: center;
-  gap: .45rem;
-  padding: .38rem .6rem;
+  gap: .3rem;
+  padding: .2rem .45rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: .8rem;
+  font-size: .78rem;
   transition: background .12s;
+  white-space: nowrap;
 }
 
 .asset-item:hover { background: var(--bg3); }
-.asset-item input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
-.asset-name { flex: 1; }
+.asset-item input[type="checkbox"] { accent-color: var(--accent); width: 13px; height: 13px; flex-shrink: 0; }
+.asset-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 
 .trade-arrow {
   display: flex;
@@ -754,6 +755,14 @@ textarea { resize: vertical; min-height: 100px; }
 }
 
 .trade-actions { display: flex; gap: .6rem; margin-top: 1rem; flex-wrap: wrap; }
+
+.asset-item .pos-badge {
+  min-width: 26px;
+  height: 20px;
+  font-size: .6rem;
+  padding: 0 .25rem;
+  border-radius: 4px;
+}
 
 .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
 .preview-side h3 { font-size: .95rem; margin-bottom: .6rem; }
@@ -787,8 +796,8 @@ textarea { resize: vertical; min-height: 100px; }
   background: rgba(59,130,246,.15);
   color: var(--accent);
   border-radius: 4px;
-  padding: .08rem .38rem;
-  font-size: .72rem;
+  padding: .05rem .3rem;
+  font-size: .68rem;
   font-weight: 700;
 }
 

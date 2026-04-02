@@ -105,13 +105,10 @@ verdade — erros de salary cap ou player matching têm consequências reais par
 
 Estes passos não podem ser executados pelo Claude Code — requerem ação manual:
 
-1. **Criar Google OAuth credentials** no Google Cloud Console
-   - Authorized redirect URI: `https://<usuario>.pythonanywhere.com/auth/callback`
-2. **Popular `.env`** no PythonAnywhere com as credenciais geradas
-3. **Construir `users.csv`** a partir dos team IDs existentes no `dynasty.db` de produção
-   e rodar `python seed_users.py users.csv`
-
-> Cowork prompts foram criados para os 3 passos acima.
+1. ✅ **Criar Google OAuth credentials** no Google Cloud Console (feito 01/04/2026)
+   - Authorized redirect URIs: `https://mellowbr.pythonanywhere.com/auth/callback` + `http://localhost:5000/auth/callback`
+2. ✅ **Popular `.env`** no PythonAnywhere com as credenciais geradas (feito 01/04/2026)
+3. ✅ **Users seeded** — auto-seed no startup a partir de `data/users.csv` (não requer mais ação manual)
 
 ---
 
@@ -171,3 +168,18 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 - **Docs renomeados:** `manager_devplan.md` → `devplan.md`, `manager_vision.md` → `vision.md`.
   Padrão de 4 docs (CLAUDE.md, devplan.md, improvements.md, vision.md) agora completo.
 - **import_csv.py:** CSV_PATH atualizado para `data/dynasty_rosters_clean.csv`.
+- **Docs prefixados:** Erico prefere `manager_devplan.md` / `manager_vision.md` para
+  deixar claro o projeto a que pertencem (mesmo padrão de `optimizer_vision.md`).
+
+### 02/04/2026 — Fix OAuth local + Auto-seed users
+
+- **ProxyFix condicional:** `ProxyFix` estava rodando sempre, inclusive localmente.
+  Sem reverse proxy, corromperia a URL do callback OAuth. Fix: `if APP_ENV == "production"`.
+- **app.run(host='localhost'):** Flask subia em `0.0.0.0`, gerando callback com `127.0.0.1`
+  que não batia com `localhost:5000` cadastrado no Google Console.
+- **APP_ENV local:** `.env` local tinha `APP_ENV=production` (copiado do PythonAnywhere).
+  Corrigido para `development`.
+- **GOOGLE_CLIENT_SECRET:** `.env` local tinha secret antigo/errado. Corrigido.
+- **Auto-seed users no startup:** users eram populados manualmente via `seed_users.py` CLI.
+  Agora o startup lê `data/users.csv` e insere novos emails automaticamente (skip existentes).
+  Limitação aceita: mudança de email de um owner requer intervenção manual (raro para 12 owners).

@@ -41,14 +41,15 @@ python seed_users.py --list
 ### App Startup Sequence (app.py)
 
 1. `load_dotenv()` → load `.env` variables (before `create_app()`)
-2. `create_app()` → Flask + SQLAlchemy init + ProxyFix
+2. `create_app()` → Flask + SQLAlchemy init + ProxyFix (production only)
 3. `db.create_all()` → create tables
 4. `_run_migrations()` → add columns/tables to existing schema (incl. `users` table)
 5. `_seed_app_config()` → seed default AppConfig key-value pairs
-6. `init_auth(app)` → Flask-Login + Google OAuth setup
-7. `run_import()` → one-time CSV import (players without team assignment)
-8. `run_sync()` → Sleeper API sync (with try/except — app loads even if Sleeper is down)
-9. `_backfill_player_history()` → create history records
+6. **Auto-seed users** → reads `data/users.csv`, inserts new emails (skips existing)
+7. `run_import()` → upsert salary/contract data from `data/dynasty_rosters_clean.csv`
+8. `init_auth(app)` → Flask-Login + Google OAuth setup
+9. `run_sync()` → Sleeper API sync (with try/except — app loads even if Sleeper is down)
+10. `_backfill_player_history()` → create history records
 
 ### Route Blueprints (8)
 
@@ -87,12 +88,13 @@ python seed_users.py --list
 ### Authentication & Permissions
 
 - **Google OAuth** via `authlib` + `flask-login` (blueprint `routes/auth.py`)
-- **User model**: email → team_id + is_admin. Seeded via `seed_users.py` (CSV or CLI)
+- **User model**: email → team_id + is_admin. Auto-seeded from `data/users.csv` on startup (skip existing). Also available via CLI: `seed_users.py`
 - **`@login_required`**: all routes except `/login`, `/logout`, `/auth/callback`
 - **`@admin_required`**: POST/PATCH/DELETE that alter calculated data or are irreversible
 - **Exception**: `POST /api/admin/sync` uses `@login_required` only (reflexive, never overwrites salary/contract data)
 - **Unauthorized handler**: `/api/*` routes return 401/403 JSON; page routes redirect to `/login`
-- **WSGI**: `wsgi.py` as entry point for PythonAnywhere; `ProxyFix` for reverse proxy headers
+- **WSGI**: `wsgi.py` as entry point for PythonAnywhere; `ProxyFix` for reverse proxy headers (production only)
+- **Local dev**: `app.run(host='localhost')` — matches Google OAuth redirect URI `http://localhost:5000/auth/callback`
 - **Environment**: `.env` with `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_ENV`
 
 ### External Integrations
