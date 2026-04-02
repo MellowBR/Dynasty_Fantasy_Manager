@@ -10,7 +10,8 @@ __pycache__/
 
 # Database
 *.db
-dynasty.db
+# Exception: dynasty.db seed for Render deploy
+!dynasty.db
 
 # Flask
 instance/

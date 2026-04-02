@@ -129,12 +129,16 @@ fantasy_manager/
   import_csv.py                     # CSV → DB upsert (reads data/)
   sync_sleeper.py                   # Sleeper API sync
   seed_users.py                     # User seeding (reads data/)
+  init_data.py                      # Copy dynasty.db seed to /data/ on Render
+  startup_check.py                  # Verify DB exists before startup
   routes/                           # Flask blueprints
   templates/, static/               # UI
-  data/                             # Data files (not in git)
-    dynasty_rosters_clean.csv       # Salary source (ACTIVE)
-    users.csv                       # User seed (ACTIVE)
-    *.csv                           # Stats brutos (futuro)
+  dynasty.db                        # Seed DB (in git for Render deploy)
+  Procfile, render.yaml             # Render deployment config
+  data/                             # Data files (mostly not in git)
+    users.csv                       # User seed (in git — auto-seed on startup)
+    dynasty_rosters_clean.csv       # Salary source (not in git)
+    *.csv                           # Stats brutos (not in git)
   manager_devplan.md                # Plano vivo + log de decisões
   manager_vision.md                 # Motivação e casos de uso
   improvements.md                   # Backlog vivo
@@ -147,8 +151,16 @@ dynasty.db is the source of truth consumed by fantasy_optimizer and predictor.
 
 ## Deployment
 
-- **PythonAnywhere** (~$5/mês) — WSGI via `wsgi.py`
-- `APP_ENV=production` disables debug mode
-- `SECRET_KEY` must be fixed (changing it logs out all users)
-- `.env` excluded from git via `.gitignore`
-- `ProxyFix` ensures correct `https://` URLs behind reverse proxy
+### Render.com (primary)
+- **URL:** https://dynasty-fantasy-manager.onrender.com
+- **WSGI:** `wsgi.py` → calls `init_data()` (copies seed DB to `/data/`) then `create_app()`
+- **Persistent disk:** mounted at `/data/`, holds `dynasty.db` in production
+- **Env vars:** `APP_ENV=production`, `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `DYNASTY_DB=/data/dynasty.db`
+- **Seed DB:** `dynasty.db` is included in the repo. `init_data.py` copies it to `/data/` on first deploy only (never overwrites existing)
+- **User seed:** `data/users.csv` is in git. Auto-seed on startup inserts new emails into `users` table
+- `ProxyFix` enabled only when `APP_ENV=production`
+
+### PythonAnywhere (legacy)
+- **URL:** https://mellowbr.pythonanywhere.com
+- Same `wsgi.py` entry point
+- DB and CSVs uploaded manually

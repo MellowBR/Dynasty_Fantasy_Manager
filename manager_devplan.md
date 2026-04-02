@@ -183,3 +183,20 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 - **Auto-seed users no startup:** users eram populados manualmente via `seed_users.py` CLI.
   Agora o startup lê `data/users.csv` e insere novos emails automaticamente (skip existentes).
   Limitação aceita: mudança de email de um owner requer intervenção manual (raro para 12 owners).
+
+### 02/04/2026 — Deploy no Render (C1-C3)
+
+- **Render.com como host primário:** Migrado de PythonAnywhere para Render. Dois web services
+  independentes (Manager + Optimizer), cada um com seu repo no GitHub.
+- **Persistent disk `/data/`:** `dynasty.db` reside em `/data/` no Render. Env var `DYNASTY_DB`
+  define o path; fallback para path local garante que dev local continua funcionando.
+- **Seed DB no repo:** `dynasty.db` incluído no git (exceção no `.gitignore`). `init_data.py`
+  copia para `/data/` no primeiro deploy; não sobrescreve se já existir (preserva dados de produção).
+- **`data/users.csv` no git:** Exceção no `.gitignore` para que o auto-seed de users funcione
+  no deploy. Sem isso, tabela `users` ficava vazia no Render → 403 para todos.
+- **Sync NÃO sobrescreve salários:** O Sleeper sync (`sync_sleeper.py:242`) nunca toca em
+  salary/contract_year/acquisition_type de jogadores existentes. O banco no Render precisa
+  ter os salários corretos desde o seed — o sync só atualiza roster membership e metadados.
+- **Diagnóstico do "salários zerados":** O banco no Render foi criado vazio pelo `create_all()`,
+  o sync populou jogadores com `salary=1.0` (default para novos). Solução: incluir `dynasty.db`
+  com salários corretos como seed no repo.
