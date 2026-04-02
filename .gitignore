@@ -33,6 +33,8 @@ Thumbs.db
 .sleeper_players_cache.json
 
 # Data files
-data/
 *.csv
 *.pdf
+data/*
+# Exception: users.csv must be in repo for auto-seed on deploy
+!data/users.csv
