@@ -21,6 +21,8 @@
 | M2 | Notificação de jogadores com `needs_review=True` pendente | Baixa | 🔲 |
 | M3 | Exportar dynasty.db em formato legível para os outros owners | Baixa | 🔲 |
 | M4 | Banner de sync desatualizada com timestamp e botão "Sincronizar agora" | Baixa | 🔲 |
+| M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
+| M6 | Importar resultados de temporada para atualizar ESPN ref values automaticamente | Baixa | 🔲 |
 | F1 | Correção de salários por partial name match (3 Browns bug) | Alta | ✅ 28/03/2026 |
 | F2 | Ordenação do Round 1 via `draft_lottery_result` + `season_standings` | Alta | ✅ 28/03/2026 |
 | F3 | Histórico inline (accordion) na aba de histórico | Média | ✅ 28/03/2026 |
@@ -110,6 +112,17 @@ CREATE TABLE trade_proposals (
 
 ---
 
+### M6 — Importar Resultados de Temporada para Atualizar ESPN Ref Values
+🔲 **Pendente**
+
+**Problema:** Hoje a atualização de ESPN ref values é feita manualmente via PDF (passo 3 do offseason workflow, `espn_pdf_parser.py`). O processo exige download manual do PDF, upload no Manager, e matching de nomes.
+
+**Proposta:** Criar pipeline que leia CSVs de stats por temporada (já disponíveis em `data/`: receiving, rushing, passing) e atualize os ESPN ref values automaticamente. Dados brutos já existem — falta o pipeline de processamento.
+
+**Nota:** Os CSVs em `data/` são sementes desse trabalho. Formato e fonte dos dados futuros a definir.
+
+---
+
 ## Itens Concluídos
 
 ---
@@ -167,3 +180,11 @@ CREATE TABLE trade_proposals (
 **Problema:** Histórico de transações de um jogador só estava disponível via modal na aba de roster, não na aba de histórico (`/salary_history`).
 
 **Solução:** Adicionado accordion expansível por jogador na aba de histórico, consistente com o comportamento do modal no roster.
+
+---
+
+### M5 — Ordenação por Posição em Todas as Telas de Roster ✅ 02/04/2026
+
+**Problema:** Jogadores apareciam em ordem aleatória nos endpoints de API (roster by id, roster by name, cap projector). A página HTML de roster já ordenava via `_build_players_by_pos()`, mas as APIs JSON não.
+
+**Solução:** `POS_ORDER` movido de `routes/roster.py` para `models.py` como constante central. Criada função `sort_players_by_pos(players)` em `models.py` que ordena por posição (QB→DEF) e salary DESC. Aplicada em `routes/roster.py` (2 endpoints API) e `routes/salary.py` (cap projector).

@@ -14,14 +14,14 @@ Dynasty SB is a Flask web app for managing a 12-team dynasty fantasy football le
 # Install dependencies
 pip install -r requirements.txt
 
-# Run app (port 5000) — first run auto-imports dynasty_rosters_clean.csv
+# Run app (port 5000) — first run auto-imports data/dynasty_rosters_clean.csv
 python app.py
 
 # Run salary engine unit tests
 python salary_engine_test.py
 
 # Seed users (after first deploy)
-python seed_users.py --csv users.csv
+python seed_users.py --csv data/users.csv
 python seed_users.py --email user@gmail.com --name "Name" --team-id 1 --admin
 python seed_users.py --list
 ```
@@ -117,6 +117,26 @@ Every action is logged: SalaryHistory (with `rule_applied` explanation), PlayerH
 - AppConfig stores global state flags (current_season, offseason_mode, offseason_step, etc.)
 - Players added via Sleeper sync are marked `needs_review=True`
 - K/DEF excluded from salary cap calculations in some contexts
+
+## Project Structure
+
+```
+fantasy_manager/
+  app.py, wsgi.py, models.py       # Core app
+  salary_engine.py                  # Pure salary logic (no DB)
+  import_csv.py                     # CSV → DB upsert (reads data/)
+  sync_sleeper.py                   # Sleeper API sync
+  seed_users.py                     # User seeding (reads data/)
+  routes/                           # Flask blueprints
+  templates/, static/               # UI
+  data/                             # Data files (not in git)
+    dynasty_rosters_clean.csv       # Salary source (ACTIVE)
+    users.csv                       # User seed (ACTIVE)
+    *.csv                           # Stats brutos (futuro)
+  manager_devplan.md                # Plano vivo + log de decisões
+  manager_vision.md                 # Motivação e casos de uso
+  improvements.md                   # Backlog vivo
+```
 
 ## Version Control
 

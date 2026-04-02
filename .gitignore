@@ -30,7 +30,9 @@ Thumbs.db
 
 # Project-specific
 .claude/
+.sleeper_players_cache.json
 
 # Data files
+data/
 *.csv
 *.pdf

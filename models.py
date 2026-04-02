@@ -13,6 +13,13 @@ MY_TEAM_NAME = "Cangaceiros da Colina"
 MY_OWNER_ID = "1130162144764506112"
 LEAGUE_ID = "1316547584378048512"
 
+POS_ORDER = {"QB": 0, "RB": 1, "WR": 2, "TE": 3, "K": 4, "DST": 5, "D/ST": 5, "DEF": 5}
+
+
+def sort_players_by_pos(players):
+    """Sort players by position (QB→DEF), then salary descending."""
+    return sorted(players, key=lambda p: (POS_ORDER.get(p.position, 99), -p.salary))
+
 
 # ── AppConfig helpers ────────────────────────────────────────────────────────
 

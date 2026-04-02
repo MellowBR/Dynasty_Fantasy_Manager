@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required
-from models import db, Player, Team, SalaryHistory, SALARY_CAP, MAX_ROSTER
+from models import db, Player, Team, SalaryHistory, SALARY_CAP, MAX_ROSTER, sort_players_by_pos
 from salary_engine import (
     full_contract_table, project_next_salary, draft_budget
 )
@@ -66,7 +66,9 @@ def cap_projector_data(team_name):
     if not team:
         return jsonify({"error": "Team not found"}), 404
 
-    players = Player.query.filter_by(team_id=team.id, is_dropped=False).all()
+    players = sort_players_by_pos(
+        Player.query.filter_by(team_id=team.id, is_dropped=False).all()
+    )
 
     # Build ESPN value index for this season+1
     target_season = get_current_season() + 1

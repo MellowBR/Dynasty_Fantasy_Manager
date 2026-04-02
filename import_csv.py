@@ -8,7 +8,7 @@ import csv
 import os
 from models import db, Player, SalaryHistory, CURRENT_SEASON
 
-CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dynasty_rosters_clean.csv")
+CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "dynasty_rosters_clean.csv")
 
 
 def _safe_float(val, default=0.0):

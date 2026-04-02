@@ -1,11 +1,9 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required
-from models import db, Team, Player, SALARY_CAP, MAX_IR, MY_TEAM_NAME
+from models import db, Team, Player, SALARY_CAP, MAX_IR, MY_TEAM_NAME, POS_ORDER, sort_players_by_pos
 from routes.auth import admin_required
 
 roster_bp = Blueprint("roster", __name__)
-
-POS_ORDER = {"QB": 0, "RB": 1, "WR": 2, "TE": 3, "K": 4, "DST": 5, "D/ST": 5, "DEF": 5}
 POS_DISPLAY = ["QB", "RB", "WR", "TE", "K", "DEF"]
 
 
@@ -105,7 +103,7 @@ def api_teams():
 @login_required
 def api_roster_by_id(team_id):
     players = Player.query.filter_by(team_id=team_id, is_dropped=False).all()
-    return jsonify([p.to_dict() for p in players])
+    return jsonify([p.to_dict() for p in sort_players_by_pos(players)])
 
 
 @roster_bp.route("/api/roster/by_name/<path:team_name>")
@@ -115,7 +113,7 @@ def api_roster_by_name(team_name):
     if not team:
         return jsonify({"error": "Team not found"}), 404
     players = Player.query.filter_by(team_id=team.id, is_dropped=False).all()
-    return jsonify([p.to_dict() for p in players])
+    return jsonify([p.to_dict() for p in sort_players_by_pos(players)])
 
 
 @roster_bp.route("/api/player/<int:player_id>/ir", methods=["POST"])
