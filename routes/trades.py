@@ -188,6 +188,43 @@ def list_trades():
     return jsonify([t.to_dict() for t in trades])
 
 
+@trades_bp.route("/api/trades/by_tx/<tx_id>")
+@login_required
+def trade_by_tx(tx_id):
+    """
+    Detalhe de uma Trade pelo sleeper_transaction_id — usado pelo modal clicável
+    da timeline de /salary_history. Parseia Trade.description em assets por direção
+    (formato: 'Player/Pick (src→dst); ...').
+    """
+    import re
+    trade = Trade.query.filter_by(sleeper_transaction_id=tx_id).first()
+    if not trade:
+        return jsonify({"error": "Trade não encontrada"}), 404
+
+    # Parse description: "Player (src→dst); Pick 2025 Rd2 (src→dst); ..."
+    # Regex captura (asset, src, dst). Aceita '→' ou '->'.
+    pattern = re.compile(r"^(.+?)\s*\(([^→]+?)(?:→|->)([^)]+?)\)$")
+    assets_by_team = {}  # dst_team → list of assets received from their side
+    if trade.description:
+        parts = [p.strip() for p in trade.description.split(";") if p.strip()]
+        for part in parts:
+            m = pattern.match(part)
+            if not m:
+                continue
+            asset, src, dst = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+            assets_by_team.setdefault(dst, []).append({"asset": asset, "from": src})
+
+    return jsonify({
+        "sleeper_transaction_id": trade.sleeper_transaction_id,
+        "team_a": trade.team_a,
+        "team_b": trade.team_b,
+        "description": trade.description,
+        "trade_date": trade.trade_date.strftime("%d/%m/%Y %H:%M") if trade.trade_date else None,
+        "source": trade.source,
+        "assets_by_team": assets_by_team,  # dict team_name → [{asset, from}]
+    })
+
+
 @trades_bp.route("/api/trades/<int:tid>", methods=["DELETE"])
 @admin_required
 def delete_trade(tid):

@@ -41,6 +41,18 @@
   <div class="loading-msg">Carregando...</div>
 </div>
 
+<!-- Trade detail modal -->
+<div id="trade-detail-modal" class="modal" style="display:none">
+  <div class="modal-overlay" onclick="closeTradeDetail()"></div>
+  <div class="modal-box">
+    <h2 id="trade-detail-title">Detalhe da Trade</h2>
+    <div id="trade-detail-content"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeTradeDetail()">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <style>
 .player-card {
   border: 1px solid rgba(255,255,255,.08);
@@ -120,6 +132,39 @@
   text-transform: uppercase;
   letter-spacing: .05em;
   margin-bottom: .35rem;
+}
+.event-row.clickable {
+  cursor: pointer;
+  transition: background .12s;
+}
+.event-row.clickable:hover {
+  background: rgba(255,255,255,.035);
+}
+.event-row.clickable .event-notes::after {
+  content: ' 🔍';
+  font-size: .75em;
+  opacity: .6;
+}
+.trade-detail-section {
+  margin-top: .75rem;
+}
+.trade-detail-section-title {
+  font-size: .78rem;
+  color: var(--text-dim, #888);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: .3rem;
+}
+.trade-detail-asset {
+  padding: .25rem 0;
+  font-size: .9rem;
+}
+.trade-detail-team-header {
+  font-weight: 600;
+  margin-top: .6rem;
+  margin-bottom: .3rem;
+  padding-bottom: .25rem;
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 </style>
 {% endblock %}
@@ -278,12 +323,70 @@ function renderEventRow(e) {
   const badgeCls = EVENT_BADGES[e.event_type] || '';
   // display_notes is formatted by backend for F8 rebuilt events; fallback to raw notes.
   const displayText = e.display_notes || e.notes || '';
+
+  // Trades ficam clicáveis — abrem modal com detalhe completo via Trade table.
+  // Requer sleeper_event_ref no formato 'tx:<id>' pra resolver a Trade row.
+  let clickable = '';
+  let clickAttr = '';
+  if (e.event_type === 'trade' && e.sleeper_event_ref && e.sleeper_event_ref.indexOf('tx:') === 0) {
+    const txId = e.sleeper_event_ref.slice(3);
+    clickable = 'clickable';
+    clickAttr = `onclick="openTradeDetail('${escapeHtml(txId)}')"`;
+  }
+
   return `
-    <div class="event-row">
+    <div class="event-row ${clickable}" ${clickAttr}>
       <span class="event-season">S${e.season || '—'}</span>
       <span class="tag ${badgeCls}">${escapeHtml(label)}</span>
       <span class="event-notes">${escapeHtml(displayText)}</span>
     </div>`;
+}
+
+function openTradeDetail(txId) {
+  const modal = document.getElementById('trade-detail-modal');
+  const content = document.getElementById('trade-detail-content');
+  const title = document.getElementById('trade-detail-title');
+  title.textContent = 'Carregando...';
+  content.innerHTML = '<p class="text-dim">Buscando detalhes da trade...</p>';
+  modal.style.display = 'flex';
+
+  fetch(`/api/trades/by_tx/${encodeURIComponent(txId)}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) {
+        title.textContent = 'Trade não encontrada';
+        content.innerHTML = `<p class="text-dim">${escapeHtml(d.error)}</p>`;
+        return;
+      }
+      title.textContent = `${d.team_a} ⇄ ${d.team_b}`;
+
+      let html = `<p class="text-dim small-text">${escapeHtml(d.trade_date || '—')}</p>`;
+
+      const teams = Object.keys(d.assets_by_team || {});
+      if (teams.length === 0) {
+        html += '<p class="text-dim">Sem ativos rastreáveis nessa trade.</p>';
+      } else {
+        for (const team of teams) {
+          const assets = d.assets_by_team[team] || [];
+          html += `<div class="trade-detail-team-header">📥 ${escapeHtml(team)} recebeu:</div>`;
+          html += '<div class="trade-detail-section">';
+          for (const a of assets) {
+            html += `<div class="trade-detail-asset">· ${escapeHtml(a.asset)} <span class="text-dim small-text">(de ${escapeHtml(a.from)})</span></div>`;
+          }
+          html += '</div>';
+        }
+      }
+
+      content.innerHTML = html;
+    })
+    .catch(e => {
+      title.textContent = 'Erro';
+      content.innerHTML = `<p class="text-danger">Erro ao carregar: ${escapeHtml(String(e))}</p>`;
+    });
+}
+
+function closeTradeDetail() {
+  document.getElementById('trade-detail-modal').style.display = 'none';
 }
 
 function togglePlayerTimeline(playerId, headerEl) {
