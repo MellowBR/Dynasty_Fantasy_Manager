@@ -213,6 +213,96 @@ def _run_migrations():
             db.session.commit()
             print(f"[migrate] F7b: cleaned {notes_import} 'import' notes → 'Renovado (VALORIZAÇÃO)'")
 
+    # Migration 5: F8a — sleeper_event_ref + UNIQUE index em player_history
+    # Quintupleto (player_id, season, event_type, team_name, sleeper_event_ref) garante
+    # idempotência de múltiplos eventos mesmo tipo/team/season (ex: BUF DST com waiver+drop
+    # repetidos pelo mesmo team em legs distintas).
+    if "player_history" in insp.get_table_names():
+        ph_cols = [c["name"] for c in insp.get_columns("player_history")]
+        # 5a — ALTER TABLE ADD COLUMN
+        if "sleeper_event_ref" not in ph_cols:
+            db.session.execute(text("ALTER TABLE player_history ADD COLUMN sleeper_event_ref VARCHAR(120)"))
+            db.session.commit()
+            print("[migrate] F8a: added sleeper_event_ref to player_history")
+
+        # 5b — backfill rows de trade S1 a partir das notes
+        # Padrão: 'Trade sleeper_sync tx=<id> (...)' ou 'N-way trade tx=<id> (...)'
+        tx_missing = db.session.execute(text("""
+            SELECT COUNT(*) FROM player_history
+            WHERE sleeper_event_ref IS NULL
+              AND event_type='trade'
+              AND (notes LIKE '%sleeper_sync tx=%' OR notes LIKE '%N-way trade tx=%')
+        """)).scalar()
+        if tx_missing > 0:
+            # Extrai tx_id via substr (SQLite não tem regex nativo)
+            db.session.execute(text("""
+                UPDATE player_history
+                SET sleeper_event_ref =
+                    'tx:' || substr(
+                        notes,
+                        instr(notes, 'tx=') + 3,
+                        CASE
+                            WHEN instr(substr(notes, instr(notes, 'tx=') + 3), ' ') > 0
+                            THEN instr(substr(notes, instr(notes, 'tx=') + 3), ' ') - 1
+                            ELSE length(notes)
+                        END
+                    )
+                WHERE sleeper_event_ref IS NULL
+                  AND event_type='trade'
+                  AND (notes LIKE '%sleeper_sync tx=%' OR notes LIKE '%N-way trade tx=%')
+            """))
+            db.session.commit()
+            print(f"[migrate] F8a: backfilled sleeper_event_ref em {tx_missing} trade rows (S1)")
+
+        # 5c — backfill rows de rollover
+        rollover_missing = db.session.execute(text("""
+            SELECT COUNT(*) FROM player_history
+            WHERE sleeper_event_ref IS NULL
+              AND event_type='rollover'
+              AND season IS NOT NULL
+        """)).scalar()
+        if rollover_missing > 0:
+            db.session.execute(text("""
+                UPDATE player_history
+                SET sleeper_event_ref = 'rollover:' || season
+                WHERE sleeper_event_ref IS NULL
+                  AND event_type='rollover'
+                  AND season IS NOT NULL
+            """))
+            db.session.commit()
+            print(f"[migrate] F8a: backfilled sleeper_event_ref em {rollover_missing} rollover rows")
+
+        # 5d — pré-limpeza de duplicatas no quintupleto (preserva MIN(id))
+        dupes = db.session.execute(text("""
+            SELECT COUNT(*) FROM player_history ph
+            WHERE ph.id NOT IN (
+                SELECT MIN(id) FROM player_history
+                GROUP BY player_id, season, event_type, team_name,
+                         COALESCE(sleeper_event_ref, '')
+            )
+        """)).scalar()
+        if dupes > 0:
+            db.session.execute(text("""
+                DELETE FROM player_history
+                WHERE id NOT IN (
+                    SELECT MIN(id) FROM player_history
+                    GROUP BY player_id, season, event_type, team_name,
+                             COALESCE(sleeper_event_ref, '')
+                )
+            """))
+            db.session.commit()
+            print(f"[migrate] F8a: deleted {dupes} duplicate rows (preservado MIN(id) por quintupleto)")
+
+        # 5e — CREATE UNIQUE INDEX (idempotente via IF NOT EXISTS)
+        existing_indexes = {idx["name"] for idx in insp.get_indexes("player_history")}
+        if "uq_player_history_event" not in existing_indexes:
+            db.session.execute(text("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_player_history_event
+                ON player_history(player_id, season, event_type, team_name, sleeper_event_ref)
+            """))
+            db.session.commit()
+            print("[migrate] F8a: created UNIQUE index uq_player_history_event")
+
 
 def _seed_app_config():
     """Seed default app_config values if missing."""

@@ -506,9 +506,19 @@ class PlayerHistory(db.Model):
     salary = db.Column(db.Float, default=0.0)
     contract_year = db.Column(db.Integer, default=0)
     notes = db.Column(db.Text, default="")
+    # F8a — sleeper_event_ref is the 5th field of the UNIQUE index.
+    # Formats: 'tx:<transaction_id>' | 'draft:<draft_id>:<pick_no>' | 'rollover:<season>' | NULL (legacy)
+    sleeper_event_ref = db.Column(db.String(120), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     player = db.relationship("Player", backref=db.backref("history", lazy="dynamic"))
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "player_id", "season", "event_type", "team_name", "sleeper_event_ref",
+            name="uq_player_history_event",
+        ),
+    )
 
     def to_dict(self):
         return {
@@ -521,5 +531,18 @@ class PlayerHistory(db.Model):
             "salary": self.salary,
             "contract_year": self.contract_year,
             "notes": self.notes,
+            "sleeper_event_ref": self.sleeper_event_ref,
             "created_at": self.created_at.strftime("%d/%m/%Y %H:%M") if self.created_at else "",
         }
+
+
+class F8PlayerBackup(db.Model):
+    """F8a rollback — snapshot of Player.contract_start_season + acquisition_type
+    before reconciliation. Restored by F8c endpoint on /api/admin/player_history/restore."""
+    __tablename__ = "f8_player_backup"
+
+    id = db.Column(db.Integer, primary_key=True)
+    player_id = db.Column(db.Integer, db.ForeignKey("players.id"), nullable=False)
+    old_contract_start_season = db.Column(db.Integer, nullable=True)
+    old_acquisition_type = db.Column(db.String(40), nullable=True)
+    snapshot_at = db.Column(db.DateTime, default=datetime.utcnow)

@@ -36,6 +36,10 @@
 | F5 | Auto-seed users no startup a partir de `data/users.csv` | Média | ✅ 02/04/2026 |
 | F7 | Fix SalaryHistory duplicado + rewrite 3 Browns + redesign /salary_history narrativo | Alta | ✅ 22/04/2026 |
 | F7b | Data migration automática para limpar DB de produção (Render) no próximo boot | Alta | ✅ 22/04/2026 |
+| F8 | Reconstruir PlayerHistory a partir da Sleeper API (drafts + transactions chain) | Alta | ⚠️ F8a concluído 22/04/2026 |
+| F8a | Core rebuild via Sleeper chain + migration (sleeper_event_ref + UNIQUE) | Alta | ✅ 22/04/2026 |
+| F8b | Guard AppConfig.f8_rebuilt em import_csv.py | Alta | 🔲 |
+| F8c | Endpoint admin + UI + ajuste do boot | Alta | 🔲 |
 | F1 | Correção de salários por partial name match (3 Browns bug) | Alta | ✅ 28/03/2026 |
 | F2 | Ordenação do Round 1 via `draft_lottery_result` + `season_standings` | Alta | ✅ 28/03/2026 |
 | F3 | Histórico inline (accordion) na aba de histórico | Média | ✅ 28/03/2026 |
@@ -286,6 +290,131 @@ CREATE TABLE trade_proposals (
 7. GET /admin/users (page) → 200, template renderiza
 
 **Escopo NÃO incluído:** sincronização bidirecional com `users.csv`, integração com convite OAuth/validação Google, bulk import via UI.
+
+---
+
+### F8 — Reconstruir PlayerHistory a partir da Sleeper API
+⚠️ **Parcial** — F8a concluído 22/04/2026. F8b (CSV guard) e F8c (endpoint + UI) pendentes. Prioridade **Alta**
+
+**Problema:** `PlayerHistory` tem informação fictícia para qualquer jogador que trocou de mão entre temporadas. O backfill atual (`_backfill_player_history()` em `routes/admin.py:428-503`) e o `import_csv.py` usam snapshot do CSV + estado atual do `Player` para inventar histórico, sem consultar `/drafts/<id>/picks` nem `/transactions/<week>` do Sleeper, que têm a verdade factual.
+
+**Descoberto em:** 22/04/2026, verificando histórico do A.J. Brown (reconciliação do F7) + 3 outros casos apontados pelo owner.
+
+**4 casos verificados via Sleeper API (evidência concreta):**
+
+**1. Brandon Aiyuk (pid=106, sid=6803)**
+- DB atual: `auction_draft` 2024 team=ESPN $8, `rollover` 2025 $8
+- Verdade Sleeper:
+  - 2024 startup auction r5p53 roster=5 (**Cangaceiros**) **$29**
+  - 2025 W1 drop free_agent de roster 5
+  - 2025 FA auction r6p62 roster=12 (**ESPN FANTASY LEAGUE**) **$8**
+- Gap: salary 2024 errado ($8 em vez de $29), team 2024 errado, falta drop + re-auction. `contract_start_season=2024` devia ser 2025.
+
+**2. Brock Bowers (pid=276, sid=11604)**
+- DB atual: `keeper` 2024 team=Trust $21 ❌ (não foi keeper)
+- Verdade Sleeper:
+  - 2024 startup auction r5p57 roster=5 (**Cangaceiros**) $21
+  - 2025 W5 trade roster 5→8 (Cangaceiros→Trust The Process) ✅ (capturado pelo S1 hoje)
+- Gap: `acquisition_type=keeper` errado (foi `auction_draft`). Team 2024 errado.
+- Nota: user lembra que trade foi pelo McBride + outra peça — verificar no payload da trade.
+
+**3. Buffalo Bills DST (pid=47, sid=BUF)**
+- DB atual: `rookie_draft` 2024 team=3 peat $1 ❌ (DST não participa de rookie draft)
+- Verdade Sleeper:
+  - 2024 startup auction r7p78 roster=7 (AlexTheDawg) $1
+  - 2024 W5-W6: múltiplos waivers/free_agent entre rosters 7, 5 (e reinserção em 7)
+  - 2025 W1 drop de roster 7
+  - 2025 FA auction r3p27 roster=3 (Fazenda) $1
+  - 2025 W5-W6: mais rotações (3 peat, mongoloides, Fazenda)
+- Gap: `acquisition_type` totalmente errado. History tem só 2 rows lineares quando na verdade houve **7 transações**.
+
+**4. C.J. Stroud (pid=162, sid=9758)**
+- DB atual: `rookie_draft` 2024 team=mongoloides $1 ❌
+- Verdade Sleeper:
+  - 2024 startup auction r2p14 roster=5 (**Cangaceiros**) **$19** (user: "preço alto")
+  - 2025 W1 drop Cangaceiros; W2 drop Tropa; W3 free_agent para achane
+  - 2025 FA auction r4p47 roster=9 (Tropa) $1
+  - 2025 W11 trade achane→mongoloides
+- Gap: `acquisition_type=rookie_draft` errado, salary 2024 errado ($1 vs $19 real), team 2024 errado, `contract_start_season=2024` devia ser 2025, falta registrar drop/re-auction/trade.
+
+**Causa raiz:**
+- `_backfill_player_history()` usa `p.contract_start_season` + `p.fantasy_team` (estado atual) + `p.acquisition_type` do CSV para inventar events. Quando o player trocou de time entre temporadas, tudo isso diverge da história real.
+- `acquisition_type='rookie_draft'` foi atribuído indevidamente a vários jogadores que foram FA-auction ou startup-auction (qualquer player com year-1 salary=$1, aparentemente).
+- CSV `dynasty_rosters_clean.csv` tem dados stale: campo `team` é snapshot mid-2025 inconsistente; `contract_year_2025=2` + `orig_draft_season=2024` não distingue "contrato mantido desde 2024" vs "re-auctionado em 2025".
+
+**Consequências:**
+- Trade Manager pode calcular cap errado via `contract_start_season`
+- Auditoria pública (ex: F1 3 Browns bug, F8 aqui) fica comprometida
+- Projeção de VALORIZAÇÃO OK (usa `Player.salary` e `Player.contract_year` atuais que batem com realidade)
+- UX do `/salary_history` narra eventos falsos (A.J. Brown foi corrigido no F7 mas os 4+ casos acima ainda mostram história fictícia)
+
+**Proposta:**
+
+**F8a — Rebuild via Sleeper chain:**
+1. Walk chain: `current_league → previous_league_id → ... → startup_league`
+2. Por liga: coletar `drafts` + `drafts/<id>/picks` + `transactions/<week 0..18>`
+3. Reconstruir `PlayerHistory` canonicamente por `sleeper_player_id`:
+   - Evento `auction_draft`/`rookie_draft`/`fa_auction` derivado de `draft.type` + rodadas + timing (startup auction = draft com N rodadas igual roster size; rookie draft = linear; FA auction = auction pós-rookie com ~8 rodadas)
+   - Eventos `fa_waiver`/`trade`/`drop` de transactions (S1 já resolve trades novas; F8 faz backfill retroativo)
+   - `team_name` do evento = time no momento do evento (map via roster_id + `Team.sleeper_owner_id`)
+   - `salary` do evento: `metadata.amount` do pick (auction) ou regra do salary_engine (waiver/FA = $1, etc.)
+4. Corrigir `Player.contract_start_season` + `Player.acquisition_type` quando divergir
+
+**F8b — Revisar uso do CSV:**
+- Manter CSV como fonte inicial só para valores que Sleeper não sabe (salary/contract atuais)
+- Parar de derivar histórico do CSV — histórico vem exclusivamente da Sleeper chain
+- Avaliar deprecar `dynasty_rosters_clean.csv` após F8a estabilizar
+
+**F8c — Backfill one-time em produção:**
+- Endpoint admin `POST /api/admin/player_history/rebuild` (`@admin_required`)
+- Idempotente via UNIQUE constraint `(sleeper_player_id, season, event_type, team_name)` ou equivalente
+- Padrão similar ao `sync_trades/backfill` do S1
+
+**Escopo estimado:** 2-3 sessões. Similar em complexidade a S1+F7 combinados. Requer leitura pesada das convenções Sleeper (draft types, transaction types, metadata fields).
+
+#### F8a — Core rebuild via Sleeper chain ✅ 22/04/2026
+
+**Implementado:**
+- Migration 5 em `_run_migrations()` (app.py): adicionou coluna `sleeper_event_ref` TEXT + backfill das 78 trade rows (S1) e 220 rollover rows + pré-limpeza de duplicatas + `CREATE UNIQUE INDEX uq_player_history_event ON player_history(player_id, season, event_type, team_name, sleeper_event_ref)`.
+- Funções novas em `sync_sleeper.py`: `_walk_league_chain`, `_classify_draft`, `_collect_draft_events`, `_collect_transaction_events`, `_snapshot_player_history`, `_rebuild_player_history(dry_run=False)`.
+- Modelo `F8PlayerBackup` em `models.py` (tabela auxiliar de rollback com `old_contract_start_season` e `old_acquisition_type` por player).
+
+**Decisões de escopo:**
+1. **Quintupleto UNIQUE via `sleeper_event_ref`** em vez de quadrupleto simples. Justificativa: quadrupleto `(player_id, season, event_type, team_name)` colapsa casos reais como BUF DST com múltiplos drops/waivers do mesmo time. `sleeper_event_ref` com formato `'tx:<id>' | 'draft:<id>:<pick>' | 'rollover:<season>'` é auditor-friendly.
+2. **Heurística de draft validada contra dados reais:** `type=linear → rookie_draft` (não snake — achado da Fase 2); `type=auction + rounds≥20 + primeira liga da chain → auction_draft (startup)`; demais auction → `fa_auction`. 2025 tem 7 drafts complete (6 fa_auctions + 1 rookie linear), não 1 como assumido inicialmente.
+3. **Delete-and-rebuild preservando S1 + rollover:** DELETE apenas rows com `sleeper_event_ref IS NULL` (fictícias do `_backfill_player_history`). Preserva 78 trades do S1 e 220 rollover events do F7.
+4. **Trades delegadas 100% ao S1:** `_rebuild_player_history` chama `_sync_trades(league_id)` por liga na chain (idempotente via S1 UNIQUE), garantindo cobertura retroativa. `_collect_transaction_events` explicitamente pula `type=trade`.
+5. **Reconciliação de Player.acquisition_type só para eventos >= 2025:** protege year-1 salary rules do `salary_engine.py` para contratos vigentes.
+6. **Reconciliação usa Trade.trade_date como timestamp real** para trades preservadas do S1 — sem isso, acquisition_type de players tradados em legs tardias (ex: Stroud leg 11) seria overridden por eventos de leg anterior (ex: free_agent leg 3).
+
+**Resultado do rebuild local:**
+- `ligas_visitadas: [2024, 2025, 2026]` (2026 é pre_draft, sem events)
+- `events_written: 794` | `deleted_legacy: 320` | `players_corrected: 180`
+- Total PlayerHistory pós: 1092 rows (vs 578 antes) — 269 draft + 603 tx (trades + waivers + FA + drops) + 220 rollover preservado.
+- Snapshot salvo em `data/.player_history_snapshot_20260422_182651.json`.
+
+**4 casos de validação (todos batem com proposta F8 em improvements.md):**
+
+| Pid | Player | ANTES | DEPOIS |
+|-----|--------|-------|--------|
+| 106 | Aiyuk | 2 rows, acq=auction_draft, start=2024 | 4 rows (auction $29 Cangaceiros 2024 + drop 2025 + fa_auction $8 ESPN 2025 + rollover preservado), acq=fa_auction, start=2025 |
+| 276 | Bowers | 2 rows, acq=keeper, start=2024 | 3 rows (auction $21 Cangaceiros 2024 + rollover preservado + trade 2025 preservada), acq=trade, start=2025 |
+| 47  | BUF DST | 2 rows, acq=rookie_draft, start=2024 | 8 rows (auction $1 AlexTheDawg 2024 + drop/add 2024 + drop 2025 + fa_auction $1 Fazenda 2025 + drop + fa_waiver 3peat 2025 + rollover preservado), acq=fa_waiver, start=2025 |
+| 162 | Stroud | 3 rows, acq=rookie_draft, start=2024 | 7 rows (auction $19 Cangaceiros 2024 + drop 2025 + fa_auction $1 Tropa 2025 + drop 2025 + free_agent achane 2025 + rollover preservado + trade 2025 preservada), acq=trade, start=2025 |
+
+**Validação regression:**
+- `python salary_engine_test.py` → 49 testes passam (zero regressões)
+- Player.salary e contract_year atuais dos 4 casos inalterados
+- Re-run do rebuild → `events_written=0, events_skipped=794` (idempotência confirmada via UNIQUE)
+
+**Warnings aceitos (30 total):**
+- 2 players sem sleeper_player_id (Hollywood Brown pid=279, Cameron Ward pid=280) — skip esperado
+- 217 sleeper_player_ids sem match no DB local (sample: 10216, 10218, 10223, etc.) — players dropados antes da criação do Manager, não bloqueantes
+- Warnings do S1 (pick de season passada drafada) — esperados
+
+**Arquivos modificados:** `models.py` (PlayerHistory.sleeper_event_ref + UniqueConstraint + F8PlayerBackup), `app.py` (Migration 5 em 5 sub-blocos idempotentes), `sync_sleeper.py` (6 funções novas + helper `_count_players_to_correct`).
+
+**Pendente:** F8b (guard em import_csv.py para AppConfig.f8_rebuilt) e F8c (endpoint admin + UI em /admin + atualização de EVENT_LABELS no template + remoção da chamada de `_backfill_player_history` no boot).
 
 ---
 

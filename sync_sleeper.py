@@ -610,3 +610,467 @@ def _sync_trades(league_id: str) -> dict:
 
     db.session.commit()
     return result
+
+
+# ── F8a: Reconstruir PlayerHistory via Sleeper chain ─────────────────────────
+
+_ACTIVE_ACQUISITION_TYPES = {
+    "auction_draft", "rookie_draft", "fa_auction",
+    "fa_waiver", "free_agent", "commissioner", "trade",
+}
+
+
+def _walk_league_chain(start_league_id: str) -> list[dict]:
+    """
+    Walk previous_league_id chain until None. Returns chronological list
+    (startup → current) of league info dicts.
+    """
+    chain = []
+    lid = start_league_id
+    seen = set()
+    while lid and lid not in seen:
+        seen.add(lid)
+        data = _get(f"{BASE_URL}/league/{lid}")
+        if not data:
+            break
+        chain.append({
+            "league_id": data.get("league_id"),
+            "name": data.get("name"),
+            "season": data.get("season"),
+            "status": data.get("status"),
+            "previous_league_id": data.get("previous_league_id"),
+        })
+        lid = data.get("previous_league_id")
+    chain.reverse()  # startup first
+    return chain
+
+
+def _classify_draft(draft: dict, is_first_in_chain: bool) -> str | None:
+    """
+    Classify a Sleeper draft into a PlayerHistory event_type.
+    Returns None to skip the draft (status != complete).
+    """
+    if draft.get("status") != "complete":
+        return None
+    dtype = draft.get("type")
+    settings = draft.get("settings") or {}
+    rounds = settings.get("rounds") or 0
+    if dtype == "linear":
+        return "rookie_draft"
+    if dtype == "auction":
+        if rounds >= 20 and is_first_in_chain:
+            return "auction_draft"  # startup auction
+        return "fa_auction"
+    return None
+
+
+def _collect_draft_events(league_info: dict, is_first: bool,
+                          team_by_roster: dict, warnings: list) -> list[dict]:
+    """
+    Fetch drafts + picks for a league. Returns list of event dicts.
+    Each event: {sleeper_player_id, season, event_type, team_name, salary,
+                 timestamp, sleeper_event_ref, notes, contract_year}.
+    """
+    events = []
+    lid = league_info["league_id"]
+    season_raw = league_info.get("season")
+    try:
+        season = int(season_raw) if season_raw else None
+    except (ValueError, TypeError):
+        season = None
+
+    drafts = _get(f"{BASE_URL}/league/{lid}/drafts") or []
+    for d in drafts:
+        event_type = _classify_draft(d, is_first)
+        if not event_type:
+            continue
+        did = d.get("draft_id")
+        start_time = d.get("start_time") or 0
+        picks = _get(f"{BASE_URL}/draft/{did}/picks") or []
+        for pk in picks:
+            sid = pk.get("player_id")
+            if not sid:
+                continue
+            roster_id = str(pk.get("roster_id", ""))
+            team = team_by_roster.get(roster_id)
+            if not team:
+                warnings.append(
+                    f"draft {did} season {season}: roster {roster_id} não mapeado "
+                    f"(player sid={sid} pick={pk.get('pick_no')})"
+                )
+                continue
+            md = pk.get("metadata") or {}
+            amount_raw = md.get("amount")
+            try:
+                salary = int(amount_raw) if amount_raw not in (None, "") else None
+            except (ValueError, TypeError):
+                salary = None
+            events.append({
+                "sleeper_player_id": str(sid),
+                "season": season,
+                "event_type": event_type,
+                "team_name": team.name,
+                "salary": salary,
+                "timestamp": start_time,
+                "sleeper_event_ref": f"draft:{did}:{pk.get('pick_no')}",
+                "notes": f"{event_type} r{pk.get('round')}p{pk.get('pick_no')} (draft {did})",
+            })
+    return events
+
+
+def _collect_transaction_events(league_id: str, season: int | None,
+                                team_by_roster: dict, warnings: list) -> list[dict]:
+    """
+    Iterate transactions/<leg> for waiver/free_agent/commissioner events.
+    Skips type=trade (delegated to _sync_trades via S1). Returns list of event dicts.
+    """
+    events = []
+    type_map = {
+        "waiver": "fa_waiver",
+        "free_agent": "free_agent",
+        "commissioner": "commissioner",
+    }
+    for leg in range(1, 19):
+        txs = _get(f"{BASE_URL}/league/{league_id}/transactions/{leg}") or []
+        for tx in txs:
+            if tx.get("status") != "complete":
+                continue
+            ttype = tx.get("type")
+            if ttype == "trade":
+                continue  # S1 handles trades
+            event_type = type_map.get(ttype)
+            if not event_type:
+                continue
+            tx_id = tx.get("transaction_id")
+            if not tx_id:
+                warnings.append(f"{ttype} sem transaction_id (leg {leg})")
+                continue
+            created = tx.get("created") or 0
+            adds = tx.get("adds") or {}
+            drops = tx.get("drops") or {}
+            add_sids = set(adds.keys())
+
+            # Add events (acquisition)
+            for sid, dst_rid in adds.items():
+                team = team_by_roster.get(str(dst_rid))
+                if not team:
+                    warnings.append(
+                        f"tx={tx_id} leg {leg}: roster destino {dst_rid} não mapeado (sid={sid})"
+                    )
+                    continue
+                events.append({
+                    "sleeper_player_id": str(sid),
+                    "season": season,
+                    "event_type": event_type,
+                    "team_name": team.name,
+                    "salary": None,
+                    "timestamp": created,
+                    "sleeper_event_ref": f"tx:{tx_id}",
+                    "notes": f"{event_type} (leg {leg}, tx {tx_id})",
+                })
+
+            # Drop events (só emitimos drop se o player não está em adds
+            # dentro da mesma tx — move intra-tx já é coberto pelo add)
+            for sid, src_rid in drops.items():
+                if sid in add_sids:
+                    continue
+                team = team_by_roster.get(str(src_rid))
+                if not team:
+                    warnings.append(
+                        f"tx={tx_id} leg {leg}: roster origem {src_rid} não mapeado (sid={sid})"
+                    )
+                    continue
+                events.append({
+                    "sleeper_player_id": str(sid),
+                    "season": season,
+                    "event_type": "drop",
+                    "team_name": team.name,
+                    "salary": None,
+                    "timestamp": created,
+                    "sleeper_event_ref": f"tx:{tx_id}",
+                    "notes": f"drop (leg {leg}, tx {tx_id})",
+                })
+    return events
+
+
+def _snapshot_player_history(path: str) -> int:
+    """Dump all PlayerHistory rows as JSON for rollback. Returns row count."""
+    from models import PlayerHistory
+    rows = PlayerHistory.query.all()
+    data = []
+    for r in rows:
+        data.append({
+            "id": r.id,
+            "player_id": r.player_id,
+            "season": r.season,
+            "team_name": r.team_name,
+            "event_type": r.event_type,
+            "salary": r.salary,
+            "contract_year": r.contract_year,
+            "notes": r.notes,
+            "sleeper_event_ref": r.sleeper_event_ref,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        })
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return len(data)
+
+
+def _rebuild_player_history(dry_run: bool = False) -> dict:
+    """
+    F8a — Rebuild PlayerHistory canonicamente a partir da Sleeper chain.
+    Preserva rows S1 (sleeper_event_ref LIKE 'tx:%') e rollover (LIKE 'rollover:%').
+    DELETE apenas rows com sleeper_event_ref IS NULL (legacy _backfill_player_history).
+    Emite eventos de drafts + transactions (exceto trade — delegado ao S1 via _sync_trades).
+    Idempotente via UNIQUE uq_player_history_event.
+    """
+    from models import PlayerHistory, Player, F8PlayerBackup, get_current_season
+
+    result = {
+        "events_written": 0,
+        "events_skipped": 0,
+        "warnings": [],
+        "players_corrected": 0,
+        "ligas_visitadas": [],
+        "snapshot_path": None,
+        "deleted_legacy": 0,
+    }
+
+    chain = _walk_league_chain(LEAGUE_ID)
+    if not chain:
+        result["warnings"].append("Walk chain retornou vazio — abortando")
+        return result
+    result["ligas_visitadas"] = [c["season"] for c in chain]
+
+    # Step 1: collect all events from chain (chronological)
+    all_events = []
+    for idx, league in enumerate(chain):
+        is_first = (idx == 0)
+        lid = league["league_id"]
+        team_by_roster = _build_team_map_for_league(lid)
+        if not team_by_roster:
+            result["warnings"].append(
+                f"Liga {league.get('name')} {league.get('season')}: nenhum roster mapeado"
+            )
+            continue
+
+        # Trades via S1 (idempotente). Só executa se not dry_run.
+        if not dry_run:
+            trade_result = _sync_trades(lid)
+            result["warnings"].extend(
+                f"[{league.get('season')}] {w}" for w in trade_result.get("warnings", [])
+            )
+
+        try:
+            season_int = int(league.get("season")) if league.get("season") else None
+        except (ValueError, TypeError):
+            season_int = None
+
+        all_events.extend(
+            _collect_draft_events(league, is_first, team_by_roster, result["warnings"])
+        )
+        all_events.extend(
+            _collect_transaction_events(lid, season_int, team_by_roster, result["warnings"])
+        )
+
+    # Step 2: resolve sid → player_id
+    players_by_sid = {
+        p.sleeper_player_id: p
+        for p in Player.query.filter(Player.sleeper_player_id.isnot(None)).all()
+    }
+    players_without_sid = [
+        p for p in Player.query.filter(
+            (Player.sleeper_player_id.is_(None)) | (Player.sleeper_player_id == "")
+        ).all()
+    ]
+    for p in players_without_sid:
+        result["warnings"].append(
+            f"Player pid={p.id} name={p.name!r}: sem sleeper_player_id — pulado"
+        )
+
+    resolved_events = []
+    unresolved_sids = set()
+    for ev in all_events:
+        player = players_by_sid.get(ev["sleeper_player_id"])
+        if not player:
+            unresolved_sids.add(ev["sleeper_player_id"])
+            continue
+        resolved_events.append({**ev, "player_id": player.id})
+    if unresolved_sids:
+        sample = list(sorted(unresolved_sids))[:10]
+        result["warnings"].append(
+            f"{len(unresolved_sids)} sleeper_player_ids sem match no DB. "
+            f"Amostra: {sample}"
+        )
+
+    # Sort chronologically for determinism
+    resolved_events.sort(key=lambda e: (e["season"] or 0, e["timestamp"] or 0))
+
+    if dry_run:
+        # Count what WOULD be written without touching DB
+        existing_refs = {
+            (r.player_id, r.season, r.event_type, r.team_name, r.sleeper_event_ref)
+            for r in PlayerHistory.query.filter(
+                PlayerHistory.sleeper_event_ref.isnot(None)
+            ).all()
+        }
+        legacy_count = db.session.execute(
+            db.text("SELECT COUNT(*) FROM player_history WHERE sleeper_event_ref IS NULL")
+        ).scalar()
+        result["deleted_legacy"] = legacy_count
+        for ev in resolved_events:
+            key = (ev["player_id"], ev["season"], ev["event_type"],
+                   ev["team_name"], ev["sleeper_event_ref"])
+            if key in existing_refs:
+                result["events_skipped"] += 1
+            else:
+                result["events_written"] += 1
+        # Count players that would be corrected
+        result["players_corrected"] = _count_players_to_correct(resolved_events, players_by_sid)
+        return result
+
+    # Step 3: snapshot before destructive ops
+    snapshot_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "data",
+        f".player_history_snapshot_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+    )
+    _snapshot_player_history(snapshot_path)
+    result["snapshot_path"] = snapshot_path
+
+    # Step 4: DELETE legacy rows (sleeper_event_ref IS NULL)
+    legacy_deleted = db.session.execute(
+        db.text("DELETE FROM player_history WHERE sleeper_event_ref IS NULL")
+    ).rowcount
+    result["deleted_legacy"] = legacy_deleted
+    db.session.commit()
+
+    # Step 5: bulk INSERT new events (idempotent via UNIQUE)
+    existing_refs = {
+        (r.player_id, r.season, r.event_type, r.team_name, r.sleeper_event_ref)
+        for r in PlayerHistory.query.filter(
+            PlayerHistory.sleeper_event_ref.isnot(None)
+        ).all()
+    }
+    for ev in resolved_events:
+        key = (ev["player_id"], ev["season"], ev["event_type"],
+               ev["team_name"], ev["sleeper_event_ref"])
+        if key in existing_refs:
+            result["events_skipped"] += 1
+            continue
+        db.session.add(PlayerHistory(
+            player_id=ev["player_id"],
+            season=ev["season"],
+            team_name=ev["team_name"],
+            event_type=ev["event_type"],
+            salary=ev["salary"] if ev["salary"] is not None else 0.0,
+            contract_year=0,  # F8 não sabe contract_year histórico
+            notes=ev["notes"],
+            sleeper_event_ref=ev["sleeper_event_ref"],
+        ))
+        existing_refs.add(key)
+        result["events_written"] += 1
+    db.session.commit()
+
+    # Step 6: reconcile Player.contract_start_season and acquisition_type
+    current_season = get_current_season()
+    players_corrected = 0
+    by_player = {}
+    for ev in resolved_events:
+        if ev["event_type"] not in _ACTIVE_ACQUISITION_TYPES:
+            continue
+        if ev["season"] is None or ev["season"] > current_season:
+            continue
+        # Keep the most recent active acquisition <= current_season
+        existing = by_player.get(ev["player_id"])
+        if existing is None or (ev["season"], ev["timestamp"] or 0) > (existing["season"], existing["timestamp"] or 0):
+            by_player[ev["player_id"]] = ev
+
+    # Add trades from DB (S1 rows) to the candidate pool for reconciliation.
+    # S1 rows live in PlayerHistory with sleeper_event_ref='tx:<id>' and event_type='trade'.
+    # Use Trade.trade_date (ms epoch from Sleeper) as real timestamp for ordering.
+    from models import Trade
+    trade_date_by_tx = {
+        t.sleeper_transaction_id: t.trade_date
+        for t in Trade.query.filter(Trade.sleeper_transaction_id.isnot(None)).all()
+    }
+    trade_rows = PlayerHistory.query.filter(
+        PlayerHistory.event_type == "trade",
+        PlayerHistory.sleeper_event_ref.like("tx:%"),
+    ).all()
+    for tr in trade_rows:
+        if tr.season is None or tr.season > current_season:
+            continue
+        tx_id = tr.sleeper_event_ref.split(":", 1)[1]
+        trade_dt = trade_date_by_tx.get(tx_id)
+        trade_ts = int(trade_dt.timestamp() * 1000) if trade_dt else 0
+        candidate = {
+            "player_id": tr.player_id,
+            "season": tr.season,
+            "event_type": "trade",
+            "timestamp": trade_ts,
+        }
+        existing = by_player.get(tr.player_id)
+        if existing is None:
+            by_player[tr.player_id] = candidate
+        elif (candidate["season"], candidate["timestamp"]) > (existing["season"], existing["timestamp"] or 0):
+            by_player[tr.player_id] = candidate
+
+    for player_id, ev in by_player.items():
+        player = db.session.get(Player, player_id)
+        if not player:
+            continue
+        old_css = player.contract_start_season
+        old_acq = player.acquisition_type
+        new_css = ev["season"]
+        # Only update acquisition_type if last event is >= 2025
+        # (protege year-1 rules do salary_engine para contratos vigentes).
+        if ev["season"] >= 2025:
+            new_acq = ev["event_type"]
+        else:
+            new_acq = old_acq
+
+        if old_css == new_css and old_acq == new_acq:
+            continue
+
+        # Snapshot for rollback (only first time per player)
+        if not F8PlayerBackup.query.filter_by(player_id=player_id).first():
+            db.session.add(F8PlayerBackup(
+                player_id=player_id,
+                old_contract_start_season=old_css,
+                old_acquisition_type=old_acq,
+            ))
+        player.contract_start_season = new_css
+        player.acquisition_type = new_acq
+        players_corrected += 1
+    db.session.commit()
+    result["players_corrected"] = players_corrected
+
+    return result
+
+
+def _count_players_to_correct(resolved_events: list, players_by_sid: dict) -> int:
+    """Dry-run helper: count how many players would be corrected."""
+    from models import Player, get_current_season
+    current_season = get_current_season()
+    by_player = {}
+    for ev in resolved_events:
+        if ev["event_type"] not in _ACTIVE_ACQUISITION_TYPES:
+            continue
+        if ev["season"] is None or ev["season"] > current_season:
+            continue
+        existing = by_player.get(ev["player_id"])
+        if existing is None or (ev["season"], ev["timestamp"] or 0) > (existing["season"], existing["timestamp"] or 0):
+            by_player[ev["player_id"]] = ev
+
+    count = 0
+    for pid, ev in by_player.items():
+        p = db.session.get(Player, pid)
+        if not p:
+            continue
+        new_css = ev["season"]
+        new_acq = ev["event_type"] if ev["season"] >= 2025 else p.acquisition_type
+        if p.contract_start_season != new_css or p.acquisition_type != new_acq:
+            count += 1
+    return count
