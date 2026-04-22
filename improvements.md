@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 02/04/2026
+> Atualizado em: 22/04/2026
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -26,6 +26,8 @@
 | M8 | Auditoria pública do sorteio de lottery (seed + página pública) | Baixa | 🔲 |
 | M9 | Redesign da tela de picks: grid compacto + dono atual visível | Média | 🔲 |
 | M10 | Autocomplete de jogador na calculadora de salário | Baixa | 🔲 |
+| M11 | Teste de auto-containment documental | Média | 🔲 |
+| M12 | Vincular owners a times via tela de admin com lookup do Sleeper | Média | 🔲 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | 🔲 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
 | M6 | Importar resultados de temporada para atualizar ESPN ref values automaticamente | Baixa | 🔲 |
@@ -219,6 +221,41 @@ CREATE TABLE trade_proposals (
 1. **Endpoint de busca:** `GET /api/players/search?q=<nome>` retornando lista de matches (nome, posição, salary, espn_ref_value, contract_year, acquisition_type)
 2. **Autocomplete no frontend:** Input de texto com debounce → dropdown de sugestões → ao selecionar, preencher automaticamente ESPN ref value, contract year e acquisition type
 3. **Código a reusar:** `player_lookup.py:find_player_by_name()` para matching estrito. `Player.to_dict()` para serialização
+
+---
+
+### M11 — Teste de auto-containment documental
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** Parte do estado técnico do projeto pode estar implícito (em memória do Claude, conversas do Claude.ai, cabeça do owner) em vez de estar nos 4 docs + código. Isso viola o princípio de auto-containment definido no `DEV_METHODOLOGY.md`: um colaborador novo, outro Claude sem memória, ou o próprio owner daqui a 2 anos não conseguiria replicar/auditar o projeto usando só a documentação.
+
+**Proposta:** Executar o teste prático definido no `DEV_METHODOLOGY.md` — responder *"o que eu perderia se apagasse a memória agora?"*. Migrar o que faltar para os 4 docs (CLAUDE.md, manager_devplan.md, manager_vision.md, improvements.md). Itens típicos a verificar no manager: decisões históricas não registradas no Log de Decisões, resultados de validação (cap projections, season rollover) não consolidados no CLAUDE.md, contexto dos handoffs não absorvido pelo devplan.
+
+**Quando executar:** Em janela sem pressão de feature — é calibração documental, não entrega de valor funcional.
+
+---
+
+### M12 — Vincular Owners a Times via Tela de Admin com Lookup do Sleeper
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** Hoje vincular um usuário a um time exige que o admin saiba de cor o team_id numérico do dynasty.db e rode o seed_users.py via CLI (local) ou edite `data/users.csv` + push (produção). É frágil: o admin pode errar o ID, novos owners precisam de intervenção manual toda vez, e não há interface visual.
+
+**Proposta:**
+1. Tela `/admin/users`: lista os 12 times da liga buscados via `GET /league/{LEAGUE_ID}/users` da Sleeper API (nome do time, username, avatar do owner). Para cada time, exibe o usuário do Manager vinculado (email, is_admin), se houver.
+2. **Vinculação por clique:** botão "Vincular" abre formulário inline com campos email Google, nome e is_admin. Ao submeter, cria ou atualiza o registro em `users` com o team_id correto — sem CLI.
+3. **Desvinculação:** botão "Desvincular" remove o email sem apagar o time.
+4. **Nova coluna** `sleeper_user_id` (nullable) na tabela `users`, preenchida automaticamente ao vincular via Sleeper — permite exibir avatar e username do Sleeper na tela.
+
+**Código existente a reutilizar:**
+- `sync_sleeper.py` — já faz chamadas à Sleeper API; adicionar call a `/league/{LEAGUE_ID}/users`
+- `seed_users.py` — lógica de upsert pode ser extraída para função reutilizável em `models.py`
+- `routes/admin.py` — blueprint adequado para a nova rota
+
+**Nova migração:** `ALTER TABLE users ADD COLUMN sleeper_user_id TEXT` (nullable), adicionada em `_run_migrations()` no `app.py`.
+
+**Permissão:** `@admin_required` em todos os endpoints de escrita da tela.
+
+**Nota de implementação:** o modelo `Team` já tem `sleeper_owner_id` (populado pelo Sleeper sync). Antes de adicionar `sleeper_user_id` a `User`, avaliar se o lookup Manager↔Sleeper pode ser feito via Team (team_id → `Team.sleeper_owner_id`). Pode evitar migração e facilitar casos onde o usuário representa o owner mas ainda não tem conta no Sleeper.
 
 ---
 
