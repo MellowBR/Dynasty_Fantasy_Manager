@@ -9,16 +9,31 @@
 
 <div class="toolbar">
   <label>Equipe:</label>
-  <select id="hist-team" onchange="loadHistory()">
+  <select id="hist-team" onchange="onFilterChange('team')">
     <option value="">Todas</option>
     {% for t in teams %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+  </select>
+  <label>Posição:</label>
+  <select id="hist-pos" onchange="onFilterChange('pos')">
+    <option value="">Todas</option>
+    <option value="QB">QB</option>
+    <option value="RB">RB</option>
+    <option value="WR">WR</option>
+    <option value="TE">TE</option>
+    <option value="K">K</option>
+    <option value="DEF">DEF</option>
   </select>
   <label>Jogador:</label>
   <input type="text" id="hist-player" placeholder="Nome..." style="width:180px"
          oninput="loadHistoryDebounced()" />
-  <label>Temporada do evento:</label>
+  <label>Temporada:</label>
   <input type="number" id="hist-season" placeholder="2025" style="width:90px"
          onchange="loadHistory()" />
+  <label>Ordenar:</label>
+  <select id="hist-sort" onchange="onSortChange()">
+    <option value="pos">Por Posição</option>
+    <option value="name">Por Nome (A-Z)</option>
+  </select>
   <button class="btn btn-secondary" onclick="loadHistory()">Filtrar</button>
 </div>
 
@@ -113,6 +128,14 @@
 <script>
 let histDebounce;
 
+// Mirror de POS_ORDER de models.py — usado no sort por posição no frontend.
+// QB → RB → WR → TE → K → DEF. D/ST e DST normalizadas para DEF.
+const POS_ORDER = {QB: 0, RB: 1, WR: 2, TE: 3, K: 4, DEF: 5, "D/ST": 5, DST: 5};
+
+// Controle de override: quando usuário muda o sort manualmente, stickiness
+// vence os defaults automáticos (filtro de time → 'pos', filtro de posição → 'name').
+let sortExplicitlyChosen = false;
+
 const EVENT_LABELS = {
   auction_draft:     'Draft (Auction)',
   rookie_draft:      'Rookie Draft',
@@ -159,10 +182,32 @@ function loadHistoryDebounced() {
   histDebounce = setTimeout(loadHistory, 350);
 }
 
+function onSortChange() {
+  sortExplicitlyChosen = true;
+  loadHistory();
+}
+
+function onFilterChange(which) {
+  // Aplica default automático no sort APENAS se o usuário ainda não escolheu
+  // explicitamente um sort — assim a escolha do usuário persiste mesmo trocando filtros.
+  if (!sortExplicitlyChosen) {
+    const sortEl = document.getElementById('hist-sort');
+    if (which === 'team') sortEl.value = 'pos';
+    else if (which === 'pos') sortEl.value = 'name';
+  }
+  loadHistory();
+}
+
+function normalizePos(pos) {
+  return (pos || '').replace('/', '') === 'DST' ? 'DEF' : (pos || '');
+}
+
 function loadHistory() {
   const team   = document.getElementById('hist-team').value;
+  const posFilter = document.getElementById('hist-pos').value;
   const player = document.getElementById('hist-player').value.trim();
   const season = document.getElementById('hist-season').value;
+  const sortBy = document.getElementById('hist-sort').value;
 
   let url = '/api/salary_history?';
   if (team)   url += 'team=' + encodeURIComponent(team) + '&';
@@ -172,24 +217,44 @@ function loadHistory() {
   document.getElementById('history-wrap').innerHTML = '<div class="loading-msg">Carregando...</div>';
 
   fetch(url).then(r => r.json()).then(records => {
+    // Filtro de posição aplicado no cliente (endpoint não filtra por posição).
+    if (posFilter) {
+      records = records.filter(r => normalizePos(r.position) === posFilter);
+    }
+
     if (!records.length) {
       document.getElementById('history-wrap').innerHTML = '<p class="text-dim">Nenhum registro encontrado.</p>';
       return;
     }
 
-    // Group by player_id, preserving first occurrence order (sorted by player_name asc + season desc from backend)
-    const order = [];
+    // Group by player_id — events de um jogador são renderizados juntos no card.
     const groups = {};
     records.forEach(r => {
       const pid = r.player_id;
-      if (!groups[pid]) {
-        groups[pid] = { info: r, events: [] };
-        order.push(pid);
-      }
+      if (!groups[pid]) groups[pid] = { info: r, events: [] };
       groups[pid].events.push(r);
     });
 
-    const html = order.map(pid => renderPlayerCard(groups[pid])).join('');
+    // Sort groups conforme selector. Usa a info do primeiro evento de cada player.
+    const arr = Object.values(groups);
+    if (sortBy === 'name') {
+      arr.sort((a, b) =>
+        a.info.player_name.localeCompare(b.info.player_name, 'pt-BR')
+      );
+    } else {
+      // "pos": POS_ORDER primeiro, salary DESC como tiebreaker, nome asc como 3º critério
+      arr.sort((a, b) => {
+        const pa = POS_ORDER[normalizePos(a.info.position)] ?? 99;
+        const pb = POS_ORDER[normalizePos(b.info.position)] ?? 99;
+        if (pa !== pb) return pa - pb;
+        const sa = a.info.current_salary || 0;
+        const sb = b.info.current_salary || 0;
+        if (sa !== sb) return sb - sa;
+        return a.info.player_name.localeCompare(b.info.player_name, 'pt-BR');
+      });
+    }
+
+    const html = arr.map(g => renderPlayerCard(g)).join('');
     document.getElementById('history-wrap').innerHTML = html;
   });
 }
