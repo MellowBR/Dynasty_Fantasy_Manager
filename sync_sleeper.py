@@ -1055,6 +1055,134 @@ def _rebuild_player_history(dry_run: bool = False) -> dict:
     return result
 
 
+def _backfill_missing_trade_history() -> dict:
+    """
+    F8-GAP — cria rows de PlayerHistory para Trade rows que existem no banco
+    mas não têm eventos correspondentes.
+
+    Situação ocorre quando, durante testes do F8c, o endpoint /restore apagou
+    PlayerHistory (via snapshot pré-rebuild) mas não as Trade rows criadas pelo
+    run anterior. Re-runs do _sync_trades skipam via idempotência de Trade,
+    então nunca recriam os PlayerHistory events. Esta função preenche o gap.
+
+    Percorre a Sleeper chain para localizar cada transação órfã, resolve adds
+    via team map da liga correta, e cria PlayerHistory com season real (da liga
+    da transação), não get_current_season().
+
+    Idempotente via UNIQUE uq_player_history_event.
+    NÃO atualiza Player.team_id/fantasy_team/via_trade — backfill retroativo
+    só cria rastro histórico.
+
+    Returns {processed, events_created, warnings, txs_not_found}.
+    """
+    from models import Trade, PlayerHistory, Player
+
+    result = {
+        "processed": 0,
+        "events_created": 0,
+        "warnings": [],
+        "txs_not_found": [],
+    }
+
+    # 1. Find Trade rows without any PlayerHistory
+    orphan_rows = db.session.execute(db.text("""
+        SELECT t.sleeper_transaction_id
+        FROM trades t
+        LEFT JOIN player_history ph ON ph.sleeper_event_ref = 'tx:' || t.sleeper_transaction_id
+        WHERE t.sleeper_transaction_id IS NOT NULL
+        GROUP BY t.id, t.sleeper_transaction_id
+        HAVING COUNT(ph.id) = 0
+    """)).fetchall()
+    orphan_tx_ids = {row[0] for row in orphan_rows}
+
+    if not orphan_tx_ids:
+        return result
+
+    # 2. Walk chain and try to locate each orphan tx
+    chain = _walk_league_chain(LEAGUE_ID)
+    players_by_sid = {
+        p.sleeper_player_id: p
+        for p in Player.query.filter(Player.sleeper_player_id.isnot(None)).all()
+    }
+
+    for league in chain:
+        if not orphan_tx_ids:
+            break
+        lid = league["league_id"]
+        team_by_roster = _build_team_map_for_league(lid)
+        if not team_by_roster:
+            continue
+        try:
+            season = int(league.get("season")) if league.get("season") else None
+        except (ValueError, TypeError):
+            season = None
+
+        for leg in range(1, 19):
+            if not orphan_tx_ids:
+                break
+            txs = _get(f"{BASE_URL}/league/{lid}/transactions/{leg}") or []
+            for tx in txs:
+                tx_id = tx.get("transaction_id")
+                if tx_id not in orphan_tx_ids:
+                    continue
+                if tx.get("type") != "trade" or tx.get("status") != "complete":
+                    continue
+
+                adds = tx.get("adds") or {}
+                drops = tx.get("drops") or {}
+
+                for sid, dst_rid in adds.items():
+                    player = players_by_sid.get(str(sid))
+                    if not player:
+                        result["warnings"].append(
+                            f"tx={tx_id} season={season}: sid {sid} não existe no DB"
+                        )
+                        continue
+                    dst_team = team_by_roster.get(str(dst_rid))
+                    if not dst_team:
+                        continue
+                    src_rid = drops.get(sid)
+                    src_team = team_by_roster.get(str(src_rid)) if src_rid is not None else None
+                    src_name = src_team.name if src_team else "?"
+
+                    # Idempotency: UNIQUE (player_id, season, event_type, team_name, sleeper_event_ref)
+                    existing = PlayerHistory.query.filter_by(
+                        player_id=player.id,
+                        season=season,
+                        event_type="trade",
+                        team_name=dst_team.name,
+                        sleeper_event_ref=f"tx:{tx_id}",
+                    ).first()
+                    if existing:
+                        continue
+
+                    db.session.add(PlayerHistory(
+                        player_id=player.id,
+                        season=season,
+                        team_name=dst_team.name,
+                        event_type="trade",
+                        salary=player.salary,
+                        contract_year=player.contract_year,
+                        notes=f"Trade sleeper_sync tx={tx_id} ({src_name}→{dst_team.name})",
+                        sleeper_event_ref=f"tx:{tx_id}",
+                    ))
+                    result["events_created"] += 1
+
+                result["processed"] += 1
+                orphan_tx_ids.discard(tx_id)
+
+    # Trades not located in any league of the chain (shouldn't happen, but log)
+    result["txs_not_found"] = sorted(orphan_tx_ids)
+    if orphan_tx_ids:
+        result["warnings"].append(
+            f"{len(orphan_tx_ids)} tx_ids não localizados na chain Sleeper: "
+            f"{sorted(orphan_tx_ids)[:5]}"
+        )
+
+    db.session.commit()
+    return result
+
+
 def _count_players_to_correct(resolved_events: list, players_by_sid: dict) -> int:
     """Dry-run helper: count how many players would be corrected."""
     from models import Player, get_current_season

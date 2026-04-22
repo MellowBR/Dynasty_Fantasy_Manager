@@ -447,6 +447,42 @@ CREATE TABLE trade_proposals (
 
 **Arquivos modificados:** `routes/admin.py` (+~90 linhas: imports, helpers, 2 endpoints, snapshot_info passado para template), `templates/admin.html` (+~35 linhas card + ~95 linhas JS), `templates/salary_history.html` (+3 entradas em cada mapa), `app.py` (+5 linhas skip condicional), `manager_vision.md` (+~40 linhas seção Calendário Operacional da Liga).
 
+#### F8-NOTES — Notas legíveis + trade context na timeline ✅ 22/04/2026
+
+**Problema:** Timeline do `/salary_history` exibia strings cruas como `"auction_draft r6p65 (draft 1107510815168729088)"` e `"Trade sleeper_sync tx=1260798906057375745 (...)"` ilegíveis para owners. Trades sem contexto (contraparte + assets).
+
+**Implementado em `routes/roster.py`:**
+- Função `_format_event_display(h, trade_by_tx)`: rótulo PT-BR por event_type.
+  - `auction_draft`: `Startup Auction · Rd {R}, Pick {P} · ${salary}`
+  - `fa_auction`: `FA Auction · Rd {R}, Pick {P} · ${salary}`
+  - `rookie_draft`: `Rookie Draft · Rd {R}, Pick {P}`
+  - `fa_waiver`: `Waiver Add`  |  `free_agent`: `Free Agent Add`
+  - `drop`: `Dropado por {team_name}`
+  - `rollover`: `Valorização (Ano {contract_year})`
+  - `trade`: `Trade com {counterparty} · {assets_resumidos}` via join com Trade table pelo `sleeper_transaction_id` extraído do `sleeper_event_ref`.
+- Round/pick extraídos via regex `r(\d+)p(\d+)` do campo `notes` atual.
+- Counterparty de trade: o lado de `Trade.team_a/team_b` que não bate com `h.team_name`.
+- Resumo de assets: parseia `Trade.description` em boundaries `;` e trunca com `…` em ~100 chars.
+- Prefetch de Trade rows em 1 query `IN(tx_ids)` por request.
+- Payload inclui campo novo `display_notes` sem alterar `notes` cru (debugging preservado).
+
+**Template (`templates/salary_history.html`):**
+- `renderEventRow` usa `e.display_notes || e.notes` com fallback.
+- Coluna `event-amount` removida — display_notes já carrega a info relevante por event_type (evita ruído `$0 · Ano 0` em drops).
+
+#### F8-GAP — Backfill de trades órfãs (restore side-effect) ✅ 22/04/2026
+
+**Problema:** 18 trades de 2024 existiam em `Trade` table mas sem rows em `PlayerHistory`. Investigação mostrou causa raiz: durante testes do F8c, chamadas a `/api/admin/player_history/restore` apagaram `player_history` restaurando o snapshot, mas mantiveram as `Trade` rows criadas pelo run anterior. Re-runs do `_sync_trades` skipam via idempotência de `Trade.sleeper_transaction_id`, então os events nunca foram recriados.
+
+**Implementado em `sync_sleeper.py`:**
+- Função `_backfill_missing_trade_history()`: query para Trade rows sem PlayerHistory correspondente, walking da Sleeper chain para resolver qual liga/leg cada tx pertence, criação de rows com `season` real (da liga), idempotente via UNIQUE. NÃO atualiza `Player.team_id/fantasy_team/via_trade` (backfill retroativo só cria rastro histórico).
+
+**Endpoint + UI:**
+- `POST /api/admin/player_history/backfill_trades` em `routes/admin.py` (`@admin_required`).
+- Botão "🔗 Backfill de Trades Órfãs" no card F8 do `/admin`, entre Rebuild e Restore.
+
+**Validado em dev (22/04/2026):** 18 trades processadas, 40 PlayerHistory events criados. Distinct `tx:` refs em player_history: 29 → 45 (2 tx sobraram órfãs por terem só assets de jogadores já dropados do DB — trades tx=1154533231048630272 e tx=1152430188438040576, esperadas). Casos testados: Tank Dell (agora mostra trade 2024 Pitbull→Cangaceiros), Chase Brown, Ladd McConkey, Chuba Hubbard, D'Andre Swift — todos com timeline completa pós-backfill.
+
 #### F8b — Guard em import_csv.py (AppConfig.f8_rebuilt) ✅ 22/04/2026
 
 **Problema resolvido:** `run_import()` rodava a cada boot e fazia upsert de `acquisition_type` + `contract_start_season` a partir do CSV, revertendo as 180 correções do F8a no próximo boot.

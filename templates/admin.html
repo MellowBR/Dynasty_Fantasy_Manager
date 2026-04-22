@@ -162,6 +162,10 @@
       <button class="btn btn-primary" id="btn-f8-rebuild" onclick="f8Rebuild()">
         ⚡ Executar Rebuild
       </button>
+      <button class="btn btn-secondary" id="btn-f8-backfill-trades" onclick="f8BackfillTrades()"
+              title="Cria PlayerHistory rows para trades que existem em Trade table mas não têm eventos. Idempotente.">
+        🔗 Backfill de Trades Órfãs
+      </button>
       <button class="btn btn-danger" id="btn-f8-restore" onclick="f8Restore()"
               {% if not f8_snapshot.exists %}disabled title="Nenhum snapshot disponível"{% else %}title="Restaura snapshot de {{ f8_snapshot.timestamp }}"{% endif %}>
         ↩ Restaurar Snapshot
@@ -444,6 +448,50 @@ function f8Rebuild() {
     .finally(() => {
       btn.disabled = false;
       btn.textContent = '⚡ Executar Rebuild';
+    });
+}
+
+function f8BackfillTrades() {
+  if (!confirm(
+    'Backfill de trades órfãs?\n\n' +
+    'Procura Trade rows sem PlayerHistory events correspondentes e cria os ' +
+    'eventos via Sleeper chain. Idempotente — re-chamadas são seguras.\n\n' +
+    'Útil quando o /restore do F8 apagou events mas manteve Trade rows.')) return;
+
+  const btn = document.getElementById('btn-f8-backfill-trades');
+  const res = document.getElementById('f8-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Backfill em andamento...';
+  res.style.display = 'block';
+  res.className = 'result-box';
+  res.textContent = '⏳ Procurando trades órfãs na Sleeper chain...';
+
+  fetch('/api/admin/player_history/backfill_trades', {method:'POST'})
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) {
+        res.className = 'result-box result-error';
+        res.textContent = '❌ ' + d.error;
+        return;
+      }
+      const warn = (d.warnings || []).length;
+      const cls = warn ? 'result-warn' : 'result-ok';
+      res.className = 'result-box ' + cls;
+      res.innerHTML =
+        `🔗 <strong>Backfill de trades concluído.</strong><br>` +
+        `Trades processadas: <strong>${d.processed}</strong><br>` +
+        `Events criados: <strong>${d.events_created}</strong><br>` +
+        (d.txs_not_found && d.txs_not_found.length
+          ? `⚠️ ${d.txs_not_found.length} tx_ids não localizados na chain<br>` : '') +
+        (warn ? `⚠️ ${warn} warnings: ${(d.warnings || []).slice(0,3).join('; ')}` : 'Sem warnings.');
+    })
+    .catch(e => {
+      res.className = 'result-box result-error';
+      res.textContent = '❌ ' + e;
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = '🔗 Backfill de Trades Órfãs';
     });
 }
 

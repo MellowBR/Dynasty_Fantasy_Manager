@@ -377,6 +377,22 @@ def player_history_rebuild():
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
 
 
+@admin_bp.route("/api/admin/player_history/backfill_trades", methods=["POST"])
+@admin_required
+def player_history_backfill_trades():
+    """
+    F8-GAP — Cria PlayerHistory rows para trades que existem em Trade table
+    mas não têm events. Idempotente via UNIQUE.
+    """
+    try:
+        from sync_sleeper import _backfill_missing_trade_history
+        result = _backfill_missing_trade_history()
+        return jsonify(result)
+    except Exception as e:
+        import traceback
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+
+
 @admin_bp.route("/api/admin/player_history/restore", methods=["POST"])
 @admin_required
 def player_history_restore():
