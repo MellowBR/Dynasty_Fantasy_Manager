@@ -145,6 +145,19 @@ def _run_migrations():
         db.session.commit()
         print("[migrate] Created users table")
 
+    # Migration 3: trades.source + trades.sleeper_transaction_id (S1 — sync de trades)
+    if "trades" in insp.get_table_names():
+        cols = [c["name"] for c in insp.get_columns("trades")]
+        if "source" not in cols:
+            db.session.execute(text("ALTER TABLE trades ADD COLUMN source VARCHAR(20) DEFAULT 'manual'"))
+            db.session.commit()
+            print("[migrate] Added source to trades")
+        if "sleeper_transaction_id" not in cols:
+            db.session.execute(text("ALTER TABLE trades ADD COLUMN sleeper_transaction_id VARCHAR(50)"))
+            db.session.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_trades_sleeper_tx ON trades(sleeper_transaction_id)"))
+            db.session.commit()
+            print("[migrate] Added sleeper_transaction_id to trades")
+
 
 def _seed_app_config():
     """Seed default app_config values if missing."""

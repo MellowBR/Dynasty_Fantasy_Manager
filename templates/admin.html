@@ -140,6 +140,20 @@
     <a href="/admin/users" class="btn btn-primary">👤 Abrir Gerenciador de Users</a>
   </div>
 
+  <!-- S1: Trade Backfill -->
+  <div class="card">
+    <h2 class="card-title">🔄 Trades Históricas (Backfill)</h2>
+    <p class="text-dim" style="margin-bottom:.75rem">
+      Importa trades da <strong>temporada anterior</strong> (previous_league_id da Sleeper)
+      para a tabela <code>Trade</code> local. Idempotente — re-chamadas não duplicam.
+      Trades novas da temporada atual entram automaticamente via "Sincronizar com Sleeper".
+    </p>
+    <button class="btn btn-primary" id="btn-backfill" onclick="backfillTrades()">
+      📥 Importar Trades Históricas
+    </button>
+    <div id="backfill-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+  </div>
+
   <!-- Players needing review -->
   <div class="card" id="review-card" style="display:none">
     <h2 class="card-title">🔍 Jogadores para Revisão</h2>
@@ -310,6 +324,40 @@ fetch('/api/admin/review_players').then(r => r.json()).then(players => {
 function clearReview(id, btn) {
   fetch(`/api/admin/review_players/${id}/clear`, {method:'POST'})
     .then(() => btn.closest('.player-row').remove());
+}
+
+function backfillTrades() {
+  if (!confirm('Importar trades da temporada anterior?\nIdempotente — re-chamadas não duplicam.')) return;
+  const btn = document.getElementById('btn-backfill');
+  const res = document.getElementById('backfill-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Importando...';
+  res.style.display = 'block';
+  res.className = 'result-box';
+  res.textContent = '⏳ Buscando transações do Sleeper...';
+
+  fetch('/api/admin/sync_trades/backfill', {method:'POST'})
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) {
+        res.className = 'result-box result-error';
+        res.textContent = '❌ ' + d.error;
+        return;
+      }
+      const warn = (d.warnings || []).length;
+      const warnCls = warn ? 'result-warn' : 'result-ok';
+      const warnMsg = warn ? ` — ⚠️ ${warn} warning(s): ${(d.warnings || []).slice(0,3).join('; ')}` : '';
+      res.className = 'result-box ' + warnCls;
+      res.textContent = `✅ Liga ${d.previous_season}: ${d.imported} trades importadas, ${d.skipped} já existiam${warnMsg}`;
+    })
+    .catch(e => {
+      res.className = 'result-box result-error';
+      res.textContent = '❌ ' + e;
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = '📥 Importar Trades Históricas';
+    });
 }
 </script>
 {% endblock %}

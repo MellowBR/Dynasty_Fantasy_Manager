@@ -297,6 +297,35 @@ def admin_users_delete(user_id):
     return jsonify({"success": True, "deleted_email": email})
 
 
+# ── S1: Trade Backfill (previous_league_id) ──────────────────────────────────
+
+@admin_bp.route("/api/admin/sync_trades/backfill", methods=["POST"])
+@admin_required
+def sync_trades_backfill():
+    """
+    Backfill trades from the previous_league_id (last season).
+    Idempotent via sleeper_transaction_id — re-calls are no-op.
+    """
+    from sync_sleeper import _sync_trades, _get, BASE_URL
+    from models import LEAGUE_ID
+
+    league_data = _get(f"{BASE_URL}/league/{LEAGUE_ID}")
+    if not league_data:
+        return jsonify({"error": "Não foi possível buscar dados da liga atual"}), 500
+
+    prev_id = league_data.get("previous_league_id")
+    if not prev_id or prev_id == "0":
+        return jsonify({"error": "Liga atual não tem previous_league_id"}), 400
+
+    prev_data = _get(f"{BASE_URL}/league/{prev_id}") or {}
+    prev_season = prev_data.get("season", "?")
+
+    result = _sync_trades(prev_id)
+    result["previous_league_id"] = prev_id
+    result["previous_season"] = prev_season
+    return jsonify(result)
+
+
 # ── ESPN PDF Import ──────────────────────────────────────────────────────────
 
 ESPN_DEFAULT_URL = "https://g.espncdn.com/s/ffldraftkit/25/NFL25_CS_PPR300.pdf?adddata=2025CS_PPR300"

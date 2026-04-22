@@ -301,6 +301,19 @@ def run_sync() -> dict:
     summary["picks_updated"] = _sync_traded_picks(traded_picks, teams_by_roster)
 
     db.session.commit()
+
+    # 12. Sync trades (S1) — completed trades from the current league
+    try:
+        trades_result = _sync_trades(LEAGUE_ID)
+        summary["trades_imported"] = trades_result["imported"]
+        summary["trades_skipped"] = trades_result["skipped"]
+        if trades_result.get("warnings"):
+            summary["trade_warnings"] = trades_result["warnings"]
+    except Exception as e:
+        summary["errors"].append(f"trade sync: {e}")
+        summary["trades_imported"] = 0
+        summary["trades_skipped"] = 0
+
     _log_sync(summary, had_errors=bool(summary["errors"]))
     return summary
 
@@ -405,6 +418,10 @@ def _log_sync(summary: dict, had_errors: bool = False):
         f"{summary['teams_updated']} times",
         f"{summary['picks_updated']} picks",
     ]
+    if "trades_imported" in summary:
+        desc_parts.append(f"{summary['trades_imported']} trades novas, {summary['trades_skipped']} já sincronizadas")
+    if summary.get("trade_warnings"):
+        desc_parts.append(f"⚠️ {len(summary['trade_warnings'])} warning(s) em trades")
     if new_names:
         desc_parts.append(f"Needs review: {new_names}{extra}")
     if summary.get("errors"):
@@ -420,3 +437,176 @@ def _log_sync(summary: dict, had_errors: bool = False):
     )
     db.session.add(log)
     db.session.commit()
+
+
+# ── S1: Sleeper Trade Sync ───────────────────────────────────────────────────
+
+def _build_team_map_for_league(league_id: str) -> dict:
+    """
+    Build roster_id (str) → Team mapping for a given league (current or previous).
+    Owners (sleeper_owner_id) are constant across seasons, so we join via owner_id.
+    """
+    rosters = _get(f"{BASE_URL}/league/{league_id}/rosters") or []
+    teams_by_owner = {
+        t.sleeper_owner_id: t
+        for t in Team.query.filter(Team.sleeper_owner_id.isnot(None)).all()
+    }
+    team_by_roster = {}
+    for r in rosters:
+        rid = str(r.get("roster_id", ""))
+        oid = str(r.get("owner_id", "") or "")
+        team = teams_by_owner.get(oid)
+        if team:
+            team_by_roster[rid] = team
+    return team_by_roster
+
+
+def _sync_trades(league_id: str) -> dict:
+    """
+    Sync completed trades from a Sleeper league. Idempotent via sleeper_transaction_id.
+    2-way trades: normal Trade row.
+    N-way trades (N>2): placeholder Trade row with team_b="N-way: <others>", description
+    prefixed "[N-WAY]". Players/picks still move correctly via adds/drops/draft_picks.
+    Returns {"imported": N, "skipped": M, "warnings": [str, ...]}.
+    """
+    from models import Trade, PlayerHistory, get_current_season
+
+    result = {"imported": 0, "skipped": 0, "warnings": []}
+    team_by_roster = _build_team_map_for_league(league_id)
+    if not team_by_roster:
+        result["warnings"].append(f"Nenhum roster mapeado para liga {league_id}")
+        return result
+
+    players_by_sid = {
+        p.sleeper_player_id: p
+        for p in Player.query.filter(Player.sleeper_player_id.isnot(None)).all()
+    }
+    season = get_current_season()
+
+    for leg in range(1, 19):
+        txs = _get(f"{BASE_URL}/league/{league_id}/transactions/{leg}") or []
+        for tx in txs:
+            if tx.get("type") != "trade" or tx.get("status") != "complete":
+                continue
+            tx_id = tx.get("transaction_id")
+            if not tx_id:
+                result["warnings"].append(f"Trade sem transaction_id (leg {leg})")
+                continue
+
+            # Idempotency
+            if Trade.query.filter_by(sleeper_transaction_id=tx_id).first():
+                result["skipped"] += 1
+                continue
+
+            roster_ids = tx.get("roster_ids") or []
+            if len(roster_ids) < 2 or not all(team_by_roster.get(str(rid)) for rid in roster_ids):
+                missing = [str(rid) for rid in roster_ids if not team_by_roster.get(str(rid))]
+                result["warnings"].append(f"tx={tx_id}: roster_ids não mapeados: {missing}")
+                continue
+
+            is_n_way = len(roster_ids) > 2
+            adds = tx.get("adds") or {}
+            drops = tx.get("drops") or {}
+            flow_info = []
+
+            # Move players via adds/drops
+            for pid_str, dst_rid in adds.items():
+                src_rid = drops.get(pid_str)
+                player = players_by_sid.get(str(pid_str))
+                dst_team = team_by_roster.get(str(dst_rid))
+                src_team = team_by_roster.get(str(src_rid)) if src_rid is not None else None
+                if not dst_team:
+                    continue
+                if not player:
+                    result["warnings"].append(
+                        f"tx={tx_id}: player sleeper_id={pid_str} não existe no DB (dropado?)"
+                    )
+                    continue
+
+                player.team_id = dst_team.id
+                player.fantasy_team = dst_team.name
+                player.is_my_team = dst_team.is_my_team
+                player.via_trade = True
+
+                src_name = src_team.name if src_team else "?"
+                notes_prefix = "N-way trade " if is_n_way else "Trade sleeper_sync "
+                db.session.add(PlayerHistory(
+                    player_id=player.id,
+                    season=season,
+                    team_name=dst_team.name,
+                    event_type="trade",
+                    salary=player.salary,
+                    contract_year=player.contract_year,
+                    notes=f"{notes_prefix}tx={tx_id} ({src_name}→{dst_team.name})",
+                ))
+                flow_info.append(f"{player.name} ({src_name}→{dst_team.name})")
+
+            # Move picks via draft_picks
+            for p_info in tx.get("draft_picks") or []:
+                p_season_raw = p_info.get("season")
+                p_round = p_info.get("round")
+                orig_rid = p_info.get("roster_id")
+                dst_rid = p_info.get("owner_id")
+                src_rid = p_info.get("previous_owner_id")
+                orig_team = team_by_roster.get(str(orig_rid))
+                dst_team = team_by_roster.get(str(dst_rid))
+                src_team = team_by_roster.get(str(src_rid))
+                if not orig_team or not dst_team:
+                    result["warnings"].append(
+                        f"tx={tx_id}: pick {p_season_raw} R{p_round} com teams não mapeados"
+                    )
+                    continue
+                try:
+                    p_season_int = int(p_season_raw) if p_season_raw else None
+                except (ValueError, TypeError):
+                    p_season_int = None
+                pick = Pick.query.filter_by(
+                    season=p_season_int,
+                    round=p_round,
+                    original_team_id=orig_team.id,
+                ).first()
+                if pick:
+                    pick.current_team_id = dst_team.id
+                    pick.current_team_name = dst_team.name
+                    pick.traded_away = (dst_team.id != pick.original_team_id)
+                else:
+                    result["warnings"].append(
+                        f"tx={tx_id}: pick {p_season_raw} R{p_round} ({orig_team.name}) não encontrada (drafada?)"
+                    )
+                src_name = src_team.name if src_team else orig_team.name
+                flow_info.append(f"Pick {p_season_raw} Rd{p_round} ({src_name}→{dst_team.name})")
+
+            # Build Trade row
+            desc_raw = "; ".join(flow_info) if flow_info else "(sem ativos rastreáveis)"
+            created_ms = tx.get("created") or 0
+            trade_dt = datetime.fromtimestamp(created_ms / 1000) if created_ms else datetime.utcnow()
+
+            team_a_obj = team_by_roster[str(roster_ids[0])]
+            if is_n_way:
+                others = [team_by_roster[str(rid)].name for rid in roster_ids[1:]]
+                trade = Trade(
+                    team_a=team_a_obj.name,
+                    team_b=f"N-way: {', '.join(others)}",
+                    description=f"[N-WAY] {desc_raw}",
+                    source="sleeper_sync",
+                    sleeper_transaction_id=tx_id,
+                    trade_date=trade_dt,
+                )
+                result["warnings"].append(
+                    f"N-way tx={tx_id} (N={len(roster_ids)}) registrada como placeholder"
+                )
+            else:
+                team_b_obj = team_by_roster[str(roster_ids[1])]
+                trade = Trade(
+                    team_a=team_a_obj.name,
+                    team_b=team_b_obj.name,
+                    description=desc_raw,
+                    source="sleeper_sync",
+                    sleeper_transaction_id=tx_id,
+                    trade_date=trade_dt,
+                )
+            db.session.add(trade)
+            result["imported"] += 1
+
+    db.session.commit()
+    return result

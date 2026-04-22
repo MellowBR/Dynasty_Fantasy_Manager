@@ -390,6 +390,8 @@ class Trade(db.Model):
     team_a = db.Column(db.String(120), nullable=False)
     team_b = db.Column(db.String(120), nullable=False)
     description = db.Column(db.Text, default="")
+    source = db.Column(db.String(20), default="manual")  # 'manual' | 'sleeper_sync'
+    sleeper_transaction_id = db.Column(db.String(50), unique=True, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -399,6 +401,8 @@ class Trade(db.Model):
             "team_a": self.team_a,
             "team_b": self.team_b,
             "description": self.description,
+            "source": self.source,
+            "sleeper_transaction_id": self.sleeper_transaction_id,
         }
 
 

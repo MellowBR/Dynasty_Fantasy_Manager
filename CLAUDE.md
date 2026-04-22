@@ -63,7 +63,7 @@ python seed_users.py --list
 | trades | `/trades` | Trade preview/confirmation with cap impact |
 | picks | `/picks` | Draft picks 2025-2028, lottery system |
 | auction | `/auction` | FA auction & rookie draft registration |
-| admin | `/admin`, `/admin/users` | Sleeper sync, ESPN import, season rollover, user↔team management (M12) |
+| admin | `/admin`, `/admin/users` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1) |
 | offseason | `/offseason` | 7-step offseason workflow |
 
 ### Models (models.py)
@@ -101,7 +101,7 @@ python seed_users.py --list
 
 ### External Integrations
 
-- **Sleeper API** (`sync_sleeper.py`): rosters, team info, winners bracket, previous league. Player DB cached weekly (~15MB `.sleeper_players_cache.json`). Startup sync wrapped in try/except for graceful degradation.
+- **Sleeper API** (`sync_sleeper.py`): rosters, team info, winners bracket, previous league, **trades via `/transactions/{leg}`** (S1 — `_sync_trades(league_id)`, idempotente via `sleeper_transaction_id`, trata N-way como placeholder row). Player DB cached weekly (~15MB `.sleeper_players_cache.json`). Startup sync wrapped in try/except for graceful degradation.
 - **ESPN PDF** (`espn_pdf_parser.py`): parse draft value sheets, match to DB players with 3-tier matching (exact → case-insensitive → normalized)
 - **Google OAuth**: OpenID Connect via Google's well-known endpoint
 

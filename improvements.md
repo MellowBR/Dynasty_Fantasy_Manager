@@ -15,7 +15,7 @@
 | X1b | Google OAuth + Flask-Login | Alta | ✅ 31/03/2026 |
 | X1c | Tabela `users` no dynasty.db + seed_users.py | Alta | ✅ 31/03/2026 |
 | X1d | Decorators `@login_required` / `@admin_required` nas rotas | Alta | ✅ 31/03/2026 |
-| S1 | Sync detecta trades do Sleeper e move contratos automaticamente | Alta | 🔲 |
+| S1 | Sync detecta trades do Sleeper e move contratos automaticamente | Alta | ✅ 22/04/2026 |
 | T1 | Redesign Trade Manager: simulador multi-owner + link compartilhável | Alta | 🔲 |
 | T2 | Integrar valores KTC no preview de trade | Média | 🔲 |
 | Q1 | Script de simulação de temporada (validar salary rollover) | Média | 🔲 |
@@ -45,22 +45,39 @@
 ---
 
 ### S1 — Sync Detecta Trades do Sleeper e Move Contratos Automaticamente
-🔲 **Pendente** — Prioridade **Alta**
+✅ **Concluído (22/04/2026)** — Prioridade **Alta**
 
-**Problema:** Hoje trades são registradas manualmente no Manager (`POST /api/trades/confirm`, `@admin_required`). Se um trade acontece no Sleeper e o admin não registra no Manager, o `dynasty.db` fica dessincronizado. O sync atual (`sync_sleeper.py`) detecta mudanças de roster (player→team) mas não distingue "trade" de "waiver claim" ou "drop" — simplesmente reatribui `team_id` e marca `is_dropped`.
+**Problema:** Trades eram registradas manualmente via `POST /api/trades/confirm`. Sync não distinguia trade de waiver/drop — reatribuía `team_id` sem Trade/PlayerHistory. `Trade` table tinha 0 rows.
 
-**Código atual relevante:**
-- `sync_sleeper.py:241-258` — reatribui `team_id` se player mudou de time, mas sem registrar Trade ou PlayerHistory
-- `sync_sleeper.py:286-291` — drop logic marca `is_dropped=True` se player não está no roster do Sleeper
-- `routes/trades.py:76-145` — `confirm_trade()` faz: mover player entre times, registrar `Trade`, registrar `PlayerHistory` com `event_type="trade"`, marcar `via_trade=True`
+**Resolvido (22/04/2026):**
 
-**Proposta:**
-1. No sync, chamar endpoint `GET /league/{LEAGUE_ID}/transactions/{week}` da API do Sleeper (ou iterar pelas semanas) filtrando por `type: "trade"`
-2. Para cada trade detectada: identificar players e picks envolvidos, mover contratos no `dynasty.db` usando a mesma lógica de `confirm_trade()`
-3. Registrar em `Trade` e `PlayerHistory` com `source="sleeper_sync"` para distinguir de trades manuais
-4. Idempotência: verificar se o trade já foi registrado (por data + players envolvidos) antes de duplicar
+**Arquitetura:**
+- Nova função `_sync_trades(league_id)` em `sync_sleeper.py`: itera legs 1-18 de `GET /league/{id}/transactions/{leg}`, filtra `type=trade AND status=complete`, idempotente via `sleeper_transaction_id`. Move `Player.team_id` via `adds/drops`, `Pick.current_team_id` via `draft_picks[]`, cria `PlayerHistory` por ativo, cria `Trade` row com `source='sleeper_sync'`.
+- Integrado em `run_sync()`: toda sincronização com Sleeper agora detecta trades automaticamente.
+- Novo endpoint `POST /api/admin/sync_trades/backfill` (`@admin_required`): importa trades da `previous_league_id` (liga da temporada anterior). Idempotente.
+- Migração schema: `Trade.source` (default 'manual') + `Trade.sleeper_transaction_id` (unique nullable) via `_run_migrations()`.
 
-**Impacto:** Com S1 funcionando, a confirmação manual de trades (`@admin_required`) pode ser eliminada — o Manager acompanha o Sleeper automaticamente. Isso é pré-requisito para T1 virar um simulador puro.
+**Tratamento de N-way trades (abordagem C+):**
+- 2-way: Trade row normal (`team_a`, `team_b`).
+- N>2: Trade row placeholder com `team_b = "N-way: <outros times>"` e `description = "[N-WAY] ..."`. Players/picks movem corretamente via adds/drops. PlayerHistory por ativo. Warning em SyncLog. Admin sempre vê a trade na UI, nunca precisa de intervenção de código.
+- Dados reais: 29/29 trades históricas da liga 2025 são 2-way. N>2 é caminho futuro não bloqueante.
+
+**Backfill inicial (incluído no seed `dynasty.db`):**
+- 29 trades da liga 2025 importadas (legs 1-11).
+- 78 entries `PlayerHistory event_type='trade'` geradas.
+- 19 warnings esperados: picks de 2025 já drafadas (não existem mais em `picks` — `sync_sleeper` deleta picks de seasons passadas) + 1 player dropado antes do snapshot atual. Nenhum bloqueante.
+
+**UI:**
+- Card "Trades Históricas (Backfill)" adicionado ao `/admin` com botão "Importar Trades Históricas". Idempotente — re-chamadas retornam `imported=0, skipped=29`.
+
+**Validação:**
+- `SELECT COUNT(*) FROM trades` → 29
+- `SELECT COUNT(DISTINCT sleeper_transaction_id) FROM trades` → 29
+- `SELECT COUNT(*) FROM trades WHERE source='sleeper_sync'` → 29
+- `SELECT COUNT(*) FROM player_history WHERE event_type='trade'` → 78
+- Re-run backfill → imported=0, skipped=29 ✅ (idempotência confirmada)
+
+**Impacto:** Confirmação manual de trades fica opcional — sync normal agora captura trades automaticamente. Desbloqueia T1 (trade manager como simulador puro).
 
 ---
 
