@@ -149,6 +149,90 @@ def update_player(player_id):
     return jsonify(player.to_dict())
 
 
+_DRAFT_RP_RE = __import__("re").compile(r"r(\d+)p(\d+)")
+
+
+def _summarize_trade_description(description: str, max_chars: int = 100) -> str:
+    """Trim a Trade.description string at ';' boundaries to fit max_chars."""
+    if not description:
+        return ""
+    parts = [p.strip() for p in description.split(";") if p.strip()]
+    out = []
+    total = 0
+    for part in parts:
+        # total + part + ", " separator
+        if out and total + 2 + len(part) > max_chars:
+            out.append("…")
+            break
+        if out:
+            total += 2
+        out.append(part)
+        total += len(part)
+    return ", ".join(out) if out else description[:max_chars]
+
+
+def _format_event_display(h, trade_by_tx: dict) -> str:
+    """
+    Build a human-readable PT-BR label for a PlayerHistory event.
+    Falls back to h.notes for unknown event_types.
+    """
+    et = h.event_type
+    ref = h.sleeper_event_ref or ""
+    notes = h.notes or ""
+    salary = int(h.salary) if h.salary else 0
+
+    if et in ("auction_draft", "fa_auction", "rookie_draft"):
+        m = _DRAFT_RP_RE.search(notes)
+        rd, pk = (m.group(1), m.group(2)) if m else ("?", "?")
+        prefix = {
+            "auction_draft": "Startup Auction",
+            "fa_auction": "FA Auction",
+            "rookie_draft": "Rookie Draft",
+        }[et]
+        if et == "rookie_draft":
+            return f"{prefix} · Rd {rd}, Pick {pk}"
+        return f"{prefix} · Rd {rd}, Pick {pk} · ${salary}"
+
+    if et == "fa_waiver":
+        return "Waiver Add"
+    if et == "free_agent":
+        return "Free Agent Add"
+    if et == "commissioner":
+        return "Ajuste do comissário"
+    if et == "drop":
+        return f"Dropado por {h.team_name}" if h.team_name else "Dropado"
+    if et == "rollover":
+        yr = h.contract_year or "?"
+        return f"Valorização (Ano {yr})"
+
+    if et == "trade":
+        # Look up Trade row via tx: prefix in sleeper_event_ref
+        tx_id = ref[3:] if ref.startswith("tx:") else None
+        trade = trade_by_tx.get(tx_id) if tx_id else None
+        if not trade:
+            return "Trade"
+        # Determine counterparty: whichever side of Trade.team_a/team_b is not h.team_name
+        if trade.team_a == h.team_name:
+            counterparty = trade.team_b
+        elif trade.team_b == h.team_name:
+            counterparty = trade.team_a
+        else:
+            # h.team_name could be the destination but trade row stores the trade from
+            # a different perspective — show both sides
+            counterparty = f"{trade.team_a} ↔ {trade.team_b}"
+        desc_short = _summarize_trade_description(trade.description or "", max_chars=110)
+        if desc_short:
+            return f"Trade com {counterparty} · {desc_short}"
+        return f"Trade com {counterparty}"
+
+    if et == "salary_correction":
+        return notes or "Correção manual"
+    if et == "keeper":
+        return "Mantido como keeper"
+
+    return notes or et
+
+
 @roster_bp.route("/api/player/<int:player_id>/history")
 @login_required
 def player_history(player_id):
@@ -160,9 +244,22 @@ def player_history(player_id):
     (que depende de quando cada row foi inserida, não quando o evento ocorreu).
 
     Rollover fica no final de cada season (bordadura de fechamento).
+
+    Cada evento recebe um campo `display_notes` formatado em PT-BR via
+    _format_event_display (consulta Trade table para eventos de trade).
     """
-    from models import PlayerHistory
+    from models import PlayerHistory, Trade
     history = PlayerHistory.query.filter_by(player_id=player_id).all()
+
+    # Prefetch Trade rows relevantes (tx_ids presentes no histórico do player)
+    tx_ids = set()
+    for h in history:
+        if h.event_type == "trade" and h.sleeper_event_ref and h.sleeper_event_ref.startswith("tx:"):
+            tx_ids.add(h.sleeper_event_ref[3:])
+    trade_by_tx = {}
+    if tx_ids:
+        for t in Trade.query.filter(Trade.sleeper_transaction_id.in_(tx_ids)).all():
+            trade_by_tx[t.sleeper_transaction_id] = t
 
     def sort_key(h):
         season = h.season or 0
@@ -182,9 +279,16 @@ def player_history(player_id):
 
     history.sort(key=sort_key)
     player = db.get_or_404(Player, player_id)
+
+    payload = []
+    for h in history:
+        d = h.to_dict()
+        d["display_notes"] = _format_event_display(h, trade_by_tx)
+        payload.append(d)
+
     return jsonify({
         "player": player.to_dict(),
-        "history": [h.to_dict() for h in history],
+        "history": payload,
     })
 
 

@@ -211,12 +211,13 @@ function renderPlayerCard(group) {
 function renderEventRow(e) {
   const label = EVENT_LABELS[e.event_type] || e.event_type;
   const badgeCls = EVENT_BADGES[e.event_type] || '';
+  // display_notes is formatted by backend for F8 rebuilt events; fallback to raw notes.
+  const displayText = e.display_notes || e.notes || '';
   return `
     <div class="event-row">
       <span class="event-season">S${e.season || '—'}</span>
       <span class="tag ${badgeCls}">${escapeHtml(label)}</span>
-      <span class="event-amount">$${Math.round(e.salary)} · Ano ${e.contract_year}</span>
-      <span class="event-notes">${escapeHtml(e.notes || '')}</span>
+      <span class="event-notes">${escapeHtml(displayText)}</span>
     </div>`;
 }
 
@@ -243,7 +244,7 @@ function togglePlayerTimeline(playerId, headerEl) {
         tl.innerHTML = '<div class="full-timeline-header">Nenhum histórico adicional registrado.</div>';
         return;
       }
-      // API returns ordered by id (chronological). Render as event rows.
+      // Backend returns history already sorted chronologically and with display_notes.
       tl.innerHTML =
         '<div class="full-timeline-header">Timeline completa</div>' +
         hist.map(h => renderEventRow({
@@ -251,7 +252,8 @@ function togglePlayerTimeline(playerId, headerEl) {
           season: h.season,
           salary: h.salary,
           contract_year: h.contract_year,
-          notes: h.notes
+          notes: h.notes,
+          display_notes: h.display_notes
         })).join('');
     })
     .catch(() => {
