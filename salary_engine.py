@@ -11,9 +11,13 @@ Rules:
   - Contract = 4 years.
 
 Year 1 salary:
-  auction_draft / keeper  → value paid at auction
+  auction_draft           → value paid at auction
   rookie_draft            → floor(espn_adj), min $1
   waiver / free_agent     → $1
+
+Note: "keeper" deprecated as acquisition_type (F6, 22/04/2026) — players mantidos
+são auction_draft. O termo "keeper" permanece no contexto do draft_budget()
+como sinônimo de "active roster pre-FA auction".
 
 Year 2+ — VALORIZAÇÃO RULE:
   salary = MAX(prev_salary, floor(0.5 × espn_adj)), min $1
@@ -38,7 +42,7 @@ MIN_SALARY = 1
 CONTRACT_LENGTH = 4
 
 _WAIVER_TYPES  = {"waiver", "free_agent", "fa"}
-_AUCTION_TYPES = {"auction_draft", "keeper"}
+_AUCTION_TYPES = {"auction_draft"}
 _ROOKIE_TYPES  = {"rookie_draft"}
 
 

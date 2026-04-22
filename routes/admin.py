@@ -702,9 +702,9 @@ def _backfill_player_history():
         season = p.contract_start_season or get_current_season()
         acq = p.acquisition_type or "unknown"
 
-        # Entry 1: original acquisition
+        # Entry 1: original acquisition (F6: "keeper" removido do vocabulário)
         origin_event = acq if acq in (
-            "rookie_draft", "auction_draft", "fa_auction", "keeper"
+            "rookie_draft", "auction_draft", "fa_auction"
         ) else "fa_waiver" if acq in ("waiver", "free_agent", "fa") else "unknown"
 
         # Calculate original salary (year 1)

@@ -30,7 +30,10 @@ def _safe_int(val, default=None):
 def _norm_acq(raw: str) -> str:
     acq = (raw or "unknown").strip().lower()
     mapping = {
-        "keeper": "keeper",
+        # F6: "keeper" deprecated — normaliza para auction_draft no import.
+        # Defesa para CSVs legacy; DBs já migrados não dependem disso
+        # (guard f8_rebuilt em run_import() ignora acquisition_type).
+        "keeper": "auction_draft",
         "waiver": "waiver",
         "fa": "free_agent",
         "free_agent": "free_agent",

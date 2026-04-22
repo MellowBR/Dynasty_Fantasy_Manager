@@ -32,9 +32,6 @@ class TestYear1Salary(unittest.TestCase):
     def test_auction_draft_uses_value_paid(self):
         self.assertEqual(year1_salary("auction_draft", 25, 36.0), 25)
 
-    def test_keeper_uses_value_paid(self):
-        self.assertEqual(year1_salary("keeper", 40, 60.0), 40)
-
     def test_rookie_draft_uses_espn_adj(self):
         # espn_adj=12.0 (raw 10 × 1.2), floor(12.0)=12
         self.assertEqual(year1_salary("rookie_draft", 0, 12.0), 12)
@@ -122,7 +119,7 @@ class TestComputeSalaryForYear(unittest.TestCase):
     def test_saquon_projection(self):
         # salary=35, espn_adj=66.0, contract_year=2, project year 3
         # VALORIZAÇÃO: MAX(35, floor(0.5×66.0)) = MAX(35,33) = 35
-        self.assertEqual(compute_salary_for_year("keeper", 35, 66.0, 3), 35)
+        self.assertEqual(compute_salary_for_year("auction_draft", 35, 66.0, 3), 35)
 
     # ── Rookie Draft ──────────────────────────────────────────────────
     def test_rookie_year1(self):

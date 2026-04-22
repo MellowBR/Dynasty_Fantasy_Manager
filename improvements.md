@@ -28,7 +28,8 @@
 | M10 | Autocomplete de jogador na calculadora de salário | Baixa | 🔲 |
 | M11 | Teste de auto-containment documental | Média | ✅ 22/04/2026 |
 | M12 | Vincular owners a times via tela de admin com lookup do Sleeper | Média | ✅ 22/04/2026 |
-| F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | 🔲 |
+| F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
+| F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | 🔲 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
 | M6 | Importar resultados de temporada para atualizar ESPN ref values automaticamente | Baixa | 🔲 |
 | M7 | Trade Manager: layout mais compacto e janela maior | Baixa | ✅ 02/04/2026 |
@@ -506,24 +507,48 @@ CREATE TABLE trade_proposals (
 ---
 
 ### F6 — Remover "keeper" como acquisition_type
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (22/04/2026)** — Prioridade **Média**
 
-**Problema:** "keeper" é uma **decisão de manutenção** (o owner decide manter o jogador), não uma **origem de aquisição**. Um jogador adquirido via auction_draft que é mantido como keeper continua sendo auction_draft — o fato de ter sido kept não muda como o salário é calculado.
+**Problema:** "keeper" era uma decisão de manutenção (owner retém antes do FA auction), não origem de aquisição. `salary_engine.py` já tratava `keeper` como sinônimo de `auction_draft` via `_AUCTION_TYPES = {"auction_draft", "keeper"}` — distinção era puro ruído semântico.
 
-**Verificação no código:**
-- `salary_engine.py:41` — `_AUCTION_TYPES = {"auction_draft", "keeper"}` → keeper é tratado **identicamente** a auction_draft em todas as regras de salário (year1, valorization, renewal). Não há lógica condicional que distinga os dois.
-- `import_csv.py:33` — `_norm_acq()` mapeia `"keeper" → "keeper"`, mantendo o tipo no import
-- Banco atual: **101 jogadores** com `acquisition_type="keeper"` (verificado)
+**Estado pré-F6** (após F8a):
+- 60 players com `acquisition_type='keeper'` (era 101 pré-F8; F8a reconciliou 41 cuja última aquisição ativa era ≥ 2025).
+- 0 rows em `PlayerHistory` com `event_type='keeper'` (F8 já havia substituído).
+- 100 rows no CSV com `keeper`.
 
-**Proposta:**
-1. **Migração:** `UPDATE players SET acquisition_type='auction_draft' WHERE acquisition_type='keeper'`
-2. **Atualizar SalaryHistory:** mesma migração para registros históricos
-3. **Remover de `_AUCTION_TYPES`:** `{"auction_draft"}` apenas
-4. **Remover de `_norm_acq()`:** tirar `"keeper": "keeper"` do mapeamento
-5. **Remover de formulários de edição:** se houver dropdown/select com "keeper" como opção
-6. **Atualizar CSV:** `dynasty_rosters_clean.csv` — substituir "keeper" por "auction_draft"
+**Implementado (22/04/2026):**
+1. **Migration 6 em `app.py`** (`_run_migrations`): `UPDATE players SET acquisition_type='auction_draft' WHERE acquisition_type='keeper'`. Guard por `SELECT COUNT`, idempotente. Aplicou 60 rows.
+2. **`salary_engine.py`:** `_AUCTION_TYPES = {"auction_draft"}` (removido `"keeper"`). Docstring Year 1 atualizada.
+3. **`import_csv.py:33`:** mapping `"keeper" → "auction_draft"` (defesa para CSVs legacy em DBs novos).
+4. **`routes/admin.py:707`** (legacy `_backfill_player_history`): removido `"keeper"` da tupla `origin_event`.
+5. **`salary_engine_test.py`:** `test_keeper_uses_value_paid` removido (redundante com `test_auction_draft_uses_value_paid`); `test_saquon_projection` passou a usar `"auction_draft"` em vez de `"keeper"`.
+6. **`templates/salary.html`:** `<option value="keeper">Keeper</option>` substituído por `<option value="fa_auction">FA Auction</option>` (mais semanticamente correto).
+7. **`data/dynasty_rosters_clean.csv`:** 100 rows `keeper` → `auction_draft`. Total auction_draft no CSV: 33 → 133.
 
-**Risco baixo:** Como `salary_engine.py` já trata keeper = auction_draft, a migração não altera nenhum cálculo de salário.
+**Não alterado:** `keeper_salaries` e `num_keepers` em `draft_budget()` (salary_engine.py:215-216) — são nomes descritivos do resultado (players ativos no roster pré-FA auction), não se referem a `acquisition_type`. Semanticamente corretos.
+
+**Validação (22/04/2026):**
+- `python salary_engine_test.py` → 48/48 (era 49, 1 redundante removido).
+- Contagens: keeper=0, auction_draft=61 (era 1 + 60 migrados).
+- Cap per team idêntico pré/pós Migration 6 — salary_engine já tratava ambos igualmente.
+- Re-boot: Migration 6 skipa (idempotência confirmada).
+
+---
+
+### F8-RESTORE-GAP — Restore deveria chamar backfill_trades automaticamente
+🔲 **Pendente** — Prioridade **Baixa**
+
+**Problema:** O endpoint `POST /api/admin/player_history/restore` (F8c) apaga `PlayerHistory` restaurando do snapshot JSON, mas **mantém** Trade rows criadas após o snapshot. Re-runs de `_sync_trades` skipam via idempotência de `Trade.sleeper_transaction_id`, deixando gap: trades existem em `Trade` table mas sem rows em `PlayerHistory`.
+
+**Descoberto em:** 22/04/2026, durante testes do F8c. O `_backfill_missing_trade_history()` foi criado como fix manual (F8-GAP), mas requer o admin lembrar de rodá-lo após cada `/restore`.
+
+**Propostas:**
+1. **Automático:** ao final de `player_history_restore()` em `routes/admin.py`, chamar `_backfill_missing_trade_history()` automaticamente e incluir `trades_backfilled` no response JSON.
+2. **UI warning:** template do card F8 exibir alerta após uso do `/restore` recomendando rodar o backfill manualmente (menos automatizado mas mais explícito).
+
+**Recomendação:** Opção 1. O restore já é operação rara, adicionar ~100ms pra walking the chain é aceitável e elimina pegadinha que só se descobre tarde.
+
+**Escopo estimado:** ~10 linhas. Extensão do endpoint + atualização do JSON de retorno + ajuste do JS no admin.html para exibir `trades_backfilled` junto com `restored_rows`.
 
 ---
 

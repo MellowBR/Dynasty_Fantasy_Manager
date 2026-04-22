@@ -309,6 +309,21 @@ def _run_migrations():
             db.session.commit()
             print("[migrate] F8a: created UNIQUE index uq_player_history_event")
 
+    # Migration 6: F6 — migrar acquisition_type='keeper' para 'auction_draft'.
+    # "keeper" é decisão de manutenção (owner retém o jogador antes do FA auction),
+    # não origem de aquisição. O salary_engine já tratava os dois como sinônimos;
+    # esta migração elimina o ruído semântico no vocabulário canônico.
+    if "players" in insp.get_table_names():
+        keeper_count = db.session.execute(
+            text("SELECT COUNT(*) FROM players WHERE acquisition_type='keeper'")
+        ).scalar()
+        if keeper_count > 0:
+            db.session.execute(text(
+                "UPDATE players SET acquisition_type='auction_draft' WHERE acquisition_type='keeper'"
+            ))
+            db.session.commit()
+            print(f"[migrate] F6: migrated {keeper_count} players from acquisition_type='keeper' to 'auction_draft'")
+
 
 def _seed_app_config():
     """Seed default app_config values if missing."""
