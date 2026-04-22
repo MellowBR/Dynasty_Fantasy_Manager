@@ -6,7 +6,7 @@ immediately after (Sleeper is the authoritative source for who is on each team).
 """
 import csv
 import os
-from models import db, Player, CURRENT_SEASON
+from models import db, Player, CURRENT_SEASON, get_config
 
 CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "dynasty_rosters_clean.csv")
 
@@ -53,6 +53,11 @@ def run_import():
         return False
 
     print(f"[import_csv] Importing salary/contract data from {CSV_PATH} ...")
+    # F8b — post-rebuild, preserve canonical acquisition_type + contract_start_season
+    # from PlayerHistory Sleeper chain. Flag set by _rebuild_player_history().
+    f8_rebuilt = get_config("f8_rebuilt", "false") == "true"
+    if f8_rebuilt:
+        print("[import_csv] F8b guard active — skipping acquisition_type and contract_start_season on existing players")
     created = 0
     updated = 0
 
@@ -75,8 +80,9 @@ def run_import():
             if player:
                 player.salary = salary
                 player.contract_year = cyr
-                player.contract_start_season = start_season
-                player.acquisition_type = _norm_acq(acq_raw)
+                if not f8_rebuilt:
+                    player.contract_start_season = start_season
+                    player.acquisition_type = _norm_acq(acq_raw)
                 player.espn_ref_value = espn
                 player.orig_draft_season = orig_season
                 player.orig_draft_type = (row.get("orig_draft_type") or "").strip()

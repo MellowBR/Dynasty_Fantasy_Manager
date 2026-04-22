@@ -1047,6 +1047,11 @@ def _rebuild_player_history(dry_run: bool = False) -> dict:
     db.session.commit()
     result["players_corrected"] = players_corrected
 
+    # F8b — mark DB as post-rebuild so run_import() stops overwriting
+    # acquisition_type and contract_start_season on next boots.
+    from models import set_config
+    set_config("f8_rebuilt", "true")
+
     return result
 
 
