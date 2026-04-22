@@ -89,6 +89,12 @@ Migração de host primário de PythonAnywhere para Render. Manager em https://d
 
 PythonAnywhere mantido como legacy em https://mellowbr.pythonanywhere.com.
 
+### Camada F7b — Data migration automática para produção ✅ Done (22/04/2026)
+
+Follow-up do F7 para limpar o DB em produção sem depender do Render shell (experiência ruim). Adicionada Migração 4 em `_run_migrations()` (app.py) com 3 blocos guardados por `SELECT COUNT`, idempotentes. Próximo boot do Render pós-deploy detecta e limpa: 9174 rows de `salary_history` inflado, rewrite 3 Browns + DELETE salary_correction, 220 notes cosméticos em rollover.
+
+Validação local em 3 cenários (DB limpo, stale injetado, re-run pós-migração) — guards funcionam como esperado em todos.
+
 ### Camada F7 — Fix SalaryHistory + rewrite 3 Browns + redesign /salary_history ✅ Done (22/04/2026)
 
 Trinca de problemas descobertos via diagnose F1 + F1b na mesma sessão. Implementação em um commit.
@@ -268,6 +274,14 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 - **Commit 82e1c29 pushed para origin/main** (`MellowBR/Dynasty_Fantasy_Manager`):
   `data/users.csv` + `improvements.md` + `dynasty.db` (side-effect natural do auto-seed
   gerar Michel no DB local durante o comando).
+
+### 22/04/2026 — Camada F7b (Data migration para produção)
+
+- **Motivação:** F7 limpou o DB local, mas produção (Render persistent disk) não é tocada por `init_data.py` (no-overwrite). Owner preferiu não usar Render shell (trava, experiência ruim), então migração automática via código é o caminho.
+- **Padrão adotado:** guard por `SELECT COUNT` antes de cada bloco de fix — se o estado stale está presente, aplica; se não, skipa silenciosamente. Idempotente em qualquer ambiente e qualquer número de execuções.
+- **Uso de subquery por nome (não pid):** os `player_id` locais (58, 105, 173) foram inferidos na F1b via SELECT local; em produção podem divergir (auto-increment depende da ordem de INSERT). Usar `(SELECT id FROM players WHERE name='A.J. Brown')` resolve o pid correto em qualquer banco. Se o player não existir (edge case), a UPDATE não afeta nada — mais seguro que falhar.
+- **Não mudou `init_data.py`:** comportamento no-overwrite está correto para uso normal. A migração resolve o caso específico do DB que já existe em estado stale, sem mexer na semântica de first-boot.
+- **Validação local:** 3 cenários testados via `importlib.reload(app)` — DB limpo skipa, stale aplica, re-run skipa. Confirmado por SQL assertions.
 
 ### 22/04/2026 — Camada F7 (Fix + Redesign histórico de salário)
 

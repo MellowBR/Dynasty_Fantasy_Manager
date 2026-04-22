@@ -35,6 +35,7 @@
 | F4 | Fix OAuth callback local (ProxyFix, host, APP_ENV, secret) | Alta | ✅ 02/04/2026 |
 | F5 | Auto-seed users no startup a partir de `data/users.csv` | Média | ✅ 02/04/2026 |
 | F7 | Fix SalaryHistory duplicado + rewrite 3 Browns + redesign /salary_history narrativo | Alta | ✅ 22/04/2026 |
+| F7b | Data migration automática para limpar DB de produção (Render) no próximo boot | Alta | ✅ 22/04/2026 |
 | F1 | Correção de salários por partial name match (3 Browns bug) | Alta | ✅ 28/03/2026 |
 | F2 | Ordenação do Round 1 via `draft_lottery_result` + `season_standings` | Alta | ✅ 28/03/2026 |
 | F3 | Histórico inline (accordion) na aba de histórico | Média | ✅ 28/03/2026 |
@@ -359,6 +360,26 @@ CREATE TABLE trade_proposals (
 **Problema:** Ordem do Round 1 do rookie draft estava incorreta — não respeitava `draft_lottery_result` para picks 1-5 e `season_standings` para picks 6-12.
 
 **Solução:** Lógica corrigida na rota `/picks` para consultar as duas tabelas e montar a ordem correta.
+
+---
+
+### F7b — Data migration automática para limpar DB de produção ✅ 22/04/2026
+
+**Problema:** F7 corrigiu o código e limpou o DB local, mas o DB de produção (Render persistent disk) continuou stale porque `init_data.py` não sobrescreve `/data/dynasty.db` quando já existe. Owner preferiu não usar Render shell (experiência ruim, trava).
+
+**Solução:** Migração 4 em `_run_migrations()` (app.py) com 3 blocos independentes guardados por `SELECT COUNT`:
+- 4a: `DELETE FROM salary_history WHERE rule_applied='import'` (quando count > 0)
+- 4b: Rewrite 3 Browns via subquery de nome (robusto a pid diferente entre local/prod) + DELETE das rows `salary_correction` (quando count > 0)
+- 4c: UPDATE das rows com `notes='import'` em rollover → `'Renovado (VALORIZAÇÃO)'` (quando count > 0)
+
+**Idempotência verificada em 3 cenários locais:**
+- DB limpo → todos os guards skipam (zero linhas F7b no stdout)
+- Estado stale injetado → 3 linhas F7b aparecem, DB fica limpo
+- Re-run pós-migração → guards skipam novamente
+
+**Custo por boot:** 3 `SELECT COUNT(*)` extras (~ms). No-op após primeira execução em cada ambiente.
+
+**Deploy:** Render auto-deploya com o push; na próxima partida do app em prod, os 3 blocos detectam o estado stale e aplicam o fix automaticamente. Logs de deploy devem mostrar `[migrate] F7b: deleted 9174 stale salary_history rows`, `[migrate] F7b: rewrote 3 Browns + deleted 3 salary_correction rows`, `[migrate] F7b: cleaned 220 'import' notes → 'Renovado (VALORIZAÇÃO)'`.
 
 ---
 

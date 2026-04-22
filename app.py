@@ -158,6 +158,61 @@ def _run_migrations():
             db.session.commit()
             print("[migrate] Added sleeper_transaction_id to trades")
 
+    # Migration 4: F7b data migration — limpar produção que ficou stale
+    # (init_data.py não sobrescreve /data/dynasty.db no Render, então esta migração
+    # roda no próximo boot pós-deploy e limpa o estado antigo. Idempotente: guards
+    # por SELECT COUNT evitam trabalho quando já limpo.)
+
+    # 4a: salary_history inflado (import_csv.py inseria sem guard — corrigido no F7)
+    if "salary_history" in insp.get_table_names():
+        sh_import = db.session.execute(
+            text("SELECT COUNT(*) FROM salary_history WHERE rule_applied='import'")
+        ).scalar()
+        if sh_import > 0:
+            db.session.execute(text("DELETE FROM salary_history WHERE rule_applied='import'"))
+            db.session.commit()
+            print(f"[migrate] F7b: deleted {sh_import} stale salary_history rows (rule='import')")
+
+    # 4b: 3 Browns — rewrite histórico + DELETE rows salary_correction
+    # (guard por existência de salary_correction — sinaliza DB stale pré-F7)
+    if "player_history" in insp.get_table_names():
+        sc_count = db.session.execute(
+            text("SELECT COUNT(*) FROM player_history WHERE event_type='salary_correction'")
+        ).scalar()
+        if sc_count > 0:
+            # Rewrite via nome (subquery resolve pid no banco em questão — robusto
+            # a diferenças de pid entre local e produção)
+            db.session.execute(text("""
+                UPDATE player_history SET salary=47.0
+                WHERE player_id=(SELECT id FROM players WHERE name='A.J. Brown')
+                  AND event_type IN ('auction_draft', 'rollover')
+            """))
+            db.session.execute(text("""
+                UPDATE player_history SET salary=3.0
+                WHERE player_id=(SELECT id FROM players WHERE name='Marquise Brown')
+                  AND event_type IN ('keeper', 'rollover')
+            """))
+            db.session.execute(text("""
+                UPDATE player_history SET salary=61.0
+                WHERE player_id=(SELECT id FROM players WHERE name='Amon-Ra St. Brown')
+                  AND event_type IN ('keeper', 'rollover')
+            """))
+            db.session.execute(text("DELETE FROM player_history WHERE event_type='salary_correction'"))
+            db.session.commit()
+            print(f"[migrate] F7b: rewrote 3 Browns + deleted {sc_count} salary_correction rows")
+
+        # 4c: cleanup cosmético — notes='import' fóssil em rollover events
+        notes_import = db.session.execute(
+            text("SELECT COUNT(*) FROM player_history WHERE notes='import' AND event_type='rollover'")
+        ).scalar()
+        if notes_import > 0:
+            db.session.execute(text("""
+                UPDATE player_history SET notes='Renovado (VALORIZAÇÃO)'
+                WHERE notes='import' AND event_type='rollover'
+            """))
+            db.session.commit()
+            print(f"[migrate] F7b: cleaned {notes_import} 'import' notes → 'Renovado (VALORIZAÇÃO)'")
+
 
 def _seed_app_config():
     """Seed default app_config values if missing."""
