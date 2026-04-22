@@ -6,7 +6,7 @@ immediately after (Sleeper is the authoritative source for who is on each team).
 """
 import csv
 import os
-from models import db, Player, SalaryHistory, CURRENT_SEASON
+from models import db, Player, CURRENT_SEASON
 
 CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "dynasty_rosters_clean.csv")
 
@@ -100,15 +100,6 @@ def run_import():
                 )
                 db.session.add(player)
                 created += 1
-
-            db.session.add(SalaryHistory(
-                player=player,
-                season=CURRENT_SEASON,
-                salary=salary,
-                contract_year=cyr,
-                rule_applied="import",
-                espn_ref_value=espn,
-            ))
 
     db.session.commit()
     print(f"[import_csv] created={created}, updated={updated}")

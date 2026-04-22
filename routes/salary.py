@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required
-from models import db, Player, Team, SalaryHistory, SALARY_CAP, MAX_ROSTER, sort_players_by_pos
+from models import db, Player, Team, PlayerHistory, SALARY_CAP, MAX_ROSTER, sort_players_by_pos
 from salary_engine import (
     full_contract_table, project_next_salary, draft_budget
 )
@@ -110,11 +110,16 @@ def cap_projector_data(team_name):
 @salary_bp.route("/api/salary_history")
 @login_required
 def salary_history_data():
+    """
+    Returns events from PlayerHistory (not SalaryHistory) to narrate how each
+    player got to their current salary. Filters by current team, player name,
+    or event season. Grouped client-side by player_id.
+    """
     team_name = request.args.get("team")
     player_name = request.args.get("player")
     season = request.args.get("season", type=int)
 
-    q = SalaryHistory.query.join(Player)
+    q = PlayerHistory.query.join(Player, PlayerHistory.player_id == Player.id)
 
     if team_name:
         team = Team.query.filter_by(name=team_name).first()
@@ -123,10 +128,31 @@ def salary_history_data():
     if player_name:
         q = q.filter(Player.name.ilike(f"%{player_name}%"))
     if season:
-        q = q.filter(SalaryHistory.season == season)
+        q = q.filter(PlayerHistory.season == season)
 
-    records = q.order_by(SalaryHistory.season.desc(), Player.name).limit(500).all()
-    return jsonify([r.to_dict() for r in records])
+    records = q.order_by(
+        Player.name.asc(),
+        PlayerHistory.season.desc(),
+        PlayerHistory.id.desc(),
+    ).limit(500).all()
+
+    out = []
+    for ph in records:
+        p = ph.player
+        out.append({
+            "player_id": p.id,
+            "player_name": p.name,
+            "position": p.position,
+            "team_name": p.fantasy_team_name,
+            "current_salary": p.salary,
+            "season": ph.season,
+            "event_type": ph.event_type,
+            "notes": ph.notes or "",
+            "salary": ph.salary,
+            "contract_year": ph.contract_year,
+            "created_at": ph.created_at.strftime("%d/%m/%Y %H:%M") if ph.created_at else "",
+        })
+    return jsonify(out)
 
 
 @salary_bp.route("/api/espn_values/update", methods=["POST"])

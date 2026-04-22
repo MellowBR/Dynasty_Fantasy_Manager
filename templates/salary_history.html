@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header">
   <h1 class="page-title">📈 Histórico de Salários</h1>
-  <p class="page-subtitle">Histórico completo de salários por temporada, equipe ou jogador. Clique no nome para ver o histórico de transações.</p>
+  <p class="page-subtitle">Como cada jogador chegou ao salário atual — eventos do contrato em ordem cronológica. Clique no nome para ver a timeline completa.</p>
 </div>
 
 <div class="toolbar">
@@ -16,7 +16,7 @@
   <label>Jogador:</label>
   <input type="text" id="hist-player" placeholder="Nome..." style="width:180px"
          oninput="loadHistoryDebounced()" />
-  <label>Temporada:</label>
+  <label>Temporada do evento:</label>
   <input type="number" id="hist-season" placeholder="2025" style="width:90px"
          onchange="loadHistory()" />
   <button class="btn btn-secondary" onclick="loadHistory()">Filtrar</button>
@@ -27,50 +27,82 @@
 </div>
 
 <style>
-.player-name-link {
-  cursor: pointer;
-  color: var(--accent, #6ea8fe);
-  text-decoration: none;
-  transition: color .15s;
+.player-card {
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 6px;
+  margin-bottom: .75rem;
+  background: rgba(255,255,255,.02);
 }
-.player-name-link:hover {
-  color: var(--accent-hover, #9ec5fe);
-  text-decoration: underline;
-}
-.player-name-link::before {
-  content: '▶ ';
-  font-size: .7em;
-  display: inline-block;
-  transition: transform .2s;
-}
-.player-name-link.expanded::before {
-  transform: rotate(90deg);
-}
-.history-subrow td {
-  background: rgba(255,255,255,.03);
-  border-top: none;
-  padding-top: .25rem;
-  padding-bottom: .25rem;
-  font-size: .82rem;
-}
-.history-subrow .timeline-inline {
-  padding-left: 1.5rem;
+.player-card-header {
   display: flex;
   align-items: center;
-  gap: .5rem;
+  gap: .75rem;
+  padding: .65rem .85rem;
+  cursor: pointer;
+  transition: background .12s;
+  border-bottom: 1px solid rgba(255,255,255,.06);
 }
-.history-subrow .timeline-inline .tag {
-  font-size: .72rem;
-  padding: .1rem .4rem;
-  border-radius: 3px;
+.player-card-header:hover {
+  background: rgba(255,255,255,.04);
 }
-.history-subrow .text-dim {
-  font-size: .75rem;
+.player-card-header .player-name {
+  font-weight: 600;
+  color: var(--accent, #6ea8fe);
 }
-.history-loading td {
+.player-card-header .player-name::before {
+  content: '▶ ';
+  font-size: .72em;
+  display: inline-block;
+  transition: transform .18s;
+  margin-right: .2rem;
   color: var(--text-dim, #888);
-  font-style: italic;
-  font-size: .82rem;
+}
+.player-card.expanded .player-card-header .player-name::before {
+  transform: rotate(90deg);
+}
+.player-card-header .current-salary {
+  margin-left: auto;
+  font-weight: 600;
+}
+.player-events {
+  padding: .4rem .85rem .7rem;
+}
+.event-row {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .3rem 0;
+  font-size: .88rem;
+  border-bottom: 1px dashed rgba(255,255,255,.04);
+}
+.event-row:last-child {
+  border-bottom: none;
+}
+.event-row .event-season {
+  min-width: 48px;
+  color: var(--text-dim, #888);
+  font-variant-numeric: tabular-nums;
+}
+.event-row .event-amount {
+  font-variant-numeric: tabular-nums;
+  min-width: 60px;
+}
+.event-row .event-notes {
+  color: var(--text-dim, #888);
+  font-size: .78rem;
+  flex: 1;
+}
+.full-timeline {
+  border-top: 1px solid rgba(255,255,255,.1);
+  padding: .5rem .85rem .8rem;
+  background: rgba(255,255,255,.015);
+}
+.full-timeline-header {
+  font-size: .78rem;
+  color: var(--text-dim, #888);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: .35rem;
 }
 </style>
 {% endblock %}
@@ -78,7 +110,41 @@
 {% block scripts %}
 <script>
 let histDebounce;
-const expandedPlayers = new Set();
+
+const EVENT_LABELS = {
+  auction_draft:     'Draft (Auction)',
+  rookie_draft:      'Rookie Draft',
+  keeper:            'Mantido como keeper',
+  rollover:          'Renovado pela VALORIZAÇÃO',
+  renewal:           'Renovação de contrato',
+  trade:             'Trade',
+  fa_waiver:         'Waiver / Free Agent',
+  fa_auction:        'FA Auction',
+  salary_correction: 'Correção manual',
+  unknown:           'Aquisição (origem não registrada)',
+  cut:               'Corte',
+};
+
+const EVENT_BADGES = {
+  auction_draft:     'tag-current',
+  rookie_draft:      'tag-current',
+  keeper:            'tag-renewal',
+  rollover:          'tag-prov',
+  renewal:           'tag-renewal',
+  trade:             'tag-trade',
+  fa_waiver:         'tag-trade',
+  fa_auction:        'tag-trade',
+  salary_correction: 'tag-review',
+  unknown:           '',
+  cut:               'tag-review',
+};
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
 
 function loadHistoryDebounced() {
   clearTimeout(histDebounce);
@@ -96,109 +162,95 @@ function loadHistory() {
   if (season) url += 'season=' + season + '&';
 
   document.getElementById('history-wrap').innerHTML = '<div class="loading-msg">Carregando...</div>';
-  expandedPlayers.clear();
 
   fetch(url).then(r => r.json()).then(records => {
     if (!records.length) {
       document.getElementById('history-wrap').innerHTML = '<p class="text-dim">Nenhum registro encontrado.</p>';
       return;
     }
-    let html = `<table class="data-table">
-      <thead><tr>
-        <th>Temporada</th><th>Jogador</th><th>Salário</th><th>Ano Contrato</th>
-        <th>Regra</th><th>ESPN Ref</th>
-      </tr></thead><tbody>`;
+
+    // Group by player_id, preserving first occurrence order (sorted by player_name asc + season desc from backend)
+    const order = [];
+    const groups = {};
     records.forEach(r => {
-      const pid = r.player_id || 0;
-      html += `<tr data-player-id="${pid}" data-player-name="${r.player_name}">
-        <td>${r.season}</td>
-        <td><span class="player-name-link" onclick="togglePlayerHistory(this, ${pid})">${r.player_name}</span></td>
-        <td class="salary-cell">$${r.salary}</td>
-        <td>Ano ${r.contract_year}/${4}</td>
-        <td class="text-dim small-text">${r.rule_applied || '—'}</td>
-        <td class="text-dim">$${(r.espn_ref_value || 0).toFixed(1)}</td>
-      </tr>`;
+      const pid = r.player_id;
+      if (!groups[pid]) {
+        groups[pid] = { info: r, events: [] };
+        order.push(pid);
+      }
+      groups[pid].events.push(r);
     });
-    html += '</tbody></table>';
+
+    const html = order.map(pid => renderPlayerCard(groups[pid])).join('');
     document.getElementById('history-wrap').innerHTML = html;
   });
 }
 
-function togglePlayerHistory(el, playerId) {
-  if (!playerId) return;
+function renderPlayerCard(group) {
+  const p = group.info;
+  const posClass = (p.position || '').replace('/', '');
+  return `
+    <div class="player-card" data-player-id="${p.player_id}">
+      <div class="player-card-header" onclick="togglePlayerTimeline(${p.player_id}, this)">
+        <span class="pos-badge pos-${escapeHtml(posClass)}">${escapeHtml(p.position || '?')}</span>
+        <span class="player-name">${escapeHtml(p.player_name)}</span>
+        <span class="text-dim">${escapeHtml(p.team_name || '—')}</span>
+        <span class="current-salary salary-cell">$${Math.round(p.current_salary)}</span>
+      </div>
+      <div class="player-events">
+        ${group.events.map(renderEventRow).join('')}
+      </div>
+    </div>`;
+}
 
-  const row = el.closest('tr');
-  const key = playerId + '_' + row.rowIndex;
+function renderEventRow(e) {
+  const label = EVENT_LABELS[e.event_type] || e.event_type;
+  const badgeCls = EVENT_BADGES[e.event_type] || '';
+  return `
+    <div class="event-row">
+      <span class="event-season">S${e.season || '—'}</span>
+      <span class="tag ${badgeCls}">${escapeHtml(label)}</span>
+      <span class="event-amount">$${Math.round(e.salary)} · Ano ${e.contract_year}</span>
+      <span class="event-notes">${escapeHtml(e.notes || '')}</span>
+    </div>`;
+}
 
-  // Check if already expanded — collapse
-  const existingSubs = [];
-  let next = row.nextElementSibling;
-  while (next && next.classList.contains('history-subrow')) {
-    existingSubs.push(next);
-    next = next.nextElementSibling;
-  }
-
-  if (existingSubs.length > 0) {
-    existingSubs.forEach(sub => sub.remove());
-    el.classList.remove('expanded');
-    expandedPlayers.delete(key);
+function togglePlayerTimeline(playerId, headerEl) {
+  const card = headerEl.closest('.player-card');
+  const existing = card.querySelector('.full-timeline');
+  if (existing) {
+    existing.remove();
+    card.classList.remove('expanded');
     return;
   }
 
-  // Expand — show loading
-  el.classList.add('expanded');
-  expandedPlayers.add(key);
-
-  const loadingRow = document.createElement('tr');
-  loadingRow.className = 'history-subrow history-loading';
-  loadingRow.innerHTML = '<td colspan="6">Carregando histórico...</td>';
-  row.after(loadingRow);
+  card.classList.add('expanded');
+  const tl = document.createElement('div');
+  tl.className = 'full-timeline';
+  tl.innerHTML = '<div class="full-timeline-header">Carregando timeline completa…</div>';
+  card.appendChild(tl);
 
   fetch(`/api/player/${playerId}/history`)
     .then(r => r.json())
     .then(data => {
-      loadingRow.remove();
-
-      // Check if still expanded (user might have toggled during fetch)
-      if (!expandedPlayers.has(key)) return;
-
-      if (!data.history || !data.history.length) {
-        const emptyRow = document.createElement('tr');
-        emptyRow.className = 'history-subrow';
-        emptyRow.innerHTML = '<td colspan="6" class="text-dim" style="padding-left:2rem;font-size:.82rem">Nenhum histórico registrado</td>';
-        row.after(emptyRow);
+      const hist = (data && data.history) || [];
+      if (!hist.length) {
+        tl.innerHTML = '<div class="full-timeline-header">Nenhum histórico adicional registrado.</div>';
         return;
       }
-
-      // Insert history rows in reverse (so they appear in correct order after row)
-      const fragment = document.createDocumentFragment();
-      data.history.forEach(h => {
-        const subRow = document.createElement('tr');
-        subRow.className = 'history-subrow';
-        const badge = {
-          trade:'tag-trade', cut:'tag-review', renewal:'tag-renewal',
-          rookie_draft:'tag-current', auction_draft:'tag-current',
-          fa_auction:'tag-trade', fa_waiver:'tag-trade', rollover:'tag-prov'
-        }[h.event_type] || '';
-        subRow.innerHTML = `
-          <td></td>
-          <td colspan="3">
-            <div class="timeline-inline">
-              <span class="tag ${badge}">${h.event_type}</span>
-              <span>${h.team_name}</span>
-              <span class="text-dim">$${Math.round(h.salary)} · Ano ${h.contract_year}</span>
-            </div>
-          </td>
-          <td class="text-dim" style="font-size:.75rem">${h.notes || ''}</td>
-          <td class="text-dim" style="font-size:.75rem">${h.created_at || ''}</td>`;
-        fragment.appendChild(subRow);
-      });
-
-      // Insert all at once after the parent row
-      row.after(fragment);
+      // API returns ordered by id (chronological). Render as event rows.
+      tl.innerHTML =
+        '<div class="full-timeline-header">Timeline completa</div>' +
+        hist.map(h => renderEventRow({
+          event_type: h.event_type,
+          season: h.season,
+          salary: h.salary,
+          contract_year: h.contract_year,
+          notes: h.notes
+        })).join('');
     })
     .catch(() => {
-      loadingRow.innerHTML = '<td colspan="6" class="text-dim" style="padding-left:2rem">Erro ao carregar histórico</td>';
+      tl.innerHTML = '<div class="full-timeline-header">Erro ao carregar timeline.</div>';
     });
 }
 
