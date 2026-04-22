@@ -40,6 +40,8 @@
   padding: .65rem .85rem;
   cursor: pointer;
   transition: background .12s;
+}
+.player-card.expanded .player-card-header {
   border-bottom: 1px solid rgba(255,255,255,.06);
 }
 .player-card-header:hover {
@@ -202,9 +204,6 @@ function renderPlayerCard(group) {
         <span class="player-name">${escapeHtml(p.player_name)}</span>
         <span class="text-dim">${escapeHtml(p.team_name || '—')}</span>
         <span class="current-salary salary-cell">$${Math.round(p.current_salary)}</span>
-      </div>
-      <div class="player-events">
-        ${group.events.map(renderEventRow).join('')}
       </div>
     </div>`;
 }
