@@ -152,9 +152,35 @@ def update_player(player_id):
 @roster_bp.route("/api/player/<int:player_id>/history")
 @login_required
 def player_history(player_id):
+    """
+    Ordenação cronológica por (season ASC, rollover-last, Sleeper-id-numérico ASC).
+
+    Sleeper IDs (tx_id, draft_id) são monotonic global, então extraí-los do
+    sleeper_event_ref reflete a cronologia real — mais robusto que PlayerHistory.id
+    (que depende de quando cada row foi inserida, não quando o evento ocorreu).
+
+    Rollover fica no final de cada season (bordadura de fechamento).
+    """
     from models import PlayerHistory
-    history = PlayerHistory.query.filter_by(player_id=player_id)\
-        .order_by(PlayerHistory.created_at.desc()).all()
+    history = PlayerHistory.query.filter_by(player_id=player_id).all()
+
+    def sort_key(h):
+        season = h.season or 0
+        ref = h.sleeper_event_ref or ""
+        if ref.startswith("rollover:"):
+            return (season, 1, 0, h.id)  # rollover last within season
+        sleeper_num = 0
+        if ref.startswith("draft:"):
+            parts = ref.split(":")
+            if len(parts) >= 2 and parts[1].isdigit():
+                sleeper_num = int(parts[1])
+        elif ref.startswith("tx:"):
+            tail = ref[3:]
+            if tail.isdigit():
+                sleeper_num = int(tail)
+        return (season, 0, sleeper_num, h.id)
+
+    history.sort(key=sort_key)
     player = db.get_or_404(Player, player_id)
     return jsonify({
         "player": player.to_dict(),
