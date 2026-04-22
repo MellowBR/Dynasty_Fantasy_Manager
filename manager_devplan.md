@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 22/04/2026 (F8 + F6 concluídos — PlayerHistory canônico e vocabulário unificado sem 'keeper')  
+> Última atualização: 22/04/2026 (T1 concluído — Trade Manager como simulador puro + link compartilhável)  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -114,6 +114,18 @@ Sync automático de trades + backfill da temporada anterior. Trade table passa d
 - **Migração:** `Trade.source` (default 'manual') + `Trade.sleeper_transaction_id` (unique nullable) via `_run_migrations()`.
 - **Tratamento C+ para N-way:** 2-way = row normal; N>2 = placeholder `team_b="N-way: ..."` + `description="[N-WAY] ..."`. Admin sempre vê a trade na UI, nunca precisa de código.
 - **UI:** card "Trades Históricas (Backfill)" em `/admin` com botão.
+
+### Camada T1 — Trade Manager como simulador puro + link compartilhável ✅ Done (22/04/2026)
+
+Com S1 ativo (trades capturadas automaticamente do Sleeper), o botão "Confirmar Trade" do Manager virou redundante e gerava shadow trades (Manager confirmava antes do Sleeper, S1 criava duplicata). T1 redesenha o `/trades` como simulador puro com link compartilhável de 7 dias.
+
+- **`POST /api/trades/confirm` removido** (`routes/trades.py`) + import `PlayerHistory` + JS `executeTrade()` + botão "Confirmar Trade" do template. Zero side-effect no DB vindo da tela de trades.
+- **Novo modelo `TradeProposal` em `models.py`**: UUID v4 como PK, assets como JSON text, TTL 7 dias via `expires_at`. Criada via `db.create_all()` (tabela nova, sem migration explícita). Relationships com Team e User.
+- **Helper `_compute_cap_impact()`** extraído como função pura em `routes/trades.py` — compartilhado entre `preview_trade()` (JSON) e `view_trade_proposal()` (template). Zero duplicação.
+- **Novos endpoints**: `POST /api/trades/proposals` (cria com UUID, valida assets em ambos os lados) e `GET /trades/proposta/<uuid>` (renderiza read-only). Ambos `@login_required`.
+- **Template `trade_proposal.html`**: preview read-only com layout reutilizado de `trades.html`, badge "📸 Simulação", info de criação e expiração visível. Sem controles de ação.
+- **UI em `trades.html`**: "✅ Confirmar Trade" → "🔗 Gerar Link Compartilhável". Modal ganhou seção com input copiável + "📋 Copiar" (clipboard API + fallback) + "↗ Abrir" em nova aba.
+- **Validação via Flask test_client** (22/04/2026): 8/8 casos (botão removido, endpoint 404, proposal criada, URL renderizada, expirada 410, sem login 302, sem assets 400, preview continua funcional).
 
 ### Camada F6 — Remover "keeper" como acquisition_type ✅ Done (22/04/2026)
 
@@ -349,6 +361,20 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 - **`trade_date` vem do `created` (ms epoch) do Sleeper**, não `datetime.utcnow()` — preserva cronologia histórica correta (listagem em `/trades` mostra ordem cronológica real).
 
 - **Validação via Flask test_client:** backfill → 29 imported; re-run → 0 imported, 29 skipped; contagens SQL corretas.
+
+### 22/04/2026 — Camada T1 (Trade Manager simulador + link compartilhável)
+
+- **Visibilidade da proposta: `@login_required`, não pública.** Decisão discutida em MAN-T1-F1 (diagnose) e resolvida aqui: propostas exigem login Google cadastrado, mesmo modelo do resto do Manager. Motivação: (a) screenshot no WhatsApp da liga já resolve o caso "mostrar pra alguém fora que não tem conta Google" — é tão fácil quanto o link e evita exposição pública; (b) manter consistência com o X1 (multi-user access via OAuth), já que todos os 12 owners têm login; (c) evita cache/indexação externa acidental de estados internos da liga. Se algum owner perder acesso à liga no futuro, o link deixa de funcionar — comportamento esperado.
+
+- **Cap impact recalculado no momento do GET, não snapshot na criação.** Proposta só armazena IDs (players_a, players_b, picks_a, picks_b). `view_trade_proposal()` busca os Players e recalcula via `_compute_cap_impact()`. Consequência: se o owner trocar um player envolvido antes do acesso ao link, o cap impact mostrado reflete o estado atual — não o estado hipotético do momento em que a proposta foi criada. Escolhi essa abordagem porque: (a) TTL é 7 dias, mudanças grandes no cap intermediárias são raras; (b) snapshot do cap exigiria serializar mais data + decidir como lidar com players dropados/tradados intermediários (corromper a proposta ou mostrar estado stale?). Recálculo é mais honesto — "este é o impacto se essa trade acontecesse AGORA".
+
+- **Helper `_compute_cap_impact()` extraído antes de adicionar a lógica de proposta, não depois.** O prompt pedia "não duplicar lógica". Refatorei `preview_trade()` para extrair a função pura primeiro, depois adicionei os endpoints novos reutilizando. Alternativa rejeitada: copiar o `side()` inline — mais rápido de escrever mas cria 2 cópias do cálculo de cap, qualquer evolução (ex: T2 adicionar KTC values) obrigaria mudar nos 2 lugares.
+
+- **`db.create_all()` suficiente para tabela nova; sem Migration explícita.** Tabela `trade_proposals` não existe em nenhum DB (nem local nem produção). `db.create_all()` é chamado no boot antes de `_run_migrations` e cria tabelas novas em DBs existentes sem tocar em tabelas antigas. Migration explícita seria redundante e introduziria caminho sem guard. Migrations (F7b, F8a, F6) foram necessárias porque alteravam schema/dados existentes.
+
+- **Botão "↗ Abrir" ao lado do "📋 Copiar" no modal.** Caso comum: owner gera o link pra compartilhar, quer ver primeiro como ficou antes de enviar no grupo. Abrir em nova aba (target=_blank) mostra a proposta real (incluindo expiration, owner_name de quem criou, layout final), sem precisar sair do modal atual. Pequeno polish de UX.
+
+- **X2 (propor/aceitar/recusar no Manager) continua deferido.** A T1 cumpre o caso de uso atual: simular + compartilhar. X2 seria "trade negociável dentro do Manager com fluxo de proposta → aceitar → registro automático", que compete com o fluxo natural "owner proposta no Sleeper → aceito no Sleeper → S1 captura". S1 já cobre o caminho feliz; X2 só faria sentido se owners começassem a reclamar do fluxo atual.
 
 ### 22/04/2026 — F8-RESTORE-GAP (Backfill automático no restore)
 

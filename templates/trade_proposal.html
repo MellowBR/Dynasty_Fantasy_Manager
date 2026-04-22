@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Proposta de Trade{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">🔗 Proposta de Trade</h1>
+  <p class="page-subtitle">Simulação compartilhável — a trade real precisa ser executada no Sleeper.</p>
+</div>
+
+{% if error %}
+<div class="card">
+  <div class="alert alert-warn" style="margin:0">
+    ⚠️ {{ error }}
+    {% if expired_at %}
+    <br><span class="text-dim small-text">Expirou em {{ expired_at.strftime('%d/%m/%Y %H:%M') }}</span>
+    {% endif %}
+  </div>
+  <p style="margin-top:1rem">
+    <a href="{{ url_for('trades.trades_page') }}" class="btn btn-secondary">← Voltar ao Trade Manager</a>
+  </p>
+</div>
+{% else %}
+
+<div class="alert alert-info" style="margin-bottom:1rem">
+  📸 <strong>Simulação</strong> — esta proposta mostra o cap impact calculado com os salários atuais.
+  A trade real precisa ser executada no Sleeper; o Manager captura automaticamente via sync.
+</div>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
+    <div>
+      <strong>{{ impact.team_a.name }}</strong>
+      <span class="text-dim">⇄</span>
+      <strong>{{ impact.team_b.name }}</strong>
+    </div>
+    <div class="text-dim small-text">
+      {% if creator_name %}Criada por <strong>{{ creator_name }}</strong> · {% endif %}
+      {{ proposal.created_at.strftime('%d/%m/%Y %H:%M') }}
+      {% if days_left > 0 %}
+        · expira em <strong>{{ days_left }} dia{{ 's' if days_left != 1 else '' }}</strong>
+      {% else %}
+        · expira hoje
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="trade-layout">
+    {% for side_key in ['team_a', 'team_b'] %}
+    {% set s = impact[side_key] %}
+    <div class="trade-side">
+      <div class="trade-side-header">
+        <div class="trade-team-row">
+          {% if s.owner_avatar %}
+          <img src="https://sleepercdn.com/avatars/{{ s.owner_avatar }}" class="owner-avatar-sm" onerror="this.style.display='none'">
+          {% endif %}
+          <strong>{{ s.name }}</strong>
+          {% if s.owner_name %}<span class="text-dim small-text">({{ s.owner_name }})</span>{% endif %}
+        </div>
+        <div class="cap-mini">
+          Cap: ${{ s.cap_before|int }} →
+          <span class="{{ 'text-danger' if s.over_cap else 'text-ok' }}">${{ s.cap_after|int }}</span>
+          · Restante: <span class="{{ 'text-danger' if s.over_cap else 'text-ok' }}">${{ s.cap_remaining_after|int }}</span>
+          {% if s.over_cap %}<span class="text-danger"> ⚠️ Acima do cap</span>{% endif %}
+        </div>
+      </div>
+      <div class="trade-cols">
+        <div>
+          <p class="col-label">📤 Envia</p>
+          {% if s.players_out or s.picks_out %}
+          <div class="asset-list">
+            {% for p in s.players_out %}
+            <div class="asset-item asset-static">
+              <span class="pos-badge pos-{{ p.position|replace('/','') }}">{{ p.position }}</span>
+              <span class="asset-name">{{ p.name }}</span>
+              <span class="text-dim small-text">${{ p.salary|int }} · {{ p.contract_display }}</span>
+            </div>
+            {% endfor %}
+            {% for pk in s.picks_out %}
+            <div class="asset-item asset-static">
+              <span class="pick-chip">{{ pk.season }} Rd{{ pk.round }}</span>
+              {% if pk.traded_away %}<span class="text-dim small-text">(via trade)</span>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="text-dim small-text">—</p>
+          {% endif %}
+        </div>
+        <div>
+          <p class="col-label">📥 Recebe</p>
+          {% if s.players_in or s.picks_in %}
+          <div class="asset-list">
+            {% for p in s.players_in %}
+            <div class="asset-item asset-static">
+              <span class="pos-badge pos-{{ p.position|replace('/','') }}">{{ p.position }}</span>
+              <span class="asset-name">{{ p.name }}</span>
+              <span class="text-dim small-text">${{ p.salary|int }} · {{ p.contract_display }}</span>
+            </div>
+            {% endfor %}
+            {% for pk in s.picks_in %}
+            <div class="asset-item asset-static">
+              <span class="pick-chip">{{ pk.season }} Rd{{ pk.round }}</span>
+              {% if pk.traded_away %}<span class="text-dim small-text">(via trade)</span>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="text-dim small-text">—</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% if side_key == 'team_a' %}<div class="trade-arrow">⇄</div>{% endif %}
+    {% endfor %}
+  </div>
+
+  <div style="margin-top:1rem;text-align:right">
+    <a href="{{ url_for('trades.trades_page') }}" class="btn btn-secondary">← Simular nova trade</a>
+  </div>
+</div>
+
+<style>
+.asset-static {
+  cursor: default;
+  opacity: 1;
+}
+.alert-info {
+  background: rgba(110, 168, 254, 0.08);
+  border: 1px solid rgba(110, 168, 254, 0.25);
+  color: var(--text, #e0e0e0);
+  padding: .75rem 1rem;
+  border-radius: 6px;
+}
+</style>
+{% endif %}
+{% endblock %}

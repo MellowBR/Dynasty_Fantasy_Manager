@@ -546,3 +546,29 @@ class F8PlayerBackup(db.Model):
     old_contract_start_season = db.Column(db.Integer, nullable=True)
     old_acquisition_type = db.Column(db.String(40), nullable=True)
     snapshot_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class TradeProposal(db.Model):
+    """T1 — simulação de trade salva com UUID para compartilhar via link.
+    Expira 7 dias após created_at. Assets armazenados como JSON arrays
+    de IDs (players_a, players_b, picks_a, picks_b). NÃO move nada no DB —
+    é simulação pura. A confirmação real vem do Sleeper via S1."""
+    __tablename__ = "trade_proposals"
+
+    id = db.Column(db.String(36), primary_key=True)  # UUID v4
+    team_a_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    team_b_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    players_a = db.Column(db.Text, nullable=False, default="[]")
+    players_b = db.Column(db.Text, nullable=False, default="[]")
+    picks_a = db.Column(db.Text, nullable=False, default="[]")
+    picks_b = db.Column(db.Text, nullable=False, default="[]")
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+
+    team_a = db.relationship("Team", foreign_keys=[team_a_id])
+    team_b = db.relationship("Team", foreign_keys=[team_b_id])
+    creator = db.relationship("User", foreign_keys=[created_by])
+
+    def is_expired(self) -> bool:
+        return datetime.utcnow() > self.expires_at

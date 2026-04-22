@@ -16,7 +16,7 @@
 | X1c | Tabela `users` no dynasty.db + seed_users.py | Alta | ✅ 31/03/2026 |
 | X1d | Decorators `@login_required` / `@admin_required` nas rotas | Alta | ✅ 31/03/2026 |
 | S1 | Sync detecta trades do Sleeper e move contratos automaticamente | Alta | ✅ 22/04/2026 |
-| T1 | Redesign Trade Manager: simulador multi-owner + link compartilhável | Alta | 🔲 |
+| T1 | Redesign Trade Manager: simulador multi-owner + link compartilhável | Alta | ✅ 22/04/2026 |
 | T2 | Integrar valores KTC no preview de trade | Média | 🔲 |
 | Q1 | Script de simulação de temporada (validar salary rollover) | Média | 🔲 |
 | M1 | Validação de cap antes de confirmar trade | Média | 🔲 |
@@ -89,7 +89,38 @@
 ---
 
 ### T1 — Redesign Trade Manager: Simulador Multi-Owner + Link Compartilhável
-🔲 **Pendente** — Prioridade **Alta**
+✅ **Concluído (22/04/2026)** — Prioridade **Alta**
+
+**Implementado:**
+
+1. **Removido `POST /api/trades/confirm`** de `routes/trades.py` (era `@admin_required`, movia players + criava Trade row). Com S1 ativo, esse endpoint criava shadow trades — o Manager confirmava antes do Sleeper e o sync criava duplicata. Import de `PlayerHistory` também removido (só era usado pelo confirm). JS `executeTrade()` removido do template.
+
+2. **Novo modelo `TradeProposal`** em `models.py`: `id TEXT PK (UUID v4)`, `team_a_id`, `team_b_id`, `players_a/b` e `picks_a/b` como JSON text arrays, `created_by`, `created_at`, `expires_at` (created_at + 7 dias), relationships com Team e User. Método `is_expired()`. Criada automaticamente via `db.create_all()` (tabela nova, sem Migration explícita necessária).
+
+3. **Extraído `_compute_cap_impact()`** como helper puro em `routes/trades.py` — compartilhado entre `preview_trade()` (POST JSON) e `view_trade_proposal()` (renderização read-only). Zero duplicação de lógica de cálculo. Enriquecido com `owner_name` e `owner_avatar` no payload por lado.
+
+4. **`POST /api/trades/proposals`** (`@login_required`): recebe mesmo payload do preview. Valida que cada lado tem ≥ 1 asset (player ou pick). Persiste via UUID. Retorna `{proposal_id, url, expires_at, ttl_days}`.
+
+5. **`GET /trades/proposta/<uuid>`** (`@login_required`): resolve proposal, renderiza `trade_proposal.html`. Cap impact **recalculado no momento** do acesso (reflete salários atuais, não snapshot do momento da criação — opção deliberada). Se expirada: 410 com mensagem amigável. Se não encontrada: 404 com template de erro.
+
+6. **Template novo `trade_proposal.html`**: page header, badge "📸 Simulação", card com times + owner avatar + info de criação/expiração, layout `.trade-side` reutilizado, cada lado mostra "📤 Envia" e "📥 Recebe" com pos-badge + nome + salary + contract_display, cap before/after com text-ok/text-danger. Link de "← Simular nova trade" de volta. Zero controles de ação. Apresenta "Expira em X dia(s)" ou "expira hoje".
+
+7. **UI em `trades.html`**: botão "✅ Confirmar Trade" virou "🔗 Gerar Link Compartilhável" (btn-primary). Modal reusado com novo estado: `modal-link-area` com input read-only do URL, botão "📋 Copiar" (via `navigator.clipboard.writeText` com fallback para `document.execCommand`) e botão "↗ Abrir" target=_blank. Título do modal muda para "🔗 Proposta Gerada". `closeModal()` resetta estado para próximo uso limpo.
+
+**Validação (22/04/2026) — 8 casos via Flask test_client:**
+
+| # | Cenário | Resultado |
+|---|---------|-----------|
+| 1 | Botão "Confirmar Trade" removido do HTML | ✓ |
+| 2 | `POST /api/trades/confirm` → 404 | ✓ |
+| 3 | `POST /api/trades/proposals` happy path | 200, UUID, URL, TTL=7 |
+| 4 | `GET proposal URL` logado | 200, HTML com times/players/"Simulação" |
+| 5 | Proposta expirada | 410 com "expirou" no body |
+| 6 | Sem login | 302 → /login |
+| 7 | Gerar sem assets / apenas um lado vazio | 400 com erro amigável |
+| 8 | Preview endpoint continua funcional | 200, cap_after correto |
+
+**Não implementado (escopo futuro):** X2 (propor/aceitar/recusar dentro do Manager — mencionado no devplan como evolução de T1).
 
 **Problema:** A tela de trade atual (`/trades`) mistura duas responsabilidades: (1) simular cap impact e (2) confirmar/registrar o trade no banco. Com S1, a confirmação passa a ser automática via Sleeper sync. A tela de trade precisa virar um **simulador puro** acessível a qualquer owner autenticado.
 
