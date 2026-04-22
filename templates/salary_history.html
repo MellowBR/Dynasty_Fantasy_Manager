@@ -413,16 +413,11 @@ function togglePlayerTimeline(playerId, headerEl) {
         return;
       }
       // Backend returns history already sorted chronologically and with display_notes.
+      // Pass the full event object so renderEventRow can see sleeper_event_ref
+      // and make trade rows clickable.
       tl.innerHTML =
         '<div class="full-timeline-header">Timeline completa</div>' +
-        hist.map(h => renderEventRow({
-          event_type: h.event_type,
-          season: h.season,
-          salary: h.salary,
-          contract_year: h.contract_year,
-          notes: h.notes,
-          display_notes: h.display_notes
-        })).join('');
+        hist.map(renderEventRow).join('');
     })
     .catch(() => {
       tl.innerHTML = '<div class="full-timeline-header">Erro ao carregar timeline.</div>';
