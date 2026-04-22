@@ -29,7 +29,7 @@ determinística e tem unit tests. Nenhum owner precisa lembrar se `floor(0.8 × 
 se aplica no ano 2 ou no ano 3 de um waiver.
 
 **3. Acesso real dos 12 owners**
-Com a migração para PythonAnywhere (X1), qualquer owner pode consultar o estado da liga
+Com a migração para hosting compartilhado (PythonAnywhere → Render, X1), qualquer owner pode consultar o estado da liga
 sem precisar perguntar pro comissário. Cap de cada time, contratos por expirar, picks
 disponíveis — tudo acessível por qualquer pessoa com conta cadastrada.
 

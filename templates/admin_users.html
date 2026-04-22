@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Gerenciar Users{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">👤 Gerenciar Users (Owners ↔ Times)</h1>
+</div>
+
+<div class="card" style="margin-bottom:1rem">
+  <p class="text-dim">
+    Vincule emails Google a times para habilitar login via OAuth. Owner e avatar vêm do sync do Sleeper
+    (use "Sincronizar com Sleeper" na página de <a href="/admin">Admin</a> para atualizar).
+    Email não pode ser editado — para mudar, desvincule e crie outro.
+  </p>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Times e Users</h2>
+  <table class="data-table" id="users-table">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Sleeper Owner</th>
+        <th>Email</th>
+        <th>Nome</th>
+        <th>Admin</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody id="users-body">
+      <tr><td colspan="6" class="text-dim">Carregando...</td></tr>
+    </tbody>
+  </table>
+  <div id="users-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+</div>
+
+<div class="card" id="unlinked-card" style="display:none;margin-top:1rem">
+  <h2 class="card-title">⚠️ Users sem time vinculado</h2>
+  <p class="text-dim">Estes usuários não estão vinculados a nenhum time. Vincule via campo team_id ou delete.</p>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Email</th>
+        <th>Nome</th>
+        <th>Team ID</th>
+        <th>Admin</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody id="unlinked-body"></tbody>
+  </table>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function showResult(msg, type) {
+  const box = document.getElementById('users-result');
+  box.style.display = 'block';
+  box.className = 'result-box result-' + type;
+  box.textContent = msg;
+  setTimeout(() => { box.style.display = 'none'; }, 3500);
+}
+
+function loadUsers() {
+  fetch('/api/admin/users')
+    .then(r => r.json())
+    .then(data => {
+      renderTeams(data.teams);
+      renderUnlinked(data.unlinked_users);
+    });
+}
+
+function renderTeams(teams) {
+  document.getElementById('users-body').innerHTML = teams.map(rowHtml).join('');
+}
+
+function rowHtml(t) {
+  const user = t.user;
+  const hasUser = !!user;
+  const email = hasUser ? user.email : '';
+  const name = hasUser ? (user.name || '') : '';
+  const isAdmin = hasUser ? user.is_admin : false;
+  const userId = hasUser ? user.id : '';
+
+  const avatar = t.sleeper_owner_avatar
+    ? `<img src="https://sleepercdn.com/avatars/thumbs/${escapeHtml(t.sleeper_owner_avatar)}" style="width:24px;height:24px;border-radius:50%;vertical-align:middle;margin-right:.4rem">`
+    : '';
+  const sleeperOwner = t.sleeper_owner_name ? escapeHtml(t.sleeper_owner_name) : '<span class="text-dim">—</span>';
+
+  const emailField = hasUser
+    ? `<span>${escapeHtml(email)}</span>`
+    : `<input type="email" class="owner-input" id="email-${t.team_id}" placeholder="email@gmail.com" style="width:100%">`;
+
+  const actions = hasUser
+    ? `<button class="btn-sm btn-secondary" onclick="saveUser(${t.team_id}, ${userId})" title="Salvar alterações de nome/admin">💾 Salvar</button>
+       <button class="btn-sm btn-danger" onclick="deleteUser(${userId}, '${email.replace(/'/g, "\\'")}')" title="Desvincular: remove o User, email não loga mais">🗑️</button>`
+    : `<button class="btn-sm btn-primary" onclick="createUser(${t.team_id})">➕ Vincular</button>`;
+
+  return `
+    <tr data-team-id="${t.team_id}" data-user-id="${userId}">
+      <td><strong>${escapeHtml(t.team_name)}</strong></td>
+      <td>${avatar}${sleeperOwner}</td>
+      <td>${emailField}</td>
+      <td>
+        <input type="text" class="owner-input" id="name-${t.team_id}"
+               value="${escapeHtml(name)}" placeholder="nome" style="width:100%">
+      </td>
+      <td style="text-align:center">
+        <input type="checkbox" id="admin-${t.team_id}" ${isAdmin ? 'checked' : ''}>
+      </td>
+      <td>${actions}</td>
+    </tr>`;
+}
+
+function renderUnlinked(users) {
+  const card = document.getElementById('unlinked-card');
+  if (!users.length) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  document.getElementById('unlinked-body').innerHTML = users.map(u => `
+    <tr>
+      <td>${escapeHtml(u.email)}</td>
+      <td>${escapeHtml(u.name || '—')}</td>
+      <td>
+        <input type="number" class="owner-input" id="teamid-${u.id}" value="${u.team_id || ''}" placeholder="team_id" style="width:80px">
+      </td>
+      <td style="text-align:center">
+        <input type="checkbox" id="uadmin-${u.id}" ${u.is_admin ? 'checked' : ''}>
+      </td>
+      <td>
+        <button class="btn-sm btn-secondary" onclick="patchUnlinked(${u.id})">💾 Vincular</button>
+        <button class="btn-sm btn-danger" onclick="deleteUser(${u.id}, '${u.email.replace(/'/g, "\\'")}')">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+function createUser(teamId) {
+  const email = (document.getElementById('email-' + teamId).value || '').trim();
+  const name = (document.getElementById('name-' + teamId).value || '').trim();
+  const isAdmin = document.getElementById('admin-' + teamId).checked;
+
+  if (!email) {
+    showResult('Email é obrigatório.', 'error');
+    return;
+  }
+
+  fetch('/api/admin/users', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email, name, team_id: teamId, is_admin: isAdmin}),
+  })
+    .then(async r => {
+      const d = await r.json();
+      if (r.ok) {
+        showResult(`✅ ${d.user.email} vinculado ao time ${teamId}${isAdmin ? ' (admin)' : ''}`, 'ok');
+        loadUsers();
+      } else {
+        showResult('❌ ' + (d.error || 'Erro ao vincular'), 'error');
+      }
+    });
+}
+
+function saveUser(teamId, userId) {
+  const name = (document.getElementById('name-' + teamId).value || '').trim();
+  const isAdmin = document.getElementById('admin-' + teamId).checked;
+
+  fetch(`/api/admin/users/${userId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, is_admin: isAdmin}),
+  })
+    .then(async r => {
+      const d = await r.json();
+      if (r.ok) {
+        showResult(`✅ ${d.user.email} atualizado`, 'ok');
+        loadUsers();
+      } else {
+        showResult('❌ ' + (d.error || 'Erro ao atualizar'), 'error');
+      }
+    });
+}
+
+function deleteUser(userId, email) {
+  if (!confirm(`Desvincular/deletar ${email}? Remove o registro — o email não conseguirá mais logar.`)) return;
+  fetch(`/api/admin/users/${userId}`, {method: 'DELETE'})
+    .then(async r => {
+      const d = await r.json();
+      if (r.ok) {
+        showResult(`✅ ${d.deleted_email} desvinculado`, 'ok');
+        loadUsers();
+      } else {
+        showResult('❌ ' + (d.error || 'Erro ao desvincular'), 'error');
+      }
+    });
+}
+
+function patchUnlinked(userId) {
+  const teamIdRaw = (document.getElementById('teamid-' + userId).value || '').trim();
+  const isAdmin = document.getElementById('uadmin-' + userId).checked;
+  const team_id = teamIdRaw ? parseInt(teamIdRaw, 10) : null;
+
+  fetch(`/api/admin/users/${userId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({team_id, is_admin: isAdmin}),
+  })
+    .then(async r => {
+      const d = await r.json();
+      if (r.ok) {
+        showResult(`✅ ${d.user.email} atualizado (team_id=${d.user.team_id || 'null'})`, 'ok');
+        loadUsers();
+      } else {
+        showResult('❌ ' + (d.error || 'Erro'), 'error');
+      }
+    });
+}
+
+loadUsers();
+</script>
+{% endblock %}

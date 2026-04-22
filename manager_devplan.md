@@ -1,8 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 02/04/2026  
-> Status atual: Produção (PythonAnywhere) | Tag: `manager-v1.0`
+> Última atualização: 22/04/2026  
+> Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
 
@@ -78,6 +78,26 @@ verdade — erros de salary cap ou player matching têm consequências reais par
 - `POS_ORDER` movido de `routes/roster.py` para `models.py` como constante central
 - `sort_players_by_pos(players)` criada em `models.py`: posição (QB→DEF) + salary DESC
 - Aplicada em `routes/roster.py` (2 endpoints API) e `routes/salary.py` (cap projector)
+
+### Camada C — Deploy Render ✅ Done (02/04/2026)
+
+Migração de host primário de PythonAnywhere para Render. Manager em https://dynasty-fantasy-manager.onrender.com.
+
+- **C1 — Preparação para produção:** `wsgi.py` como entry point, persistent disk `/data/`, env vars (`APP_ENV`, `SECRET_KEY`, `GOOGLE_CLIENT_*`, `DYNASTY_DB=/data/dynasty.db`), `ProxyFix` condicional.
+- **C2 — init_data.py (seed de banco):** copia `dynasty.db` do repo para `/data/` apenas no primeiro deploy; nunca sobrescreve. Mesmo padrão do optimizer.
+- **C3 — Controle de acesso auditado:** `data/users.csv` no git (exceção no `.gitignore`) como fonte do auto-seed de users no startup. `dynasty.db` no repo como seed para manter salários/contratos corretos em produção (sync Sleeper nunca sobrescreve dados financeiros).
+
+PythonAnywhere mantido como legacy em https://mellowbr.pythonanywhere.com.
+
+### Camada M12 — Admin Users (UI de vinculação Owner↔Time) ✅ Done (22/04/2026)
+
+Tela `/admin/users` substitui o uso manual de `seed_users.py` + edição de `data/users.csv` para operação cotidiana de vincular owners a times.
+
+- **Backend:** 5 endpoints em `routes/admin.py` — page `GET /admin/users` (`@login_required`), REST `/api/admin/users[/<id>]` para list/create/patch/delete (writes com `@admin_required`)
+- **Frontend:** `templates/admin_users.html` — tabela única com 12 linhas, avatar Sleeper (via `Team.owner_avatar` já populado pelo sync), inputs inline (email/nome), checkbox admin. Seção secundária para users órfãos (team_id=NULL)
+- **Sem migração de schema:** lookup Manager↔Sleeper via relação `User.team_rel.sleeper_owner_id` existente. Economiza coluna redundante.
+- **Sem chamada Sleeper API na tela:** dados já vêm do sync. Usuário roda "Sincronizar com Sleeper" no `/admin` se precisar atualizar.
+- **Sem sync bidirecional com `users.csv`:** CSV continua sendo apenas seed inicial; UI é source-of-truth pós-seed. Aceitável pois Render usa persistent disk + init_data.py é no-overwrite.
 
 ---
 
@@ -200,3 +220,49 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 - **Diagnóstico do "salários zerados":** O banco no Render foi criado vazio pelo `create_all()`,
   o sync populou jogadores com `salary=1.0` (default para novos). Solução: incluir `dynasty.db`
   com salários corretos como seed no repo.
+
+### 22/04/2026 — Seed Michel + M12 backlog + Auto-Containment M11
+
+- **users.csv é canônico para produção:** o caminho para adicionar um novo owner é editar
+  `data/users.csv` e commitar. O auto-seed no startup (app.py) insere no DB de produção no
+  próximo deploy. `seed_users.py --email ...` é apenas **conveniência dev** para popular o
+  `dynasty.db` local. Decisão tomada ao adicionar Michel (michelzel96@gmail.com, team_id=8,
+  admin) — o prompt original sugeria só o CLI, que não resolveria produção.
+
+- **Comportamento duplo do seed_users.py:** rodar o CLI dispara o boot do Flask (via import
+  de `app.py`), que já roda o auto-seed do CSV primeiro. Se o usuário alvo já está no CSV,
+  a chamada CLI subsequente falha com "já existe" (exit code 1) — comportamento correto,
+  não é bug. Documentado em CLAUDE.md.
+
+- **M11 (Auto-Containment documental) adicionado ao backlog** como Média. Princípio formalizado
+  no `../DEV_METHODOLOGY.md` na mesma sessão: os 4 docs + código devem bastar para qualquer um
+  (outro Claude sem memória, colaborador novo, owner daqui a 2 anos) retomar o projeto. M11 é
+  o teste prático aplicado ao manager.
+
+- **M12 (Vincular owners via tela de admin com lookup Sleeper) adicionado ao backlog** como
+  Média. Proposta: rota `/admin/users` que lista os 12 times via `GET /league/{LEAGUE_ID}/users`
+  da Sleeper API e permite vincular usuários por clique em vez de CLI/CSV manual. Pré-avaliação:
+  `Team.sleeper_owner_id` já existe — avaliar se o lookup Manager↔Sleeper pode ser feito via
+  Team antes de criar coluna nova `User.sleeper_user_id`.
+
+- **Commit 82e1c29 pushed para origin/main** (`MellowBR/Dynasty_Fantasy_Manager`):
+  `data/users.csv` + `improvements.md` + `dynasty.db` (side-effect natural do auto-seed
+  gerar Michel no DB local durante o comando).
+
+### 22/04/2026 — Camada M12 (Admin Users)
+
+- **3 desvios da proposta original registrados no backlog:**
+  (1) sem coluna `User.sleeper_user_id` — `Team.sleeper_owner_id` já existe e é
+  populado pelo sync; lookup via `User.team_rel.sleeper_owner_id`;
+  (2) sem chamada à `/league/{id}/users` da Sleeper API na tela — o sync existente já
+  popula os dados que a tela precisa;
+  (3) sem sync bidirecional com `data/users.csv` — CSV permanece como seed inicial,
+  UI vira source-of-truth pós-seed. Aceitável pois Render usa persistent disk.
+
+- **Validação automatizada via Flask test_client + auth mockado:** 7 cenários cobertos
+  (GET list, POST create, PATCH toggle admin, POST duplicate→409, DELETE, GET list
+  pós-cleanup, page render). Todos passaram antes de marcar como Done.
+
+- **Decisão UX:** UI usa inputs inline + botões por linha (mesmo padrão da tabela
+  "Donos dos Times" que já existia em `/admin`). Sem modais, sem framework JS —
+  fetch() nativo. Consistência visual com admin.html.

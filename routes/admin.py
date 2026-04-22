@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, session
 from flask_login import login_required
-from models import db, Player, Team, SalaryHistory, SyncLog, ESPNValue, ESPNImportLog, CURRENT_SEASON, get_current_season
+from models import db, Player, Team, User, SalaryHistory, SyncLog, ESPNValue, ESPNImportLog, CURRENT_SEASON, get_current_season
 from salary_engine import apply_season_rollover, CONTRACT_LENGTH
 from routes.auth import admin_required
 
@@ -200,6 +200,101 @@ def update_team_owner(team_id):
     team.owner_name = owner_name or None
     db.session.commit()
     return jsonify({"success": True, "team": team.to_dict()})
+
+
+# ── M12: Owner ↔ User Management ─────────────────────────────────────────────
+
+@admin_bp.route("/admin/users")
+@login_required
+def admin_users_page():
+    """Page for linking Google OAuth users to teams."""
+    return render_template("admin_users.html")
+
+
+@admin_bp.route("/api/admin/users")
+@login_required
+def admin_users_list():
+    """Return teams with their linked user + orphan users (no team_id)."""
+    teams = Team.query.order_by(Team.name).all()
+    users_by_team = {}
+    unlinked = []
+    for u in User.query.order_by(User.id).all():
+        if u.team_id:
+            users_by_team[u.team_id] = u
+        else:
+            unlinked.append(u)
+
+    teams_data = [{
+        "team_id": t.id,
+        "team_name": t.name,
+        "sleeper_display_name": t.display_name,
+        "sleeper_owner_name": t.owner_name,
+        "sleeper_owner_avatar": t.owner_avatar,
+        "sleeper_owner_id": t.sleeper_owner_id,
+        "user": users_by_team[t.id].to_dict() if t.id in users_by_team else None,
+    } for t in teams]
+
+    return jsonify({
+        "teams": teams_data,
+        "unlinked_users": [u.to_dict() for u in unlinked],
+    })
+
+
+@admin_bp.route("/api/admin/users", methods=["POST"])
+@admin_required
+def admin_users_create():
+    """Create a new user linked to a team."""
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    name = (data.get("name") or "").strip() or None
+    team_id = data.get("team_id")
+    is_admin = bool(data.get("is_admin", False))
+
+    if not email:
+        return jsonify({"error": "email obrigatório"}), 400
+
+    existing = User.query.filter_by(email=email).first()
+    if existing:
+        return jsonify({"error": f"email já existe (id={existing.id}, team_id={existing.team_id})"}), 409
+
+    user = User(
+        email=email,
+        name=name,
+        team_id=int(team_id) if team_id else None,
+        is_admin=is_admin,
+    )
+    db.session.add(user)
+    db.session.commit()
+    return jsonify({"success": True, "user": user.to_dict()}), 201
+
+
+@admin_bp.route("/api/admin/users/<int:user_id>", methods=["PATCH"])
+@admin_required
+def admin_users_update(user_id):
+    """Update name, is_admin, and/or team_id of an existing user. Email is immutable."""
+    user = db.get_or_404(User, user_id)
+    data = request.get_json() or {}
+
+    if "name" in data:
+        user.name = (data.get("name") or "").strip() or None
+    if "is_admin" in data:
+        user.is_admin = bool(data["is_admin"])
+    if "team_id" in data:
+        user.team_id = int(data["team_id"]) if data["team_id"] else None
+
+    db.session.commit()
+    return jsonify({"success": True, "user": user.to_dict()})
+
+
+@admin_bp.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
+@admin_required
+def admin_users_delete(user_id):
+    """Delete a user (unlink). The email will no longer be able to log in."""
+    user = db.get_or_404(User, user_id)
+    email = user.email
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({"success": True, "deleted_email": email})
 
 
 # ── ESPN PDF Import ──────────────────────────────────────────────────────────

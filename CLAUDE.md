@@ -26,6 +26,8 @@ python seed_users.py --email user@gmail.com --name "Name" --team-id 1 --admin
 python seed_users.py --list
 ```
 
+**Note on `seed_users.py` dual-seed behavior:** running the CLI imports `app.py`, which runs the full boot sequence (including auto-seed from `data/users.csv`) before the CLI flags are processed. If the target user is already in `users.csv`, the subsequent `--email` call fails with "já existe" (exit code 1) — expected. For production, edit `data/users.csv` + commit; next deploy auto-seeds on startup. The CLI is dev convenience for the local DB only.
+
 ## Architecture
 
 ### Core Principle: Salary Logic is Pure
@@ -61,7 +63,7 @@ python seed_users.py --list
 | trades | `/trades` | Trade preview/confirmation with cap impact |
 | picks | `/picks` | Draft picks 2025-2028, lottery system |
 | auction | `/auction` | FA auction & rookie draft registration |
-| admin | `/admin` | Sleeper sync, ESPN import, season rollover |
+| admin | `/admin`, `/admin/users` | Sleeper sync, ESPN import, season rollover, user↔team management (M12) |
 | offseason | `/offseason` | 7-step offseason workflow |
 
 ### Models (models.py)

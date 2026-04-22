@@ -26,8 +26,8 @@
 | M8 | Auditoria pública do sorteio de lottery (seed + página pública) | Baixa | 🔲 |
 | M9 | Redesign da tela de picks: grid compacto + dono atual visível | Média | 🔲 |
 | M10 | Autocomplete de jogador na calculadora de salário | Baixa | 🔲 |
-| M11 | Teste de auto-containment documental | Média | 🔲 |
-| M12 | Vincular owners a times via tela de admin com lookup do Sleeper | Média | 🔲 |
+| M11 | Teste de auto-containment documental | Média | ✅ 22/04/2026 |
+| M12 | Vincular owners a times via tela de admin com lookup do Sleeper | Média | ✅ 22/04/2026 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | 🔲 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
 | M6 | Importar resultados de temporada para atualizar ESPN ref values automaticamente | Baixa | 🔲 |
@@ -225,37 +225,48 @@ CREATE TABLE trade_proposals (
 ---
 
 ### M11 — Teste de auto-containment documental
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (22/04/2026)** — Prioridade **Média**
 
 **Problema:** Parte do estado técnico do projeto pode estar implícito (em memória do Claude, conversas do Claude.ai, cabeça do owner) em vez de estar nos 4 docs + código. Isso viola o princípio de auto-containment definido no `DEV_METHODOLOGY.md`: um colaborador novo, outro Claude sem memória, ou o próprio owner daqui a 2 anos não conseguiria replicar/auditar o projeto usando só a documentação.
 
-**Proposta:** Executar o teste prático definido no `DEV_METHODOLOGY.md` — responder *"o que eu perderia se apagasse a memória agora?"*. Migrar o que faltar para os 4 docs (CLAUDE.md, manager_devplan.md, manager_vision.md, improvements.md). Itens típicos a verificar no manager: decisões históricas não registradas no Log de Decisões, resultados de validação (cap projections, season rollover) não consolidados no CLAUDE.md, contexto dos handoffs não absorvido pelo devplan.
+**Proposta:** Executar o teste prático definido no `DEV_METHODOLOGY.md` — responder *"o que eu perderia se apagasse a memória agora?"*. Migrar o que faltar para os 4 docs (CLAUDE.md, manager_devplan.md, manager_vision.md, improvements.md).
 
-**Quando executar:** Em janela sem pressão de feature — é calibração documental, não entrega de valor funcional.
+**Resolvido (22/04/2026):** Auditoria executada. Memória estava limpa de estado técnico do manager (nada a migrar daqui). Identificados 6 gaps nos docs, todos migrados:
+- `manager_devplan.md` header atualizado (data 22/04/2026 + status Render como primário, PythonAnywhere como legacy)
+- Nova Camada C (Deploy Render C1-C3) promovida do Log para a lista de "Camadas de Desenvolvimento" com sumário
+- Log de Decisões recebeu entrada **22/04/2026** (users.csv canônico para produção, comportamento duplo do seed_users.py, M11/M12 adicionados, commit 82e1c29)
+- `manager_vision.md` linha 33 atualizada (PythonAnywhere → Render)
+- `CLAUDE.md` recebeu nota sobre comportamento duplo do seed_users.py (boot importa app.py → auto-seed CSV primeiro → CLI pode dar "já existe")
+- Este item (M11) marcado como ✅ no status rápido e aqui na seção detalhada
 
 ---
 
 ### M12 — Vincular Owners a Times via Tela de Admin com Lookup do Sleeper
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (22/04/2026)** — Prioridade **Média**
 
 **Problema:** Hoje vincular um usuário a um time exige que o admin saiba de cor o team_id numérico do dynasty.db e rode o seed_users.py via CLI (local) ou edite `data/users.csv` + push (produção). É frágil: o admin pode errar o ID, novos owners precisam de intervenção manual toda vez, e não há interface visual.
 
-**Proposta:**
-1. Tela `/admin/users`: lista os 12 times da liga buscados via `GET /league/{LEAGUE_ID}/users` da Sleeper API (nome do time, username, avatar do owner). Para cada time, exibe o usuário do Manager vinculado (email, is_admin), se houver.
-2. **Vinculação por clique:** botão "Vincular" abre formulário inline com campos email Google, nome e is_admin. Ao submeter, cria ou atualiza o registro em `users` com o team_id correto — sem CLI.
-3. **Desvinculação:** botão "Desvincular" remove o email sem apagar o time.
-4. **Nova coluna** `sleeper_user_id` (nullable) na tabela `users`, preenchida automaticamente ao vincular via Sleeper — permite exibir avatar e username do Sleeper na tela.
+**Resolvido (22/04/2026):** Tela `/admin/users` implementada. Decisões de escopo que divergiram da proposta original (registradas no Log de Decisões do devplan):
 
-**Código existente a reutilizar:**
-- `sync_sleeper.py` — já faz chamadas à Sleeper API; adicionar call a `/league/{LEAGUE_ID}/users`
-- `seed_users.py` — lógica de upsert pode ser extraída para função reutilizável em `models.py`
-- `routes/admin.py` — blueprint adequado para a nova rota
+1. **Não criada coluna `User.sleeper_user_id`** — `Team.sleeper_owner_id/owner_name/owner_avatar` já existe e é populado pelo Sleeper sync. O lookup Manager↔Sleeper é feito via `User.team_rel.sleeper_owner_id`. Economiza uma migração.
+2. **Não chamamos `/league/{id}/users` da Sleeper API na tela** — dados já vêm do sync existente. Botão "Sincronizar com Sleeper" no `/admin` já cobre atualização. Evita chamada duplicada.
+3. **Não sincronizamos com `data/users.csv`** — CSV permanece como seed inicial, não source-of-truth. Users criados via UI persistem só no DB (aceitável: Render tem persistent disk, `init_data.py` não sobrescreve DB existente).
 
-**Nova migração:** `ALTER TABLE users ADD COLUMN sleeper_user_id TEXT` (nullable), adicionada em `_run_migrations()` no `app.py`.
+**Implementado:**
+- Backend: 5 endpoints em `routes/admin.py` — `GET /admin/users` (page, `@login_required`); `GET /api/admin/users` (list teams+users); `POST/PATCH/DELETE /api/admin/users[/<id>]` (todos `@admin_required`)
+- Frontend: `templates/admin_users.html` — tabela com 12 linhas (uma por time), avatar Sleeper, inputs de email/nome/admin, ações Vincular/Salvar/Desvincular. Seção "Users sem time vinculado" para órfãos
+- Navegação: card "Gerenciar Users" adicionado ao `/admin`
 
-**Permissão:** `@admin_required` em todos os endpoints de escrita da tela.
+**Validado (22/04/2026):** 7 casos de teste passaram via Flask test_client:
+1. GET list → 12 times, 3 vinculados (Erico/5, Rafael/1, Michel/8)
+2. POST create → 201 com user id=4
+3. PATCH toggle admin + name → 200
+4. POST duplicate email → 409 com mensagem clara
+5. DELETE → 200
+6. GET list após cleanup → volta a 3 vinculados
+7. GET /admin/users (page) → 200, template renderiza
 
-**Nota de implementação:** o modelo `Team` já tem `sleeper_owner_id` (populado pelo Sleeper sync). Antes de adicionar `sleeper_user_id` a `User`, avaliar se o lookup Manager↔Sleeper pode ser feito via Team (team_id → `Team.sleeper_owner_id`). Pode evitar migração e facilitar casos onde o usuário representa o owner mas ainda não tem conta no Sleeper.
+**Escopo NÃO incluído:** sincronização bidirecional com `users.csv`, integração com convite OAuth/validação Google, bulk import via UI.
 
 ---
 
