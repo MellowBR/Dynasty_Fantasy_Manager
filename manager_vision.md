@@ -70,6 +70,56 @@ slots de IR, cap utilizado. Sem precisar abrir o Sleeper ou perguntar pro comiss
 
 ---
 
+## Calendário Operacional da Liga
+
+O Manager é apenas uma das peças do fluxo. A Dynasty SB opera em ciclo anual,
+alternando entre o Manager (sistema de registro local) e o Sleeper (plataforma
+onde os times efetivamente jogam). Conhecer a ordem importa porque alguns passos
+dependem de outros, e um passo pulado ou feito fora de ordem deixa o estado da
+liga inconsistente.
+
+O ciclo do offseason começa com a **atualização dos valores ESPN** no Manager —
+sem ESPN atualizado, a VALORIZAÇÃO aplicada no season rollover usa referências do
+ano anterior e produz salários errados. Em seguida o comissário roda o **draft
+lottery** no Manager, que sorteia os picks 1 a 5 com pesos por posição final na
+temporada anterior e fixa os picks 6 a 12 por standings. O **rookie draft**
+acontece no Manager em seguida — é lá que os contratos dos novatos são criados
+pela primeira vez.
+
+Depois disso o foco muda para o Sleeper: **owners têm um prazo para fazer drops
+e adequar o roster ao cap**, e o comissário **atualiza os rosters no Sleeper e
+cria a liga fantasma de FA Auction**. O **FA Auction** em si roda dentro do
+Sleeper (na liga fantasma), que serve só como ambiente de lances. Terminado o
+leilão, **os resultados precisam ser registrados manualmente no Manager pela
+tela `/auction`** — cada bid vencedor vira um contrato. Este é o passo que mais
+concentra risco operacional: é a única etapa onde o comissário digita os dados,
+e um erro aqui propaga cap errado para o resto da temporada.
+
+Durante a temporada regular, **trades e movimentações feitas no Sleeper são
+capturadas automaticamente pelo Manager** via o sync (camada S1, concluída em
+22/04/2026). O Manager roda o sync periodicamente, detecta trades completas e
+waivers, e atualiza `Player.team_id`, `PlayerHistory` e a tabela `Trade` sem
+intervenção humana. Antes do S1, o Manager ficava cego para movimentações do
+Sleeper e precisava de confirmação manual de trade por tela — agora a
+confirmação é automática.
+
+**Gap conhecido — standings não são sincronizados automaticamente.** A posição
+final dos times (W-L-PF, ranking da temporada regular, campeão e vice) é input
+manual no Manager hoje. O Sleeper tem esse dado acessível via
+`/league/<id>/winners_bracket` e pelo roster settings da própria liga, mas o
+sync atual não consome esses endpoints — é uma automação possível no futuro,
+análoga em padrão ao S1. Enquanto isso, o comissário digita standings antes de
+rodar o draft lottery.
+
+**Observação histórica.** O Manager não existia no início da liga — a Dynasty
+SB rodou sua primeira temporada com controle em planilha compartilhada. O
+calendário acima é o estado atual, com o Manager operacional e a migração da
+planilha já concluída. O retrofit da história de contratos anteriores à
+existência do Manager foi feito via F8 (rebuild canônico a partir da Sleeper
+chain 2024 → 2025 → 2026), em 22/04/2026.
+
+---
+
 ## Resultado
 
 O Manager existe para que a liga funcione com as suas próprias regras, de forma

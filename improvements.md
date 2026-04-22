@@ -39,7 +39,7 @@
 | F8 | Reconstruir PlayerHistory a partir da Sleeper API (drafts + transactions chain) | Alta | ⚠️ F8a concluído 22/04/2026 |
 | F8a | Core rebuild via Sleeper chain + migration (sleeper_event_ref + UNIQUE) | Alta | ✅ 22/04/2026 |
 | F8b | Guard AppConfig.f8_rebuilt em import_csv.py | Alta | ✅ 22/04/2026 |
-| F8c | Endpoint admin + UI + ajuste do boot | Alta | 🔲 |
+| F8c | Endpoint admin + UI + ajuste do boot | Alta | ✅ 22/04/2026 |
 | F1 | Correção de salários por partial name match (3 Browns bug) | Alta | ✅ 28/03/2026 |
 | F2 | Ordenação do Round 1 via `draft_lottery_result` + `season_standings` | Alta | ✅ 28/03/2026 |
 | F3 | Histórico inline (accordion) na aba de histórico | Média | ✅ 28/03/2026 |
@@ -294,7 +294,7 @@ CREATE TABLE trade_proposals (
 ---
 
 ### F8 — Reconstruir PlayerHistory a partir da Sleeper API
-⚠️ **Parcial** — F8a concluído 22/04/2026. F8b (CSV guard) e F8c (endpoint + UI) pendentes. Prioridade **Alta**
+✅ **Concluído (22/04/2026)** — F8a + F8b + F8c. Prioridade **Alta**
 
 **Problema:** `PlayerHistory` tem informação fictícia para qualquer jogador que trocou de mão entre temporadas. O backfill atual (`_backfill_player_history()` em `routes/admin.py:428-503`) e o `import_csv.py` usam snapshot do CSV + estado atual do `Player` para inventar histórico, sem consultar `/drafts/<id>/picks` nem `/transactions/<week>` do Sleeper, que têm a verdade factual.
 
@@ -414,7 +414,38 @@ CREATE TABLE trade_proposals (
 
 **Arquivos modificados:** `models.py` (PlayerHistory.sleeper_event_ref + UniqueConstraint + F8PlayerBackup), `app.py` (Migration 5 em 5 sub-blocos idempotentes), `sync_sleeper.py` (6 funções novas + helper `_count_players_to_correct`).
 
-**Pendente:** F8c (endpoint admin + UI em /admin + atualização de EVENT_LABELS no template + remoção da chamada de `_backfill_player_history` no boot).
+#### F8c — Endpoint admin + UI + ajuste do boot ✅ 22/04/2026
+
+**Implementado:**
+1. **3 endpoints em `routes/admin.py`**:
+   - `POST /api/admin/player_history/rebuild` (`@admin_required`) — chama `_rebuild_player_history(dry_run=False)`. Retorna summary JSON.
+   - `POST /api/admin/player_history/rebuild?dry_run=1` — simula sem gravar. Retorna `{events_written, events_skipped, warnings, players_corrected, ligas_visitadas, deleted_legacy, dry_run}`.
+   - `POST /api/admin/player_history/restore` (`@admin_required`) — restaura último snapshot JSON em `data/`, reverte `Player.contract_start_season` e `acquisition_type` via `f8_player_backup`, limpa backup e flag. Retorna `{success, restored_rows, players_reverted, snapshot}`.
+   - Helpers `_latest_snapshot_path()` e `_snapshot_info()` consultam `data/.player_history_snapshot_*.json` via glob — admin_page passa info para o template.
+
+2. **UI card `Histórico Canônico (F8)` em `templates/admin.html`**:
+   - Posicionado antes do card "Trades Históricas (Backfill)" pra agrupar ferramentas de backfill canônico.
+   - 3 botões: "Simular (dry-run)" (cinza), "Executar Rebuild" (azul), "Restaurar Snapshot" (vermelho, `disabled` se não há snapshot).
+   - Banner verde "Rebuild já foi executado neste DB" quando `AppConfig.f8_rebuilt='true'`.
+   - Timestamp do último snapshot exposto em small-text abaixo dos botões quando existe.
+   - Confirms em JS: rebuild tem confirm mencionando snapshot automático; restore tem confirm explicando reversão.
+   - Resultado inline com contagens e warnings truncados (primeiros 3), seguindo padrão do card S1.
+
+3. **EVENT_LABELS + EVENT_BADGES em `templates/salary_history.html`**: adicionados `drop → Dropado` (badge review), `free_agent → Free Agent (add)` (badge trade), `commissioner → Ajuste do comissário` (badge review). `fa_auction` já existia. Os 3 novos tipos são emitidos por `_collect_transaction_events` do F8a e não tinham label — apareciam crus na tela `/salary_history`.
+
+4. **Skip condicional no boot em `app.py`**: dentro do block `if fresh_import:`, antes de chamar `_backfill_player_history()`, verifica `get_config('f8_rebuilt', 'false')`. Se `'true'`, loga `[boot] F8 rebuild já executado — _backfill_player_history ignorado` e skipa. Função em si não removida — continua disponível como legacy para DBs novos.
+
+**Validação (22/04/2026) via Flask test_client com admin mockado:**
+- `POST /rebuild?dry_run=1` → 200, summary correto, DB inalterado (PlayerHistory permanece 1092).
+- `POST /rebuild` → 200, snapshot criado em `data/`, flag `f8_rebuilt='true'`, `f8_player_backup` com 182 rows.
+- `POST /restore` → 200, 1092 rows restauradas do snapshot, 182 players revertidos (Aiyuk/Bowers/BUF/Stroud voltam aos valores do CSV), flag removida, backup zerado.
+- Re-rebuild após restore → 200, 182 players novamente corrigidos, idempotência preservada (events_written=0 se nenhum mudou).
+- `GET /admin` → 200, card F8 renderizado, banner de flag ativo, botão restore habilitado.
+- `python salary_engine_test.py` → 49/49 passam.
+
+**Observação sobre boot skip:** em DB maduro (sem `fresh_import`), o block inteiro de post-sync não executa, então o guard é no-op. O guard só age em DB novo (primeiro deploy Render, dev do zero) que já rodou F8 manualmente antes — cenário raro mas coberto. DBs novos sem F8 (default Render first boot) executam legacy normalmente.
+
+**Arquivos modificados:** `routes/admin.py` (+~90 linhas: imports, helpers, 2 endpoints, snapshot_info passado para template), `templates/admin.html` (+~35 linhas card + ~95 linhas JS), `templates/salary_history.html` (+3 entradas em cada mapa), `app.py` (+5 linhas skip condicional), `manager_vision.md` (+~40 linhas seção Calendário Operacional da Liga).
 
 #### F8b — Guard em import_csv.py (AppConfig.f8_rebuilt) ✅ 22/04/2026
 

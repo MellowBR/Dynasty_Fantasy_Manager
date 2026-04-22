@@ -63,7 +63,7 @@ python seed_users.py --list
 | trades | `/trades` | Trade preview/confirmation with cap impact |
 | picks | `/picks` | Draft picks 2025-2028, lottery system |
 | auction | `/auction` | FA auction & rookie draft registration |
-| admin | `/admin`, `/admin/users` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1) |
+| admin | `/admin`, `/admin/users` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1), PlayerHistory canonical rebuild (F8) |
 | offseason | `/offseason` | 7-step offseason workflow |
 
 ### Models (models.py)

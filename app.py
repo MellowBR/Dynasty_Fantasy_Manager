@@ -63,11 +63,17 @@ def create_app():
             except Exception as e:
                 import logging
                 logging.warning(f"[app] Sleeper sync failed on startup: {e} — app loading normally")
-            # Backfill player history from imported data
-            from routes.admin import _backfill_player_history
-            hist_count = _backfill_player_history()
-            if hist_count:
-                print(f"[app] Backfilled {hist_count} player history entries")
+            # Backfill player history from imported data — legacy path.
+            # F8 (rebuild canônico via Sleeper chain) substituiu esse fluxo.
+            # Em DBs já migrados (AppConfig.f8_rebuilt=true), pular o legacy.
+            from models import get_config
+            if get_config("f8_rebuilt", "false") == "true":
+                print("[boot] F8 rebuild já executado — _backfill_player_history ignorado")
+            else:
+                from routes.admin import _backfill_player_history
+                hist_count = _backfill_player_history()
+                if hist_count:
+                    print(f"[app] Backfilled {hist_count} player history entries")
 
     # Context processor — injects offseason state into all templates
     @app.context_processor

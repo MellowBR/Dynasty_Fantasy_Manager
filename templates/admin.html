@@ -140,6 +140,41 @@
     <a href="/admin/users" class="btn btn-primary">👤 Abrir Gerenciador de Users</a>
   </div>
 
+  <!-- F8: PlayerHistory canonical rebuild -->
+  <div class="card">
+    <h2 class="card-title">📚 Histórico Canônico (F8)</h2>
+    <p class="text-dim" style="margin-bottom:.75rem">
+      Reconstrói <code>PlayerHistory</code> canonicamente a partir da Sleeper chain
+      (drafts + transactions + trades via S1). Corrige <code>acquisition_type</code> e
+      <code>contract_start_season</code> retroativos. Idempotente via UNIQUE. Preserva
+      trades do S1 e events de rollover.
+    </p>
+    {% if f8_rebuilt %}
+    <div class="alert alert-ok" style="margin-bottom:.75rem">
+      ✅ Rebuild já foi executado neste DB (flag <code>f8_rebuilt=true</code>).
+      <code>run_import()</code> não sobrescreve os 2 campos canônicos.
+    </div>
+    {% endif %}
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <button class="btn btn-secondary" id="btn-f8-dryrun" onclick="f8DryRun()">
+        👁 Simular (dry-run)
+      </button>
+      <button class="btn btn-primary" id="btn-f8-rebuild" onclick="f8Rebuild()">
+        ⚡ Executar Rebuild
+      </button>
+      <button class="btn btn-danger" id="btn-f8-restore" onclick="f8Restore()"
+              {% if not f8_snapshot.exists %}disabled title="Nenhum snapshot disponível"{% else %}title="Restaura snapshot de {{ f8_snapshot.timestamp }}"{% endif %}>
+        ↩ Restaurar Snapshot
+      </button>
+    </div>
+    {% if f8_snapshot.exists %}
+    <p class="text-dim small-text" style="margin-top:.5rem">
+      Último snapshot: <code>{{ f8_snapshot.filename }}</code> ({{ f8_snapshot.timestamp }})
+    </p>
+    {% endif %}
+    <div id="f8-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+  </div>
+
   <!-- S1: Trade Backfill -->
   <div class="card">
     <h2 class="card-title">🔄 Trades Históricas (Backfill)</h2>
@@ -324,6 +359,134 @@ fetch('/api/admin/review_players').then(r => r.json()).then(players => {
 function clearReview(id, btn) {
   fetch(`/api/admin/review_players/${id}/clear`, {method:'POST'})
     .then(() => btn.closest('.player-row').remove());
+}
+
+function f8DryRun() {
+  const btn = document.getElementById('btn-f8-dryrun');
+  const res = document.getElementById('f8-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Simulando...';
+  res.style.display = 'block';
+  res.className = 'result-box';
+  res.textContent = '⏳ Caminhando pela chain Sleeper (2024 → 2025 → 2026)...';
+
+  fetch('/api/admin/player_history/rebuild?dry_run=1', {method:'POST'})
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) {
+        res.className = 'result-box result-error';
+        res.textContent = '❌ ' + d.error;
+        return;
+      }
+      const warn = (d.warnings || []).length;
+      const cls = warn ? 'result-warn' : 'result-ok';
+      res.className = 'result-box ' + cls;
+      res.innerHTML =
+        `🧪 <strong>Dry-run — nenhuma alteração gravada.</strong><br>` +
+        `Ligas: ${(d.ligas_visitadas || []).join(', ')}<br>` +
+        `Events a escrever: <strong>${d.events_written}</strong> · já presentes: ${d.events_skipped}<br>` +
+        `Legacy rows a apagar: <strong>${d.deleted_legacy}</strong><br>` +
+        `Players a corrigir: <strong>${d.players_corrected}</strong><br>` +
+        (warn ? `⚠️ ${warn} warnings: ${(d.warnings || []).slice(0,3).join('; ')}` : 'Sem warnings.');
+    })
+    .catch(e => {
+      res.className = 'result-box result-error';
+      res.textContent = '❌ ' + e;
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = '👁 Simular (dry-run)';
+    });
+}
+
+function f8Rebuild() {
+  if (!confirm(
+    '⚠️ Executar rebuild canônico?\n\n' +
+    'Vai: apagar rows legacy do PlayerHistory, reescrever eventos via Sleeper chain, ' +
+    'corrigir acquisition_type e contract_start_season de players afetados, e ' +
+    'marcar o DB com flag f8_rebuilt=true.\n\n' +
+    'Snapshot automático é criado em data/ antes. Restaurável via "Restaurar Snapshot".\n\n' +
+    'Prosseguir?')) return;
+
+  const btn = document.getElementById('btn-f8-rebuild');
+  const res = document.getElementById('f8-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Executando...';
+  res.style.display = 'block';
+  res.className = 'result-box';
+  res.textContent = '⏳ Rebuild em andamento — isso pode levar ~30s (chain + drafts + transactions)...';
+
+  fetch('/api/admin/player_history/rebuild', {method:'POST'})
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) {
+        res.className = 'result-box result-error';
+        res.textContent = '❌ ' + d.error;
+        return;
+      }
+      const warn = (d.warnings || []).length;
+      const cls = warn ? 'result-warn' : 'result-ok';
+      res.className = 'result-box ' + cls;
+      res.innerHTML =
+        `✅ <strong>Rebuild concluído.</strong><br>` +
+        `Ligas: ${(d.ligas_visitadas || []).join(', ')}<br>` +
+        `Eventos escritos: <strong>${d.events_written}</strong> · skipados (já existiam): ${d.events_skipped}<br>` +
+        `Legacy deletados: ${d.deleted_legacy}<br>` +
+        `Players corrigidos: <strong>${d.players_corrected}</strong><br>` +
+        (d.snapshot_path ? `Snapshot: <code>${d.snapshot_path.split(/[\\/]/).pop()}</code><br>` : '') +
+        (warn ? `⚠️ ${warn} warnings: ${(d.warnings || []).slice(0,3).join('; ')}` : 'Sem warnings.');
+      setTimeout(() => location.reload(), 3500);
+    })
+    .catch(e => {
+      res.className = 'result-box result-error';
+      res.textContent = '❌ ' + e;
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = '⚡ Executar Rebuild';
+    });
+}
+
+function f8Restore() {
+  if (!confirm(
+    '⚠️ Restaurar snapshot?\n\n' +
+    'Vai: apagar PlayerHistory atual, re-inserir do snapshot mais recente, ' +
+    'reverter Player.contract_start_season e acquisition_type dos players ' +
+    'corrigidos, e remover a flag f8_rebuilt.\n\n' +
+    'Isso desfaz as correções do rebuild. Prosseguir?')) return;
+
+  const btn = document.getElementById('btn-f8-restore');
+  const res = document.getElementById('f8-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Restaurando...';
+  res.style.display = 'block';
+  res.className = 'result-box';
+  res.textContent = '⏳ Restaurando snapshot...';
+
+  fetch('/api/admin/player_history/restore', {method:'POST'})
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) {
+        res.className = 'result-box result-error';
+        res.textContent = '❌ ' + d.error;
+        return;
+      }
+      res.className = 'result-box result-ok';
+      res.innerHTML =
+        `↩ <strong>Snapshot restaurado.</strong><br>` +
+        `PlayerHistory rows: ${d.restored_rows}<br>` +
+        `Players revertidos: ${d.players_reverted}<br>` +
+        `Snapshot: <code>${d.snapshot}</code>`;
+      setTimeout(() => location.reload(), 3000);
+    })
+    .catch(e => {
+      res.className = 'result-box result-error';
+      res.textContent = '❌ ' + e;
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = '↩ Restaurar Snapshot';
+    });
 }
 
 function backfillTrades() {

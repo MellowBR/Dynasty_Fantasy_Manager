@@ -16,13 +16,16 @@ def admin_page():
     teams_count  = Team.query.count()
     from models import get_config
     playoffs = get_config("playoffs_started", "false") == "true"
+    f8_rebuilt = get_config("f8_rebuilt", "false") == "true"
     return render_template("admin.html",
                            last_sync=last_sync,
                            player_count=player_count,
                            review_count=review_count,
                            teams_count=teams_count,
                            current_season=get_current_season(),
-                           playoffs_started=playoffs)
+                           playoffs_started=playoffs,
+                           f8_rebuilt=f8_rebuilt,
+                           f8_snapshot=_snapshot_info())
 
 
 # ── Sleeper Sync ──────────────────────────────────────────────────────────────
@@ -324,6 +327,121 @@ def sync_trades_backfill():
     result["previous_league_id"] = prev_id
     result["previous_season"] = prev_season
     return jsonify(result)
+
+
+# ── F8c: PlayerHistory canonical rebuild ─────────────────────────────────────
+
+import os as _os
+import json as _json
+import glob as _glob
+from datetime import datetime as _datetime
+
+_SNAPSHOT_DIR = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "data")
+_SNAPSHOT_GLOB = _os.path.join(_SNAPSHOT_DIR, ".player_history_snapshot_*.json")
+
+
+def _latest_snapshot_path():
+    files = sorted(_glob.glob(_SNAPSHOT_GLOB))
+    return files[-1] if files else None
+
+
+def _snapshot_info():
+    path = _latest_snapshot_path()
+    if not path:
+        return {"exists": False}
+    mtime = _os.path.getmtime(path)
+    dt = _datetime.fromtimestamp(mtime)
+    return {
+        "exists": True,
+        "path": path,
+        "filename": _os.path.basename(path),
+        "timestamp": dt.strftime("%d/%m/%Y %H:%M"),
+    }
+
+
+@admin_bp.route("/api/admin/player_history/rebuild", methods=["POST"])
+@admin_required
+def player_history_rebuild():
+    """
+    F8 — Rebuild PlayerHistory canonicamente via Sleeper chain.
+    ?dry_run=1 → apenas simula, não grava. Idempotente via UNIQUE.
+    """
+    try:
+        from sync_sleeper import _rebuild_player_history
+        dry_run = request.args.get("dry_run") in ("1", "true", "yes")
+        result = _rebuild_player_history(dry_run=dry_run)
+        result["dry_run"] = dry_run
+        return jsonify(result)
+    except Exception as e:
+        import traceback
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+
+
+@admin_bp.route("/api/admin/player_history/restore", methods=["POST"])
+@admin_required
+def player_history_restore():
+    """
+    F8 — Restaura o snapshot mais recente de player_history e reverte as
+    correções de Player.contract_start_season + acquisition_type via
+    f8_player_backup. Remove a flag f8_rebuilt.
+    """
+    from models import PlayerHistory, F8PlayerBackup, Player, AppConfig
+    from sqlalchemy import text
+
+    path = _latest_snapshot_path()
+    if not path:
+        return jsonify({"error": "Nenhum snapshot encontrado em data/"}), 404
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            rows = _json.load(f)
+
+        # 1. Replace player_history
+        db.session.execute(text("DELETE FROM player_history"))
+        db.session.commit()
+        for r in rows:
+            db.session.add(PlayerHistory(
+                id=r.get("id"),
+                player_id=r["player_id"],
+                season=r.get("season"),
+                team_name=r.get("team_name") or "",
+                event_type=r["event_type"],
+                salary=r.get("salary") or 0.0,
+                contract_year=r.get("contract_year") or 0,
+                notes=r.get("notes") or "",
+                sleeper_event_ref=r.get("sleeper_event_ref"),
+            ))
+        db.session.commit()
+
+        # 2. Revert Player fields via f8_player_backup
+        reverted = 0
+        backups = F8PlayerBackup.query.all()
+        for bk in backups:
+            player = db.session.get(Player, bk.player_id)
+            if not player:
+                continue
+            player.contract_start_season = bk.old_contract_start_season
+            player.acquisition_type = bk.old_acquisition_type or "unknown"
+            reverted += 1
+        db.session.commit()
+
+        # 3. Clear backup + flag
+        db.session.execute(text("DELETE FROM f8_player_backup"))
+        ac = db.session.get(AppConfig, "f8_rebuilt")
+        if ac:
+            db.session.delete(ac)
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "restored_rows": len(rows),
+            "players_reverted": reverted,
+            "snapshot": _os.path.basename(path),
+        })
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
 
 
 # ── ESPN PDF Import ──────────────────────────────────────────────────────────
