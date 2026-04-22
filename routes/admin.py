@@ -448,11 +448,30 @@ def player_history_restore():
             db.session.delete(ac)
         db.session.commit()
 
+        # 4. F8-RESTORE-GAP: o restore preserva Trade rows criadas após o snapshot,
+        # mas o DELETE em player_history acima apaga os events correspondentes.
+        # Executar backfill automaticamente para recriar os events faltantes via
+        # Sleeper chain. Falha aqui NÃO reverte o restore (já foi aplicado) —
+        # só reporta warning no payload.
+        backfill_result = None
+        backfill_error = None
+        try:
+            from sync_sleeper import _backfill_missing_trade_history
+            backfill_result = _backfill_missing_trade_history()
+        except Exception as bf_exc:
+            import traceback as _tb
+            backfill_error = {
+                "error": str(bf_exc),
+                "traceback": _tb.format_exc(),
+            }
+
         return jsonify({
             "success": True,
             "restored_rows": len(rows),
             "players_reverted": reverted,
             "snapshot": _os.path.basename(path),
+            "backfill_result": backfill_result,
+            "backfill_error": backfill_error,
         })
     except Exception as e:
         db.session.rollback()

@@ -501,6 +501,8 @@ function f8Restore() {
     'Vai: apagar PlayerHistory atual, re-inserir do snapshot mais recente, ' +
     'reverter Player.contract_start_season e acquisition_type dos players ' +
     'corrigidos, e remover a flag f8_rebuilt.\n\n' +
+    'Ao final, roda backfill automático dos eventos de trade que existem em ' +
+    'Trade table mas não têm rows em PlayerHistory (F8-RESTORE-GAP).\n\n' +
     'Isso desfaz as correções do rebuild. Prosseguir?')) return;
 
   const btn = document.getElementById('btn-f8-restore');
@@ -509,7 +511,7 @@ function f8Restore() {
   btn.textContent = '⏳ Restaurando...';
   res.style.display = 'block';
   res.className = 'result-box';
-  res.textContent = '⏳ Restaurando snapshot...';
+  res.textContent = '⏳ Restaurando snapshot + backfill automático...';
 
   fetch('/api/admin/player_history/restore', {method:'POST'})
     .then(r => r.json())
@@ -519,13 +521,24 @@ function f8Restore() {
         res.textContent = '❌ ' + d.error;
         return;
       }
-      res.className = 'result-box result-ok';
+      const bf = d.backfill_result;
+      const bfError = d.backfill_error;
+      let bfLine = '';
+      if (bfError) {
+        bfLine = `⚠️ Backfill automático falhou: ${bfError.error} — rode "Backfill de Trades Órfãs" manualmente.<br>`;
+      } else if (bf) {
+        const bfWarn = (bf.warnings || []).length;
+        bfLine = `Backfill automático: ${bf.processed} trades processadas, <strong>${bf.events_created}</strong> events recriados` +
+                 (bfWarn ? ` (${bfWarn} warnings)` : '') + `.<br>`;
+      }
+      res.className = 'result-box ' + (bfError ? 'result-warn' : 'result-ok');
       res.innerHTML =
         `↩ <strong>Snapshot restaurado.</strong><br>` +
         `PlayerHistory rows: ${d.restored_rows}<br>` +
         `Players revertidos: ${d.players_reverted}<br>` +
+        bfLine +
         `Snapshot: <code>${d.snapshot}</code>`;
-      setTimeout(() => location.reload(), 3000);
+      setTimeout(() => location.reload(), 3500);
     })
     .catch(e => {
       res.className = 'result-box result-error';

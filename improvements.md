@@ -29,7 +29,7 @@
 | M11 | Teste de auto-containment documental | Média | ✅ 22/04/2026 |
 | M12 | Vincular owners a times via tela de admin com lookup do Sleeper | Média | ✅ 22/04/2026 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
-| F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | 🔲 |
+| F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
 | M6 | Importar resultados de temporada para atualizar ESPN ref values automaticamente | Baixa | 🔲 |
 | M7 | Trade Manager: layout mais compacto e janela maior | Baixa | ✅ 02/04/2026 |
@@ -535,20 +535,21 @@ CREATE TABLE trade_proposals (
 
 ---
 
-### F8-RESTORE-GAP — Restore deveria chamar backfill_trades automaticamente
-🔲 **Pendente** — Prioridade **Baixa**
+### F8-RESTORE-GAP — Restore chama backfill_trades automaticamente
+✅ **Concluído (22/04/2026)** — Prioridade **Baixa**
 
 **Problema:** O endpoint `POST /api/admin/player_history/restore` (F8c) apaga `PlayerHistory` restaurando do snapshot JSON, mas **mantém** Trade rows criadas após o snapshot. Re-runs de `_sync_trades` skipam via idempotência de `Trade.sleeper_transaction_id`, deixando gap: trades existem em `Trade` table mas sem rows em `PlayerHistory`.
 
-**Descoberto em:** 22/04/2026, durante testes do F8c. O `_backfill_missing_trade_history()` foi criado como fix manual (F8-GAP), mas requer o admin lembrar de rodá-lo após cada `/restore`.
+**Implementado:**
+1. `player_history_restore()` em `routes/admin.py` chama `_backfill_missing_trade_history()` automaticamente após os passos 1-3 (restore rows + revert Player + clear backup/flag). Nova seção `4.` com try/except isolado — falha no backfill NÃO reverte o restore (que já foi aplicado), apenas reporta `backfill_error` no payload.
+2. JSON de retorno ganha campos `backfill_result` (com `processed`, `events_created`, `warnings`) e `backfill_error` (quando falha).
+3. UI (`templates/admin.html`, função `f8Restore`) exibe o resultado do backfill integrado na mensagem de sucesso. Confirm do botão atualizado mencionando que o backfill é automático. Classe `result-warn` aplicada quando backfill falha (restore bem-sucedido mas sem recuperação total).
 
-**Propostas:**
-1. **Automático:** ao final de `player_history_restore()` em `routes/admin.py`, chamar `_backfill_missing_trade_history()` automaticamente e incluir `trades_backfilled` no response JSON.
-2. **UI warning:** template do card F8 exibir alerta após uso do `/restore` recomendando rodar o backfill manualmente (menos automatizado mas mais explícito).
+**Validação (22/04/2026):**
+- Test cenário "snapshot stale": deletei 40 events de trade 2024 manualmente, chamei `_backfill_missing_trade_history()` → processou 18 trades, criou 40 events, state completo (78 → 118 trade events).
+- Test fluxo real: `POST /rebuild` → `POST /restore` → payload inclui `backfill_result` com contagens. Tank Dell (1 trade) e D'Andre Swift (3 trades) preservam events na timeline sem intervenção manual.
 
-**Recomendação:** Opção 1. O restore já é operação rara, adicionar ~100ms pra walking the chain é aceitável e elimina pegadinha que só se descobre tarde.
-
-**Escopo estimado:** ~10 linhas. Extensão do endpoint + atualização do JSON de retorno + ajuste do JS no admin.html para exibir `trades_backfilled` junto com `restored_rows`.
+**Observação:** botão "🔗 Backfill de Trades Órfãs" continua existindo como fallback manual (caso algum cenário externo crie Trade rows sem events — ex: import de dados, manipulação direta do DB). Operação inofensiva via idempotência UNIQUE.
 
 ---
 
