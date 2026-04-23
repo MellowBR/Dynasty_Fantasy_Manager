@@ -53,7 +53,7 @@
 | N1 | Redesign navbar: estrutura com dropdowns + acesso rápido aos times | Média | ✅ 23/04/2026 |
 | C1 | Cap projector: modo "drop programado" para simular liberações de cap | Média | 🔲 |
 | M8-PERM | Lottery: simulação aberta a owners + bloqueio server-side pós-oficial | Média | ✅ 23/04/2026 |
-| T2-FIX | Picks Rd2+ sem dynasty value no preview/proposta de trade | Média | 🔲 |
+| T2-FIX | Picks Rd2+ sem dynasty value no preview/proposta de trade | Média | ✅ 23/04/2026 |
 | IR-CLEANUP | Remover seletor manual de IR no roster (sync Sleeper já é autoritativo) | Baixa | 🔲 |
 
 ---
@@ -987,22 +987,34 @@ Não persiste nenhuma alteração no banco — é simulação pura, análoga ao 
 ---
 
 ### T2-FIX — Picks Rd2+ sem dynasty value no preview/proposta de trade
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (23/04/2026)** — Prioridade **Média**
 
-**Problema:** No preview de trade e na proposta gerada (T2), picks de Round 2 ou superior aparecem sem valor dynasty FantasyCalc, enquanto picks de Round 1 exibem o valor corretamente. Identificado em produção via screenshot. Comportamento inconsistente: a integração funciona parcialmente, sugerindo bug de mapeamento e não falha de fetch.
+**Causa raiz (diagnose MAN-T2-FIX-F1):** Bug duplo em `pick_sleeper_id` (`dynasty_values.py`). O helper gerava `DP_<year_offset>_<pick_index_global>` mas o FantasyCalc usa **dois formatos**:
+- `DP_<round-1>_<pick_in_round-1>` — picks específicas do draft próximo (2026)
+- `FP_<year>_<round>` — agregados por ano+round (2026, 2027, 2028)
 
-**Hipótese:** O helper `pick_sleeper_id(pick, current_season)` em `dynasty_values.py:123` gera o identificador `DP_<year_offset>_<pick_index>` esperado pela API FantasyCalc, mas o cálculo de `pick_index` provavelmente assume Rd1 (1-12) e não cobre Rd2+ corretamente (13-24, 25-36, ...). Picks de rounds superiores caem em IDs que não existem no dataset FantasyCalc, retornando `None` no `values_map.get(fc_sid)`.
+Eixo X estava errado (year_offset em vez de round-1) e eixo Y também (índice global cross-round em vez de within-round 0-11). Resultado: Rd1 retornava `DP_1_5` (=valor de uma Rd2, 1319) — bug latente exibindo dado errado. Rd2+ retornava índice fora de range (Y > 11) → None → 🪙 vazio (sintoma reportado).
 
-**Próximo passo:** Diagnose **Fase 1 (read-only)** obrigatório antes de qualquer fix:
-1. Inspecionar `pick_sleeper_id` para entender a fórmula atual de `pick_index`.
-2. Verificar formato esperado do dataset FantasyCalc (`data/.dynasty_values_cache.json`) — chaves para picks de Rd2+.
-3. Cruzar com `Pick.round` / `Pick.original_team_seed` no banco para uma trade real com Rd2+ que exibe valor faltando.
-4. Documentar causa raiz no improvements.md (sub-item "Fase 1 Diagnose ✅") antes de abrir prompt de implementação `MAN-T2-FIX`.
+**Implementado:** `pick_sleeper_id` reescrito com lookup em 3 camadas:
+1. **Tier 1 (DP):** se `pick.season == ano_DP` E `projected_pick > 0`: tenta `DP_<round-1>_<projected_pick-1>`. Hoje **dead code path** (Pick model não tem coluna `projected_pick`, 0/108 picks têm o atributo) — implementado para uso futuro caso algum caller popule dinamicamente.
+2. **Tier 2 (FP):** tenta `FP_<season>_<round>`. **Caminho vivo** para 100% das picks atuais.
+3. **Tier 3:** None se nenhuma key existe no cache.
 
-**Referências:**
-- T2 (concluído 22/04/2026) — integração FantasyCalc no preview de trade.
-- `dynasty_values.py` — fetcher + cache + helper `pick_sleeper_id`.
-- `routes/trades.py:71` — `_pick_asset_dict(pick, values_map, current_season)` consome o helper.
+Helper auxiliar `_detect_dp_year(values_map)` escaneia entries `DP_0_*` e parseia o ano do `name` ("2026 Pick 1.04" → 2026) — detecção dinâmica, sem hardcode. Quando o cache atualizar para 2027 no off-season, o ano avança automaticamente.
+
+Signature ganhou parâmetro opcional `values_map=None` para evitar I/O extra quando o caller já carregou o map (caso de `routes/trades.py`). Backwards-compatible.
+
+**Mudança visível:** picks Rd1 sem projection saltam de 1319 (DP_1_5 errado, valor Rd2) para 2695 (FP_2026_1 correto, valor Rd1 agregado). Não é regressão — é a correção do bug latente.
+
+**Validação (23/04/2026, 11 cenários):**
+- 2026 Rd1/2/3/4 sem projection → FP_2026_1/2/3/4 (2695, 1291, 849, 632).
+- 2027 Rd1/2 → FP_2027_1/2 (2939, 1488). 2028 Rd2 → FP_2028_2 (1283).
+- Tier 1 com mock projected_pick=4 → DP_0_3 (3272). projected_pick=6 Rd2 → DP_1_5 (1319).
+- season=2099 (não no cache) → None. season=2024 (passado) → None.
+- `_detect_dp_year(cache atual)` → 2026.
+- `salary_engine_test.py`: 48/48.
+
+**Não alterado:** estrutura do cache JSON, URL fetch, signature de `get_dynasty_values()`, `resolve_asset_value()`, `routes/trades.py`, templates.
 
 ---
 

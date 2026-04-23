@@ -10,6 +10,7 @@ Degradação elegante: se API cair, retorna dict vazio e UI mostra '—'.
 
 import json
 import os
+import re
 import time
 import requests
 from datetime import datetime
@@ -18,6 +19,9 @@ FC_URL = "https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=1&num
 CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", ".dynasty_values_cache.json")
 CACHE_TTL_HOURS = 24
 ROSTER_SIZE = 12  # trade league size — matches DP_ indexing in FantasyCalc
+
+# Parser para nomes como "2026 Pick 1.04" usados nos entries DP_*.
+_DP_NAME_RE = re.compile(r"^(\d{4})\s+Pick\s+\d+\.\d+", re.IGNORECASE)
 
 
 def _fetch_fantasycalc_values() -> dict | None:
@@ -120,30 +124,72 @@ def get_dynasty_values(force_refresh: bool = False) -> dict:
     return payload
 
 
-def pick_sleeper_id(pick, current_season: int) -> str | None:
+def _detect_dp_year(values_map: dict) -> int | None:
+    """Identify the year covered by DP_*_* entries (the next draft).
+
+    Scans for any DP_0_* entry and parses the year from its 'name'
+    (format "YYYY Pick X.YY"). Returns None if no DP entries found or
+    if names are in unexpected format — caller should fall back to FP_.
     """
-    Convert a Pick object into a FantasyCalc DP_<year_offset>_<pick_index> id.
+    for key, entry in values_map.items():
+        if not key.startswith("DP_0_"):
+            continue
+        name = (entry or {}).get("name") or ""
+        m = _DP_NAME_RE.match(name)
+        if m:
+            try:
+                return int(m.group(1))
+            except (ValueError, TypeError):
+                continue
+    return None
 
-    pick_index = (round - 1) * ROSTER_SIZE + (projected_pick - 1)
-    If projected_pick is None/0: use middle of the round as conservative estimate
-    (pick_index = (round - 1) * ROSTER_SIZE + 5).
 
-    Returns None if pick.season or pick.round is missing.
+def pick_sleeper_id(pick, current_season: int, values_map: dict | None = None) -> str | None:
+    """Map a Pick object to the best-matching FantasyCalc key.
+
+    Lookup em 3 camadas, em ordem de especificidade:
+      1. DP_<round-1>_<projected_pick-1> — pick específica do draft mais
+         próximo (DP). Só se pick.season == ano do DP E projected_pick > 0.
+      2. FP_<season>_<round> — agregado por ano+round (formato usado para
+         picks futuras e fallback quando projected_pick é desconhecido).
+      3. None — nenhuma das duas keys existe no cache.
+
+    Args:
+      pick: objeto Pick com .season e .round (e opcionalmente .projected_pick).
+      current_season: ano corrente do Manager (de get_current_season()).
+      values_map: opcional. Se None, carrega via get_dynasty_values().
+
+    Returns:
+      String com a key (DP_* ou FP_*) que existe no values_map, ou None.
     """
     season = getattr(pick, "season", None)
     rnd = getattr(pick, "round", None)
     if season is None or rnd is None:
         return None
-    year_offset = int(season) - int(current_season)
-    if year_offset < 0:
+    if int(season) < int(current_season):
         return None  # past seasons not in FC
 
+    if values_map is None:
+        values_map = get_dynasty_values().get("values", {})
+    if not values_map:
+        return None
+
+    # Tier 1: DP_<round-1>_<pp-1> quando season é do draft próximo e pp conhecido.
     pp = getattr(pick, "projected_pick", None) or 0
     if pp > 0:
-        pick_index = (int(rnd) - 1) * ROSTER_SIZE + (int(pp) - 1)
-    else:
-        pick_index = (int(rnd) - 1) * ROSTER_SIZE + 5  # middle-of-round fallback
-    return f"DP_{year_offset}_{pick_index}"
+        dp_year = _detect_dp_year(values_map)
+        if dp_year is not None and int(season) == dp_year:
+            dp_key = f"DP_{int(rnd) - 1}_{int(pp) - 1}"
+            if dp_key in values_map:
+                return dp_key
+
+    # Tier 2: FP_<year>_<round> agregado.
+    fp_key = f"FP_{int(season)}_{int(rnd)}"
+    if fp_key in values_map:
+        return fp_key
+
+    # Tier 3: nenhuma key disponível.
+    return None
 
 
 def resolve_asset_value(values_map: dict, sid: str | None) -> int | None:

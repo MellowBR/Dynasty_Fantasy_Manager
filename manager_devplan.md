@@ -414,6 +414,22 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 
 - **Validação via Flask test_client:** backfill → 29 imported; re-run → 0 imported, 29 skipped; contagens SQL corretas.
 
+### 23/04/2026 — Camada T2-FIX (pick_sleeper_id formato FantasyCalc)
+
+- **Decisão:** rewrite completo de `pick_sleeper_id` em vez de patch parcial. **Why:** diagnose MAN-T2-FIX-F1 revelou bug **duplo** — Rd1 exibia valor errado (DP_1_5 = Rd2 valor) silenciosamente, Rd2+ retornava None. Patchar apenas o índice deixaria Rd1 ainda apontando para keys DP_ erradas. Rewrite usando os formatos reais do FantasyCalc (DP_<round-1>_<pick-1> + FP_<year>_<round>) corrige ambos numa só passada.
+
+- **Decisão:** lookup em 3 camadas (DP específica → FP agregada → None). **Why:** DP cobre só o draft próximo com pick específica; FP é agregado per-year-per-round. Para picks sem projection conhecida (caso de 100% das picks atuais), FP é a opção semanticamente correta. Combinar dá resiliência futura.
+
+- **Decisão:** `_detect_dp_year(values_map)` parseia o ano dos entries DP_0_* em vez de hardcoded. **Why:** quando o cache for atualizado para 2027 no off-season FantasyCalc, o ano DP avança sem mudança de código. Custo: iteração linear no map até primeira DP_0_* — microsegundos.
+
+- **Decisão:** signature opcional `values_map=None` em `pick_sleeper_id`. **Why:** `routes/trades.py` já carrega o map uma vez via `get_dynasty_values()` em `_compute_cap_impact`. Repassar evita I/O redundante (file read por pick). Default `None` mantém backwards compat — caller atual não precisa mudar (e não muda, per restrição do prompt).
+
+- **Decisão:** Tier 1 (DP com projection) é dead code path hoje. **Why:** Pick model não tem coluna `projected_pick` (confirmado 0/108 picks com o atributo). Implementado mesmo assim para quando algum caller futuro popular dinamicamente (ex: enriquecimento via `_build_pick_projections` de `picks.py`). Não custa nada e evita re-fix depois.
+
+- **Decisão:** Rd1 vai exibir valor diferente do que owner viu antes (~1300 → ~2700) — comunicar no commit. **Why:** correção pode parecer regressão para quem se acostumou ao número errado. Documentar evita confusão.
+
+- **Validação por mock:** Pick model não tem `projected_pick`, então o teste de Tier 1 usa `class MockPick` com `setattr` dinâmico. Cobre o code path apesar de não haver pick real ativa.
+
 ### 23/04/2026 — Camada N1 (Redesign navbar)
 
 - **Decisão:** novo context processor `inject_nav_teams` separado do `inject_global_state` existente. **Why:** estado global (offseason flags) é cheap mas independe de autenticação; nav_teams precisa de guarda `is_authenticated` para evitar query em `/login`. Misturar misturaria responsabilidades. `with_entities()` retorna tuplas leves em vez de objetos ORM com lazy relationships.
