@@ -29,7 +29,7 @@
 | M11 | Teste de auto-containment documental | Média | ✅ 22/04/2026 |
 | M12 | Vincular owners a times via tela de admin com lookup do Sleeper | Média | ✅ 22/04/2026 |
 | M13 | Página de jogador + "Propor Trade" | Média | 🔲 |
-| M14 | /trades aceitar query params team_a/team_b (pré-requisito M9 + M13) | Média | 🔲 |
+| M14 | /trades aceitar query params team_a/team_b (pré-requisito M9 + M13) | Média | ✅ 23/04/2026 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
@@ -381,7 +381,23 @@ CREATE TABLE trade_proposals (
 ---
 
 ### M14 — `/trades` aceitar query params `team_a`/`team_b` para pré-selecionar
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (23/04/2026)** — Prioridade **Média**
+
+**Implementado:**
+- `routes/trades.py` `trades_page()`: lê `request.args.get("team_a")` e `team_b`, valida contra `{t.name for t in teams}` (ignora silenciosamente se não existir), passa como contexto `preset_team_a` / `preset_team_b`.
+- `templates/trades.html`: `data-preset="{{ preset_team_a or '' }}"` nos selects `sel-a` e `sel-b`.
+- JS `DOMContentLoaded`: itera pelos dois lados, se `dataset.preset` preenchido, seta `sel.value` e chama `loadSide(side, preset)` automaticamente. Guard `if (sel.value === preset)` evita disparo se o option não foi renderizado (defesa contra time removido entre render e load).
+
+**Validação (23/04/2026) — 4 cenários via Flask test_client:**
+
+| # | Query string | Resultado |
+|---|--------------|-----------|
+| 1 | `?team_a=Cangaceiros+da+Colina&team_b=Trust+The+Process` | Ambos presets populados, selects pré-selecionados no load |
+| 2 | (sem params) | Ambos `data-preset=""`, comportamento original |
+| 3 | `?team_a=TimeInexistente&team_b=Trust+The+Process` | Sel-a vazio (ignora), sel-b pré-selecionado |
+| 4 | `?team_a=Cangaceiros+da+Colina` (só um lado) | Sel-a pré-selecionado, sel-b vazio |
+
+**Desbloqueado para implementação:** M9 (clique em pick → trade pré-selecionado), M13 (botão "Propor Trade" na página de jogador).
 
 **Problema:** Hoje `trades_page` (`routes/trades.py:17-27`) carrega a tela com dois `<select>` vazios. Para a tela ser endpoint de atalho (vinda de M9 clique em pick, M13 botão "Propor Trade"), precisa aceitar `?team_a=<nome>&team_b=<nome>` e pré-carregar os seletores automaticamente.
 

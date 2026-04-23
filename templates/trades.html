@@ -24,7 +24,7 @@
         <label>Equipe A (envia):</label>
         <div class="trade-team-row">
           <img id="avatar-a" class="owner-avatar-sm" style="display:none" onerror="this.style.display='none'">
-          <select id="sel-a" onchange="loadSide('a', this.value)">
+          <select id="sel-a" onchange="loadSide('a', this.value)" data-preset="{{ preset_team_a or '' }}">
             <option value="">— selecionar —</option>
             {% for t in teams %}<option value="{{ t.name }}" data-avatar="{{ t.owner_avatar or '' }}">{{ t.name }}{% if t.owner_name %} ({{ t.owner_name }}){% endif %}</option>{% endfor %}
           </select>
@@ -51,7 +51,7 @@
         <label>Equipe B (envia):</label>
         <div class="trade-team-row">
           <img id="avatar-b" class="owner-avatar-sm" style="display:none" onerror="this.style.display='none'">
-          <select id="sel-b" onchange="loadSide('b', this.value)">
+          <select id="sel-b" onchange="loadSide('b', this.value)" data-preset="{{ preset_team_b or '' }}">
             <option value="">— selecionar —</option>
             {% for t in teams %}<option value="{{ t.name }}" data-avatar="{{ t.owner_avatar or '' }}">{{ t.name }}{% if t.owner_name %} ({{ t.owner_name }}){% endif %}</option>{% endfor %}
           </select>
@@ -526,5 +526,19 @@ function closeModal() {
   document.getElementById('modal-link-area').style.display = 'none';
   document.getElementById('modal-title').textContent = 'Preview da Trade';
 }
+
+// M14: se /trades foi aberto com ?team_a=<nome>&team_b=<nome>, pré-seleciona
+// ambos os lados e carrega rosters automaticamente.
+document.addEventListener('DOMContentLoaded', () => {
+  ['a', 'b'].forEach(side => {
+    const sel = document.getElementById('sel-' + side);
+    const preset = sel && sel.dataset.preset;
+    if (preset) {
+      sel.value = preset;
+      if (sel.value === preset) loadSide(side, preset);
+      // Se o option não existir (time removido entre render e load), sel.value vira ''.
+    }
+  });
+});
 </script>
 {% endblock %}

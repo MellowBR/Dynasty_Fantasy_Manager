@@ -21,11 +21,20 @@ def trades_page():
     recent = Trade.query.order_by(Trade.created_at.desc()).limit(30).all()
     owner_map = {t.name: t.owner_name or "" for t in teams}
     avatar_map = {t.name: t.owner_avatar or "" for t in teams}
+
+    # M14: aceita ?team_a=<nome>&team_b=<nome> para pré-selecionar os selects.
+    # Valida contra a lista de teams; se não bater, ignora silenciosamente.
+    team_names = {t.name for t in teams}
+    preset_a = request.args.get("team_a") if request.args.get("team_a") in team_names else None
+    preset_b = request.args.get("team_b") if request.args.get("team_b") in team_names else None
+
     return render_template("trades.html",
                            teams=teams,
                            recent_trades=recent,
                            owner_map=owner_map,
-                           avatar_map=avatar_map)
+                           avatar_map=avatar_map,
+                           preset_team_a=preset_a,
+                           preset_team_b=preset_b)
 
 
 # ── API ──────────────────────────────────────────────────────────────────────
