@@ -187,6 +187,16 @@
             ⚠️ SIMULAÇÃO — resultado NÃO é registrado. Marque a checkbox abaixo para sortear oficialmente.
           </div>
 
+          <div id="lottery-sorteando-banner" style="display:none;margin-top:1rem;padding:.6rem .85rem;background:rgba(110,168,254,.1);border:1px solid rgba(110,168,254,.35);border-radius:6px;color:#6ea8fe;font-weight:600;font-size:1rem;text-align:center">
+            🎯 <span id="sorteando-label">Sorteando Pick —</span>
+          </div>
+
+          <div id="lottery-next-pick-btn" style="display:none;margin-top:1rem;text-align:center">
+            <button class="btn btn-primary" id="btn-next-pick" onclick="rollNextPick()" style="font-size:1.05rem;padding:.75rem 1.5rem">
+              ▶ Sortear Pick 1
+            </button>
+          </div>
+
           <div class="step-actions" style="margin-top:1rem;display:flex;flex-wrap:wrap;gap:.75rem;align-items:center">
             {% if has_canonical_audit %}
               {# Canonical audit já existe — botão travar, botão re-run com justificativa #}
@@ -478,7 +488,11 @@ function submitReplace() {
   });
 }
 
+// Estado do sorteio faseado
+let stagedState = null;  // {pending: [picks], fixed: [picks], audit, isSimulation, tbody}
+
 function animateReveal(results, audit, isSimulation) {
+  // Prepara o sorteio faseado — não revela automaticamente. Usuário clica pra cada pick.
   results.sort((a, b) => a.pick_number - b.pick_number);
   const lottery5 = results.filter(r => r.source === 'lottery');
   const fixed = results.filter(r => r.source === 'standings');
@@ -491,54 +505,130 @@ function animateReveal(results, audit, isSimulation) {
   const pool = document.getElementById('lottery-pool');
   if (pool) {
     pool.querySelectorAll('.lottery-ball').forEach(b => {
-      b.classList.remove('eliminated', 'highlighted');
+      b.classList.remove('eliminated', 'highlighted', 'rolling');
     });
   }
 
-  let idx = 0;
-  function revealNext() {
-    if (idx >= lottery5.length) {
-      fixed.forEach(r => {
-        tbody.innerHTML += `<tr><td><strong>${r.pick_number}</strong></td><td>${r.team_name}</td><td><span class="tag tag-current">standings</span></td></tr>`;
-      });
-      if (isSimulation) {
-        showResult('step2-result', true,
-          'Simulação concluída — nada foi registrado. Marque "Sortear oficialmente" e rode de novo para o sorteio definitivo.');
-        // Desmarca o checkbox após simulação pra evitar clique acidental no próximo botão
-        const chk = document.getElementById('lottery-is-official');
-        if (chk) { chk.checked = false; updateLotteryButtonLabel(); }
-      } else {
-        const seed = audit ? audit.random_seed : '';
-        showResult('step2-result', true,
-          `Sorteio oficial executado! Seed: ${seed.slice(0, 16)}… Clique "Travar" para confirmar.`);
-        swapToLockedActions();
-        // Esconde banner e toggle — sorteio oficial feito
-        document.getElementById('lottery-simulation-banner').style.display = 'none';
-      }
-      return;
-    }
-    const pick = lottery5[idx];
-    if (pool) {
-      const teamBalls = pool.querySelectorAll(`.lottery-ball[data-team="${CSS.escape(pick.team_name)}"]:not(.eliminated)`);
-      if (teamBalls.length > 0) {
-        teamBalls[0].classList.add('highlighted');
-      }
-    }
-    tbody.innerHTML += `<tr><td><strong>${pick.pick_number}</strong></td><td>${pick.team_name}</td><td><span class="tag tag-trade">lottery</span></td></tr>`;
+  stagedState = {
+    pending: [...lottery5],
+    fixed,
+    audit,
+    isSimulation,
+    tbody,
+  };
 
-    setTimeout(() => {
-      if (pool) {
-        pool.querySelectorAll(`.lottery-ball[data-team="${CSS.escape(pick.team_name)}"]`).forEach(b => {
-          b.classList.remove('highlighted');
-          b.classList.add('eliminated');
-        });
+  updateNextPickButton();
+}
+
+function updateNextPickButton() {
+  const btnWrap = document.getElementById('lottery-next-pick-btn');
+  const btn = document.getElementById('btn-next-pick');
+  if (!stagedState || stagedState.pending.length === 0) {
+    btnWrap.style.display = 'none';
+    return;
+  }
+  const nextPick = stagedState.pending[0];
+  btnWrap.style.display = '';
+  btn.disabled = false;
+  btn.textContent = `▶ Sortear Pick ${nextPick.pick_number}`;
+}
+
+function rollNextPick() {
+  if (!stagedState || stagedState.pending.length === 0) return;
+  const pick = stagedState.pending.shift();  // pega o primeiro
+  const btn = document.getElementById('btn-next-pick');
+  const banner = document.getElementById('lottery-sorteando-banner');
+  const label = document.getElementById('sorteando-label');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Sorteando…';
+  label.textContent = `Sorteando Pick ${pick.pick_number}…`;
+  banner.style.display = '';
+
+  const pool = document.getElementById('lottery-pool');
+
+  // Roleta: pulsa bolinhas aleatórias ativas durante ~2.5s
+  const ROLL_DURATION_MS = 2500;
+  const PULSE_INTERVAL_MS = 90;
+  const rollStart = Date.now();
+
+  let lastPulsed = null;
+  const rollInterval = setInterval(() => {
+    if (lastPulsed) lastPulsed.classList.remove('rolling');
+    if (pool) {
+      const active = pool.querySelectorAll('.lottery-ball:not(.eliminated)');
+      if (active.length > 0) {
+        const random = active[Math.floor(Math.random() * active.length)];
+        random.classList.add('rolling');
+        lastPulsed = random;
       }
-      idx += 1;
-      setTimeout(revealNext, 400);
-    }, REVEAL_DELAY_MS);
+    }
+    if (Date.now() - rollStart >= ROLL_DURATION_MS) {
+      clearInterval(rollInterval);
+      if (lastPulsed) lastPulsed.classList.remove('rolling');
+      revealWinner(pick);
+    }
+  }, PULSE_INTERVAL_MS);
+}
+
+function revealWinner(pick) {
+  const pool = document.getElementById('lottery-pool');
+  const label = document.getElementById('sorteando-label');
+
+  // Highlight bolinha do time sorteado
+  if (pool) {
+    const teamBalls = pool.querySelectorAll(`.lottery-ball[data-team="${CSS.escape(pick.team_name)}"]:not(.eliminated)`);
+    if (teamBalls.length > 0) {
+      teamBalls[0].classList.add('highlighted');
+    }
   }
 
-  revealNext();
+  label.innerHTML = `✅ Pick ${pick.pick_number}: <strong>${pick.team_name}</strong>`;
+
+  // Adiciona à tabela de resultados
+  stagedState.tbody.innerHTML += `<tr><td><strong>${pick.pick_number}</strong></td><td>${pick.team_name}</td><td><span class="tag tag-trade">lottery</span></td></tr>`;
+
+  // Após 1.6s elimina bolinhas + prepara próxima pick
+  setTimeout(() => {
+    if (pool) {
+      pool.querySelectorAll(`.lottery-ball[data-team="${CSS.escape(pick.team_name)}"]`).forEach(b => {
+        b.classList.remove('highlighted');
+        b.classList.add('eliminated');
+      });
+    }
+    document.getElementById('lottery-sorteando-banner').style.display = 'none';
+
+    if (stagedState.pending.length === 0) {
+      finishStagedReveal();
+    } else {
+      updateNextPickButton();
+    }
+  }, 1600);
+}
+
+function finishStagedReveal() {
+  // Picks 6-12 aparecem de uma vez
+  stagedState.fixed.forEach(r => {
+    stagedState.tbody.innerHTML += `<tr><td><strong>${r.pick_number}</strong></td><td>${r.team_name}</td><td><span class="tag tag-current">standings</span></td></tr>`;
+  });
+
+  // Esconde botão "Sortear Pick"
+  document.getElementById('lottery-next-pick-btn').style.display = 'none';
+
+  if (stagedState.isSimulation) {
+    showResult('step2-result', true,
+      'Simulação concluída — nada foi registrado. Marque "Sortear oficialmente" e rode de novo para o sorteio definitivo.');
+    const chk = document.getElementById('lottery-is-official');
+    if (chk) { chk.checked = false; updateLotteryButtonLabel(); }
+  } else {
+    const seed = stagedState.audit ? stagedState.audit.random_seed : '';
+    showResult('step2-result', true,
+      `Sorteio oficial executado! Seed: ${seed.slice(0, 16)}… Clique "Travar" para confirmar.`);
+    swapToLockedActions();
+    document.getElementById('lottery-simulation-banner').style.display = 'none';
+  }
+
+  stagedState = null;
 }
 
 function swapToLockedActions() {
