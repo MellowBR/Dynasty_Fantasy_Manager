@@ -10,6 +10,13 @@
 <div class="card">
   <h2 class="card-title">Nova Trade</h2>
 
+  <!-- T2: Dynasty values freshness banner -->
+  <div id="dynasty-banner" class="dynasty-banner">
+    <span id="dynasty-banner-text" class="text-dim small-text">Carregando valores dynasty…</span>
+    <button class="btn-sm btn-secondary" id="btn-refresh-dynasty" onclick="refreshDynasty()"
+            style="margin-left:auto">🔄 Atualizar Valores</button>
+  </div>
+
   <div class="trade-layout">
     <!-- Team A -->
     <div class="trade-side">
@@ -61,6 +68,25 @@
           <div class="asset-list" id="picks-b"></div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- T2: Dynasty balance bar -->
+  <div id="dynasty-bar-section" class="dynasty-bar-section" style="display:none">
+    <div class="dynasty-bar-labels">
+      <div class="dynasty-bar-label-left">
+        <span class="dynasty-bar-team" id="dyn-name-a">—</span>
+        <span class="dynasty-bar-total">🪙 <strong id="dyn-total-a">0</strong></span>
+      </div>
+      <div class="dynasty-bar-delta-chip" id="dyn-delta-chip">—</div>
+      <div class="dynasty-bar-label-right">
+        <span class="dynasty-bar-total">🪙 <strong id="dyn-total-b">0</strong></span>
+        <span class="dynasty-bar-team" id="dyn-name-b">—</span>
+      </div>
+    </div>
+    <div class="dynasty-bar-track">
+      <div class="dynasty-bar-fill-a" id="dyn-fill-a" style="width:0%"></div>
+      <div class="dynasty-bar-fill-b" id="dyn-fill-b" style="width:0%"></div>
     </div>
   </div>
 
@@ -129,6 +155,84 @@
 const selected = { players: {a: new Set(), b: new Set()}, picks: {a: new Set(), b: new Set()} };
 const sideData = { players: {a:[], b:[]}, picks: {a:[], b:[]} };
 
+// T2: dynasty values map carregado uma vez ao abrir a página.
+// dynastyMap[sleeperId] = value (int). Para picks usa prefixo DP_...
+// pickFcSid(pick) gera o sleeper_id estilo FantasyCalc para lookup.
+let dynastyMap = {};
+let dynastyAvailable = false;
+let dynastyMeta = { count: 0, age_hours: null, fetched_at: null };
+let currentSeasonInt = null;
+
+const DYNASTY_ROSTER_SIZE = 12;
+
+function pickFcSid(pick) {
+  if (pick.season == null || pick.round == null || currentSeasonInt == null) return null;
+  const yearOffset = parseInt(pick.season) - currentSeasonInt;
+  if (yearOffset < 0) return null;
+  const pp = pick.projected_pick || 0;
+  const idx = pp > 0
+    ? (parseInt(pick.round) - 1) * DYNASTY_ROSTER_SIZE + (pp - 1)
+    : (parseInt(pick.round) - 1) * DYNASTY_ROSTER_SIZE + 5;
+  return `DP_${yearOffset}_${idx}`;
+}
+
+function fmtValue(v) {
+  if (v == null) return '—';
+  return v.toLocaleString('pt-BR');
+}
+
+function updateDynastyBanner() {
+  const banner = document.getElementById('dynasty-banner-text');
+  const btn = document.getElementById('btn-refresh-dynasty');
+  if (!dynastyAvailable) {
+    banner.textContent = '⚠️ Valores dynasty indisponíveis (FantasyCalc fora?).';
+    if (btn) btn.disabled = false;
+    return;
+  }
+  const age = dynastyMeta.age_hours;
+  let when;
+  if (age == null) when = 'há tempo desconhecido';
+  else if (age < 1) when = 'agora mesmo';
+  else if (age < 24) when = `há ${Math.round(age)}h`;
+  else when = `há ${Math.round(age/24)}d`;
+  banner.textContent = `🪙 Valores dynasty (FantasyCalc) — ${dynastyMeta.count} ativos, atualizados ${when}.`;
+  if (btn) btn.disabled = (age != null && age < 1);
+}
+
+function loadDynastyValues() {
+  fetch('/api/dynasty_values')
+    .then(r => r.json())
+    .then(d => {
+      dynastyMap = d.values || {};
+      dynastyAvailable = Object.keys(dynastyMap).length > 0;
+      dynastyMeta = { count: d.count || 0, age_hours: d.age_hours, fetched_at: d.fetched_at };
+      updateDynastyBanner();
+      updateDynastyBar();
+    })
+    .catch(() => {
+      dynastyMap = {}; dynastyAvailable = false;
+      updateDynastyBanner();
+    });
+}
+
+function refreshDynasty() {
+  const btn = document.getElementById('btn-refresh-dynasty');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Atualizando…'; }
+  fetch('/api/admin/dynasty_values/refresh', { method: 'POST' })
+    .then(r => r.json())
+    .then(() => loadDynastyValues())
+    .finally(() => {
+      if (btn) btn.textContent = '🔄 Atualizar Valores';
+    });
+}
+
+// Kick off dynasty load + current_season fetch on page open
+fetch('/api/teams').catch(() => {}); // warm-up
+loadDynastyValues();
+// current_season via context processor is exposed via g_current_season — but we need int.
+// Use a tiny endpoint probe: try to read from the DOM via a data attribute set by Jinja.
+currentSeasonInt = parseInt("{{ g_current_season }}") || null;
+
 function loadSide(side, teamName) {
   if (!teamName) return;
   selected.players[side].clear();
@@ -151,13 +255,21 @@ function loadSide(side, teamName) {
       sideData.players[side] = players;
       const div = document.getElementById('players-' + side);
       if (!players.length) { div.innerHTML = '<p class="text-dim">Sem jogadores.</p>'; return; }
-      div.innerHTML = players.map(p => `
+      div.innerHTML = players.map(p => {
+        const dv = dynastyMap[p.sleeper_player_id];
+        const dvBadge = dynastyAvailable
+          ? `<span class="dynasty-value-badge">🪙${dv != null ? fmtValue(dv) : '—'}</span>`
+          : '';
+        return `
         <label class="asset-item">
           <input type="checkbox" onchange="toggleAsset('${side}','players',${p.id})">
           <span class="pos-badge pos-${p.position.replace('/','')}">${p.position}</span>
           <span class="asset-name">${p.name}</span>
           <span class="text-dim small-text">$${Math.round(p.salary)} · ${p.contract_display}</span>
-        </label>`).join('');
+          ${dvBadge}
+        </label>`;
+      }).join('');
+      updateDynastyBar();
     });
 
   fetch('/api/picks?team=' + encodeURIComponent(teamName))
@@ -172,12 +284,20 @@ function loadSide(side, teamName) {
           label += ` ${prefix}${p.projected_pick}`;
         }
         const extra = p.traded_away ? ' (via trade)' : '';
+        const fcSid = pickFcSid(p);
+        const dv = fcSid ? dynastyMap[fcSid] : null;
+        const estimateSuffix = dv != null && !p.projected_pick ? ' est.' : '';
+        const dvBadge = dynastyAvailable
+          ? `<span class="dynasty-value-badge">🪙${dv != null ? fmtValue(dv) + estimateSuffix : '—'}</span>`
+          : '';
         return `<label class="asset-item">
           <input type="checkbox" onchange="toggleAsset('${side}','picks',${p.id})">
           <span class="pick-chip">${label}</span>
           <span class="text-dim small-text">${extra}</span>
+          ${dvBadge}
         </label>`;
       }).join('');
+      updateDynastyBar();
     });
 
   fetch('/api/teams').then(r => r.json()).then(teams => {
@@ -190,6 +310,80 @@ function loadSide(side, teamName) {
 function toggleAsset(side, type, id) {
   const set = selected[type][side];
   set.has(id) ? set.delete(id) : set.add(id);
+  updateDynastyBar();
+}
+
+function computeSideDynastyTotal(side) {
+  let total = 0;
+  for (const pid of selected.players[side]) {
+    const p = sideData.players[side].find(x => x.id === pid);
+    if (p) {
+      const v = dynastyMap[p.sleeper_player_id];
+      if (v) total += v;
+    }
+  }
+  for (const pkId of selected.picks[side]) {
+    const pk = sideData.picks[side].find(x => x.id === pkId);
+    if (pk) {
+      const v = dynastyMap[pickFcSid(pk)];
+      if (v) total += v;
+    }
+  }
+  return total;
+}
+
+function updateDynastyBar() {
+  const section = document.getElementById('dynasty-bar-section');
+  if (!dynastyAvailable) {
+    section.style.display = 'none';
+    return;
+  }
+  const nameA = document.getElementById('sel-a').value;
+  const nameB = document.getElementById('sel-b').value;
+  if (!nameA || !nameB) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+
+  // Totais recebidos por cada time = valor enviado pela CONTRAPARTE (lógica de trade).
+  // O lado A "recebe" o que o lado B ENVIA. Para simplicidade de barra, mostramos
+  // soma direta de cada lado (o que cada um está pondo na mesa).
+  const totalA = computeSideDynastyTotal('a');
+  const totalB = computeSideDynastyTotal('b');
+  const max = Math.max(totalA, totalB, 1);
+  const pctA = (totalA / max) * 100;
+  const pctB = (totalB / max) * 100;
+
+  document.getElementById('dyn-name-a').textContent = nameA;
+  document.getElementById('dyn-name-b').textContent = nameB;
+  document.getElementById('dyn-total-a').textContent = fmtValue(totalA);
+  document.getElementById('dyn-total-b').textContent = fmtValue(totalB);
+  document.getElementById('dyn-fill-a').style.width = pctA + '%';
+  document.getElementById('dyn-fill-b').style.width = pctB + '%';
+
+  // Chip no meio: quem recebe mais valor (quem ENVIA menos valor).
+  // A recebe = totalB (o que B envia). B recebe = totalA.
+  const aReceives = totalB;
+  const bReceives = totalA;
+  const delta = aReceives - bReceives;
+  const pct = (Math.max(aReceives, bReceives) > 0)
+    ? Math.abs(delta) / Math.max(aReceives, bReceives) * 100
+    : 0;
+  const chip = document.getElementById('dyn-delta-chip');
+  if (totalA === 0 && totalB === 0) {
+    chip.textContent = 'Selecione ativos';
+    chip.className = 'dynasty-bar-delta-chip neutral';
+  } else if (pct < 5) {
+    chip.textContent = '⚖️ Equilibrada';
+    chip.className = 'dynasty-bar-delta-chip neutral';
+  } else if (delta > 0) {
+    chip.textContent = `✅ ${nameA} leva +${fmtValue(Math.abs(delta))}`;
+    chip.className = 'dynasty-bar-delta-chip win-a';
+  } else {
+    chip.textContent = `✅ ${nameB} leva +${fmtValue(Math.abs(delta))}`;
+    chip.className = 'dynasty-bar-delta-chip win-b';
+  }
 }
 
 function getPayload() {
@@ -218,12 +412,31 @@ function previewTrade() {
 }
 
 function renderPreview(data) {
+  function assetLine(a, isPick) {
+    const name = isPick ? `${a.season} Rd${a.round}` : a.name;
+    const salary = isPick ? '' : ` ($${Math.round(a.salary)})`;
+    const dv = a.dynasty_value;
+    const estSuffix = isPick && a.dynasty_value_is_estimate && dv != null ? ' est.' : '';
+    const dvStr = data.dynasty_available && dv != null
+      ? ` 🪙${fmtValue(dv)}${estSuffix}`
+      : '';
+    return `${name}${salary}${dvStr}`;
+  }
   function side(s) {
-    const out_p = s.players_out.map(p => `${p.name} ($${Math.round(p.salary)})`).join(', ') || '—';
-    const in_p  = s.players_in.map(p => `${p.name} ($${Math.round(p.salary)})`).join(', ')  || '—';
-    const out_k = s.picks_out.map(p => `${p.season} Rd${p.round}`).join(', ') || '—';
-    const in_k  = s.picks_in.map(p  => `${p.season} Rd${p.round}`).join(', ')  || '—';
+    const out_p = s.players_out.map(p => assetLine(p, false)).join(', ') || '—';
+    const in_p  = s.players_in.map(p  => assetLine(p, false)).join(', ') || '—';
+    const out_k = s.picks_out.map(p => assetLine(p, true)).join(', ') || '—';
+    const in_k  = s.picks_in.map(p  => assetLine(p, true)).join(', ') || '—';
     const capCls = s.over_cap ? 'text-danger' : 'text-ok';
+
+    let dynastyLine = '';
+    if (data.dynasty_available) {
+      const deltaCls = s.dynasty_delta > 0 ? 'text-ok' : (s.dynasty_delta < 0 ? 'text-danger' : 'text-dim');
+      const deltaSign = s.dynasty_delta > 0 ? '+' : '';
+      dynastyLine = `<p>🪙 Dynasty: envia <strong>${fmtValue(s.dynasty_total_out)}</strong> · recebe <strong>${fmtValue(s.dynasty_total_in)}</strong> ·
+        Δ <span class="${deltaCls}">${deltaSign}${fmtValue(s.dynasty_delta)}</span></p>`;
+    }
+
     return `<div class="preview-side">
       <h3>${s.name}</h3>
       <p>📤 Envia: <strong>${out_p}</strong> | picks: ${out_k}</p>
@@ -231,10 +444,31 @@ function renderPreview(data) {
       <p>Cap: $${s.cap_before} → <span class="${capCls}">$${s.cap_after.toFixed(0)}</span>
          (restante: <span class="${capCls}">$${s.cap_remaining_after.toFixed(0)}</span>)</p>
       ${s.over_cap ? '<p class="text-danger">⚠️ Acima do cap!</p>' : ''}
+      ${dynastyLine}
     </div>`;
   }
+
+  // Advantage badge: positive delta for one side means that team receives more value
+  let advBadge = '';
+  if (data.dynasty_available) {
+    const dA = data.team_a.dynasty_delta;
+    const refVal = Math.max(
+      Math.abs(data.team_a.dynasty_total_in),
+      Math.abs(data.team_a.dynasty_total_out),
+      1
+    );
+    const pct = Math.abs(dA) / refVal * 100;
+    if (dA === 0 || pct < 5) {
+      advBadge = `<div class="dynasty-advantage neutral">⚖️ Trade equilibrada em valor dynasty</div>`;
+    } else if (dA > 0) {
+      advBadge = `<div class="dynasty-advantage win">✅ ${data.team_a.name} leva vantagem em valor dynasty (+${fmtValue(dA)})</div>`;
+    } else {
+      advBadge = `<div class="dynasty-advantage win">✅ ${data.team_b.name} leva vantagem em valor dynasty (+${fmtValue(-dA)})</div>`;
+    }
+  }
+
   document.getElementById('modal-content').innerHTML =
-    `<div class="preview-grid">${side(data.team_a)}${side(data.team_b)}</div>`;
+    `${advBadge}<div class="preview-grid">${side(data.team_a)}${side(data.team_b)}</div>`;
 }
 
 function generateLink() {

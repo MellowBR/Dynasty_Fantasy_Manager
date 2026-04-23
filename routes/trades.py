@@ -7,6 +7,7 @@ from flask_login import login_required, current_user
 
 from models import db, Player, Pick, Trade, Team, TradeProposal, SALARY_CAP, MY_TEAM_NAME, get_current_season
 from routes.auth import admin_required
+from dynasty_values import get_dynasty_values, pick_sleeper_id, resolve_asset_value, CACHE_TTL_HOURS
 
 trades_bp = Blueprint("trades", __name__)
 
@@ -29,11 +30,34 @@ def trades_page():
 
 # ── API ──────────────────────────────────────────────────────────────────────
 
+def _player_asset_dict(player, values_map):
+    """Player.to_dict() + dynasty_value via sleeper_player_id."""
+    d = player.to_dict()
+    d["dynasty_value"] = resolve_asset_value(values_map, player.sleeper_player_id)
+    return d
+
+
+def _pick_asset_dict(pick, values_map, current_season):
+    """Pick.to_dict() + dynasty_value via DP_<year_offset>_<pick_index>."""
+    d = pick.to_dict()
+    fc_sid = pick_sleeper_id(pick, current_season)
+    d["fc_sleeper_id"] = fc_sid
+    d["dynasty_value"] = resolve_asset_value(values_map, fc_sid)
+    # Marca picks sem projected_pick como estimativa (valor do middle-of-round)
+    d["dynasty_value_is_estimate"] = not getattr(pick, "projected_pick", None)
+    return d
+
+
+def _sum_values(assets):
+    return sum((a.get("dynasty_value") or 0) for a in assets)
+
+
 def _compute_cap_impact(team_a, team_b, players_a, players_b, picks_a, picks_b):
     """
-    Pure cap impact calculation — shared between preview endpoint and proposal
-    rendering. Picks don't affect cap (are future assets, salary=0).
-    Returns {team_a: {...}, team_b: {...}} with before/after/over_cap/assets.
+    Pure cap + dynasty value calculation — shared between preview endpoint and
+    proposal rendering. Picks don't affect cap (salary=0) but carry dynasty_value.
+    Returns {team_a: {...}, team_b: {...}, dynasty: {...}} with before/after,
+    over_cap, enriched assets and per-side dynasty totals.
     """
     cap_a = team_a.active_salary()
     cap_b = team_b.active_salary()
@@ -46,7 +70,33 @@ def _compute_cap_impact(team_a, team_b, players_a, players_b, picks_a, picks_b):
     cap_a_after = cap_a - sal_a_out + sal_a_in
     cap_b_after = cap_b - sal_b_out + sal_b_in
 
+    # Dynasty values — single cache read, client-side-ready payload
+    dv_payload = get_dynasty_values()
+    values_map = dv_payload.get("values") or {}
+    current_season = get_current_season()
+
+    # Enriched asset dicts with dynasty_value fields
+    ea_players_out = [_player_asset_dict(p, values_map) for p in players_a]
+    ea_players_in = [_player_asset_dict(p, values_map) for p in players_b]
+    ea_picks_out = [_pick_asset_dict(pk, values_map, current_season) for pk in picks_a]
+    ea_picks_in = [_pick_asset_dict(pk, values_map, current_season) for pk in picks_b]
+
+    eb_players_out = ea_players_in   # invert perspective
+    eb_players_in = ea_players_out
+    eb_picks_out = ea_picks_in
+    eb_picks_in = ea_picks_out
+
+    def dynasty_totals(out_players, in_players, out_picks, in_picks):
+        total_out = _sum_values(out_players) + _sum_values(out_picks)
+        total_in = _sum_values(in_players) + _sum_values(in_picks)
+        return {
+            "total_out": total_out,
+            "total_in": total_in,
+            "delta": total_in - total_out,
+        }
+
     def side(team, cap_before, cap_after, out_players, in_players, out_picks, in_picks):
+        totals = dynasty_totals(out_players, in_players, out_picks, in_picks)
         return {
             "name": team.name,
             "owner_name": team.owner_name or "",
@@ -55,16 +105,62 @@ def _compute_cap_impact(team_a, team_b, players_a, players_b, picks_a, picks_b):
             "cap_after": round(cap_after, 2),
             "cap_remaining_after": round(SALARY_CAP - cap_after, 2),
             "over_cap": cap_after > SALARY_CAP,
-            "players_out": [p.to_dict() for p in out_players],
-            "players_in":  [p.to_dict() for p in in_players],
-            "picks_out": [p.to_dict() for p in out_picks],
-            "picks_in":  [p.to_dict() for p in in_picks],
+            "players_out": out_players,
+            "players_in":  in_players,
+            "picks_out": out_picks,
+            "picks_in":  in_picks,
+            "dynasty_total_out": totals["total_out"],
+            "dynasty_total_in": totals["total_in"],
+            "dynasty_delta": totals["delta"],
         }
 
     return {
-        "team_a": side(team_a, cap_a, cap_a_after, players_a, players_b, picks_a, picks_b),
-        "team_b": side(team_b, cap_b, cap_b_after, players_b, players_a, picks_b, picks_a),
+        "team_a": side(team_a, cap_a, cap_a_after,
+                       ea_players_out, ea_players_in, ea_picks_out, ea_picks_in),
+        "team_b": side(team_b, cap_b, cap_b_after,
+                       eb_players_out, eb_players_in, eb_picks_out, eb_picks_in),
+        "dynasty_available": bool(values_map),
     }
+
+
+# ── T2: Dynasty values (FantasyCalc) ─────────────────────────────────────────
+
+@trades_bp.route("/api/dynasty_values")
+@login_required
+def dynasty_values_endpoint():
+    """
+    Retorna o cache atual (ou tenta fetch se stale). Usado pelo frontend para
+    carregar o mapa sid→value uma vez ao abrir /trades.
+    """
+    payload = get_dynasty_values()
+    fetched_at = payload.get("fetched_at")
+    age_hours = None
+    if fetched_at:
+        try:
+            dt = datetime.fromisoformat(fetched_at)
+            age_hours = round((datetime.utcnow() - dt).total_seconds() / 3600, 2)
+        except Exception:
+            age_hours = None
+    # Simplifica payload: {sid: value} direto (UI não precisa do resto)
+    simple = {sid: entry.get("value", 0) for sid, entry in (payload.get("values") or {}).items()}
+    return jsonify({
+        "values": simple,
+        "fetched_at": fetched_at,
+        "age_hours": age_hours,
+        "count": payload.get("count", 0),
+        "ttl_hours": CACHE_TTL_HOURS,
+    })
+
+
+@trades_bp.route("/api/admin/dynasty_values/refresh", methods=["POST"])
+@login_required  # qualquer owner pode atualizar — operação read-only (fetch externo)
+def dynasty_values_refresh():
+    """Força re-fetch do FantasyCalc ignorando TTL."""
+    payload = get_dynasty_values(force_refresh=True)
+    return jsonify({
+        "count": payload.get("count", 0),
+        "fetched_at": payload.get("fetched_at"),
+    })
 
 
 @trades_bp.route("/api/trades/preview", methods=["POST"])

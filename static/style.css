@@ -1095,3 +1095,130 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   .rules-grid { grid-template-columns: 1fr; }
   .cap-summary-grid { gap: .75rem; }
 }
+
+/* ── T2: Dynasty Values (FantasyCalc) ─────────────────────────────────── */
+
+.dynasty-banner {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .5rem .75rem;
+  margin-bottom: .9rem;
+  background: rgba(110, 168, 254, 0.06);
+  border: 1px solid rgba(110, 168, 254, 0.18);
+  border-radius: 6px;
+  font-size: .83rem;
+}
+
+.dynasty-value-badge {
+  font-size: .76rem;
+  color: var(--text-dim, #aaa);
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  border-radius: 99px;
+  padding: .08rem .45rem;
+  margin-left: auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.dynasty-bar-section {
+  margin: 1rem 0 .75rem;
+  padding: .75rem .85rem;
+  background: rgba(255,255,255,.02);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 8px;
+}
+
+.dynasty-bar-labels {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: .5rem;
+  font-size: .85rem;
+}
+
+.dynasty-bar-label-left {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  flex: 1;
+  justify-content: flex-start;
+}
+.dynasty-bar-label-right {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  flex: 1;
+  justify-content: flex-end;
+}
+.dynasty-bar-team {
+  font-weight: 600;
+}
+.dynasty-bar-total {
+  font-variant-numeric: tabular-nums;
+}
+
+.dynasty-bar-delta-chip {
+  font-size: .78rem;
+  padding: .2rem .6rem;
+  border-radius: 99px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.dynasty-bar-delta-chip.neutral {
+  background: rgba(255,255,255,.06);
+  color: var(--text-dim, #aaa);
+}
+.dynasty-bar-delta-chip.win-a {
+  background: rgba(110, 231, 183, 0.15);
+  color: #7ee2b5;
+}
+.dynasty-bar-delta-chip.win-b {
+  background: rgba(110, 231, 183, 0.15);
+  color: #7ee2b5;
+}
+
+.dynasty-bar-track {
+  display: flex;
+  height: 14px;
+  background: var(--bg4, rgba(255,255,255,.05));
+  border-radius: 99px;
+  overflow: hidden;
+  gap: 2px;
+}
+.dynasty-bar-fill-a,
+.dynasty-bar-fill-b {
+  height: 100%;
+  transition: width .35s ease;
+  max-width: 50%;
+  flex: 0 0 auto;
+}
+.dynasty-bar-fill-a {
+  background: linear-gradient(90deg, #6ea8fe 0%, #4d8df0 100%);
+  border-radius: 99px 0 0 99px;
+}
+.dynasty-bar-fill-b {
+  background: linear-gradient(90deg, #ff8f6b 0%, #e86a3a 100%);
+  border-radius: 0 99px 99px 0;
+  margin-left: auto;
+}
+
+.dynasty-advantage {
+  padding: .5rem .75rem;
+  margin-bottom: .75rem;
+  border-radius: 6px;
+  font-size: .88rem;
+  font-weight: 600;
+  text-align: center;
+}
+.dynasty-advantage.win {
+  background: rgba(110, 231, 183, 0.12);
+  border: 1px solid rgba(110, 231, 183, 0.3);
+  color: #7ee2b5;
+}
+.dynasty-advantage.neutral {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  color: var(--text-dim, #aaa);
+}

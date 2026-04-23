@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 22/04/2026 (T1 concluído — Trade Manager como simulador puro + link compartilhável)  
+> Última atualização: 22/04/2026 (T2 concluído — valores dynasty FantasyCalc no preview de trade)  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -114,6 +114,17 @@ Sync automático de trades + backfill da temporada anterior. Trade table passa d
 - **Migração:** `Trade.source` (default 'manual') + `Trade.sleeper_transaction_id` (unique nullable) via `_run_migrations()`.
 - **Tratamento C+ para N-way:** 2-way = row normal; N>2 = placeholder `team_b="N-way: ..."` + `description="[N-WAY] ..."`. Admin sempre vê a trade na UI, nunca precisa de código.
 - **UI:** card "Trades Históricas (Backfill)" em `/admin` com botão.
+
+### Camada T2 — Valores dynasty FantasyCalc no preview de trade ✅ Done (22/04/2026)
+
+Integra valores de mercado dynasty (fonte: FantasyCalc) ao simulador de trade. Preview ganha enriquecimento per-asset e barra visual que atualiza em tempo real conforme assets são selecionados.
+
+- **`dynasty_values.py`**: fetcher + cache JSON (`data/.dynasty_values_cache.json`, TTL 24h), `get_dynasty_values()`, `pick_sleeper_id()` para converter Pick em `DP_<year_offset>_<pick_index>`. Degradação elegante se API/cache indisponíveis.
+- **`_compute_cap_impact()` enriquecido**: cada asset ganha `dynasty_value`, cada side ganha `dynasty_total_out/in/delta`, top-level `dynasty_available`.
+- **2 endpoints novos** em `routes/trades.py`: `GET /api/dynasty_values` + `POST /api/admin/dynasty_values/refresh` (ambos `@login_required` — refresh não precisa admin por ser read-only externa).
+- **Frontend em `templates/trades.html`**: banner freshness, badge inline per checkbox (`🪙6.801`), barra espelhada dinâmica com recálculo 100% client-side em `toggleAsset()`, modal enriquecido com badge de vantagem e deltas por side.
+- **CSS em `static/style.css`**: `.dynasty-banner`, `.dynasty-value-badge`, `.dynasty-bar-section/track/fill-a/fill-b`, `.dynasty-advantage`.
+- **Validado em 6 cenários** (22/04/2026): endpoints OK, preview enriquecido (McBride ↔ Bowers delta +159), degradação elegante confirmada (FC fora + cache vazio → UI funciona sem dynasty), `salary_engine_test` 48/48.
 
 ### Camada T1 — Trade Manager como simulador puro + link compartilhável ✅ Done (22/04/2026)
 
@@ -361,6 +372,24 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 - **`trade_date` vem do `created` (ms epoch) do Sleeper**, não `datetime.utcnow()` — preserva cronologia histórica correta (listagem em `/trades` mostra ordem cronológica real).
 
 - **Validação via Flask test_client:** backfill → 29 imported; re-run → 0 imported, 29 skipped; contagens SQL corretas.
+
+### 22/04/2026 — Camada T2 (Valores dynasty FantasyCalc)
+
+- **FantasyCalc escolhido ao invés de KeepTradeCut** (opção original do improvements.md). Motivos: (a) API pública documentada e estável (`/values/current` com params explícitos), (b) matching por `sleeperId` exato — zero risco de ambiguidade de nome (problema histórico "3 Browns" do F1), (c) inclui picks de draft como entries `DP_<year_offset>_<pick_index>`, (d) gratuita sem rate limit agressivo, (e) retorna `value`, `overallRank`, `positionRank`, `trend30Day` num único request (~1MB). KTC seria API não-oficial/scraping + matching por nome com risco.
+
+- **Cache em JSON file, não tabela no banco.** Seguiu padrão do `.sleeper_players_cache.json` já existente. Vantagens: (a) operação ephemeral (regenerável via refetch), (b) sem migration, (c) trivial de invalidar (`rm data/.dynasty_values_cache.json`), (d) consistente com outro cache externo. Tabela no banco seria overkill.
+
+- **Recálculo da barra dynasty 100% client-side** via `toggleAsset()`. API chamada 1x ao load da página (`/api/dynasty_values`) + 1x em refresh manual. `toggleAsset` opera em memória lendo `dynastyMap[sid]` e soma. Alternativa rejeitada: POST a cada toggle para `/api/trades/preview` — traria latência de 100-300ms a cada clique e sobrecarregaria o backend. Recálculo local é instantâneo e adequado pra escala de ~25 assets por side.
+
+- **Refresh com `@login_required`, não `@admin_required`.** A operação é read-only do mundo externo (fetch FC + save cache local). Qualquer owner autenticado pode disparar um refresh se perceber que os valores estão stale. Não há risco de destruição. O botão fica desabilitado quando `age_hours < 1` — evita hammering.
+
+- **Picks sem `projected_pick` usam middle-of-round como estimativa.** Picks 2026+ nem sempre têm projected_pick preenchido (especialmente picks de rounds tardios ou de temporadas futuras). Fallback: `pick_index = (round-1) * 12 + 5` (pick 6 do round, meio da tabela). Valor marcado com sufixo "est." no badge para deixar claro que é estimativa. Alternativa rejeitada: usar o pick 1 (melhor do round) ou pick 12 (pior). Middle-of-round é o melhor compromisso sem info adicional.
+
+- **Degradação elegante preserva preview de cap.** Se FC + cache indisponíveis, `_compute_cap_impact` retorna `dynasty_available=False` e `dynasty_value=None` por asset. Frontend esconde a barra dynasty + badges ficam `—`. Cap impact original continua funcionando 100%. Feature dynasty é additive.
+
+- **Cobertura 84.9% é aceitável sem fallback por nome.** Os 42 players sem value são majoritariamente DSTs (Buffalo Bills DST etc.), kickers e fringe players — não costumam ser sujeitos de trades relevantes. Implementar fallback por nome normalizado traria risco "3 Browns" sem ganho proporcional. Se um owner tentar tradar um player sem value, vê `🪙—` no badge e segue — a barra ignora (0 somado).
+
+- **Barra espelhada em vez de barra empilhada.** Duas visualizações consideradas: (1) barra única com 2 cores mostrando proporção A:B, (2) barras separadas cada uma com 50% da largura máxima cresceindo de bordas pra dentro. Escolhi (2) — mais intuitivo visualmente ("cada lado puxa pro seu canto"), fica óbvio quem está colocando mais valor na mesa. A (1) daria leitura ambígua quando totalA=totalB=0.
 
 ### 22/04/2026 — Camada T1 (Trade Manager simulador + link compartilhável)
 
