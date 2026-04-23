@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 23/04/2026 (M14 + M9 concluídos — /trades com query params + grid navegável de picks)  
+> Última atualização: 23/04/2026 (M14 + M9 + M13 concluídos — atalho universal para propor trade em 1 clique)  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -114,6 +114,16 @@ Sync automático de trades + backfill da temporada anterior. Trade table passa d
 - **Migração:** `Trade.source` (default 'manual') + `Trade.sleeper_transaction_id` (unique nullable) via `_run_migrations()`.
 - **Tratamento C+ para N-way:** 2-way = row normal; N>2 = placeholder `team_b="N-way: ..."` + `description="[N-WAY] ..."`. Admin sempre vê a trade na UI, nunca precisa de código.
 - **UI:** card "Trades Históricas (Backfill)" em `/admin` com botão.
+
+### Camada M13 — Página de jogador + "Propor Trade" ✅ Done (23/04/2026)
+
+Entrega de página dedicada por jogador (`/player/<id>`) com foto (Sleeper CDN), bloco de contrato incluindo dynasty value, timeline histórica reusando `/api/player/<id>/history`, e botão "⇄ Propor Trade" que dispara M14 com os dois times pré-selecionados. Links a partir de `/` (roster), `/salary_history`, `/trades` concluem o atalho universal.
+
+- **Rota `GET /player/<int:player_id>`** em `routes/roster.py`. `player_id` (não `id`) para evitar shadow builtin. `dynasty_value` resolvido no backend via `get_dynasty_values()` (padrão T2) — zero flash visual, zero round-trip extra. `can_propose_trade` pré-calculado no backend.
+- **Partial novo `templates/_trade_detail_modal.html`** extrai modal clicável de trade do `salary_history.html`. Reusado em `/salary_history` e `/player/<id>`. Evita divergência futura.
+- **Template `player_detail.html`**: header com foto sleepercdn (onerror fallback), grid de contrato com 6 campos, timeline inline fetch. Botão "Propor Trade" condicional a `can_propose_trade`.
+- **Links em 3 telas**: roster (Jinja server + ícone 🔗 discreto preserva `showPlayerHistory` modal), salary_history (JS com `stopPropagation` pra não colidir com accordion), trades (JS com `target=_blank` + `stopPropagation` pra não toggleiar checkbox do `<label>`).
+- **Validado em 10 cenários** (23/04/2026): render McBride/Bowers, botão só pra outros times, 404, Hollywood sem sid, dynasty server-rendered, modal partial em ambas páginas, links corretos.
 
 ### Camada M9 — Grid navegável de picks + atalho para trade ✅ Done (23/04/2026)
 
@@ -394,6 +404,24 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 - **`trade_date` vem do `created` (ms epoch) do Sleeper**, não `datetime.utcnow()` — preserva cronologia histórica correta (listagem em `/trades` mostra ordem cronológica real).
 
 - **Validação via Flask test_client:** backfill → 29 imported; re-run → 0 imported, 29 skipped; contagens SQL corretas.
+
+### 23/04/2026 — Camada M13 (Página de jogador)
+
+- **`dynasty_value` no backend (E3 da análise crítica pré-impl).** M13 é render único (uma página por request). Diferente do T2 (client-side porque precisa recalcular ao `toggleAsset`), aqui backend resolver é: (a) 1 lookup em cache JSON local (~ms), (b) zero flash visual, (c) zero round-trip extra, (d) zero fallback JS se `/api/dynasty_values` falhar. Rejeitei padronizar client-side só por uniformidade — os dois casos têm natureza diferente.
+
+- **`player_id` em vez de `id` no parâmetro da rota (E1).** Python tem builtin `id(obj)`. Usar `id` como parâmetro em view function funciona mas shadowia o builtin dentro da função — confusão e tipagem de IDE. Padrão do projeto inteiro já usa `player_id`, `pick_id`, `tid`, `user_id`. Consistência.
+
+- **`event.stopPropagation()` no `<a>` do `trades.html` (E2, crítico).** Clique num filho de `<label>` com checkbox **toggleia o checkbox** por default HTML. Nome do jogador ficou `<a href="/player/..." target="_blank">` dentro do `<label class="asset-item">` — sem `stopPropagation`, clicar no nome do jogador pra abrir a página em nova aba **também** removeria/adicionaria o jogador da trade. Efeito colateral invisível e frustrante. Fix de 2 caracteres, essencial.
+
+- **Modal de trade clicável extraído como partial `_trade_detail_modal.html` (O1).** Originalmente inline em `salary_history.html` (F8-NOTES). M13 queria o mesmo modal. Duplicar HTML + CSS + 2 funções JS seria DRY violation — qualquer mudança futura precisaria sincronizar manualmente. Include partial é `{% include %}` simples do Jinja. Dependência: partial assume `escapeHtml(s)` no escopo host — documentei na primeira linha do arquivo.
+
+- **Foto via Sleeper CDN com `onerror` fallback.** Player model não tem coluna de foto. Sleeper serve `https://sleepercdn.com/content/nfl/players/thumb/<sleeper_player_id>.jpg` para a maioria dos jogadores ativos (e retorna 404 para retirees/DSTs/rookies recém-chegados). `onerror="this.style.display='none'"` faz o img sumir sem quebrar layout. Mesmo padrão já usado em avatars de team (`sleepercdn.com/avatars/...`). Zero schema change.
+
+- **`showPlayerHistory` modal inline do roster preservado.** Owner pode estar acostumado ao fluxo atual "clicar no nome → modal de histórico expandido". Em vez de substituir por "clicar no nome → página dedicada", adicionei ícone `🔗` discreto ao lado do nome. Quem quiser página dedicada clica no 🔗; quem quiser modal inline clica no nome. Evita quebrar expectativa.
+
+- **`can_propose_trade` boolean pré-calculado no backend**, não como 3-way condicional no Jinja (`{% if my_team_name and team and player.team_id != current_user.team_id %}`). Template fica `{% if can_propose_trade %}` — um único check, lógica clara no backend com fallbacks explícitos.
+
+- **EVENT_LABELS copiado inline no JS do `player_detail.html`** (O2 rejeitado). Análise crítica sugeriu extrair pra arquivo `static/js/event_labels.js`. Rejeitei: tela é a 2ª e última que usa os mapas (depois de `salary_history.html`). Extração pagaria com 3ª usuária, não 2ª. Se M10 (autocomplete) precisar, extrai aí.
 
 ### 23/04/2026 — Camada M9 (Grid de picks navegável)
 

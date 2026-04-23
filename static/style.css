@@ -1371,6 +1371,98 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   }
 }
 
+/* ── M13: Player detail page ─────────────────────────────────────────────── */
+
+.player-detail-header {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.player-photo {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04);
+}
+
+.player-detail-info h1 {
+  margin: 0 0 .4rem;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  font-size: 1.35rem;
+}
+
+.player-detail-team {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .92rem;
+  color: var(--text-dim, #aaa);
+  flex-wrap: wrap;
+}
+
+.player-detail-team strong {
+  color: var(--text, #e0e0e0);
+}
+
+.player-contract-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: .75rem;
+  margin-top: .25rem;
+}
+
+.player-contract-field {
+  padding: .6rem .75rem;
+  background: rgba(255,255,255,.03);
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,.05);
+}
+
+.player-contract-field .field-label {
+  font-size: .72rem;
+  color: var(--text-dim, #aaa);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.player-contract-field .field-value {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-top: .15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-link,
+.player-name[href],
+a.player-name {
+  color: var(--accent, #6ea8fe);
+  text-decoration: none;
+}
+
+.player-link:hover,
+.player-name[href]:hover,
+a.player-name:hover {
+  text-decoration: underline;
+}
+
+.player-external-link {
+  font-size: .75rem;
+  opacity: 0.5;
+  text-decoration: none;
+  margin-left: .2rem;
+  transition: opacity .15s;
+}
+
+.player-external-link:hover {
+  opacity: 1;
+}
+
 /* ── M8: Draft Lottery Visualization ─────────────────────────────────────── */
 
 .lottery-pool {

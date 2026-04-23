@@ -264,7 +264,9 @@ function loadSide(side, teamName) {
         <label class="asset-item">
           <input type="checkbox" onchange="toggleAsset('${side}','players',${p.id})">
           <span class="pos-badge pos-${p.position.replace('/','')}">${p.position}</span>
-          <span class="asset-name">${p.name}</span>
+          <a class="asset-name player-link" href="/player/${p.id}" target="_blank"
+             onclick="event.stopPropagation()"
+             title="Abrir página do jogador (nova aba)">${p.name}</a>
           <span class="text-dim small-text">$${Math.round(p.salary)} · ${p.contract_display}</span>
           ${dvBadge}
         </label>`;

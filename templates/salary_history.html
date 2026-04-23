@@ -41,17 +41,8 @@
   <div class="loading-msg">Carregando...</div>
 </div>
 
-<!-- Trade detail modal -->
-<div id="trade-detail-modal" class="modal" style="display:none">
-  <div class="modal-overlay" onclick="closeTradeDetail()"></div>
-  <div class="modal-box">
-    <h2 id="trade-detail-title">Detalhe da Trade</h2>
-    <div id="trade-detail-content"></div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closeTradeDetail()">Fechar</button>
-    </div>
-  </div>
-</div>
+<!-- M13/O1: modal de trade clicável extraído como partial reutilizável -->
+{% include '_trade_detail_modal.html' %}
 
 <style>
 .player-card {
@@ -144,27 +135,6 @@
   content: ' 🔍';
   font-size: .75em;
   opacity: .6;
-}
-.trade-detail-section {
-  margin-top: .75rem;
-}
-.trade-detail-section-title {
-  font-size: .78rem;
-  color: var(--text-dim, #888);
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  margin-bottom: .3rem;
-}
-.trade-detail-asset {
-  padding: .25rem 0;
-  font-size: .9rem;
-}
-.trade-detail-team-header {
-  font-weight: 600;
-  margin-top: .6rem;
-  margin-bottom: .3rem;
-  padding-bottom: .25rem;
-  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 </style>
 {% endblock %}
@@ -308,7 +278,9 @@ function renderPlayerCard(group) {
     <div class="player-card" data-player-id="${p.player_id}">
       <div class="player-card-header" onclick="togglePlayerTimeline(${p.player_id}, this)">
         <span class="pos-badge pos-${escapeHtml(posClass)}">${escapeHtml(p.position || '?')}</span>
-        <span class="player-name">${escapeHtml(p.player_name)}</span>
+        <a class="player-name" href="/player/${p.player_id}"
+           onclick="event.stopPropagation()"
+           title="Abrir página do jogador">${escapeHtml(p.player_name)}</a>
         <span class="text-dim">${escapeHtml(p.team_name || '—')}</span>
         <span class="current-salary salary-cell">$${Math.round(p.current_salary)}</span>
       </div>
@@ -339,52 +311,8 @@ function renderEventRow(e) {
     </div>`;
 }
 
-function openTradeDetail(txId) {
-  const modal = document.getElementById('trade-detail-modal');
-  const content = document.getElementById('trade-detail-content');
-  const title = document.getElementById('trade-detail-title');
-  title.textContent = 'Carregando...';
-  content.innerHTML = '<p class="text-dim">Buscando detalhes da trade...</p>';
-  modal.style.display = 'flex';
-
-  fetch(`/api/trades/by_tx/${encodeURIComponent(txId)}`)
-    .then(r => r.json())
-    .then(d => {
-      if (d.error) {
-        title.textContent = 'Trade não encontrada';
-        content.innerHTML = `<p class="text-dim">${escapeHtml(d.error)}</p>`;
-        return;
-      }
-      title.textContent = `${d.team_a} ⇄ ${d.team_b}`;
-
-      let html = `<p class="text-dim small-text">${escapeHtml(d.trade_date || '—')}</p>`;
-
-      const teams = Object.keys(d.assets_by_team || {});
-      if (teams.length === 0) {
-        html += '<p class="text-dim">Sem ativos rastreáveis nessa trade.</p>';
-      } else {
-        for (const team of teams) {
-          const assets = d.assets_by_team[team] || [];
-          html += `<div class="trade-detail-team-header">📥 ${escapeHtml(team)} recebeu:</div>`;
-          html += '<div class="trade-detail-section">';
-          for (const a of assets) {
-            html += `<div class="trade-detail-asset">· ${escapeHtml(a.asset)} <span class="text-dim small-text">(de ${escapeHtml(a.from)})</span></div>`;
-          }
-          html += '</div>';
-        }
-      }
-
-      content.innerHTML = html;
-    })
-    .catch(e => {
-      title.textContent = 'Erro';
-      content.innerHTML = `<p class="text-danger">Erro ao carregar: ${escapeHtml(String(e))}</p>`;
-    });
-}
-
-function closeTradeDetail() {
-  document.getElementById('trade-detail-modal').style.display = 'none';
-}
+// M13/O1: openTradeDetail + closeTradeDetail agora vêm do partial
+// templates/_trade_detail_modal.html (incluído no topo do template).
 
 function togglePlayerTimeline(playerId, headerEl) {
   const card = headerEl.closest('.player-card');

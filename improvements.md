@@ -28,7 +28,7 @@
 | M10 | Autocomplete de jogador na calculadora de salário | Baixa | 🔲 |
 | M11 | Teste de auto-containment documental | Média | ✅ 22/04/2026 |
 | M12 | Vincular owners a times via tela de admin com lookup do Sleeper | Média | ✅ 22/04/2026 |
-| M13 | Página de jogador + "Propor Trade" | Média | 🔲 |
+| M13 | Página de jogador + "Propor Trade" | Média | ✅ 23/04/2026 |
 | M14 | /trades aceitar query params team_a/team_b (pré-requisito M9 + M13) | Média | ✅ 23/04/2026 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
@@ -386,7 +386,56 @@ CREATE TABLE trade_proposals (
 ---
 
 ### M13 — Página de jogador + "Propor Trade"
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (23/04/2026)** — Prioridade **Média**
+
+**Implementado com 4 refinamentos da análise crítica pré-implementação (E1/E2/E3/O1):**
+
+1. **Rota `GET /player/<int:player_id>`** (`@login_required`) em `routes/roster.py`:
+   - E1: parâmetro nomeado `player_id` (não `id` — evita shadow do builtin Python).
+   - E3: `dynasty_value` resolvido no backend via `get_dynasty_values()` do T2. Passa como contexto Jinja. Zero fetch JS na página, sem flash visual.
+   - `can_propose_trade` boolean pré-calculado no backend — `my_team_name is not None AND player.team_id != current_user.team_id`. Simplifica condicional Jinja.
+   - Mapa `_ACQ_LABELS` PT-BR inline (10 entries) para traduzir acquisition_type.
+
+2. **Template novo `templates/player_detail.html`** (~180 linhas):
+   - Header flex: foto via `sleepercdn.com/content/nfl/players/thumb/<sid>.jpg` com `onerror="this.style.display='none'"` + nome + posição + time + owner avatar.
+   - Botão "⇄ Propor Trade" só renderizado quando `can_propose_trade=True`. Link via `url_for('trades.trades_page', team_a=my_team_name, team_b=team.name)` — M14 pré-seleciona ambos.
+   - Bloco contrato: grid com 6 campos (salary, contract_display, contract_start_season, acquisition_label, espn_ref_value, dynasty_value formatado "🪙 X.XXX").
+   - Timeline via fetch `/api/player/<id>/history` reusando `renderEventRow` (copiado inline + mesmo `EVENT_LABELS`/`EVENT_BADGES` do salary_history).
+   - Include `_trade_detail_modal.html` para eventos de trade clicáveis.
+
+3. **Partial novo `templates/_trade_detail_modal.html`** (O1 aplicado — ~80 linhas):
+   - Extrai o modal de trade clicável do `salary_history.html` para partial reutilizável.
+   - Inclui HTML + CSS (`.trade-detail-*`) + JS (`openTradeDetail`, `closeTradeDetail`).
+   - Assume `escapeHtml(s)` disponível no escopo host (função simples, duplicada nos templates consumidores — trade-off aceito).
+
+4. **`templates/salary_history.html`** refatorado para usar o include — modal inline removido, `<style>` e `<script>` enxutos. Nome do jogador no `renderPlayerCard` agora é `<a href="/player/${p.player_id}" onclick="event.stopPropagation()">` — `stopPropagation` evita colidir com o toggle do accordion.
+
+5. **`templates/roster.html`** ganhou:
+   - Lista resumo de `renewal_candidates` e `needs_review` com links `<a href="{{ url_for('roster.player_detail', player_id=p.id) }}">`.
+   - Cada linha de player-row ganhou ícone discreto `🔗` ao lado do nome (título "Abrir página do jogador") — preserva comportamento atual de `showPlayerHistory` modal inline que owner pode já estar usando.
+
+6. **`templates/trades.html`** — E2 aplicado:
+   - Nome do jogador nos checkboxes virou `<a class="asset-name" href="/player/${p.id}" target="_blank" onclick="event.stopPropagation()">`.
+   - **`event.stopPropagation()` é crítico**: sem ele, clique no `<a>` dentro do `<label>` toggleia o checkbox por default HTML. `target="_blank"` preserva estado da trade atual.
+
+7. **CSS (`static/style.css`)**: `.player-detail-header`, `.player-photo` (96px circle), `.player-contract-grid`/`.player-contract-field` com `field-label` + `field-value`, `.player-link` azul, `.player-external-link` discreto (opacity 0.5 → 1 hover).
+
+**Validação (23/04/2026) — 10 cenários via Flask test_client:**
+
+| # | Cenário | Resultado |
+|---|---------|-----------|
+| 1 | GET `/player/91` (McBride) | 200, nome + foto + timeline + modal tudo presente |
+| 2 | McBride (mesmo time do admin) — botão "Propor Trade" | **NÃO aparece** ✓ |
+| 3 | Bowers (Trust The Process) — botão aparece | ✓ href=`/trades?team_a=Cangaceiros+da+Colina&team_b=Trust+The+Process` |
+| 4 | `/` (roster) tem links `/player/<id>` | 25 links encontrados + ícone `🔗` |
+| 5 | `/salary_history` JS `renderPlayerCard` | link + `stopPropagation` presentes |
+| 6 | `/trades` JS `loadSide` | `target="_blank"` + `stopPropagation` + link `/player/${p.id}` |
+| 7 | Hollywood Brown (sem sleeper_player_id) | img suprimido via Jinja `{% if %}`, nome e resto OK |
+| 8 | GET `/player/99999` | **404** via `abort(404)` |
+| 9 | E3: dynasty_value server-rendered | `🪙 X.XXX` no HTML static, zero `/api/dynasty_values` fetch |
+| 10 | O1: modal partial em ambas páginas | `openTradeDetail` + `#trade-detail-modal` em `/salary_history` E `/player/<id>` |
+
+**Arquivos modificados:** `routes/roster.py` (rota + ACQ_LABELS, ~60 linhas), `templates/player_detail.html` (novo, ~180), `templates/_trade_detail_modal.html` (novo, ~80), `templates/salary_history.html` (include + link + clean), `templates/roster.html` (2 refs + link external), `templates/trades.html` (asset-name → `<a>`), `static/style.css` (+80 linhas M13 classes).
 
 **Problema:** Não existe página dedicada por jogador no Manager. Para propor trade por um jogador específico (de outro time), o owner vai até `/trades` e seleciona manualmente os times e o jogador na lista de checkboxes. Navegação indireta.
 

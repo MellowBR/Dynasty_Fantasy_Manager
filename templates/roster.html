@@ -72,7 +72,7 @@
 <div class="alert alert-warn">
   ⚠️ <strong>{{ summary.renewal_candidates | length }} jogador(es) no Ano 4</strong> — renovar ou cortar:
   {% for p in summary.renewal_candidates %}
-    <a href="#player-{{ p.id }}" class="tag tag-renewal">{{ p.name }}</a>
+    <a href="{{ url_for('roster.player_detail', player_id=p.id) }}" class="tag tag-renewal">{{ p.name }}</a>
   {% endfor %}
 </div>
 {% endif %}
@@ -81,7 +81,7 @@
 <div class="alert alert-info">
   🔍 <strong>{{ summary.needs_review | length }} jogador(es) precisam de revisão</strong> (adicionados pelo Sleeper Sync):
   {% for p in summary.needs_review %}
-    <span class="tag tag-review">{{ p.name }}</span>
+    <a href="{{ url_for('roster.player_detail', player_id=p.id) }}" class="tag tag-review">{{ p.name }}</a>
   {% endfor %}
 </div>
 {% endif %}
@@ -109,6 +109,7 @@
         <div class="player-info">
           <span class="player-name">
             <a href="javascript:void(0)" onclick="showPlayerHistory({{ p.id }})" class="player-name-link">{{ p.name }}</a>
+            <a href="{{ url_for('roster.player_detail', player_id=p.id) }}" class="player-external-link" title="Abrir página do jogador">🔗</a>
             {% if p.is_on_ir %}<span class="tag tag-ir">🏥 IR</span>{% endif %}
             {% if p.via_trade %}<span class="tag tag-trade">TRADE</span>{% endif %}
             {% if p.is_renewal_candidate() %}<span class="tag tag-renewal">ANO 4</span>{% endif %}

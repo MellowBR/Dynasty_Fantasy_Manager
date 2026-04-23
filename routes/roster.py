@@ -1,5 +1,5 @@
-from flask import Blueprint, render_template, request, jsonify
-from flask_login import login_required
+from flask import Blueprint, render_template, request, jsonify, abort
+from flask_login import login_required, current_user
 from models import db, Team, Player, SALARY_CAP, MAX_IR, MY_TEAM_NAME, POS_ORDER, sort_players_by_pos
 from routes.auth import admin_required
 
@@ -307,3 +307,68 @@ def search_players():
         query = query.filter_by(team_id=team_id)
     players = query.limit(20).all()
     return jsonify([p.to_dict() for p in players])
+
+
+# ── M13: Player detail page ──────────────────────────────────────────────────
+
+# PT-BR labels for acquisition_type (reused from salary_history EVENT_LABELS convention)
+_ACQ_LABELS = {
+    "auction_draft": "Startup Auction",
+    "rookie_draft": "Rookie Draft",
+    "fa_auction": "FA Auction",
+    "fa_waiver": "Waiver / Free Agent",
+    "free_agent": "Free Agent",
+    "waiver": "Waiver",
+    "trade": "Trade",
+    "keeper": "Mantido como keeper",
+    "unknown": "Origem não registrada",
+    "commissioner": "Ajuste do comissário",
+}
+
+
+@roster_bp.route("/player/<int:player_id>")
+@login_required
+def player_detail(player_id):
+    """
+    M13 — Página dedicada por jogador: header + contrato + timeline +
+    botão 'Propor Trade' (só se current_user tem time vinculado e o jogador
+    é de outro time). Dynasty value resolvido no backend (E3) para evitar
+    flash visual.
+    """
+    player = db.session.get(Player, player_id)
+    if not player:
+        abort(404)
+
+    team = player.team_rel  # pode ser None
+
+    my_team_name = (current_user.team_rel.name
+                    if current_user.is_authenticated and current_user.team_rel
+                    else None)
+
+    # E3: dynasty_value via backend (página única, sem necessidade de fetch JS)
+    dynasty_value = None
+    try:
+        from dynasty_values import get_dynasty_values
+        values_map = get_dynasty_values().get("values") or {}
+        if player.sleeper_player_id:
+            entry = values_map.get(player.sleeper_player_id)
+            if entry:
+                dynasty_value = entry.get("value")
+    except Exception:
+        dynasty_value = None  # fallback silencioso se cache/API indisponível
+
+    can_propose_trade = (
+        my_team_name is not None
+        and team is not None
+        and player.team_id != current_user.team_id
+    )
+
+    acquisition_label = _ACQ_LABELS.get(player.acquisition_type, player.acquisition_type or "—")
+
+    return render_template("player_detail.html",
+                           player=player,
+                           team=team,
+                           my_team_name=my_team_name,
+                           dynasty_value=dynasty_value,
+                           can_propose_trade=can_propose_trade,
+                           acquisition_label=acquisition_label)
