@@ -207,6 +207,30 @@ function triggerSync() {
     });
 }
 
+// ── Navbar dropdowns: toggle on click + click outside fecha ─────────────────
+document.addEventListener('click', function(e) {
+  const trigger = e.target.closest('.nav-group-label, .nav-user-button');
+  if (trigger) {
+    e.preventDefault();
+    e.stopPropagation();
+    const group = trigger.closest('.nav-group, .nav-user-menu');
+    const wasOpen = group.classList.contains('nav-open');
+    document.querySelectorAll('.nav-open').forEach(el => {
+      if (el !== group) el.classList.remove('nav-open');
+    });
+    group.classList.toggle('nav-open', !wasOpen);
+    return;
+  }
+  if (!e.target.closest('.nav-dropdown')) {
+    document.querySelectorAll('.nav-open').forEach(el => el.classList.remove('nav-open'));
+  }
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.nav-open').forEach(el => el.classList.remove('nav-open'));
+  }
+});
+
 // ── Helper: renderiza nome de jogador como link para /player/<id> ───────────
 function renderPlayerNameLink(p, opts) {
   opts = opts || {};

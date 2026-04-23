@@ -1683,7 +1683,7 @@ a.player-name:hover {
   z-index: 200;
 }
 .nav-group:hover > .nav-dropdown,
-.nav-group:focus-within > .nav-dropdown {
+.nav-group.nav-open > .nav-dropdown {
   display: block;
 }
 .nav-dropdown-item {
@@ -1781,7 +1781,7 @@ a.player-name:hover {
   min-width: 180px;
 }
 .nav-user-menu:hover > .nav-dropdown-user,
-.nav-user-menu:focus-within > .nav-dropdown-user {
+.nav-user-menu.nav-open > .nav-dropdown-user {
   display: block;
 }
 
