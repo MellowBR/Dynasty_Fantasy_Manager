@@ -46,6 +46,13 @@
 | F1 | Correção de salários por partial name match (3 Browns bug) | Alta | ✅ 28/03/2026 |
 | F2 | Ordenação do Round 1 via `draft_lottery_result` + `season_standings` | Alta | ✅ 28/03/2026 |
 | F3 | Histórico inline (accordion) na aba de histórico | Média | ✅ 28/03/2026 |
+| O1 | Linkificar nomes de jogadores em todas as telas | Média | 🔲 |
+| O2 | Enriquecer página do jogador: stats históricas + ADP | Média | 🔲 |
+| L1 | League Hub: visão geral da liga + detalhe por time | Alta | 🔲 |
+| L2 | League Hub season mode: matchups, schedule, standings | Baixa | 🔲 |
+| N1 | Redesign navbar: estrutura com dropdowns + acesso rápido aos times | Média | 🔲 |
+| C1 | Cap projector: modo "drop programado" para simular liberações de cap | Média | 🔲 |
+| M8-PERM | Lottery: simulação aberta a owners + bloqueio server-side pós-oficial | Média | ✅ 23/04/2026 |
 
 ---
 
@@ -820,6 +827,101 @@ Validado (7 cenários): 108 células clicáveis (12×3×3), 9 minhas (pick_a) + 
 - Test fluxo real: `POST /rebuild` → `POST /restore` → payload inclui `backfill_result` com contagens. Tank Dell (1 trade) e D'Andre Swift (3 trades) preservam events na timeline sem intervenção manual.
 
 **Observação:** botão "🔗 Backfill de Trades Órfãs" continua existindo como fallback manual (caso algum cenário externo crie Trade rows sem events — ex: import de dados, manipulação direta do DB). Operação inofensiva via idempotência UNIQUE.
+
+---
+
+### O1 — Linkificar Nomes de Jogadores em Todas as Telas
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** A página de jogador (`GET /player/<player_id>`, M13) existe mas só está acessível via ícone `🔗` no roster e salary_history. No cap projector, tela de trades e demais listers, o nome do jogador não leva à página dedicada.
+
+**Objetivo:** Em toda tela que lista jogadores, o nome deve ser um link clicável para `/player/<player_id>`. Na tela de trades, o `stopPropagation` já existe — só falta o `href`. Verificar todas as ocorrências: roster, cap projector, trades, picks, salary_history, player_detail (jogadores listados em trades relacionadas).
+
+---
+
+### O2 — Enriquecer Página do Jogador: Stats Históricas + ADP
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** A página atual (`player_detail.html`, M13) mostra contrato, salary history e botão "Propor Trade". Falta contexto de valor de campo: pontuações históricas por temporada e posição no ranking/ADP.
+
+**Objetivo:**
+- **Stats históricas:** buscar da Sleeper API (`/stats/nfl/player/<sleeper_player_id>?season_type=regular&season=<year>`) — pontos totais e média por semana por temporada disponível.
+- **ADP/Ranking:** usar `adp` e `search_rank` já presentes no Sleeper players cache (`.sleeper_players_cache.json`) — zero request extra. Para ranking ESPN, usar ESPN ref value (`espn_ref_value`) já no banco como proxy de tier.
+- Apresentar de forma compacta, sem sobrecarregar a página.
+
+---
+
+### L1 — League Hub: Visão Geral da Liga + Detalhe por Time
+🔲 **Pendente** — Prioridade **Alta**
+
+**Problema:** Não existe uma tela consolidada com o estado de todos os times da liga. Para comparar cap space, picks ou dynasty value entre times, é necessário navegar time a time.
+
+**Objetivo:**
+- **`GET /league`** — visão geral: cards por time mostrando owner, cap space, nº de picks disponíveis, dynasty value total do roster, record da última temporada. Clique no card leva ao detalhe do time.
+- **`GET /team/<team_id>`** — detalhe do time: roster com contratos (agrupado por posição), picks por ano, cap breakdown (comprometido vs disponível), dynasty value total. Modo offseason por ora.
+- Reutilizar componentes existentes (pos-badge, salary display, dynasty value badges do T2).
+
+---
+
+### L2 — League Hub Season Mode: Matchups, Schedule, Standings
+🔲 **Pendente** — Prioridade **Baixa**
+
+**Problema:** Durante a temporada, a visão de liga precisa incluir resultados semanais, schedule e standings — dados que o Manager ainda não consome.
+
+**Objetivo:**
+- Sync de matchups via Sleeper API (`/league/<id>/matchups/<week>`).
+- Na vista `/league`: adicionar coluna de record e pontos totais.
+- Na vista `/team/<id>`: adicionar aba "Temporada" com schedule semanal e pontuações.
+- **Pré-requisito:** L1 concluído. Implementar quando a temporada 2026 começar.
+
+---
+
+### N1 — Redesign Navbar
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** A navbar atual tem links soltos sem hierarquia. Com a chegada de L1 (League Hub) e O1 (página de jogador linkificada), o número de destinos cresce e a navegação fica confusa.
+
+**Objetivo:** Reorganizar a navbar principal com dropdowns contextuais:
+- **Meu Time** → roster do usuário logado
+- **Liga ▾** → League Hub (`/league`), Histórico de Trades
+- **Jogadores ▾** → Cap Projector, Salary History
+- **Trades** → simulador `/trades`
+- **Picks** → grid `/picks`
+- **Times ▾** → dropdown com os 12 times da liga (estilo ESPN "Opposing Teams"), cada um linkando para `/team/<id>` (L1)
+
+Pré-requisito: L1 concluído (para que `/team/<id>` exista).
+
+---
+
+### C1 — Cap Projector: Modo "Drop Programado"
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** O cap projector simula o roster atual. Não há como avaliar o impacto de cortar jogadores ou liberar cap para uma trade sem alterar dados reais.
+
+**Objetivo:** Adicionar no cap projector a possibilidade de marcar jogadores como "drop temporário" — apenas na sessão de simulação, sem alterar o banco. O cap projetado recalcula em tempo real excluindo os jogadores marcados. Útil para:
+- Planejar cortes de offseason
+- Avaliar se há cap suficiente para receber um jogador numa trade
+- Simular cenários antes de propor uma troca
+
+Não persiste nenhuma alteração no banco — é simulação pura, análoga ao que o simulador de trades já faz.
+
+---
+
+### M8-PERM — Lottery: Simulação aberta a owners + bloqueio pós-oficial
+✅ **Concluído (23/04/2026)** — Prioridade **Média**
+
+**Problema:** Pós-M8, `/lottery/simulate` ficou com `@admin_required` (owners não podiam testar cenários de bolinhas). Adicionalmente não havia guarda server-side bloqueando simulação após o sorteio oficial — só a guarda visual no template via `has_canonical_audit`.
+
+**Implementado:**
+1. `routes/offseason.py:354` — decorator de `lottery_simulate` trocado de `@admin_required` para `@login_required`.
+2. `routes/offseason.py` — guarda no topo de `lottery_simulate`: se existir `LotteryAudit` com `is_canonical=True` para `current_season+1`, retorna 409 com mensagem "Sorteio oficial da temporada {N} já realizado. Simulação indisponível até a próxima temporada." Espelha padrão de `run_lottery` (linha 326-332).
+3. Template **não alterado** — `has_canonical_audit` já controla a substituição do botão `#btn-sortear` (linhas 201-212) por Travar / Re-executar / Ver auditoria. Reativação automática no rollover (current_season avança → query não acha audit → simulação reabre).
+
+**Validação:**
+- Owner (não-admin) sem audit → simulação roda.
+- Audit canônico forçado → 409 no curl + botão desaparece no template (replaced).
+- `/lottery/replace` segue exigindo admin.
+- Após rollover, simulação reabre automaticamente.
 
 ---
 

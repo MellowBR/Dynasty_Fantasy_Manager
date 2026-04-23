@@ -351,14 +351,25 @@ def run_lottery():
 
 
 @offseason_bp.route("/api/offseason/lottery/simulate", methods=["POST"])
-@admin_required
+@login_required
 def lottery_simulate():
     """
     M8: Simulação pura — roda o sorteio em memória com seed descartável, NÃO
     persiste nada. Zero impacto em LotteryAudit e DraftLotteryResult.
     Apenas retorna resultados para preview animado na UI.
+    MAN-M8-02: aberto para owners (login_required) + bloqueado após oficial.
     """
     season = get_current_season()
+    draft_season = season + 1
+
+    # MAN-M8-02: bloqueio pós-oficial — espelha guarda do run_lottery
+    existing = LotteryAudit.query.filter_by(
+        season=draft_season, is_canonical=True).first()
+    if existing:
+        return jsonify({
+            "error": f"Sorteio oficial da temporada {draft_season} já realizado. Simulação indisponível até a próxima temporada."
+        }), 409
+
     data = request.get_json() or {}
     weights = data.get("weights", DEFAULT_LOTTERY_WEIGHTS)
 

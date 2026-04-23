@@ -414,6 +414,20 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 
 - **Validação via Flask test_client:** backfill → 29 imported; re-run → 0 imported, 29 skipped; contagens SQL corretas.
 
+### 23/04/2026 — M8-PERM (revisão de permissões da lottery)
+
+- **Decisão:** abrir `/lottery/simulate` para qualquer owner autenticado (`@login_required`); manter `/lottery/replace` em `@admin_required`. **Why:** simulação não persiste nada — não há razão para restringir a admin. Owners querem poder testar cenários de bolinhas antes do sorteio oficial.
+
+- **Decisão:** adicionar guarda server-side (409) em `/lottery/simulate` quando audit canônico já existe para `current_season+1`. **Why:** template tinha guarda visual (`has_canonical_audit`) mas backend ficava aberto a chamadas diretas (curl). Defesa em profundidade.
+
+- **Decisão:** sinal de bloqueio é `LotteryAudit.is_canonical=True` (não `DraftLotteryResult.locked`). **Why:** consistência com guarda já existente em `run_lottery` (linha 326-332). Reativação automática no rollover sem flags novos.
+
+- **Decisão:** template não alterado — guarda visual já funcionava por substituição completa do botão (não desabilitação). UX preservada.
+
+- **Decisão:** registrar como item novo M8-PERM em vez de sub-nota em M8 ✅ — preserva backlog limpo (regra do projeto: itens completos não acumulam revisões).
+
+- **Correção ao diagnose MAN-M8-F1 (Q4):** resposta original afirmou "botão sempre visível" no template. Errado — o `{% if has_canonical_audit %}` na linha 201 de `offseason.html` já substitui o botão por Travar/Re-executar/Ver auditoria. Falha de leitura no diagnose; corrigido na análise crítica do MAN-M8-02.
+
 ### 23/04/2026 — M9-FIX (Todas as picks clicáveis + pré-seleção de pick no /trades)
 
 - **Condição `clickable` original era restritiva demais.** Primeira versão do M9 só tornava clicáveis as picks com `traded_away=True AND current_team != my_team`. Justificativa original: "foca no caso real 'recomprar pick tradada'". Mas owner identificou 2 casos legítimos faltando: (a) **pedir** pick original de outro time (não precisa ter sido trocada), (b) **oferecer** minha própria pick como ativo de trade. Correção: `clickable = my_team_name is not None` — qualquer pick vira clicável, só exige user com time vinculado.
