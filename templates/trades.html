@@ -17,7 +17,9 @@
             style="margin-left:auto">🔄 Atualizar Valores</button>
   </div>
 
-  <div class="trade-layout">
+  <div class="trade-layout"
+       data-preset-pick-a="{{ preset_pick_a or '' }}"
+       data-preset-pick-b="{{ preset_pick_b or '' }}">
     <!-- Team A -->
     <div class="trade-side">
       <div class="trade-side-header">
@@ -293,12 +295,31 @@ function loadSide(side, teamName) {
           ? `<span class="dynasty-value-badge">🪙${dv != null ? fmtValue(dv) + estimateSuffix : '—'}</span>`
           : '';
         return `<label class="asset-item">
-          <input type="checkbox" onchange="toggleAsset('${side}','picks',${p.id})">
+          <input type="checkbox" data-pick-id="${p.id}" onchange="toggleAsset('${side}','picks',${p.id})">
           <span class="pick-chip">${label}</span>
           <span class="text-dim small-text">${extra}</span>
           ${dvBadge}
         </label>`;
       }).join('');
+
+      // M9-FIX: se veio ?pick_<side>=<id> via M14, marca o checkbox automaticamente.
+      // Consome e limpa o data-attr pra não marcar de novo num reload do loadSide.
+      const layout = document.querySelector('.trade-layout');
+      if (layout) {
+        const presetKey = `presetPick${side.toUpperCase()}`;
+        const presetId = layout.dataset[presetKey];
+        if (presetId) {
+          const cb = div.querySelector(`input[data-pick-id="${presetId}"]`);
+          if (cb && !cb.checked) {
+            cb.checked = true;
+            selected.picks[side].add(parseInt(presetId));
+            updateDynastyBar();
+          }
+          // Consume: evita remarcar se loadSide rodar de novo no mesmo page load
+          layout.dataset[presetKey] = '';
+        }
+      }
+
       updateDynastyBar();
     });
 

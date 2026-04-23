@@ -115,6 +115,15 @@ Sync automático de trades + backfill da temporada anterior. Trade table passa d
 - **Tratamento C+ para N-way:** 2-way = row normal; N>2 = placeholder `team_b="N-way: ..."` + `description="[N-WAY] ..."`. Admin sempre vê a trade na UI, nunca precisa de código.
 - **UI:** card "Trades Históricas (Backfill)" em `/admin` com botão.
 
+### Camada M9-FIX — Todas as picks clicáveis + pré-seleção no /trades ✅ Done (23/04/2026)
+
+Feedback pós-deploy do M9 revelou escopo restritivo: só picks trocadas de outros times eram clicáveis. Ampliou-se para todas as picks (minhas ou de outros), com comportamento diferente por ownership. Estende M14 com params `pick_a`/`pick_b` — /trades recebe e marca checkbox automaticamente após `loadSide`.
+
+- **Template `picks.html`**: `clickable = my_team_name is not None`. Href condicional: minha pick → `/trades?team_a=meu&pick_a=<id>`; pick de outro → `/trades?team_a=meu&team_b=<dono>&pick_b=<id>`.
+- **`routes/trades.py`**: helper `_resolve_preset_pick(arg_name, team_name)` valida pick existe + pertence ao team do lado correspondente. Ignora mismatch silenciosamente.
+- **`templates/trades.html`**: `data-preset-pick-a`/`data-preset-pick-b` no container, `data-pick-id` nos checkboxes. No `loadSide`, após renderizar picks, marca checkbox do preset + adiciona ao `selected.picks[side]` + `updateDynastyBar()`. Consome dataset após uso.
+- **Validado em 7 cenários** (23/04/2026): 108 células clicáveis (9 minhas + 99 outras), preset-pick correto nos 4 caminhos (só A, só B, A+B, sem params), pick inexistente/mismatch ignorados.
+
 ### Camada M13 — Página de jogador + "Propor Trade" ✅ Done (23/04/2026)
 
 Entrega de página dedicada por jogador (`/player/<id>`) com foto (Sleeper CDN), bloco de contrato incluindo dynasty value, timeline histórica reusando `/api/player/<id>/history`, e botão "⇄ Propor Trade" que dispara M14 com os dois times pré-selecionados. Links a partir de `/` (roster), `/salary_history`, `/trades` concluem o atalho universal.
@@ -404,6 +413,20 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 - **`trade_date` vem do `created` (ms epoch) do Sleeper**, não `datetime.utcnow()` — preserva cronologia histórica correta (listagem em `/trades` mostra ordem cronológica real).
 
 - **Validação via Flask test_client:** backfill → 29 imported; re-run → 0 imported, 29 skipped; contagens SQL corretas.
+
+### 23/04/2026 — M9-FIX (Todas as picks clicáveis + pré-seleção de pick no /trades)
+
+- **Condição `clickable` original era restritiva demais.** Primeira versão do M9 só tornava clicáveis as picks com `traded_away=True AND current_team != my_team`. Justificativa original: "foca no caso real 'recomprar pick tradada'". Mas owner identificou 2 casos legítimos faltando: (a) **pedir** pick original de outro time (não precisa ter sido trocada), (b) **oferecer** minha própria pick como ativo de trade. Correção: `clickable = my_team_name is not None` — qualquer pick vira clicável, só exige user com time vinculado.
+
+- **Href dual: pick_a para minhas, pick_b para outras.** Simétrico com o M14 que usa team_a/team_b. Semântica: "pick_a" é pick do lado A (meu lado quem propõe). "pick_b" é pick do lado B (contraparte). Mantém a convenção da rota `/trades` onde A sempre é quem inicia a proposta.
+
+- **Extensão do M14 para aceitar pick_a/pick_b foi leve.** ~15 linhas em `trades.py` com helper `_resolve_preset_pick` que valida que a pick existe E que seu `current_team_name` bate com o `preset_team_a`/`preset_team_b`. Validação dupla evita: (a) pick inexistente exposta no HTML, (b) pick de outro time sendo marcada no lado errado. Em ambos os casos: ignora silenciosamente (mesma postura do M14 pra team_a/team_b inexistentes).
+
+- **Consume pattern no dataset.** Após `loadSide` marcar o checkbox do preset, limpa `dataset[presetKey] = ''` para evitar que uma re-renderização de `loadSide` (hipotética, se o user mudar de time depois) remarque o checkbox. Padrão "use-once" explícito e seguro.
+
+- **`data-pick-id` adicionado aos `<input>` dos checkboxes.** Necessário pra achar o checkbox correto via `div.querySelector('input[data-pick-id="${id}"]')`. Custo: 1 attribute por checkbox, trivial.
+
+- **Decisão de UX:** pick pré-marcada vem com a barra dynasty atualizando automaticamente — user chega em `/trades` já vendo o valor do lado A, só precisa escolher o que pedir do outro lado. Fluxo "1 clique + 1 decisão" em vez de "1 clique + N cliques de seleção".
 
 ### 23/04/2026 — Camada M13 (Página de jogador)
 

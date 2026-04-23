@@ -28,13 +28,35 @@ def trades_page():
     preset_a = request.args.get("team_a") if request.args.get("team_a") in team_names else None
     preset_b = request.args.get("team_b") if request.args.get("team_b") in team_names else None
 
+    # M9-FIX: aceita ?pick_a=<id>&pick_b=<id> para pré-marcar checkbox de pick.
+    # Valida que pick existe E pertence ao team preset correspondente
+    # (pick_a → current_team_name == preset_a, idem pick_b).
+    # Ignora silenciosamente se inválido.
+    def _resolve_preset_pick(arg_name, team_name):
+        pid_raw = request.args.get(arg_name)
+        if not pid_raw or not team_name:
+            return None
+        try:
+            pid = int(pid_raw)
+        except (ValueError, TypeError):
+            return None
+        pick = Pick.query.get(pid)
+        if pick and pick.current_team_name == team_name:
+            return pid
+        return None
+
+    preset_pick_a = _resolve_preset_pick("pick_a", preset_a)
+    preset_pick_b = _resolve_preset_pick("pick_b", preset_b)
+
     return render_template("trades.html",
                            teams=teams,
                            recent_trades=recent,
                            owner_map=owner_map,
                            avatar_map=avatar_map,
                            preset_team_a=preset_a,
-                           preset_team_b=preset_b)
+                           preset_team_b=preset_b,
+                           preset_pick_a=preset_pick_a,
+                           preset_pick_b=preset_pick_b)
 
 
 # ── API ──────────────────────────────────────────────────────────────────────

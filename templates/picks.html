@@ -40,8 +40,10 @@
         {% set projection = season_data.projections.get((team_name, rnd)) %}
         {% if pick %}
           {% set is_mine = my_team_name and pick.current_team_name == my_team_name %}
-          {% set is_other = pick.traded_away and my_team_name and pick.current_team_name != my_team_name %}
-          {% set clickable = pick.traded_away and my_team_name and pick.current_team_name != my_team_name %}
+          {# M9-FIX: toda pick é clicável quando o user tem time vinculado.
+             Minha pick → /trades?team_a=meu&pick_a=<id> (oferecer).
+             Pick de outro → /trades?team_a=meu&team_b=<dono>&pick_b=<id> (pedir). #}
+          {% set clickable = my_team_name is not none %}
           {% set cell_classes = 'picks-matrix-cell' +
                (' is-mine' if is_mine else '') +
                (' is-traded' if pick.traded_away else '') +
@@ -49,17 +51,25 @@
           {% set cell_title = 'Season ' ~ pick.season ~ ' · Round ' ~ pick.round ~
                                ' · Original: ' ~ pick.original_team_name ~
                                ' · Atual: ' ~ pick.current_team_name %}
+          {% if clickable and is_mine %}
+            {% set cell_title = cell_title ~ ' — Clique para oferecer esta pick em trade' %}
+            {% set href_target = url_for('trades.trades_page', team_a=my_team_name, pick_a=pick.id) %}
+          {% elif clickable %}
+            {% set cell_title = cell_title ~ ' — Clique para propor trade com ' ~ pick.current_team_name ~ ' (pedir esta pick)' %}
+            {% set href_target = url_for('trades.trades_page', team_a=my_team_name, team_b=pick.current_team_name, pick_b=pick.id) %}
+          {% endif %}
           {% if clickable %}
-            {% set cell_title = cell_title ~ ' — Clique para propor trade com ' ~ pick.current_team_name %}
             <a class="{{ cell_classes }}"
                data-orig="{{ pick.original_team_name }}"
                data-cur="{{ pick.current_team_name }}"
                data-pick-id="{{ pick.id }}"
                title="{{ cell_title }}"
-               href="{{ url_for('trades.trades_page', team_a=my_team_name, team_b=pick.current_team_name) }}">
+               href="{{ href_target }}">
               {% if projection %}<span class="picks-badge">#{{ projection.pick_number }}</span>{% endif %}
               {% if pick.traded_away %}
                 <span class="pick-current-owner">→ {{ pick.current_team_name }}</span>
+              {% elif is_mine %}
+                <span class="pick-mine-label">minha</span>
               {% endif %}
               <button class="btn-xs pick-edit-btn"
                       onclick="event.preventDefault();event.stopPropagation();openPickEdit({{ pick.id }}, '{{ pick.current_team_name | replace("'", "\\'") }}')"
