@@ -50,7 +50,7 @@
 | O2 | Enriquecer página do jogador: stats históricas + ADP | Média | 🔲 |
 | L1 | League Hub: visão geral da liga + detalhe por time | Alta | ✅ 23/04/2026 |
 | L2 | League Hub season mode: matchups, schedule, standings | Baixa | 🔲 |
-| N1 | Redesign navbar: estrutura com dropdowns + acesso rápido aos times | Média | 🔲 |
+| N1 | Redesign navbar: estrutura com dropdowns + acesso rápido aos times | Média | ✅ 23/04/2026 |
 | C1 | Cap projector: modo "drop programado" para simular liberações de cap | Média | 🔲 |
 | M8-PERM | Lottery: simulação aberta a owners + bloqueio server-side pós-oficial | Média | ✅ 23/04/2026 |
 | T2-FIX | Picks Rd2+ sem dynasty value no preview/proposta de trade | Média | 🔲 |
@@ -922,19 +922,35 @@ Validado (7 cenários): 108 células clicáveis (12×3×3), 9 minhas (pick_a) + 
 ---
 
 ### N1 — Redesign Navbar
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (23/04/2026)** — Prioridade **Média**
 
-**Problema:** A navbar atual tem links soltos sem hierarquia. Com a chegada de L1 (League Hub) e O1 (página de jogador linkificada), o número de destinos cresce e a navegação fica confusa.
+**Implementado em 2 lotes:**
 
-**Objetivo:** Reorganizar a navbar principal com dropdowns contextuais:
-- **Meu Time** → roster do usuário logado
-- **Liga ▾** → League Hub (`/league`), Histórico de Trades
-- **Jogadores ▾** → Cap Projector, Salary History
-- **Trades** → simulador `/trades`
-- **Picks** → grid `/picks`
-- **Times ▾** → dropdown com os 12 times da liga (estilo ESPN "Opposing Teams"), cada um linkando para `/team/<id>` (L1)
+1. **Context processor + macros (Lote 1):**
+   - `app.py` — `inject_nav_teams` com query leve (`with_entities` em id, name, owner_name, owner_avatar, is_my_team) ordenada por nome. Só executa se autenticado; retorna `[]` em `/login`. Coexiste com `inject_global_state` existente.
+   - `templates/_macros.html` — macros `nav_link(url, label, prefixes=None, exact=False)` e `nav_dropdown(label, items, active_prefixes)`. Helper interno `_nav_match` com algoritmo path-aware: `path == prefix` OR `path.startswith(prefix.rstrip('/') + '/')`. Robusto contra falsos matches (`/salary` não bate `/salary_history`).
 
-Pré-requisito: L1 concluído (para que `/team/<id>` exista).
+2. **Navbar redesenhada (Lote 2):**
+   - **Esquerda:** logo `🏈 Dynasty SB`.
+   - **Centro:** Meu Roster | Liga ▾ | Ferramentas ▾ | Trades | Times ▾ | Admin ▾
+     - **Liga ▾**: Visão Geral (`/league`), Picks (`/picks`), Histórico (`/salary_history`).
+     - **Ferramentas ▾**: Calculadora (`/salary` exact), Cap Projector (`/cap_projector`).
+     - **Times ▾**: dropdown com 12 times (g_nav_teams), cada item com avatar Sleeper thumb + nome + owner + tag EU se my_team. Linka para `/team/<id>`.
+     - **Admin ▾** (só `current_user.is_admin`): Painel (`/admin` exact), Usuários (`/admin/users`), Offseason (`/offseason`), Auction (`/auction`).
+   - **Direita:** hamburger ☰ (mobile only), cap-chip (preservado), botão Sync (preservado), avatar+dropdown do owner com Logout. Avatar com cascata 4-step: hash Sleeper → fallback inicial owner_name → inicial user.name → 👤.
+   - Liga + Times **ambos ativos** em `/team/<id>` por design (comunica navegação contextual).
+
+3. **Mobile (< 768px):** links centrais escondidos. Hamburger ☰ aparece. Toggle CSS-only via checkbox hack (`<input type="checkbox" id="nav-mobile-state">` + `<label>` no botão). Overlay vertical com painel lateral direito (320px max), agrupado por seção (Navegação, Times, Admin, Conta). Click no fundo escuro fecha (label aponta pro mesmo checkbox).
+
+4. **CSS** em `static/style.css`: `.nav-item`, `.nav-group`, `.nav-group-label`, `.nav-dropdown`, `.nav-dropdown-item`, `.nav-dropdown-header`, `.nav-dropdown-teams`, `.nav-team-item/avatar/text/name/owner`, `.nav-user-menu/button/avatar`, `.nav-avatar-fallback`, `.nav-mobile-toggle/state/overlay/overlay-bg/panel/section-title/item`. Reusa variáveis existentes (`--bg2/3`, `--border`, `--accent`, `--text-dim`).
+
+**Validação (23/04/2026, Flask test_client):**
+- Navbar completa em `/`: 12 itens nav-team-item, hamburger, mobile overlay, user menu, cap-chip, Sync.
+- Match path-aware: `/league` → Liga ON; `/team/1` → Liga + Times ON; `/salary` → Ferramentas ON; `/salary_history` → Liga ON, Ferramentas OFF; `/cap_projector` → Ferramentas ON, Liga OFF.
+- `/login` (anon): `g_nav_teams=[]`, sem dropdown de Times.
+- `salary_engine_test.py`: 48/48.
+
+**Bug pego no smoke test:** algoritmo inicial `path.startswith(prefix + '/')` falhava quando prefix já terminava em `/` (ex: `/team/`) — gerava `'/team//'`. Corrigido com `prefix.rstrip('/')` antes de concatenar.
 
 ---
 

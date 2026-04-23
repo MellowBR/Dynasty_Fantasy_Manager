@@ -414,6 +414,26 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 
 - **Validação via Flask test_client:** backfill → 29 imported; re-run → 0 imported, 29 skipped; contagens SQL corretas.
 
+### 23/04/2026 — Camada N1 (Redesign navbar)
+
+- **Decisão:** novo context processor `inject_nav_teams` separado do `inject_global_state` existente. **Why:** estado global (offseason flags) é cheap mas independe de autenticação; nav_teams precisa de guarda `is_authenticated` para evitar query em `/login`. Misturar misturaria responsabilidades. `with_entities()` retorna tuplas leves em vez de objetos ORM com lazy relationships.
+
+- **Decisão:** algoritmo de match path-aware no macro `_nav_match`: `path == prefix.rstrip('/')` OR `path.startswith(prefix.rstrip('/') + '/')`. **Why:** substring naïve (`prefix in path`) faz `/salary` matchear `/salary_history`. Algoritmo path-aware corrige sem precisar de exact mode em todos. `rstrip('/')` evita `'//'` quando prefix já tem trailing slash (descoberto no smoke test em `/team/`).
+
+- **Decisão:** Liga + Times **ambos ativos** simultaneamente em `/team/<id>`. **Why:** comunicação visual natural — owner está na área de Liga, especificamente num time. Visual destaca contexto duplo. Alternativa rejeitada: tirar `/team/` do Liga, deixando só Times — perderia contexto.
+
+- **Decisão:** dropdowns desktop **CSS-only** via `:hover` + `:focus-within`. **Why:** zero JS, mais simples e acessível. Click-toggle (acessibilidade keyboard) pode ser evolução futura se virar dor.
+
+- **Decisão:** mobile via **overlay vertical CSS-only** (checkbox hack), não drawer JS. **Why:** drawer com slide animado exige JS para click-outside; overlay com `<label for="checkbox">` no fundo escuro fecha sem JS. ~30 linhas CSS vs ~50 + JS. Trade-off aceito.
+
+- **Decisão:** dropdown do owner mantido (1 item Logout) em vez de link inline. **Why:** prepara para itens futuros (Configurações, Tema). Diff zero quando vier; refatorar agora seria churn.
+
+- **Decisão:** avatar com cascata 4-step (hash Sleeper → inicial owner_name → inicial user.name → 👤). **Why:** Erico (admin com time) tem hash; admin sem time vinculado teria fallback de inicial; user totalmente sem dados cai no emoji. Resiliência contra DB incompleto.
+
+- **Decisão:** algoritmo de match testado com `/salary_history` vs `/salary` antes de declarar concluído. **Why:** o conflito mais provável de regredir; cobertura explícita no smoke test garante que mudanças futuras não quebram.
+
+- **Decisão:** Auction movido para dropdown Admin. Picks movido para dropdown Liga. **Why:** prompt definiu; semanticamente alinhado (auction é processo administrativo de offseason; picks é visão de liga).
+
 ### 23/04/2026 — Camada L1 (League Hub)
 
 - **Decisão:** novo blueprint `routes/league.py` em vez de adicionar a `roster_bp`. **Why:** `roster_bp` está semanticamente acoplado a "meu roster" + APIs de jogador. League Hub é visão da liga inteira — mistura de responsabilidades inflaria o blueprint. 9º blueprint coerente com a separação por domínio que o projeto já segue.

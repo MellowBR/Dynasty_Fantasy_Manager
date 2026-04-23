@@ -1,4 +1,4 @@
-{# Macros reutilizáveis. Use {% from "_macros.html" import player_name_link %}. #}
+{# Macros reutilizáveis. Use {% from "_macros.html" import player_name_link, nav_link, nav_dropdown %}. #}
 
 {# player_name_link(player, klass='', target=None, stop_propagation=False)
    player precisa ter .id e .name. #}
@@ -8,4 +8,55 @@
    {%- if target %} target="{{ target }}"{% endif %}
    {%- if stop_propagation %} onclick="event.stopPropagation()"{% endif %}
    title="Abrir página do jogador">{{ player.name }}</a>
+{%- endmacro %}
+
+{# _nav_match — true se request.path bate com algum prefix.
+   exact: path == prefix. senão: path == prefix.rstrip('/') OR path.startswith(prefix.rstrip('/') + '/'). #}
+{% macro _nav_match(prefixes, exact=False) -%}
+{%- set p = request.path -%}
+{%- if exact -%}
+  {%- if prefixes is string -%}{{ '1' if p == prefixes else '' }}
+  {%- else -%}{{ '1' if prefixes|select('equalto', p)|list else '' }}{%- endif -%}
+{%- else -%}
+  {%- set ns = namespace(hit=false) -%}
+  {%- for pre in (prefixes if prefixes is iterable and prefixes is not string else [prefixes]) -%}
+    {%- set norm = pre.rstrip('/') if pre != '/' else '/' -%}
+    {%- if norm == '/' -%}
+      {%- if p == '/' -%}{%- set ns.hit = true -%}{%- endif -%}
+    {%- else -%}
+      {%- if p == norm or p.startswith(norm + '/') -%}{%- set ns.hit = true -%}{%- endif -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {{ '1' if ns.hit else '' }}
+{%- endif -%}
+{%- endmacro %}
+
+{# nav_link(url, label, prefixes=None, exact=False)
+   prefixes opcional; default = [url]. #}
+{% macro nav_link(url, label, prefixes=None, exact=False) -%}
+{%- set match_prefixes = prefixes if prefixes is not none else [url] -%}
+{%- set is_active = _nav_match(match_prefixes, exact)|trim -%}
+<li class="nav-item{% if is_active %} active{% endif %}">
+  <a href="{{ url }}">{{ label }}</a>
+</li>
+{%- endmacro %}
+
+{# nav_dropdown(label, items, active_prefixes)
+   items: lista de tuplas (url, sub_label) ou (url, sub_label, exact). #}
+{% macro nav_dropdown(label, items, active_prefixes) -%}
+{%- set is_active = _nav_match(active_prefixes, false)|trim -%}
+<li class="nav-group{% if is_active %} active{% endif %}">
+  <button type="button" class="nav-group-label">{{ label }}</button>
+  <ul class="nav-dropdown">
+    {% for item in items %}
+      {%- set u = item[0] -%}
+      {%- set lbl = item[1] -%}
+      {%- set ex = item[2] if item|length > 2 else false -%}
+      {%- set sub_active = _nav_match([u], ex)|trim -%}
+      <li class="nav-dropdown-item{% if sub_active %} active{% endif %}">
+        <a href="{{ u }}">{{ lbl }}</a>
+      </li>
+    {% endfor %}
+  </ul>
+</li>
 {%- endmacro %}

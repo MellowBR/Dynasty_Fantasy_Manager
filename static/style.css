@@ -1637,3 +1637,217 @@ a.player-name:hover {
 .pos-block { margin-bottom: 1rem; }
 .pos-block-title { font-size: .9rem; margin: .5rem 0 .35rem; display: flex; gap: .5rem; align-items: center; }
 .picks-season-block { margin-bottom: 1rem; }
+
+/* ── N1: Navbar dropdowns + mobile ──────────────────────────────────────── */
+
+/* Estado mobile via checkbox hack — escondido visualmente */
+.nav-mobile-state { position: absolute; left: -9999px; opacity: 0; }
+
+/* Item simples (.nav-item) e grupo (.nav-group) compartilham layout */
+.nav-item, .nav-group { position: relative; list-style: none; }
+.nav-item > a, .nav-group-label {
+  display: inline-block;
+  padding: .3rem .7rem;
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-size: .83rem;
+  font-weight: 500;
+  white-space: nowrap;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background .13s, color .13s;
+  font-family: inherit;
+}
+.nav-item > a:hover, .nav-group-label:hover,
+.nav-item.active > a, .nav-group.active > .nav-group-label {
+  background: var(--bg3);
+  color: var(--text);
+  text-decoration: none;
+}
+
+/* Dropdown desktop — CSS-only via :hover */
+.nav-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  display: none;
+  min-width: 180px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  padding: .25rem;
+  list-style: none;
+  margin: .15rem 0 0;
+  z-index: 200;
+}
+.nav-group:hover > .nav-dropdown,
+.nav-group:focus-within > .nav-dropdown {
+  display: block;
+}
+.nav-dropdown-item {
+  list-style: none;
+}
+.nav-dropdown-item > a {
+  display: block;
+  padding: .4rem .7rem;
+  font-size: .82rem;
+  color: var(--text-dim);
+  border-radius: 4px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.nav-dropdown-item > a:hover,
+.nav-dropdown-item.active > a {
+  background: var(--bg3);
+  color: var(--text);
+}
+.nav-dropdown-header {
+  padding: .35rem .7rem;
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: .25rem;
+}
+
+/* Dropdown "Times" — mais largo + 2 colunas opcional */
+.nav-dropdown-teams {
+  min-width: 260px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.nav-team-item > a {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .35rem .55rem;
+}
+.nav-team-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+.nav-team-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.nav-team-name {
+  font-size: .82rem;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+.nav-team-owner {
+  font-size: .68rem;
+  color: var(--text-dim);
+}
+
+/* User menu (avatar + dropdown logout) */
+.nav-user-menu { position: relative; }
+.nav-user-button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+.nav-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid transparent;
+  transition: border-color .15s;
+}
+.nav-user-button:hover .nav-user-avatar { border-color: var(--accent); }
+.nav-avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg3);
+  color: var(--text);
+  font-weight: 600;
+  font-size: .85rem;
+}
+.nav-dropdown-user {
+  right: 0;
+  left: auto;
+  min-width: 180px;
+}
+.nav-user-menu:hover > .nav-dropdown-user,
+.nav-user-menu:focus-within > .nav-dropdown-user {
+  display: block;
+}
+
+/* Hamburger e overlay mobile — escondidos no desktop */
+.nav-mobile-toggle {
+  display: none;
+  font-size: 1.4rem;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0 .35rem;
+  line-height: 1;
+}
+.nav-mobile-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 300;
+}
+.nav-mobile-overlay-bg {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.55);
+  cursor: pointer;
+}
+.nav-mobile-panel {
+  position: absolute;
+  top: 0; right: 0;
+  width: min(320px, 88vw);
+  height: 100%;
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  padding: 1rem .85rem 2rem;
+  overflow-y: auto;
+  box-shadow: -8px 0 24px rgba(0,0,0,.4);
+}
+.nav-mobile-section-title {
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-dim);
+  margin: 1rem 0 .35rem;
+  padding-bottom: .25rem;
+  border-bottom: 1px solid var(--border);
+}
+.nav-mobile-section-title:first-child { margin-top: 0; }
+.nav-mobile-item {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .55rem .35rem;
+  color: var(--text);
+  font-size: .9rem;
+  text-decoration: none;
+  border-radius: 4px;
+}
+.nav-mobile-item:hover { background: var(--bg3); text-decoration: none; }
+.nav-mobile-team .nav-team-avatar { width: 24px; height: 24px; }
+
+/* Mostrar overlay quando checkbox marcado */
+.nav-mobile-state:checked ~ .nav-mobile-overlay { display: block; }
+
+/* Mobile: esconde links centrais, mostra hamburger */
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .nav-mobile-toggle { display: inline-flex; }
+  .nav-user-menu { display: none; }
+  .nav-dropdown-teams { max-height: none; }
+}

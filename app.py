@@ -85,6 +85,19 @@ def create_app():
             "g_offseason_step": int(get_config("offseason_step", "0")),
         }
 
+    # Context processor — exposes the 12 teams to the navbar dropdown.
+    # Lightweight query (with_entities) only when authenticated.
+    @app.context_processor
+    def inject_nav_teams():
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return {"g_nav_teams": []}
+        from models import Team
+        teams = Team.query.with_entities(
+            Team.id, Team.name, Team.owner_name, Team.owner_avatar, Team.is_my_team
+        ).order_by(Team.name).all()
+        return {"g_nav_teams": teams}
+
     # Initialize authentication (Flask-Login + Google OAuth)
     from routes.auth import auth_bp, init_auth
     init_auth(app)

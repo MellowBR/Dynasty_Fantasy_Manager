@@ -6,7 +6,13 @@
   <title>{% block title %}Dynasty SB{% endblock %} — Dynasty SB</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
+{% from "_macros.html" import nav_link, nav_dropdown %}
+{%- set _user_team = current_user.team_rel if current_user.is_authenticated else none -%}
+{%- set _user_avatar = _user_team.owner_avatar if _user_team else '' -%}
+{%- set _user_initial = (_user_team.owner_name or current_user.name or current_user.email or '?')[0]|upper if current_user.is_authenticated else '?' -%}
 <body>
+
+<input type="checkbox" id="nav-mobile-state" class="nav-mobile-state">
 
 <nav class="navbar">
   <a href="/" class="nav-brand">
@@ -15,25 +21,115 @@
   </a>
 
   <ul class="nav-links" id="nav-links">
-    <li><a href="/"              class="{% if request.path == '/' %}active{% endif %}">Roster</a></li>
-    <li><a href="/salary"        class="{% if '/salary' in request.path and 'history' not in request.path and 'cap' not in request.path %}active{% endif %}">Calculadora</a></li>
-    <li><a href="/cap_projector" class="{% if 'cap_projector' in request.path %}active{% endif %}">Cap Projector</a></li>
-    <li><a href="/trades"        class="{% if 'trades' in request.path %}active{% endif %}">Trades</a></li>
-    <li><a href="/picks"         class="{% if 'picks' in request.path %}active{% endif %}">Picks</a></li>
-    <li><a href="/auction"       class="{% if 'auction' in request.path %}active{% endif %}">Auction</a></li>
-    <li><a href="/salary_history" class="{% if 'salary_history' in request.path %}active{% endif %}">Histórico</a></li>
-    <li><a href="/admin"         class="{% if 'admin' in request.path and 'offseason' not in request.path %}active{% endif %}">Admin</a></li>
-    <li><a href="/offseason"     class="{% if 'offseason' in request.path %}active{% endif %}">
-      {% if g_offseason_mode %}⚙️ {% endif %}Offseason</a></li>
+    {{ nav_link('/', 'Meu Roster', exact=true) }}
+    {{ nav_dropdown('Liga ▾', [
+      ('/league', 'Visão Geral'),
+      ('/picks', 'Picks'),
+      ('/salary_history', 'Histórico'),
+    ], ['/league', '/picks', '/salary_history', '/team/']) }}
+    {{ nav_dropdown('Ferramentas ▾', [
+      ('/salary', 'Calculadora', true),
+      ('/cap_projector', 'Cap Projector'),
+    ], ['/salary', '/cap_projector']) }}
+    {{ nav_link('/trades', 'Trades', prefixes=['/trades']) }}
+    {% if g_nav_teams %}
+    <li class="nav-group{% if request.path.startswith('/team/') %} active{% endif %}">
+      <button type="button" class="nav-group-label">Times ▾</button>
+      <ul class="nav-dropdown nav-dropdown-teams">
+        {% for t in g_nav_teams %}
+        <li class="nav-dropdown-item nav-team-item">
+          <a href="{{ url_for('league.team_detail', team_id=t.id) }}">
+            {% if t.owner_avatar %}
+            <img class="nav-team-avatar" src="https://sleepercdn.com/avatars/thumbs/{{ t.owner_avatar }}" onerror="this.style.display='none'" alt="">
+            {% else %}
+            <span class="nav-avatar-fallback nav-team-avatar">{{ (t.owner_name or t.name or '?')[0]|upper }}</span>
+            {% endif %}
+            <span class="nav-team-text">
+              <span class="nav-team-name">{{ t.name }}</span>
+              {% if t.owner_name %}<span class="nav-team-owner">{{ t.owner_name }}</span>{% endif %}
+            </span>
+            {% if t.is_my_team %}<span class="tag tag-current">EU</span>{% endif %}
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </li>
+    {% endif %}
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    {{ nav_dropdown('Admin ▾', [
+      ('/admin', 'Painel', true),
+      ('/admin/users', 'Usuários'),
+      ('/offseason', 'Offseason'),
+      ('/auction', 'Auction'),
+    ], ['/admin', '/offseason', '/auction']) }}
+    {% endif %}
   </ul>
 
   <div class="nav-right">
+    <label for="nav-mobile-state" class="nav-mobile-toggle" title="Menu">☰</label>
     <span class="cap-chip" id="nav-cap-chip" title="Cap: Cangaceiros da Colina"></span>
     <button class="btn-sync" id="btn-sync-nav" onclick="triggerSync()" title="Sincronizar com Sleeper">
       🔄 <span class="sync-label">Sync</span>
     </button>
+    {% if current_user.is_authenticated %}
+    <div class="nav-user-menu">
+      <button type="button" class="nav-user-button" title="{{ current_user.name or current_user.email }}">
+        {% if _user_avatar %}
+        <img class="nav-user-avatar" src="https://sleepercdn.com/avatars/thumbs/{{ _user_avatar }}" onerror="this.parentNode.querySelector('.nav-avatar-fallback').style.display='inline-flex'" alt="">
+        <span class="nav-avatar-fallback nav-user-avatar" style="display:none">{{ _user_initial }}</span>
+        {% else %}
+        <span class="nav-avatar-fallback nav-user-avatar">{{ _user_initial }}</span>
+        {% endif %}
+      </button>
+      <ul class="nav-dropdown nav-dropdown-user">
+        <li class="nav-dropdown-header">
+          {% if _user_team %}{{ _user_team.name }}{% else %}{{ current_user.name or current_user.email }}{% endif %}
+        </li>
+        <li class="nav-dropdown-item"><a href="{{ url_for('auth.logout') }}">Logout</a></li>
+      </ul>
+    </div>
+    {% endif %}
   </div>
 </nav>
+
+{% if current_user.is_authenticated %}
+<aside class="nav-mobile-overlay">
+  <label for="nav-mobile-state" class="nav-mobile-overlay-bg" aria-label="Fechar menu"></label>
+  <div class="nav-mobile-panel">
+    <div class="nav-mobile-section-title">Navegação</div>
+    <a href="/" class="nav-mobile-item">Meu Roster</a>
+    <a href="/league" class="nav-mobile-item">Liga · Visão Geral</a>
+    <a href="/picks" class="nav-mobile-item">Liga · Picks</a>
+    <a href="/salary_history" class="nav-mobile-item">Liga · Histórico</a>
+    <a href="/salary" class="nav-mobile-item">Calculadora</a>
+    <a href="/cap_projector" class="nav-mobile-item">Cap Projector</a>
+    <a href="/trades" class="nav-mobile-item">Trades</a>
+
+    {% if g_nav_teams %}
+    <div class="nav-mobile-section-title">Times</div>
+    {% for t in g_nav_teams %}
+    <a href="{{ url_for('league.team_detail', team_id=t.id) }}" class="nav-mobile-item nav-mobile-team">
+      {% if t.owner_avatar %}
+      <img class="nav-team-avatar" src="https://sleepercdn.com/avatars/thumbs/{{ t.owner_avatar }}" onerror="this.style.display='none'" alt="">
+      {% endif %}
+      <span>{{ t.name }}{% if t.is_my_team %} <span class="tag tag-current">EU</span>{% endif %}</span>
+    </a>
+    {% endfor %}
+    {% endif %}
+
+    {% if current_user.is_admin %}
+    <div class="nav-mobile-section-title">Admin</div>
+    <a href="/admin" class="nav-mobile-item">Painel</a>
+    <a href="/admin/users" class="nav-mobile-item">Usuários</a>
+    <a href="/offseason" class="nav-mobile-item">Offseason</a>
+    <a href="/auction" class="nav-mobile-item">Auction</a>
+    {% endif %}
+
+    <div class="nav-mobile-section-title">Conta</div>
+    <a href="{{ url_for('auth.logout') }}" class="nav-mobile-item">Logout</a>
+  </div>
+</aside>
+{% endif %}
 
 <!-- Sync status banner (hidden by default) -->
 <div id="sync-banner" class="sync-banner" style="display:none"></div>
