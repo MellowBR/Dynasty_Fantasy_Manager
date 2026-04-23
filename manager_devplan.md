@@ -373,6 +373,12 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 
 - **Validação via Flask test_client:** backfill → 29 imported; re-run → 0 imported, 29 skipped; contagens SQL corretas.
 
+### 23/04/2026 — T3 (sugestões de assets) descartado após review do T2
+
+- **T3 foi considerado e removido do backlog** após review da tela `/trades` pós-deploy do T2. Proposta era bloco de até 5 sugestões automáticas abaixo da barra dynasty, clicáveis para adicionar à trade, preenchendo o gap de `|delta|`.
+- **Motivo do descarte:** a combinação já entregue pelo T2 (barra em tempo real + chip central de vantagem + badges 🪙 inline em cada checkbox) resolve o problema prático. Owner consegue navegar o roster do lado vantajoso e testar assets com feedback visual imediato — a sugestão automática seria conveniência marginal, não um gap de UX real.
+- **Decisão preservada no git:** análise completa + decisões de design ficam no commit `e338c28` (adicionou T3 ao backlog) e na reversão logo em seguida. Se voltarmos a priorizar essa camada no futuro, basta resgatar do histórico.
+
 ### 22/04/2026 — Camada T2 (Valores dynasty FantasyCalc)
 
 - **FantasyCalc escolhido ao invés de KeepTradeCut** (opção original do improvements.md). Motivos: (a) API pública documentada e estável (`/values/current` com params explícitos), (b) matching por `sleeperId` exato — zero risco de ambiguidade de nome (problema histórico "3 Browns" do F1), (c) inclui picks de draft como entries `DP_<year_offset>_<pick_index>`, (d) gratuita sem rate limit agressivo, (e) retorna `value`, `overallRank`, `positionRank`, `trend30Day` num único request (~1MB). KTC seria API não-oficial/scraping + matching por nome com risco.

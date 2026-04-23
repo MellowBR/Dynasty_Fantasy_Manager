@@ -18,7 +18,6 @@
 | S1 | Sync detecta trades do Sleeper e move contratos automaticamente | Alta | ✅ 22/04/2026 |
 | T1 | Redesign Trade Manager: simulador multi-owner + link compartilhável | Alta | ✅ 22/04/2026 |
 | T2 | Integrar valores dynasty FantasyCalc no preview de trade | Média | ✅ 22/04/2026 |
-| T3 | Sugestões de assets para equilibrar trade (delta dynasty) | Média | 🔲 |
 | Q1 | Script de simulação de temporada (validar salary rollover) | Média | 🔲 |
 | M1 | Validação de cap antes de confirmar trade | Média | 🔲 |
 | M2 | Tela de aprovação em lote de jogadores `needs_review=True` | Média | 🔲 |
@@ -206,36 +205,6 @@ CREATE TABLE trade_proposals (
 4. Matching por nome (reusar `player_lookup.py:find_player_by_name()` com hierarquia estrita)
 
 **Riscos:** API não-oficial pode mudar ou ficar indisponível. Implementar com degradação elegante (trade funciona sem KTC, só não mostra os valores).
-
----
-
-### T3 — Sugestões de assets para equilibrar trade
-🔲 **Pendente** — Prioridade **Média**
-
-**Problema:** Com T2 entregando a barra dynasty em tempo real, fica claro visualmente quando uma trade está desequilibrada (ex: Trust leva +2.000 de valor dynasty). Mas o owner do lado desvantajoso ainda precisa navegar o roster do lado vantajoso e testar combinações mentalmente até encontrar um ativo que feche o gap. Fluxo manual, lento e suscetível a miss de candidatos óbvios.
-
-**Proposta:** abaixo da barra dynasty dinâmica, bloco com até 5 sugestões de assets do roster do **lado vantajoso** (o que está recebendo mais valor), ordenadas por proximidade ao delta. Clique numa sugestão adiciona o asset à trade (toggle no checkbox), barra recalcula, lista se repopula com o novo delta. Só aparece quando `|delta| >= 500`.
-
-**Decisões de design (análise completa em sessão 23/04/2026):**
-
-1. **Processamento 100% client-side.** `dynastyMap` e `sideData` já estão carregados no navegador pelo T2. Zero round-trip, zero latência por clique.
-2. **Algoritmo MVP: top 5 singles** ordenados por `|asset.value - |delta||` ascending. Roster pequeno (~22 players + ~6-10 picks = ~30 assets), O(n) é trivial. Opção combos-de-2 descartada no MVP: pacotes artificiais ("Kelce + backup RB") raramente fazem sentido semanticamente. Evolução futura possível se owner pedir.
-3. **Threshold `|delta| >= 500`.** Valores FC são na ordem de milhares; 500 ≈ 5% de trade típica. Abaixo disso o chip já diz "⚖️ Equilibrada" — sugerir aqui seria ruído.
-4. **Escopo:** players não-dropados e não-IR + picks (incluindo as "est." com flag preservada do T2).
-5. **Excluir assets já marcados** na trade (não faz sentido sugerir algo já selecionado).
-6. **Destaque visual:** chip compacto com posição + nome + value + diff% colorido:
-   - `|diff| <= 10%`: verde (match bom)
-   - `|diff| <= 25%`: amarelo (match razoável)
-   - acima: cinza (match fraco)
-7. **Clique adiciona à trade** via mesmo `toggleAsset(side, type, id)` existente + marca checkbox no DOM pra feedback. Fluxo cascata: novo delta repopula lista automaticamente.
-8. **Picks "est."** aparecem nas sugestões com badge "est." + tooltip "valor estimado via middle-of-round — varia conforme lottery/standings". Owner decide se aceita o risco.
-
-**Reutilização:**
-- `dynastyMap`, `sideData`, `pickFcSid`, `computeSideDynastyTotal` — tudo do T2.
-- `.dynasty-value-badge` CSS para o chip individual (cores novas via variante).
-- `toggleAsset` já existente para o clique.
-
-**Escopo estimado:** ~1 sessão. Frontend puro, pequeno. Testes via Flask test_client cobrem só o `/trades` renderizar os novos hooks; lógica de sugestão é testável manualmente (inspecionar chips após selecionar uma trade desequilibrada).
 
 ---
 
