@@ -414,6 +414,20 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 
 - **Validação via Flask test_client:** backfill → 29 imported; re-run → 0 imported, 29 skipped; contagens SQL corretas.
 
+### 23/04/2026 — Camada O1 (Linkificar nomes de jogadores)
+
+- **Decisão:** introduzir 2 helpers centralizados — macro Jinja `player_name_link` em `templates/_macros.html` (NOVO) e função JS `renderPlayerNameLink` em `base.html`. **Why:** zero infra de helper de jogador existia; cada template implementava seu link inline. Helper reduz divergência futura sem retrofittar telas já corretas (trades, salary_history).
+
+- **Decisão:** **não** retrofittar `trades.html` nem `salary_history.html`. **Why:** restrição explícita do prompt + risco baixo de divergência (apenas 2 lugares no padrão informal). Helper aplica só nas mudanças desta camada e em código novo daqui pra frente.
+
+- **Decisão (UX roster, opção A):** nome do jogador no roster vira link direto para `/player/<id>`; ícone 🔗 separado removido; modal de histórico inline (`showPlayerHistory`) eliminado. **Why:** consistência com o resto do app pós-O1. Modal duplicava a timeline da `player_detail.html` (M13). Owner aprovou trade-off "consistência > preservar fluxo legado" no prompt MAN-O1.
+
+- **Decisão (cleanup base.html):** removidos modal `#player-modal`, função `showPlayerHistory` e `closePlayerModal` — órfãos após Lote 2. CSS `.timeline*` **preservado** porque `player_detail.html` consome. **Why:** dead code é dead code; CSS compartilhado fica.
+
+- **Decisão (Lote 3):** `/api/trades/by_tx/<tx>` faz best-effort `find_player_by_name(asset)` — alternativa a re-arquitetar `Trade.description` com asset references estruturadas (esforço médio, valor incremental baixo). Picks e nomes ambíguos retornam `player_id=null` e o template faz fallback para `escapeHtml(asset)`. **Why:** degradação elegante já é padrão do projeto (T2 dynasty values com 84.9% cobertura). Validado em produção: 60%, 25%, 100% de cobertura em 3 trades reais.
+
+- **Decisão (anti-pattern evitado):** comentários `// MAN-O1: ...` adicionados inicialmente em base.html, _trade_detail_modal.html e routes/trades.py foram **removidos** após smoke test pegar `showPlayerHistory` num comentário literal. Refs ao task atual em comentários violam regra do projeto (esses contextos vivem no PR/commit/log, não no código).
+
 ### 23/04/2026 — M8-PERM (revisão de permissões da lottery)
 
 - **Decisão:** abrir `/lottery/simulate` para qualquer owner autenticado (`@login_required`); manter `/lottery/replace` em `@admin_required`. **Why:** simulação não persiste nada — não há razão para restringir a admin. Owners querem poder testar cenários de bolinhas antes do sorteio oficial.

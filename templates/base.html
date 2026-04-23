@@ -48,17 +48,6 @@
   {% block content %}{% endblock %}
 </main>
 
-{# Player history modal — available on all pages #}
-<div id="player-modal" class="modal" style="display:none">
-  <div class="modal-overlay" onclick="closePlayerModal()"></div>
-  <div class="modal-box modal-sm">
-    <div id="player-modal-content"></div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closePlayerModal()">Fechar</button>
-    </div>
-  </div>
-</div>
-
 <footer class="footer">
   Dynasty SB &bull; 12 Teams &bull; PPR &bull; Cap $200 &bull;
   <a href="/admin">Admin</a>
@@ -122,49 +111,18 @@ function triggerSync() {
     });
 }
 
-// ── Player history modal ────────────────────────────────────────────────────
-function showPlayerHistory(playerId) {
-  const modal = document.getElementById('player-modal');
-  const content = document.getElementById('player-modal-content');
-  content.innerHTML = '<div class="loading-msg">Carregando...</div>';
-  modal.style.display = 'flex';
-
-  fetch(`/api/player/${playerId}/history`)
-    .then(r => r.json())
-    .then(data => {
-      const p = data.player;
-      let html = `<h2 style="margin-bottom:.5rem">${p.name}</h2>
-        <div class="text-dim" style="margin-bottom:.75rem;font-size:.82rem">
-          ${p.position} · ${p.nfl_team || ''} · ${p.fantasy_team} · $${Math.round(p.salary)} · ${p.contract_display}
-        </div>`;
-
-      if (data.history.length) {
-        html += '<div class="timeline">';
-        data.history.forEach(h => {
-          const badge = {trade:'tag-trade', cut:'tag-review', renewal:'tag-renewal',
-            rookie_draft:'tag-current', auction_draft:'tag-current', fa_auction:'tag-trade',
-            fa_waiver:'tag-trade', rollover:'tag-prov'}[h.event_type] || '';
-          html += `<div class="timeline-item">
-            <span class="timeline-dot"></span>
-            <div class="timeline-content">
-              <span class="tag ${badge}">${h.event_type}</span>
-              <span class="text-dim" style="font-size:.75rem">${h.created_at} · ${h.team_name}</span>
-              <span style="font-size:.82rem">$${Math.round(h.salary)} · Ano ${h.contract_year}</span>
-              ${h.notes ? '<span class="text-dim" style="font-size:.72rem">' + h.notes + '</span>' : ''}
-            </div>
-          </div>`;
-        });
-        html += '</div>';
-      } else {
-        html += '<p class="text-dim">Sem historico registrado.</p>';
-      }
-      content.innerHTML = html;
-    });
+// ── Helper: renderiza nome de jogador como link para /player/<id> ───────────
+function renderPlayerNameLink(p, opts) {
+  opts = opts || {};
+  const id = p.id != null ? p.id : p.player_id;
+  const name = p.name != null ? p.name : p.player_name;
+  const cls = 'player-name' + (opts.className ? ' ' + opts.className : '');
+  const target = opts.target ? ` target="${opts.target}"` : '';
+  const stop = opts.stopPropagation ? ' onclick="event.stopPropagation()"' : '';
+  const safe = String(name).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return `<a href="/player/${id}" class="${cls}"${target}${stop} title="Abrir página do jogador">${safe}</a>`;
 }
 
-function closePlayerModal() {
-  document.getElementById('player-modal').style.display = 'none';
-}
 </script>
 
 {% block scripts %}{% endblock %}

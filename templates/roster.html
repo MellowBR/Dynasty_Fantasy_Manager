@@ -108,8 +108,7 @@
         <span class="pos-badge pos-{{ p.position | replace('/', '') }}">{{ p.position }}</span>
         <div class="player-info">
           <span class="player-name">
-            <a href="javascript:void(0)" onclick="showPlayerHistory({{ p.id }})" class="player-name-link">{{ p.name }}</a>
-            <a href="{{ url_for('roster.player_detail', player_id=p.id) }}" class="player-external-link" title="Abrir página do jogador">🔗</a>
+            <a href="{{ url_for('roster.player_detail', player_id=p.id) }}" class="player-name-link" title="Abrir página do jogador">{{ p.name }}</a>
             {% if p.is_on_ir %}<span class="tag tag-ir">🏥 IR</span>{% endif %}
             {% if p.via_trade %}<span class="tag tag-trade">TRADE</span>{% endif %}
             {% if p.is_renewal_candidate() %}<span class="tag tag-renewal">ANO 4</span>{% endif %}

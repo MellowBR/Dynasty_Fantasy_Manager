@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import player_name_link %}
 {% block title %}Proposta de Trade{% endblock %}
 
 {% block content %}
@@ -71,7 +72,7 @@
             {% for p in s.players_out %}
             <div class="asset-item asset-static">
               <span class="pos-badge pos-{{ p.position|replace('/','') }}">{{ p.position }}</span>
-              <span class="asset-name">{{ p.name }}</span>
+              {{ player_name_link(p, klass='asset-name') }}
               <span class="text-dim small-text">${{ p.salary|int }} · {{ p.contract_display }}</span>
             </div>
             {% endfor %}
@@ -93,7 +94,7 @@
             {% for p in s.players_in %}
             <div class="asset-item asset-static">
               <span class="pos-badge pos-{{ p.position|replace('/','') }}">{{ p.position }}</span>
-              <span class="asset-name">{{ p.name }}</span>
+              {{ player_name_link(p, klass='asset-name') }}
               <span class="text-dim small-text">${{ p.salary|int }} · {{ p.contract_display }}</span>
             </div>
             {% endfor %}

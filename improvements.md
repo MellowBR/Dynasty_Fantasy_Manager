@@ -46,13 +46,14 @@
 | F1 | Correção de salários por partial name match (3 Browns bug) | Alta | ✅ 28/03/2026 |
 | F2 | Ordenação do Round 1 via `draft_lottery_result` + `season_standings` | Alta | ✅ 28/03/2026 |
 | F3 | Histórico inline (accordion) na aba de histórico | Média | ✅ 28/03/2026 |
-| O1 | Linkificar nomes de jogadores em todas as telas | Média | 🔲 |
+| O1 | Linkificar nomes de jogadores em todas as telas | Média | ✅ 23/04/2026 |
 | O2 | Enriquecer página do jogador: stats históricas + ADP | Média | 🔲 |
 | L1 | League Hub: visão geral da liga + detalhe por time | Alta | 🔲 |
 | L2 | League Hub season mode: matchups, schedule, standings | Baixa | 🔲 |
 | N1 | Redesign navbar: estrutura com dropdowns + acesso rápido aos times | Média | 🔲 |
 | C1 | Cap projector: modo "drop programado" para simular liberações de cap | Média | 🔲 |
 | M8-PERM | Lottery: simulação aberta a owners + bloqueio server-side pós-oficial | Média | ✅ 23/04/2026 |
+| T2-FIX | Picks Rd2+ sem dynasty value no preview/proposta de trade | Média | 🔲 |
 
 ---
 
@@ -831,11 +832,35 @@ Validado (7 cenários): 108 células clicáveis (12×3×3), 9 minhas (pick_a) + 
 ---
 
 ### O1 — Linkificar Nomes de Jogadores em Todas as Telas
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (23/04/2026)** — Prioridade **Média**
 
-**Problema:** A página de jogador (`GET /player/<player_id>`, M13) existe mas só está acessível via ícone `🔗` no roster e salary_history. No cap projector, tela de trades e demais listers, o nome do jogador não leva à página dedicada.
+**Problema:** A página de jogador (`GET /player/<player_id>`, M13) existia mas só era acessível via ícone `🔗` no roster e salary_history. Cap projector, admin tools e demais listers tinham nomes como texto puro.
 
-**Objetivo:** Em toda tela que lista jogadores, o nome deve ser um link clicável para `/player/<player_id>`. Na tela de trades, o `stopPropagation` já existe — só falta o `href`. Verificar todas as ocorrências: roster, cap projector, trades, picks, salary_history, player_detail (jogadores listados em trades relacionadas).
+**Implementado em 3 lotes:**
+
+1. **Macros centralizados:**
+   - `templates/_macros.html` (NOVO) — macro Jinja `player_name_link(player, klass, target, stop_propagation)`.
+   - `templates/base.html` — helper JS `renderPlayerNameLink(p, opts)` para JS template strings, com escape HTML interno.
+
+2. **Lote 1 — telas com payload pronto:**
+   - `cap_projector.html`, `admin.html` (rollover preview + review_players), `trade_proposal.html` (assets in/out) — usando o helper/macro novo.
+
+3. **Lote 2 — roster (decisão A):**
+   - `roster.html` — nome do jogador agora vai direto para `/player/<id>` (era modal inline `showPlayerHistory`). Ícone 🔗 separado removido.
+   - `base.html` — modal `#player-modal` + funções `showPlayerHistory` e `closePlayerModal` removidos (órfãos após Lote 2). CSS `.timeline*` preservado (usado por `player_detail.html`).
+
+4. **Lote 3 — modal de trade (`_trade_detail_modal.html`):**
+   - `routes/trades.py:trade_by_tx` — best-effort `find_player_by_name(asset)` adiciona `player_id` (nullable) por asset. Picks e nomes ambíguos ficam null (degradação elegante).
+   - `_trade_detail_modal.html` — usa `renderPlayerNameLink` quando `player_id` existe; fallback para `escapeHtml(asset)` caso contrário.
+
+**Validação (23/04/2026, via Flask test_client):**
+- `salary_engine_test.py`: 48/48.
+- `/cap_projector` renderiza, helper presente.
+- `/?team=...` (roster): sem `showPlayerHistory`, sem `player-external-link` (🔗), com `href="/player/"`.
+- `/api/trades/by_tx/<tx>`: matches reais — Kaleb Johnson→55, David Montgomery→235, Justin Jefferson→38. Picks corretamente null.
+- Cobertura observada em 3 trades reais: 60%, 25%, 100% (gap = picks, esperado).
+
+**Não retrofitados** (regra do prompt): `trades.html` e `salary_history.html` — já tinham links corretos via M13/M14, mexer abriria risco sem ganho.
 
 ---
 
@@ -922,6 +947,26 @@ Não persiste nenhuma alteração no banco — é simulação pura, análoga ao 
 - Audit canônico forçado → 409 no curl + botão desaparece no template (replaced).
 - `/lottery/replace` segue exigindo admin.
 - Após rollover, simulação reabre automaticamente.
+
+---
+
+### T2-FIX — Picks Rd2+ sem dynasty value no preview/proposta de trade
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** No preview de trade e na proposta gerada (T2), picks de Round 2 ou superior aparecem sem valor dynasty FantasyCalc, enquanto picks de Round 1 exibem o valor corretamente. Identificado em produção via screenshot. Comportamento inconsistente: a integração funciona parcialmente, sugerindo bug de mapeamento e não falha de fetch.
+
+**Hipótese:** O helper `pick_sleeper_id(pick, current_season)` em `dynasty_values.py:123` gera o identificador `DP_<year_offset>_<pick_index>` esperado pela API FantasyCalc, mas o cálculo de `pick_index` provavelmente assume Rd1 (1-12) e não cobre Rd2+ corretamente (13-24, 25-36, ...). Picks de rounds superiores caem em IDs que não existem no dataset FantasyCalc, retornando `None` no `values_map.get(fc_sid)`.
+
+**Próximo passo:** Diagnose **Fase 1 (read-only)** obrigatório antes de qualquer fix:
+1. Inspecionar `pick_sleeper_id` para entender a fórmula atual de `pick_index`.
+2. Verificar formato esperado do dataset FantasyCalc (`data/.dynasty_values_cache.json`) — chaves para picks de Rd2+.
+3. Cruzar com `Pick.round` / `Pick.original_team_seed` no banco para uma trade real com Rd2+ que exibe valor faltando.
+4. Documentar causa raiz no improvements.md (sub-item "Fase 1 Diagnose ✅") antes de abrir prompt de implementação `MAN-T2-FIX`.
+
+**Referências:**
+- T2 (concluído 22/04/2026) — integração FantasyCalc no preview de trade.
+- `dynasty_values.py` — fetcher + cache + helper `pick_sleeper_id`.
+- `routes/trades.py:71` — `_pick_asset_dict(pick, values_map, current_season)` consome o helper.
 
 ---
 

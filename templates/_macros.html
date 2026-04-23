@@ -1,0 +1,11 @@
+{# Macros reutilizáveis. Use {% from "_macros.html" import player_name_link %}. #}
+
+{# player_name_link(player, klass='', target=None, stop_propagation=False)
+   player precisa ter .id e .name. #}
+{% macro player_name_link(player, klass='', target=None, stop_propagation=False) -%}
+<a href="{{ url_for('roster.player_detail', player_id=player.id) }}"
+   class="player-name{% if klass %} {{ klass }}{% endif %}"
+   {%- if target %} target="{{ target }}"{% endif %}
+   {%- if stop_propagation %} onclick="event.stopPropagation()"{% endif %}
+   title="Abrir página do jogador">{{ player.name }}</a>
+{%- endmacro %}

@@ -65,7 +65,10 @@ function openTradeDetail(txId) {
           html += `<div class="trade-detail-team-header">📥 ${escapeHtml(team)} recebeu:</div>`;
           html += '<div class="trade-detail-section">';
           for (const a of assets) {
-            html += `<div class="trade-detail-asset">· ${escapeHtml(a.asset)} <span class="text-dim small-text">(de ${escapeHtml(a.from)})</span></div>`;
+            const assetHtml = a.player_id
+              ? renderPlayerNameLink({id: a.player_id, name: a.asset})
+              : escapeHtml(a.asset);
+            html += `<div class="trade-detail-asset">· ${assetHtml} <span class="text-dim small-text">(de ${escapeHtml(a.from)})</span></div>`;
           }
           html += '</div>';
         }

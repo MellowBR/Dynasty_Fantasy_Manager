@@ -263,7 +263,7 @@ function previewRollover() {
       const d2 = p.salary_delta;
       const dCls = d2 > 0 ? 'text-warn' : (d2 < 0 ? 'text-ok' : 'text-dim');
       html += `<tr class="${p.is_renewal ? 'row-renewal' : ''}">
-        <td>${p.name} ${p.is_renewal ? '<span class="tag tag-renewal">RENOV.</span>' : ''}</td>
+        <td>${renderPlayerNameLink(p)} ${p.is_renewal ? '<span class="tag tag-renewal">RENOV.</span>' : ''}</td>
         <td class="text-dim">${p.fantasy_team}</td>
         <td>$${p.current_salary}</td>
         <td class="salary-cell">$${p.new_salary}</td>
@@ -351,7 +351,7 @@ fetch('/api/admin/review_players').then(r => r.json()).then(players => {
     <div class="player-row" style="margin-bottom:.4rem">
       <span class="pos-badge pos-${p.position.replace('/','')}">${p.position || '?'}</span>
       <div class="player-info">
-        <span class="player-name">${p.name}</span>
+        ${renderPlayerNameLink(p)}
         <span class="player-meta text-dim">${p.fantasy_team} · $${Math.round(p.salary)} · ${p.acquisition_type}</span>
       </div>
       <div class="player-right">

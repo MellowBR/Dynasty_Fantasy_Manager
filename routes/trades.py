@@ -333,13 +333,20 @@ def trade_by_tx(tx_id):
     pattern = re.compile(r"^(.+?)\s*\(([^→]+?)(?:→|->)([^)]+?)\)$")
     assets_by_team = {}  # dst_team → list of assets received from their side
     if trade.description:
+        from player_lookup import find_player_by_name
         parts = [p.strip() for p in trade.description.split(";") if p.strip()]
         for part in parts:
             m = pattern.match(part)
             if not m:
                 continue
             asset, src, dst = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
-            assets_by_team.setdefault(dst, []).append({"asset": asset, "from": src})
+            # Best-effort: picks e nomes ambíguos retornam None (consumidor faz fallback).
+            matched = find_player_by_name(asset)
+            assets_by_team.setdefault(dst, []).append({
+                "asset": asset,
+                "from": src,
+                "player_id": matched.id if matched else None,
+            })
 
     return jsonify({
         "sleeper_transaction_id": trade.sleeper_transaction_id,
