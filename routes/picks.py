@@ -1,6 +1,6 @@
 import json as _json
 from flask import Blueprint, render_template, request, jsonify, abort
-from flask_login import login_required
+from flask_login import login_required, current_user
 from models import db, Pick, Team, DraftLotteryResult, SeasonStandings, LotteryAudit, get_config, get_current_season
 from routes.auth import admin_required
 
@@ -28,25 +28,45 @@ def picks_page():
 
     proj = _build_pick_projections()
 
-    grid = {}
+    # M9: organizar como matrix {season: {original_team_name: {round: pick}}} com
+    # ordem de linhas por projected_pick do R1 (ou alphabet fallback).
+    matrix = {}
     for season in PICK_SEASONS:
-        grid[season] = {}
-        for rnd in PICK_ROUNDS:
-            rnd_picks = [p for p in all_picks
-                         if p.season == season and p.round == rnd]
-            # Sort by projected pick number (teams with projections first, then alphabetical)
-            rnd_picks.sort(key=lambda p: (
-                proj.get((p.season, p.round, p.original_team_name), {}).get("pick_number", 999),
-                p.original_team_name,
-            ))
-            grid[season][rnd] = rnd_picks
+        # Times únicos desta season (via original_team_name)
+        season_picks = [p for p in all_picks if p.season == season]
+        if not season_picks:
+            continue
+        teams_in_season = sorted(set(p.original_team_name for p in season_picks))
+        # Ordenar por projected_pick do R1 quando disponível
+        teams_in_season.sort(key=lambda name: (
+            proj.get((season, 1, name), {}).get("pick_number", 999),
+            name,
+        ))
+        matrix[season] = {
+            "teams_ordered": teams_in_season,
+            "cells": {},  # (team_name, round) → pick
+            "projections": {},  # (team_name, round) → {pick_number, locked}
+        }
+        for p in season_picks:
+            matrix[season]["cells"][(p.original_team_name, p.round)] = p
+        for team_name in teams_in_season:
+            for rnd in PICK_ROUNDS:
+                key = (season, rnd, team_name)
+                if key in proj:
+                    matrix[season]["projections"][(team_name, rnd)] = proj[key]
+
+    # M9: meu time vinculado (ou None se admin sem time)
+    my_team_name = (current_user.team_rel.name
+                    if current_user.is_authenticated and current_user.team_rel
+                    else None)
 
     return render_template("picks.html",
-                           grid=grid,
+                           matrix=matrix,
                            seasons=PICK_SEASONS,
                            rounds=PICK_ROUNDS,
                            teams=[t.name for t in teams],
-                           lottery_odds=LOTTERY_ODDS)
+                           lottery_odds=LOTTERY_ODDS,
+                           my_team_name=my_team_name)
 
 
 # ── API ──────────────────────────────────────────────────────────────────────

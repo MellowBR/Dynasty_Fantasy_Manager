@@ -1223,6 +1223,154 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   color: var(--text-dim, #aaa);
 }
 
+/* ── M9: Picks Matrix ─────────────────────────────────────────────────────── */
+
+.picks-matrix {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.4fr) repeat(3, minmax(110px, 1fr));
+  gap: 4px;
+  margin: .5rem 0 1rem;
+  background: rgba(255,255,255,.02);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.picks-matrix-header {
+  padding: .45rem .6rem;
+  font-size: .78rem;
+  color: var(--text-dim, #aaa);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  font-weight: 600;
+  text-align: center;
+  background: rgba(255,255,255,.03);
+  border-radius: 4px;
+}
+
+.picks-matrix-corner {
+  background: transparent;
+}
+
+.picks-matrix-rowlabel {
+  padding: .45rem .6rem;
+  font-size: .85rem;
+  font-weight: 500;
+  color: var(--text, #e0e0e0);
+  background: rgba(255,255,255,.03);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picks-matrix-cell {
+  padding: .4rem .55rem;
+  border-radius: 4px;
+  background: rgba(255,255,255,.02);
+  border: 1px solid rgba(255,255,255,.04);
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .82rem;
+  position: relative;
+  text-decoration: none;
+  color: inherit;
+  transition: background .12s ease, border-color .12s ease;
+}
+
+.picks-matrix-cell.is-empty {
+  color: var(--text-dim, #aaa);
+  justify-content: center;
+  opacity: .4;
+}
+
+.picks-matrix-cell.is-mine {
+  border-color: rgba(110, 231, 183, 0.4);
+  background: rgba(110, 231, 183, 0.05);
+}
+
+.picks-matrix-cell.is-traded:not(.is-mine) {
+  background: rgba(110, 168, 254, 0.05);
+}
+
+.picks-matrix-cell.clickable {
+  cursor: pointer;
+}
+
+.picks-matrix-cell.clickable:hover {
+  background: rgba(110, 168, 254, 0.14);
+  border-color: rgba(110, 168, 254, 0.5);
+}
+
+.picks-badge {
+  display: inline-block;
+  padding: .1rem .4rem;
+  font-size: .7rem;
+  font-weight: 700;
+  color: var(--text, #e0e0e0);
+  background: rgba(255,255,255,.08);
+  border-radius: 99px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.picks-matrix-cell .pick-current-owner {
+  font-size: .75rem;
+  color: #6ea8fe;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.picks-matrix-cell .pick-mine-label {
+  font-size: .7rem;
+  color: #7ee2b5;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.picks-matrix-cell .pick-edit-btn {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity .15s ease;
+  background: rgba(255,255,255,.08);
+  border: none;
+  color: var(--text-dim, #aaa);
+  cursor: pointer;
+  padding: .15rem .35rem;
+  font-size: .75rem;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.picks-matrix-cell:hover .pick-edit-btn {
+  opacity: 1;
+}
+
+.picks-matrix-cell .pick-edit-btn:hover {
+  background: rgba(255,255,255,.18);
+  color: var(--text, #e0e0e0);
+}
+
+@media (max-width: 720px) {
+  .picks-matrix {
+    grid-template-columns: minmax(100px, 1.2fr) repeat(3, minmax(70px, 1fr));
+  }
+  .picks-matrix-rowlabel {
+    font-size: .75rem;
+    padding: .35rem .4rem;
+  }
+  .picks-matrix-cell {
+    font-size: .72rem;
+    min-height: 36px;
+  }
+}
+
 /* ── M8: Draft Lottery Visualization ─────────────────────────────────────── */
 
 .lottery-pool {

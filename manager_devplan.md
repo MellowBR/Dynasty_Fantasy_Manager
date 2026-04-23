@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 23/04/2026 (M8 concluído — lottery auditável + visualização de bolinhas + fluxo duas fases)  
+> Última atualização: 23/04/2026 (M14 + M9 concluídos — /trades com query params + grid navegável de picks)  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -114,6 +114,17 @@ Sync automático de trades + backfill da temporada anterior. Trade table passa d
 - **Migração:** `Trade.source` (default 'manual') + `Trade.sleeper_transaction_id` (unique nullable) via `_run_migrations()`.
 - **Tratamento C+ para N-way:** 2-way = row normal; N>2 = placeholder `team_b="N-way: ..."` + `description="[N-WAY] ..."`. Admin sempre vê a trade na UI, nunca precisa de código.
 - **UI:** card "Trades Históricas (Backfill)" em `/admin` com botão.
+
+### Camada M9 — Grid navegável de picks + atalho para trade ✅ Done (23/04/2026)
+
+Substitui listas verticais da `/picks` por grid matrix 12 times × 3 rounds. Cada célula é clicável quando a pick é de outro dono — abre `/trades` com dois times pré-selecionados via M14. Reduz fluxo de "ver pick → anotar → ir em trades → selecionar 2 times" (4 passos) para 1 clique.
+
+- **Backend**: `picks_page` reorganiza dados como matrix `{season: {teams_ordered, cells, projections}}`. Ordem de linhas por `projected_pick` do R1 (fallback alfabético). Passa `my_team_name` derivado de `current_user.team_rel.name` (None se admin sem time).
+- **Template**: grid 4 colunas (rowlabel + R1 + R2 + R3). Célula é `<a>` linkando `/trades?team_a=<meu>&team_b=<atual>` apenas quando `traded_away=True` + `current_team != my_team`. Senão é `<div>` estático. Banner de warning quando `my_team_name is None`.
+- **CSS**: `.picks-matrix`, `.picks-matrix-cell` com variantes `is-mine` (borda verde), `is-traded` (fundo azul), `clickable` (hover highlight). `.picks-badge` para `#N` do pick.
+- **Admin preservado**: botão ✎ por célula (opacity 0 default, 1 no hover) chama `openPickEdit` existente.
+- **Filtro adaptado**: `filterTeam` itera em grupos de 4 children após headers — mostra linha se `origTeam === name` ou alguma célula tem `current_team === name`.
+- **Validado em 9 cenários** (23/04/2026): status 200, primeira linha Miller Time! (pick 1 do lottery), 18 células trocadas visíveis, 16 clicáveis (excluindo 2 que chegam ao Cangaceiros), 9 células `is-mine`, seasons 2027/2028 sem projeção com ordem alfabética, warning pra user sem time.
 
 ### Camada M8 — Lottery auditável + visualização de bolinhas + fluxo duas fases ✅ Done (23/04/2026)
 
@@ -383,6 +394,22 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 - **`trade_date` vem do `created` (ms epoch) do Sleeper**, não `datetime.utcnow()` — preserva cronologia histórica correta (listagem em `/trades` mostra ordem cronológica real).
 
 - **Validação via Flask test_client:** backfill → 29 imported; re-run → 0 imported, 29 skipped; contagens SQL corretas.
+
+### 23/04/2026 — Camada M9 (Grid de picks navegável)
+
+- **Matrix `team × round` em vez de `season × round` com listas.** Layout anterior listava picks de cada round em coluna vertical separada — usuário precisava procurar mentalmente o time em 3 colunas pra ver seus picks. Nova matrix: 1 linha = 1 time, 3 colunas = R1/R2/R3. Scaneamento natural.
+
+- **Ordem de linhas por `projected_pick` do R1.** Alternativas consideradas: alfabético (previsível mas não informativo), por `current_team_name` (complicado com trades), por rank do standings anterior (bom mas exigiria query extra). Escolhi `projected_pick` porque é a ordem que interessa ao owner — "quem pega antes" é o que dá contexto ao ver a matrix. Fallback alfabético para seasons sem projeção.
+
+- **Célula clicável apenas quando `traded_away=True` AND `current_team != my_team`.** Dois filtros combinados. Trades próprias (recebi de outro) já me dão acesso — não faz sentido "propor trade" comigo mesmo. Picks não trocadas também ficam não-clicáveis: propor trade por pick original é ruído (o padrão seria trocar players, não começar pela pick). Restringir ao caso trocado-por-outro foca o fluxo no caso real: "vi que a pick 1.01 foi tradada pro X, vou propor X recomprá-la por outra coisa minha".
+
+- **`<a>` HTML nativo em vez de JavaScript onclick.** Link nativo dá right-click "abrir em nova aba" grátis — útil pro owner comparar trades sem perder contexto. Mesmo padrão do avatar de team → roster.
+
+- **`my_team_name` derivado no backend, não no template.** Evita lógica complexa no Jinja (`current_user.team_rel.name if current_user.team_rel else None`) repetida em várias condicionais. Backend resolve uma vez e template usa direto.
+
+- **Banner warning quando `my_team_name is None`** (admin sem time vinculado). Comportamento atual: zero células clicáveis, página funciona mas sem atalhos. Alternativa rejeitada: esconder toda a funcionalidade de trade (desnecessariamente restritivo — admin pode querer ver os picks sem intenção de propor).
+
+- **Botão ✎ de edição admin com opacity 0 no default + 1 no hover.** Alternativa rejeitada: botão sempre visível — poluiria visualmente a matrix densa. Hover-only mantém a matrix limpa e o botão descobrível quando o owner passa mouse em cima da célula.
 
 ### 23/04/2026 — Camada M8 (Lottery auditável + bolinhas + duas fases)
 

@@ -15,45 +15,81 @@
   </select>
 </div>
 
+{% if not my_team_name %}
+<div class="alert alert-warn" style="margin-bottom:1rem">
+  ⚠️ Seu usuário não tem time vinculado. Vincule em <a href="/admin/users">/admin/users</a> para propor trades com um clique.
+</div>
+{% endif %}
+
 {% for season in seasons %}
+{% set season_data = matrix.get(season) %}
+{% if season_data %}
 <section class="picks-year-section">
   <h2 class="picks-year-title">{{ season }}</h2>
-  <div class="picks-round-grid">
+
+  <div class="picks-matrix">
+    <div class="picks-matrix-header picks-matrix-corner"></div>
     {% for rnd in rounds %}
-    <div class="picks-round-col">
-      <h3 class="round-header">Round {{ rnd }}</h3>
-      {% set rnd_picks = grid.get(season, {}).get(rnd, []) %}
-      {% if rnd_picks %}
-        {% for pick in rnd_picks %}
-        <div class="pick-card {{ 'pick-traded' if pick.traded_away }}"
-             data-orig="{{ pick.original_team_name }}"
-             data-cur="{{ pick.current_team_name }}">
-          <div class="pick-owners">
-            <span class="pick-number text-dim" style="font-size:.75rem;min-width:1.5rem;display:inline-block">{{ loop.index }}.</span>
-            <span class="pick-orig text-dim">{{ pick.original_team_name }}</span>
-            {% if pick.traded_away %}
-              <span class="pick-arrow">→</span>
-              <span class="pick-cur">{{ pick.current_team_name }}</span>
-            {% endif %}
-          </div>
-          <div class="pick-btns">
-            <button class="btn-xs btn-secondary"
-              onclick="openPickEdit({{ pick.id }}, '{{ pick.current_team_name | replace("'", "\\'") }}')">
-              Editar
-            </button>
-            {% if pick.traded_away %}
-            <button class="btn-xs btn-danger-outline" onclick="resetPick({{ pick.id }})">Reset</button>
-            {% endif %}
-          </div>
-        </div>
-        {% endfor %}
-      {% else %}
-        <p class="text-dim small-text">Sem picks</p>
-      {% endif %}
-    </div>
+      <div class="picks-matrix-header">Round {{ rnd }}</div>
+    {% endfor %}
+
+    {% for team_name in season_data.teams_ordered %}
+      <div class="picks-matrix-rowlabel" title="{{ team_name }}" data-team="{{ team_name }}">{{ team_name }}</div>
+      {% for rnd in rounds %}
+        {% set pick = season_data.cells.get((team_name, rnd)) %}
+        {% set projection = season_data.projections.get((team_name, rnd)) %}
+        {% if pick %}
+          {% set is_mine = my_team_name and pick.current_team_name == my_team_name %}
+          {% set is_other = pick.traded_away and my_team_name and pick.current_team_name != my_team_name %}
+          {% set clickable = pick.traded_away and my_team_name and pick.current_team_name != my_team_name %}
+          {% set cell_classes = 'picks-matrix-cell' +
+               (' is-mine' if is_mine else '') +
+               (' is-traded' if pick.traded_away else '') +
+               (' clickable' if clickable else '') %}
+          {% set cell_title = 'Season ' ~ pick.season ~ ' · Round ' ~ pick.round ~
+                               ' · Original: ' ~ pick.original_team_name ~
+                               ' · Atual: ' ~ pick.current_team_name %}
+          {% if clickable %}
+            {% set cell_title = cell_title ~ ' — Clique para propor trade com ' ~ pick.current_team_name %}
+            <a class="{{ cell_classes }}"
+               data-orig="{{ pick.original_team_name }}"
+               data-cur="{{ pick.current_team_name }}"
+               data-pick-id="{{ pick.id }}"
+               title="{{ cell_title }}"
+               href="{{ url_for('trades.trades_page', team_a=my_team_name, team_b=pick.current_team_name) }}">
+              {% if projection %}<span class="picks-badge">#{{ projection.pick_number }}</span>{% endif %}
+              {% if pick.traded_away %}
+                <span class="pick-current-owner">→ {{ pick.current_team_name }}</span>
+              {% endif %}
+              <button class="btn-xs pick-edit-btn"
+                      onclick="event.preventDefault();event.stopPropagation();openPickEdit({{ pick.id }}, '{{ pick.current_team_name | replace("'", "\\'") }}')"
+                      title="Editar pick (admin)">✎</button>
+            </a>
+          {% else %}
+            <div class="{{ cell_classes }}"
+                 data-orig="{{ pick.original_team_name }}"
+                 data-cur="{{ pick.current_team_name }}"
+                 data-pick-id="{{ pick.id }}"
+                 title="{{ cell_title }}">
+              {% if projection %}<span class="picks-badge">#{{ projection.pick_number }}</span>{% endif %}
+              {% if pick.traded_away %}
+                <span class="pick-current-owner">→ {{ pick.current_team_name }}</span>
+              {% elif is_mine %}
+                <span class="pick-mine-label">minha</span>
+              {% endif %}
+              <button class="btn-xs pick-edit-btn"
+                      onclick="openPickEdit({{ pick.id }}, '{{ pick.current_team_name | replace("'", "\\'") }}')"
+                      title="Editar pick (admin)">✎</button>
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="picks-matrix-cell is-empty" title="Sem pick">—</div>
+        {% endif %}
+      {% endfor %}
     {% endfor %}
   </div>
 </section>
+{% endif %}
 {% endfor %}
 
 <!-- Lottery odds -->
@@ -96,9 +132,32 @@
 {% block scripts %}
 <script>
 function filterTeam(name) {
-  document.querySelectorAll('.pick-card').forEach(el => {
-    if (!name) { el.style.display = ''; return; }
-    el.style.display = (el.dataset.orig === name || el.dataset.cur === name) ? '' : 'none';
+  // M9: filtra linhas da matrix. Se nenhum filtro: tudo visível.
+  // Com filtro: mostra rowlabel onde data-team === name + 3 cells da mesma row
+  // (+ também cells trocadas em rows de outros times onde current == name).
+  document.querySelectorAll('.picks-year-section').forEach(section => {
+    const matrix = section.querySelector('.picks-matrix');
+    if (!matrix) return;
+    const children = Array.from(matrix.children);
+    // Children: 1 corner + 3 headers + N × (1 rowlabel + 3 cells)
+    // Vamos iterar em grupos de 4 (rowlabel + 3 cells) após os headers.
+    // Header count = 1 (corner) + 3 (round headers) = 4
+    const HEADER_COUNT = 4;
+    if (!name) {
+      children.forEach(c => c.style.display = '');
+      return;
+    }
+    // Cada row tem 4 elementos: [rowlabel, cell_r1, cell_r2, cell_r3]
+    for (let i = HEADER_COUNT; i < children.length; i += 4) {
+      const rowlabel = children[i];
+      const cells = children.slice(i + 1, i + 4);
+      const origTeam = rowlabel && rowlabel.dataset.team;
+      // Linha fica visível se: esse é o time filtrado OU alguma cell tem current_team === name
+      const rowMatches = origTeam === name;
+      const cellMatches = cells.some(c => c && c.dataset.cur === name);
+      const visible = rowMatches || cellMatches;
+      [rowlabel, ...cells].forEach(el => { if (el) el.style.display = visible ? '' : 'none'; });
+    }
   });
 }
 

@@ -24,7 +24,7 @@
 | M3 | Exportar dynasty.db em formato legível para os outros owners | Baixa | 🔲 |
 | M4 | Banner de sync desatualizada com timestamp e botão "Sincronizar agora" | Baixa | 🔲 |
 | M8 | Auditoria do lottery (seed + página de verificação) + visualização de bolinhas + fluxo em 2 fases | Baixa | ✅ 23/04/2026 |
-| M9 | Redesign tela de picks: grid navegável + atalho para trade | Média | 🔲 |
+| M9 | Redesign tela de picks: grid navegável + atalho para trade | Média | ✅ 23/04/2026 |
 | M10 | Autocomplete de jogador na calculadora de salário | Baixa | 🔲 |
 | M11 | Teste de auto-containment documental | Média | ✅ 22/04/2026 |
 | M12 | Vincular owners a times via tela de admin com lookup do Sleeper | Média | ✅ 22/04/2026 |
@@ -333,7 +333,36 @@ CREATE TABLE trade_proposals (
 ---
 
 ### M9 — Redesign tela de picks: grid navegável + atalho para trade
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (23/04/2026)** — Prioridade **Média**
+
+**Implementado:**
+
+1. **Backend (`routes/picks.py` `picks_page`):** substitui `grid = {season: {round: [picks]}}` por `matrix = {season: {teams_ordered, cells: {(team, round): pick}, projections: {(team, round): proj}}}`. Times ordenados por `projected_pick` do R1 (fallback alfabético). Passa `my_team_name = current_user.team_rel.name` ou `None` se admin sem time vinculado.
+
+2. **Template (`templates/picks.html`):** grid matrix 4 colunas (label + R1 + R2 + R3) × N linhas (times). Célula é `<a>` clicável quando `traded_away=True` + `current_team != my_team_name`; senão é `<div>` estático. Link gerado via `url_for('trades.trades_page', team_a=my_team_name, team_b=pick.current_team_name)` — Flask aplica urlencode automático. Banner de warning quando `my_team_name is None` apontando pra `/admin/users`.
+
+3. **CSS (`static/style.css`):** `.picks-matrix` grid, `.picks-matrix-cell` + variantes (`is-mine` borda verde sutil, `is-traded` fundo azul, `clickable` hover highlight), `.picks-badge` para `#N` do pick. Botão ✎ de edição admin aparece no hover (opacity transition).
+
+4. **Filtro de equipe adaptado:** `filterTeam(name)` agora itera em grupos de 4 children (rowlabel + 3 cells) após os 4 headers iniciais. Linha visível se `origTeam === name` OU alguma célula tem `current_team === name`.
+
+5. **Admin preservado:** botão ✎ discreto por célula (opacity 0 default, 1 no hover) chama `openPickEdit` existente. Modal de edição intocado.
+
+**Validação (23/04/2026) — 9 cenários via Flask test_client:**
+
+| # | Cenário | Resultado |
+|---|---------|-----------|
+| 1 | `/picks` renderiza grid 2026 | ✓ status 200, título "2026" visível |
+| 2 | Ordem linhas por projected_pick R1 | ✓ Miller Time! (pick 1) no topo |
+| 3 | Picks trocadas mostram → dono atual | ✓ 18 células com `.pick-current-owner` (18 picks trocadas no DB) |
+| 4 | Células clicáveis quando `current_team != my_team` | ✓ 16 `<a>` (18 trocadas − 2 onde Cangaceiros é o destino; não faria sentido linkar pra proposta comigo mesmo) |
+| 5 | URL gerada tem team_a + team_b + urlencode | ✓ `team_a=Cangaceiros+da+Colina&team_b=3+peat%E2%80%A6+of+pain+%F0%9F%AB%A0` |
+| 6 | Picks próprias com `is-mine` + label "minha" | ✓ 9 células `is-mine` (picks da Cangaceiros do DraftLotteryResult + trades recebidas) |
+| 7 | `filterTeam` presente no JS | ✓ adaptado para iterar em grupos de 4 children |
+| 8 | Modal edit admin funcional | ✓ `openPickEdit` + `#pick-modal` intactos |
+| 9 | Season 2027/2028 sem projeção | ✓ grid ordenado alfabeticamente, sem `.picks-badge` |
+| bonus | `current_user.team_rel is None` (admin sem time) | ✓ banner warning visível, 0 células clicáveis |
+
+**Desbloqueia:** M13 (página de jogador pode reusar o mesmo padrão de link para trade).
 
 **Problema:** A tela `/picks` exibe picks em listas sem deixar claro quem é o **dono atual** quando a pick foi trocada. Para encontrar a pick 1.03 (ou qualquer pick futura) e propor trade, o owner faz 4 passos: (1) navegar pela lista, (2) identificar dono atual, (3) ir pra `/trades`, (4) selecionar manualmente os dois times. Fluxo longo e suscetível a erro.
 
