@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% from "_macros.html" import player_name_link %}
+{% block title %}{{ team.name }} — Dynasty SB{% endblock %}
+
+{% block content %}
+<div class="team-detail-header">
+  {% if team.owner_avatar %}
+  <img src="https://sleepercdn.com/avatars/{{ team.owner_avatar }}"
+       onerror="this.style.display='none'" class="team-detail-avatar" alt="">
+  {% endif %}
+  <div class="team-detail-titles">
+    <h1 class="page-title">
+      {% if standing and standing.is_champion %}🏆 {% elif standing and standing.is_runner_up %}🥈 {% endif %}
+      {{ team.name }}
+      {% if is_my_team %}<span class="tag tag-current">EU</span>{% endif %}
+    </h1>
+    <p class="page-subtitle">
+      {% if team.owner_name %}{{ team.owner_name }}{% endif %}
+      {% if standing %}
+        · Temporada {{ season }}: {{ standing.wins }}-{{ standing.losses }}
+        · {{ standing.points_for|round(1) }} pts
+        {% if standing.rank %}· Rank #{{ standing.rank }}{% endif %}
+      {% endif %}
+    </p>
+  </div>
+  {% if not is_my_team and my_team_name %}
+  <a class="btn btn-primary"
+     href="{{ url_for('trades.trades_page', team_a=my_team_name, team_b=team.name) }}">
+    ⇄ Propor Trade
+  </a>
+  {% endif %}
+  <a class="btn btn-secondary" href="{{ url_for('league.league_hub') }}">← League Hub</a>
+</div>
+
+<section class="team-detail-section">
+  <h2 class="section-title">Cap Breakdown</h2>
+  <div class="cap-breakdown-grid">
+    <div class="cap-breakdown-stat">
+      <span class="stat-label">Cap usado</span>
+      <span class="stat-num {% if cap_used > cap %}cap-negative{% endif %}">${{ cap_used|int }}</span>
+    </div>
+    <div class="cap-breakdown-stat">
+      <span class="stat-label">Cap restante</span>
+      <span class="stat-num {% if cap_remaining < 0 %}cap-negative{% endif %}">${{ cap_remaining|int }}</span>
+    </div>
+    <div class="cap-breakdown-stat">
+      <span class="stat-label">Cap total</span>
+      <span class="stat-num">${{ cap|int }}</span>
+    </div>
+    <div class="cap-breakdown-stat">
+      <span class="stat-label">Jogadores ativos</span>
+      <span class="stat-num">{{ active_count }}</span>
+    </div>
+    <div class="cap-breakdown-stat">
+      <span class="stat-label">IR ({{ ir_count }})</span>
+      <span class="stat-num">${{ ir_cap|int }}</span>
+    </div>
+    <div class="cap-breakdown-stat">
+      <span class="stat-label">Dynasty total</span>
+      <span class="stat-num">{% if dynasty_total %}🪙 {{ dynasty_total }}{% else %}—{% endif %}</span>
+    </div>
+  </div>
+  {% if cap_by_pos %}
+  <table class="data-table cap-by-pos-table">
+    <thead><tr><th>Posição</th><th>Salário comprometido</th></tr></thead>
+    <tbody>
+      {% for pos, total in cap_by_pos.items() %}
+      <tr>
+        <td><span class="pos-badge pos-{{ pos|replace('/','') }}">{{ pos }}</span></td>
+        <td>${{ total|int }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+
+<section class="team-detail-section">
+  <h2 class="section-title">Roster</h2>
+  {% for pos, players in players_by_pos %}
+  <div class="pos-block">
+    <h3 class="pos-block-title">
+      <span class="pos-badge pos-{{ pos|replace('/','') }}">{{ pos }}</span>
+      <span class="text-dim small-text">{{ players|length }}</span>
+    </h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Jogador</th><th>NFL</th><th>Salário</th><th>Contrato</th><th>Aquisição</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in players %}
+        <tr {% if p.is_on_ir %}class="player-ir-row"{% endif %}>
+          <td>
+            {{ player_name_link(p) }}
+            {% if p.is_on_ir %}<span class="tag tag-ir">🏥 IR</span>{% endif %}
+            {% if p.via_trade %}<span class="tag tag-trade">TRADE</span>{% endif %}
+            {% if p.is_renewal_candidate() %}<span class="tag tag-renewal">ANO 4</span>{% endif %}
+          </td>
+          <td class="text-dim">{{ p.nfl_team or '—' }}</td>
+          <td>${{ p.salary|int }}</td>
+          <td class="text-dim">{{ p.contract_display() }}</td>
+          <td class="text-dim small-text">{{ p.acquisition_type }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="team-detail-section">
+  <h2 class="section-title">Picks ({{ picks_by_season.values()|map('length')|sum }})</h2>
+  {% if picks_by_season %}
+  {% for season_year, picks in picks_by_season.items() %}
+  <div class="picks-season-block">
+    <h3 class="pos-block-title">{{ season_year }}</h3>
+    <table class="data-table">
+      <thead><tr><th>Round</th><th>Origem</th><th>Notas</th></tr></thead>
+      <tbody>
+        {% for pk in picks %}
+        <tr>
+          <td><span class="pick-chip">Rd{{ pk.round }}</span></td>
+          <td class="text-dim">
+            {{ pk.original_team_name }}
+            {% if pk.original_team_name != team.name %}<span class="text-dim small-text">(via trade)</span>{% endif %}
+          </td>
+          <td class="text-dim small-text">{{ pk.notes or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="text-dim">Sem picks registradas.</p>
+  {% endif %}
+</section>
+{% endblock %}

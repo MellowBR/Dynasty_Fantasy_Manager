@@ -1528,3 +1528,112 @@ a.player-name:hover {
 .lottery-legend {
   margin: .5rem 0;
 }
+
+/* ── League Hub (L1) ───────────────────────────────────────────────────── */
+.league-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.league-card {
+  display: block;
+  padding: 1rem;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.league-card:hover {
+  background: var(--bg3);
+  border-color: var(--border2);
+  transform: translateY(-1px);
+}
+.league-card-mine {
+  border-color: var(--accent);
+  border-width: 2px;
+  padding: calc(1rem - 1px);
+}
+.league-card-header {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  margin-bottom: .85rem;
+}
+.league-card-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.league-card-titles { min-width: 0; flex: 1; }
+.league-card-name {
+  font-size: .95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.league-card-owner {
+  font-size: .75rem;
+  color: var(--text-dim);
+  margin-top: .15rem;
+}
+.league-card-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .55rem .85rem;
+}
+.league-stat { display: flex; flex-direction: column; }
+.league-stat-label {
+  font-size: .68rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.league-stat-value { font-size: .95rem; font-weight: 600; margin-top: .1rem; }
+.cap-negative { color: #ef4444; }
+
+/* ── Team Detail ────────────────────────────────────────────────────────── */
+.team-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+.team-detail-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.team-detail-titles { flex: 1; min-width: 200px; }
+.team-detail-section { margin-top: 1.5rem; }
+.section-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: .6rem;
+  padding-bottom: .35rem;
+  border-bottom: 1px solid var(--border);
+}
+.cap-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: .75rem;
+  margin-bottom: .85rem;
+}
+.cap-breakdown-stat {
+  display: flex;
+  flex-direction: column;
+  padding: .65rem .8rem;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.cap-by-pos-table { max-width: 360px; }
+.pos-block { margin-bottom: 1rem; }
+.pos-block-title { font-size: .9rem; margin: .5rem 0 .35rem; display: flex; gap: .5rem; align-items: center; }
+.picks-season-block { margin-bottom: 1rem; }

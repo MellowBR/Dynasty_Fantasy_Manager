@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}League Hub — Dynasty SB{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">🏟️ League Hub</h1>
+  <p class="page-subtitle">Visão geral dos 12 times — temporada {{ season }}.</p>
+</div>
+
+<div class="league-grid">
+  {% for c in cards %}
+  <a class="league-card {% if c.is_my_team %}league-card-mine{% endif %}"
+     href="{{ url_for('league.team_detail', team_id=c.id) }}"
+     title="Abrir detalhe do time">
+    <div class="league-card-header">
+      {% if c.owner_avatar %}
+      <img class="league-card-avatar"
+           src="https://sleepercdn.com/avatars/thumbs/{{ c.owner_avatar }}"
+           onerror="this.style.display='none'" alt="">
+      {% endif %}
+      <div class="league-card-titles">
+        <div class="league-card-name">
+          {% if c.is_champion %}🏆 {% elif c.is_runner_up %}🥈 {% endif %}
+          {{ c.name }}
+          {% if c.is_my_team %}<span class="tag tag-current">EU</span>{% endif %}
+        </div>
+        {% if c.owner_name %}
+        <div class="league-card-owner">{{ c.owner_name }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="league-card-stats">
+      <div class="league-stat">
+        <span class="league-stat-label">Record</span>
+        <span class="league-stat-value">
+          {% if c.wins is not none %}{{ c.wins }}-{{ c.losses }}{% else %}—{% endif %}
+        </span>
+      </div>
+      <div class="league-stat">
+        <span class="league-stat-label">Cap restante</span>
+        <span class="league-stat-value {% if c.cap_space < 0 %}cap-negative{% endif %}">
+          ${{ c.cap_space|int }}
+        </span>
+      </div>
+      <div class="league-stat">
+        <span class="league-stat-label">Picks</span>
+        <span class="league-stat-value">{{ c.pick_count }}</span>
+      </div>
+      <div class="league-stat">
+        <span class="league-stat-label">Dynasty</span>
+        <span class="league-stat-value">
+          {% if c.dynasty_total %}🪙 {{ c.dynasty_total }}{% else %}—{% endif %}
+        </span>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

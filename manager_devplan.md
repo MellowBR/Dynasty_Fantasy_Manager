@@ -414,6 +414,26 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 
 - **Validação via Flask test_client:** backfill → 29 imported; re-run → 0 imported, 29 skipped; contagens SQL corretas.
 
+### 23/04/2026 — Camada L1 (League Hub)
+
+- **Decisão:** novo blueprint `routes/league.py` em vez de adicionar a `roster_bp`. **Why:** `roster_bp` está semanticamente acoplado a "meu roster" + APIs de jogador. League Hub é visão da liga inteira — mistura de responsabilidades inflaria o blueprint. 9º blueprint coerente com a separação por domínio que o projeto já segue.
+
+- **Decisão:** sem mudança de schema, sem migration, sem nova coluna. **Why:** diagnose MAN-L1-F1 confirmou que todos os dados necessários existem em Team, Player, Pick, SeasonStandings, dynasty_values cache. Trabalho puramente de routes + templates + CSS.
+
+- **Decisão (perf):** evitar `team.cap_remaining()` no loop de 12 cards. **Why:** `Team.players` é relationship `lazy="dynamic"` — cada chamada dispara query. Pré-carregar todos players em 1 query e calcular cap por team_id no Python preserva a meta de 5 queries totais (teams, standings, pick_counts via group_by, players, get_dynasty_values via cache).
+
+- **Decisão:** `_build_players_by_pos` importado de `routes/roster.py` com underscore (`from routes.roster import _build_players_by_pos`). **Why:** restrição "não alterar roster blueprint" me impediu de tornar a função pública (rename). Função tem 35 linhas de lógica não-trivial (POS_ORDER + healthy/IR ordering). Duplicar é pior que importar privado entre blueprints. Anti-pattern leve, zero risco.
+
+- **Decisão:** dynasty_total só soma **players** ativos. Picks ficam de fora. **Why:** T2-FIX aberto (picks Rd2+ retornam None do FantasyCalc). Somar picks daria valor enviesado. Quando T2-FIX for resolvido, adicionar picks é um diff trivial.
+
+- **Decisão:** `dv_map[sid]` é um dict `{value, name, position, overall_rank, position_rank, is_pick}`, não int. Usar helper `resolve_asset_value(values_map, sid)` de `dynasty_values.py` para extrair `.value`. **Why:** descoberta no smoke test (TypeError int + dict). Consistência com T2 (`routes/trades.py` já usa o mesmo helper).
+
+- **Decisão:** sem tabs JS no `/team/<id>`. 3 seções (Cap Breakdown, Roster, Picks) renderizadas inline server-side. **Why:** alinha com `player_detail.html` (M13) que é página densa SSR. Tabs adicionariam complexidade sem ganho proporcional. Evolução futura se virar dor.
+
+- **Decisão:** botão "Propor Trade" não aparece no detalhe do próprio time. **Why:** owner não negocia consigo mesmo. Verificação via `current_user.team_rel.id == team.id`.
+
+- **Decisão (UX):** ordenação por rank da temporada com fallback `name` para times sem standings (`rank=999`). **Why:** garante que time sem standings (edge case improvável dado os 12 standings 2025 confirmados) ainda apareça, no fim da grid.
+
 ### 23/04/2026 — Camada O1 (Linkificar nomes de jogadores)
 
 - **Decisão:** introduzir 2 helpers centralizados — macro Jinja `player_name_link` em `templates/_macros.html` (NOVO) e função JS `renderPlayerNameLink` em `base.html`. **Why:** zero infra de helper de jogador existia; cada template implementava seu link inline. Helper reduz divergência futura sem retrofittar telas já corretas (trades, salary_history).

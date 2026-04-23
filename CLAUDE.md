@@ -53,7 +53,7 @@ python seed_users.py --list
 9. `run_sync()` → Sleeper API sync (with try/except — app loads even if Sleeper is down)
 10. `_backfill_player_history()` → create history records
 
-### Route Blueprints (8)
+### Route Blueprints (9)
 
 | Blueprint | URL | Purpose |
 |-----------|-----|---------|
@@ -65,6 +65,7 @@ python seed_users.py --list
 | auction | `/auction` | FA auction & rookie draft registration |
 | admin | `/admin`, `/admin/users` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1), PlayerHistory canonical rebuild (F8), dynasty values refresh (T2) |
 | offseason | `/offseason` | 7-step offseason workflow com lottery auditável (M8) |
+| league | `/league`, `/team/<id>` | League Hub (L1): grid de 12 times com cap/picks/dynasty/record + detalhe por time (roster, picks, cap breakdown) |
 
 ### Models (models.py)
 

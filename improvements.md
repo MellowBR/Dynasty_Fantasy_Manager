@@ -48,12 +48,13 @@
 | F3 | Histórico inline (accordion) na aba de histórico | Média | ✅ 28/03/2026 |
 | O1 | Linkificar nomes de jogadores em todas as telas | Média | ✅ 23/04/2026 |
 | O2 | Enriquecer página do jogador: stats históricas + ADP | Média | 🔲 |
-| L1 | League Hub: visão geral da liga + detalhe por time | Alta | 🔲 |
+| L1 | League Hub: visão geral da liga + detalhe por time | Alta | ✅ 23/04/2026 |
 | L2 | League Hub season mode: matchups, schedule, standings | Baixa | 🔲 |
 | N1 | Redesign navbar: estrutura com dropdowns + acesso rápido aos times | Média | 🔲 |
 | C1 | Cap projector: modo "drop programado" para simular liberações de cap | Média | 🔲 |
 | M8-PERM | Lottery: simulação aberta a owners + bloqueio server-side pós-oficial | Média | ✅ 23/04/2026 |
 | T2-FIX | Picks Rd2+ sem dynasty value no preview/proposta de trade | Média | 🔲 |
+| IR-CLEANUP | Remover seletor manual de IR no roster (sync Sleeper já é autoritativo) | Baixa | 🔲 |
 
 ---
 
@@ -877,14 +878,33 @@ Validado (7 cenários): 108 células clicáveis (12×3×3), 9 minhas (pick_a) + 
 ---
 
 ### L1 — League Hub: Visão Geral da Liga + Detalhe por Time
-🔲 **Pendente** — Prioridade **Alta**
+✅ **Concluído (23/04/2026)** — Prioridade **Alta**
 
-**Problema:** Não existe uma tela consolidada com o estado de todos os times da liga. Para comparar cap space, picks ou dynasty value entre times, é necessário navegar time a time.
+**Implementado em novo blueprint `routes/league.py`:**
 
-**Objetivo:**
-- **`GET /league`** — visão geral: cards por time mostrando owner, cap space, nº de picks disponíveis, dynasty value total do roster, record da última temporada. Clique no card leva ao detalhe do time.
-- **`GET /team/<team_id>`** — detalhe do time: roster com contratos (agrupado por posição), picks por ano, cap breakdown (comprometido vs disponível), dynasty value total. Modo offseason por ora.
-- Reutilizar componentes existentes (pos-badge, salary display, dynasty value badges do T2).
+1. **`GET /league`** (`@login_required`) — grid de 12 cards, ordenado por rank da temporada (campeão primeiro). Cada card: avatar (Sleeper CDN thumb), nome, owner, badge 🏆/🥈, record W-L, cap restante (vermelho se negativo), nº de picks, dynasty total. Card do time do usuário logado destacado com border accent (`league-card-mine`). 5 queries totais, sem N+1: teams, standings, pick_counts (group_by), players (filtrados in-memory por team_id), `get_dynasty_values()` (cache JSON). Helper puro `_build_team_card(team, standing, pick_count, players, dv_map)`.
+
+2. **`GET /team/<int:team_id>`** (`@login_required`, 404 via `db.get_or_404`) — detalhe com 3 seções server-rendered (sem tabs):
+   - **Cap Breakdown:** cap usado/restante/total, IR (count + cap), dynasty total, salário comprometido por posição.
+   - **Roster:** agrupado por posição via `_build_players_by_pos` (importado de `routes/roster.py`), nomes via macro O1 `player_name_link`.
+   - **Picks:** agrupados por season+round (3 anos × 3 rounds = 9 cells por time). Indica quando origem != time atual (via trade).
+   - Header: avatar full-size, nome, owner, record da temporada, rank, badges 🏆/🥈. Botão "⇄ Propor Trade" → `/trades?team_a=<my>&team_b=<other>` (M14 por nome). Não exibido para o próprio time do usuário logado.
+
+3. **CSS novo** em `static/style.css`: `.league-grid` (auto-fill 280px), `.league-card`, `.league-card-mine`, `.league-card-avatar/titles/stats`, `.league-stat`, `.cap-negative`, `.team-detail-header/avatar/titles/section`, `.section-title`, `.cap-breakdown-grid/stat`, `.cap-by-pos-table`, `.pos-block`, `.picks-season-block`. Reusa variáveis `--bg2/3`, `--border/border2`, `--accent`, `--text-dim`.
+
+4. **Decisões:**
+   - `dynasty_total` só de **players** (T2-FIX aberto para picks Rd2+).
+   - `_build_players_by_pos` importado com underscore de `routes/roster` (35 linhas; alternativa de duplicar foi rejeitada).
+   - `team.cap_remaining()` evitado no loop dos cards (relationship `lazy="dynamic"` causaria N+1) — cap pré-computado no Python.
+   - Sem tabs JS — página densa server-rendered, alinha com `player_detail.html`.
+   - `resolve_asset_value(values_map, sid)` reusado de `dynasty_values.py` (não fazer lookup inline; entries são dicts `{value, name, position, ...}`, não ints).
+
+**Validação (23/04/2026, Flask test_client):**
+- `GET /league` → 200, 12 cards, badge 🏆 (Pitbull do Samba campeão), `cap-negative` (Pitbull -$2), `league-card-mine` no Cangaceiros.
+- `GET /team/5` (meu time Cangaceiros) → 200, sem botão "Propor Trade".
+- `GET /team/1` (adversário) → 200, com "Propor Trade", links `/player/<id>` via macro O1.
+- `GET /team/999` → 404.
+- `salary_engine_test.py`: 48/48.
 
 ---
 
@@ -967,6 +987,30 @@ Não persiste nenhuma alteração no banco — é simulação pura, análoga ao 
 - T2 (concluído 22/04/2026) — integração FantasyCalc no preview de trade.
 - `dynasty_values.py` — fetcher + cache + helper `pick_sleeper_id`.
 - `routes/trades.py:71` — `_pick_asset_dict(pick, values_map, current_season)` consome o helper.
+
+---
+
+### IR-CLEANUP — Remover Seletor Manual de IR no Roster
+🔲 **Pendente** — Prioridade **Baixa**
+
+**Problema:** O roster tem um toggle de IR manual (`@admin_required`) que não tem efeito persistente. O sync do Sleeper (`sync_sleeper.py:257`) sobrescreve `Player.is_on_ir` a cada execução de forma autoritativa, lendo o array `reserve` de cada roster da API. Toggle local cria falsa sensação de controle: admin clica, estado muda na UI, próximo sync (boot ou manual) reverte silenciosamente. Confirmado em diagnose MAN-IR-F1: 16 players IR localmente, todos com `sleeper_player_id`, todos provavelmente vindos do `reserve` Sleeper.
+
+**O que remover:**
+- Endpoint `POST /api/player/<player_id>/ir` em `routes/roster.py:119-135` (função `toggle_ir`).
+- Handler JS `toggleIR(playerId, toIR)` em `templates/roster.html` (busca em `/api/player/<id>/ir`).
+- Toggle visual na UI (botão/checkbox que dispara `toggleIR`).
+
+**O que preservar:**
+- Campo `Player.is_on_ir` (sync continua escrevendo, modelo intacto).
+- Lógica de cap que exclui IR: `models.py:97-99` (`Team.total_active_salary`), `routes/roster.py:70-75` (cap projetado), `routes/admin.py:77-78` (rollover preview).
+- Constante `MAX_IR` (informativa — sync respeita o limite via Sleeper).
+- Badge `🏥 IR` no roster (visual, lê `p.is_on_ir`, sem alterar nada).
+
+**Pré-condição:** nenhuma — sync já cobre 100% dos casos para players ativos da liga (todos têm `sleeper_player_id` e estão em algum roster Sleeper).
+
+**Validação esperada:** após remoção, 16 players IR continuam IR; sync mantém o número alinhado com Sleeper; cap projector continua ignorando IR no total.
+
+**Caveat de UX:** se quiser preservar capacidade de override em ambiente sem Sleeper (offline ou API fora), avaliar alternativa conservadora — manter o seletor mas adicionar tooltip "Será sobrescrito no próximo sync". Recomendação default é remover (regra do projeto: ações na UI devem ser efetivas ou marcadas claramente como simulação).
 
 ---
 
