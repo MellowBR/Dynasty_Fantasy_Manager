@@ -58,22 +58,22 @@ python seed_users.py --list
 | Blueprint | URL | Purpose |
 |-----------|-----|---------|
 | auth | `/login`, `/logout`, `/auth/callback` | Google OAuth authentication |
-| roster | `/` | Team rosters, IR management, cap bar |
-| salary | `/salary` | Salary calculator, cap projector, salary history |
-| trades | `/trades` | Trade preview/confirmation with cap impact |
-| picks | `/picks` | Draft picks 2025-2028, lottery system |
+| roster | `/`, `/player/<id>` | Team rosters, IR management, cap bar, página dedicada por jogador (M13) |
+| salary | `/salary`, `/salary_history` | Salary calculator, cap projector, salary history com timeline clicável |
+| trades | `/trades`, `/trades/proposta/<uuid>` | Trade simulador puro (T1), preview com dynasty values (T2), query params pré-seleção (M14), propostas compartilháveis |
+| picks | `/picks`, `/picks/lottery/<season>` | Grid navegável de picks (M9), auditoria pública do lottery (M8) |
 | auction | `/auction` | FA auction & rookie draft registration |
-| admin | `/admin`, `/admin/users` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1), PlayerHistory canonical rebuild (F8) |
-| offseason | `/offseason` | 7-step offseason workflow |
+| admin | `/admin`, `/admin/users` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1), PlayerHistory canonical rebuild (F8), dynasty values refresh (T2) |
+| offseason | `/offseason` | 7-step offseason workflow com lottery auditável (M8) |
 
 ### Models (models.py)
 
-14 SQLAlchemy models. Key ones: **User** (email, team_id, is_admin), Team, Player, SalaryHistory, Pick, AuctionLog, Trade, ESPNValue, AppConfig (key-value global state), SeasonStandings, DraftLotteryResult, PlayerHistory.
+17 SQLAlchemy models. Key ones: **User** (email, team_id, is_admin), Team, Player, SalaryHistory, Pick, AuctionLog, Trade, ESPNValue, AppConfig (key-value global state), SeasonStandings, DraftLotteryResult, PlayerHistory, **TradeProposal** (T1 — UUID + assets JSON + TTL 7d), **LotteryAudit** (M8 — seed + weights_json + pool_json + result_hash + is_canonical + previous_audit_id), **F8PlayerBackup** (rollback do F8a).
 
 ### Salary Cap Rules
 
 - **Cap:** $200 | **Roster max:** 22 | **Min salary:** $1 | **Contract:** 4 years
-- **Year 1:** auction_draft/keeper = bid amount; rookie_draft = floor(ESPN×1.2); waiver/FA = $1
+- **Year 1:** auction_draft = bid amount; rookie_draft = floor(ESPN×1.2); waiver/FA = $1 (F6: "keeper" foi removido do vocabulário canônico)
 - **Year 2+ (VALORIZAÇÃO):** MAX(prev_salary, floor(0.5 × ESPN_adjusted)), min $1
 - **Waiver/FA Year 2 exception:** floor(0.80 × ESPN_adjusted), min $1
 - **Renewal (after Year 4):** new 4-year contract, Year 1 = floor(ESPN_adjusted), min $1

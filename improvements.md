@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 22/04/2026
+> Atualizado em: 23/04/2026
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
