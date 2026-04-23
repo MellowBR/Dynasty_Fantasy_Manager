@@ -188,7 +188,7 @@
           </div>
 
           <div class="step-actions" style="margin-top:1rem;display:flex;flex-wrap:wrap;gap:.75rem;align-items:center">
-            {% if lottery %}
+            {% if has_canonical_audit %}
               {# Canonical audit já existe — botão travar, botão re-run com justificativa #}
               <button class="btn btn-danger" onclick="lockLottery()">🔒 Travar Sorteio (irreversível)</button>
               <button class="btn btn-secondary btn-sm" onclick="openReplaceModal()" style="font-size:.8rem">↻ Executar novamente (com justificativa)</button>
@@ -203,7 +203,7 @@
           </div>
 
           <div id="lottery-results" style="margin-top:1rem">
-            {% if lottery %}
+            {% if has_canonical_audit and lottery %}
             <h4 style="margin-bottom:.4rem;font-size:.9rem">Resultado</h4>
             <table class="data-table" id="lottery-result-table">
               <thead><tr><th>Pick</th><th>Time</th><th>Origem</th></tr></thead>

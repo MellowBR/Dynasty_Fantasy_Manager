@@ -132,6 +132,12 @@ def offseason_page():
         .order_by(DraftLotteryResult.pick_number).all()
     teams = Team.query.order_by(Team.name).all()
 
+    # M8: só consideramos que houve sorteio oficial se existir audit canônica.
+    # DraftLotteryResult pode ter rows de execuções pré-M8 sem audit — nesse
+    # caso a UI deve mostrar o toggle + botão de simulação/oficial.
+    has_canonical_audit = LotteryAudit.query.filter_by(
+        season=season + 1, is_canonical=True).first() is not None
+
     # Build lottery seed → team name map from standings (8th-12th place)
     lottery_seeds = {}  # seed 1=12th, 2=11th, 3=10th, 4=9th, 5=8th
     by_rank = {s.rank: s for s in standings}
@@ -145,6 +151,7 @@ def offseason_page():
                            steps=steps,
                            standings=standings,
                            lottery=lottery,
+                           has_canonical_audit=has_canonical_audit,
                            teams=teams,
                            lottery_weights=DEFAULT_LOTTERY_WEIGHTS,
                            lottery_seeds=lottery_seeds)
