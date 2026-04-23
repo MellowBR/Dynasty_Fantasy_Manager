@@ -343,6 +343,64 @@ def run_lottery():
     return jsonify({"success": True, "results": all_results, "audit": audit.to_dict()})
 
 
+@offseason_bp.route("/api/offseason/lottery/simulate", methods=["POST"])
+@admin_required
+def lottery_simulate():
+    """
+    M8: Simulação pura — roda o sorteio em memória com seed descartável, NÃO
+    persiste nada. Zero impacto em LotteryAudit e DraftLotteryResult.
+    Apenas retorna resultados para preview animado na UI.
+    """
+    season = get_current_season()
+    data = request.get_json() or {}
+    weights = data.get("weights", DEFAULT_LOTTERY_WEIGHTS)
+
+    standings = SeasonStandings.query.filter_by(season=season)\
+        .order_by(SeasonStandings.rank).all()
+    if len(standings) < 12:
+        return jsonify({"error": f"Standings incompletos ({len(standings)} times)"}), 400
+
+    by_rank = {s.rank: s for s in standings}
+    pool = []
+    for i, rank in enumerate([12, 11, 10, 9, 8]):
+        s = by_rank.get(rank)
+        if s:
+            seed_idx = i + 1
+            w = float(weights.get(str(seed_idx), weights.get(seed_idx, 1)))
+            pool.append({"team_id": s.team_id, "team_name": s.team_name,
+                         "seed": seed_idx, "weight": w})
+
+    # Disposable seed — no persistence
+    sim_seed = secrets.token_hex(16)
+    lottery_draws = _draw_weighted_lottery(pool, sim_seed)
+    lottery_results = [{**d, "source": "lottery"} for d in lottery_draws]
+
+    # Fixed picks 6-12
+    fixed_results = []
+    s7 = by_rank.get(7)
+    if s7:
+        fixed_results.append({"pick_number": 6, "team_name": s7.team_name,
+                               "team_id": s7.team_id, "source": "standings"})
+    for pick_num, rank in [(7, 6), (8, 5), (9, 4), (10, 3)]:
+        s = by_rank.get(rank)
+        if s:
+            fixed_results.append({"pick_number": pick_num, "team_name": s.team_name,
+                                   "team_id": s.team_id, "source": "standings"})
+    runner_up = next((s for s in standings if s.is_runner_up), None)
+    champion = next((s for s in standings if s.is_champion), None)
+    if runner_up:
+        fixed_results.append({"pick_number": 11, "team_name": runner_up.team_name,
+                               "team_id": runner_up.team_id, "source": "standings"})
+    if champion:
+        fixed_results.append({"pick_number": 12, "team_name": champion.team_name,
+                               "team_id": champion.team_id, "source": "standings"})
+
+    return jsonify({
+        "simulated": True,
+        "results": lottery_results + fixed_results,
+    })
+
+
 @offseason_bp.route("/api/offseason/lottery/replace", methods=["POST"])
 @admin_required
 def lottery_replace():

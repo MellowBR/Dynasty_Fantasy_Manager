@@ -183,14 +183,22 @@
             </div>
           </details>
 
-          <div class="step-actions" style="margin-top:1rem">
+          <div id="lottery-simulation-banner" style="display:none;margin-top:1rem;padding:.6rem .85rem;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.35);border-radius:6px;color:#fbbf24;font-weight:600">
+            ⚠️ SIMULAÇÃO — resultado NÃO é registrado. Marque a checkbox abaixo para sortear oficialmente.
+          </div>
+
+          <div class="step-actions" style="margin-top:1rem;display:flex;flex-wrap:wrap;gap:.75rem;align-items:center">
             {% if lottery %}
-              {# Canonical audit já existe — reveal estático, botão travar, botão re-run #}
+              {# Canonical audit já existe — botão travar, botão re-run com justificativa #}
               <button class="btn btn-danger" onclick="lockLottery()">🔒 Travar Sorteio (irreversível)</button>
               <button class="btn btn-secondary btn-sm" onclick="openReplaceModal()" style="font-size:.8rem">↻ Executar novamente (com justificativa)</button>
               <a href="{{ url_for('picks.lottery_audit_page', season=season + 1) }}" class="btn btn-secondary">📜 Ver auditoria</a>
             {% else %}
-              <button class="btn btn-primary" onclick="runLotteryOfficial()">🎲 Executar Sorteio Oficial</button>
+              <label class="lottery-official-toggle" style="display:flex;align-items:center;gap:.5rem;padding:.4rem .7rem;border:1px solid rgba(255,255,255,.15);border-radius:6px;cursor:pointer">
+                <input type="checkbox" id="lottery-is-official" onchange="updateLotteryButtonLabel()">
+                <span>Sortear oficialmente para temporada <strong>{{ season + 1 }}</strong> (registra audit)</span>
+              </label>
+              <button class="btn btn-primary" id="btn-sortear" onclick="runLottery()">🎰 Simular Sorteio</button>
             {% endif %}
           </div>
 
@@ -398,22 +406,52 @@ function gatherLotteryWeights() {
   return weights;
 }
 
-function runLotteryOfficial() {
-  if (!confirm(
-    '🎲 Executar o sorteio oficial?\n\n' +
-    'O resultado será registrado em audit com seed público e fica visível ' +
-    'para todos os owners. Re-execuções depois exigem justificativa.\n\nProsseguir?'
-  )) return;
-  if (!confirm('Última confirmação: seed será gerado e gravado. Executar agora?')) return;
+function updateLotteryButtonLabel() {
+  const chk = document.getElementById('lottery-is-official');
+  const btn = document.getElementById('btn-sortear');
+  if (!chk || !btn) return;
+  if (chk.checked) {
+    btn.textContent = '🎲 Sortear Oficialmente';
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-danger');
+  } else {
+    btn.textContent = '🎰 Simular Sorteio';
+    btn.classList.remove('btn-danger');
+    btn.classList.add('btn-primary');
+  }
+}
 
+function runLottery() {
+  const isOfficial = document.getElementById('lottery-is-official').checked;
   const weights = gatherLotteryWeights();
-  fetch('/api/offseason/run_lottery', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({weights})
-  }).then(r => r.json()).then(d => {
-    if (d.error) { showResult('step2-result', false, d.error); return; }
-    animateReveal(d.results, d.audit);
-  });
+
+  if (isOfficial) {
+    // Fluxo oficial com confirm duplo
+    if (!confirm(
+      '🎲 Executar o sorteio oficial?\n\n' +
+      'O resultado será registrado em audit com seed público e fica visível ' +
+      'para todos os owners. Re-execuções depois exigem justificativa.\n\nProsseguir?'
+    )) return;
+    if (!confirm('Última confirmação: seed será gerado e gravado. Executar agora?')) return;
+
+    fetch('/api/offseason/run_lottery', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({weights})
+    }).then(r => r.json()).then(d => {
+      if (d.error) { showResult('step2-result', false, d.error); return; }
+      animateReveal(d.results, d.audit, /*isSimulation=*/false);
+    });
+  } else {
+    // Simulação — sem persistir
+    document.getElementById('lottery-simulation-banner').style.display = '';
+    fetch('/api/offseason/lottery/simulate', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({weights})
+    }).then(r => r.json()).then(d => {
+      if (d.error) { showResult('step2-result', false, d.error); return; }
+      animateReveal(d.results, null, /*isSimulation=*/true);
+    });
+  }
 }
 
 function openReplaceModal() {
@@ -440,19 +478,17 @@ function submitReplace() {
   });
 }
 
-function animateReveal(results, audit) {
-  // Sort picks 1-5 + ensure picks 6-12 ordered
+function animateReveal(results, audit, isSimulation) {
   results.sort((a, b) => a.pick_number - b.pick_number);
   const lottery5 = results.filter(r => r.source === 'lottery');
   const fixed = results.filter(r => r.source === 'standings');
 
-  // Clear result area
   const container = document.getElementById('lottery-results');
-  container.innerHTML = '<h4 style="margin-bottom:.4rem;font-size:.9rem">Resultado</h4><table class="data-table" id="lottery-result-table"><thead><tr><th>Pick</th><th>Time</th><th>Origem</th></tr></thead><tbody id="reveal-tbody"></tbody></table>';
+  const simTag = isSimulation ? ' <span style="color:#fbbf24;font-weight:600">(SIMULAÇÃO)</span>' : '';
+  container.innerHTML = `<h4 style="margin-bottom:.4rem;font-size:.9rem">Resultado${simTag}</h4><table class="data-table" id="lottery-result-table"><thead><tr><th>Pick</th><th>Time</th><th>Origem</th></tr></thead><tbody id="reveal-tbody"></tbody></table>`;
   const tbody = document.getElementById('reveal-tbody');
 
   const pool = document.getElementById('lottery-pool');
-  // Reset pool visual state (todos os balls voltam)
   if (pool) {
     pool.querySelectorAll('.lottery-ball').forEach(b => {
       b.classList.remove('eliminated', 'highlighted');
@@ -462,30 +498,34 @@ function animateReveal(results, audit) {
   let idx = 0;
   function revealNext() {
     if (idx >= lottery5.length) {
-      // Após picks 1-5, adicionar 6-12 de uma vez (fixed standings)
       fixed.forEach(r => {
         tbody.innerHTML += `<tr><td><strong>${r.pick_number}</strong></td><td>${r.team_name}</td><td><span class="tag tag-current">standings</span></td></tr>`;
       });
-      const seed = audit ? audit.random_seed : '';
-      showResult('step2-result', true,
-        `Sorteio executado! Seed: ${seed.slice(0, 16)}… Clique "Travar" para confirmar ou "Executar novamente" se houver erro.`);
-      // Re-render buttons: trocar runLotteryOfficial por Travar + re-run
-      swapToLockedActions();
+      if (isSimulation) {
+        showResult('step2-result', true,
+          'Simulação concluída — nada foi registrado. Marque "Sortear oficialmente" e rode de novo para o sorteio definitivo.');
+        // Desmarca o checkbox após simulação pra evitar clique acidental no próximo botão
+        const chk = document.getElementById('lottery-is-official');
+        if (chk) { chk.checked = false; updateLotteryButtonLabel(); }
+      } else {
+        const seed = audit ? audit.random_seed : '';
+        showResult('step2-result', true,
+          `Sorteio oficial executado! Seed: ${seed.slice(0, 16)}… Clique "Travar" para confirmar.`);
+        swapToLockedActions();
+        // Esconde banner e toggle — sorteio oficial feito
+        document.getElementById('lottery-simulation-banner').style.display = 'none';
+      }
       return;
     }
     const pick = lottery5[idx];
-    // Highlight balls do time na pool
     if (pool) {
       const teamBalls = pool.querySelectorAll(`.lottery-ball[data-team="${CSS.escape(pick.team_name)}"]:not(.eliminated)`);
       if (teamBalls.length > 0) {
-        const ball = teamBalls[0];
-        ball.classList.add('highlighted');
+        teamBalls[0].classList.add('highlighted');
       }
     }
-    // Append row
     tbody.innerHTML += `<tr><td><strong>${pick.pick_number}</strong></td><td>${pick.team_name}</td><td><span class="tag tag-trade">lottery</span></td></tr>`;
 
-    // Após delay: elimina bolinhas do time + avança
     setTimeout(() => {
       if (pool) {
         pool.querySelectorAll(`.lottery-ball[data-team="${CSS.escape(pick.team_name)}"]`).forEach(b => {
@@ -494,7 +534,7 @@ function animateReveal(results, audit) {
         });
       }
       idx += 1;
-      setTimeout(revealNext, 400);  // pequeno gap entre picks
+      setTimeout(revealNext, 400);
     }, REVEAL_DELAY_MS);
   }
 
@@ -502,7 +542,7 @@ function animateReveal(results, audit) {
 }
 
 function swapToLockedActions() {
-  // Após reveal: substituir botão "Executar Oficial" por "Travar" + "Executar novamente"
+  // Após sorteio oficial: substituir toggle+botão por Travar + re-run + ver auditoria
   const actions = document.querySelector('#step-body-2 .step-actions');
   if (actions) {
     actions.innerHTML = `
