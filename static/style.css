@@ -87,7 +87,6 @@ code {
   list-style: none;
   gap: .15rem;
   flex: 1;
-  overflow-x: auto;
 }
 
 .nav-links a {
