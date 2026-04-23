@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 22/04/2026 (T2 concluído — valores dynasty FantasyCalc no preview de trade)  
+> Última atualização: 23/04/2026 (M8 concluído — lottery auditável + visualização de bolinhas + fluxo duas fases)  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -114,6 +114,17 @@ Sync automático de trades + backfill da temporada anterior. Trade table passa d
 - **Migração:** `Trade.source` (default 'manual') + `Trade.sleeper_transaction_id` (unique nullable) via `_run_migrations()`.
 - **Tratamento C+ para N-way:** 2-way = row normal; N>2 = placeholder `team_b="N-way: ..."` + `description="[N-WAY] ..."`. Admin sempre vê a trade na UI, nunca precisa de código.
 - **UI:** card "Trades Históricas (Backfill)" em `/admin` com botão.
+
+### Camada M8 — Lottery auditável + visualização de bolinhas + fluxo duas fases ✅ Done (23/04/2026)
+
+Transforma o draft lottery em operação auditável e visualmente transparente. Resolve três problemas simultâneos: (1) sorteio com seed não persistido dificultava qualquer auditoria; (2) UI mostrava só tabela de resultado sem contexto visual; (3) fluxo "re-rodar até travar" permitia cherry-picking teórico.
+
+- **Modelo `LotteryAudit`**: UUID natural via auto-increment, `random_seed` (token_hex(16)), `weights_json`, `pool_json` (snapshot dos 5 times no momento), `result_hash` (SHA256 picks 1-5), `previous_audit_id` + `reason` + `is_canonical` para histórico de re-runs.
+- **Helper `_draw_weighted_lottery(pool, seed)`**: bolinhas literais + `random.shuffle` com `random.seed` único (Opção B). Pure function, determinística, testável isoladamente.
+- **Endpoints novos**: `run_lottery` reescrito (409 se canônica existe), `lottery_replace` (exige `reason`), `/verify` (re-reprodução via pool+seed salvos), page `/picks/lottery/<season>` com histórico.
+- **UI duas fases**: pool de 95 bolinhas coloridas (paleta fixa 5 cores) + legenda com %, SEM botão "testar". Execução oficial com confirm duplo → reveal animado pick a pick (setTimeout 1500ms, scale + glow dourado) → "Travar" + "Executar novamente (com justificativa)" + "Ver auditoria".
+- **Re-run com atrito público**: modal exige textarea de motivo, audit anterior vira `is_canonical=False`, nova row linkada via `previous_audit_id`. Tudo visível em `/picks/lottery/<season>` → tabela "Histórico de tentativas anteriores".
+- **Validado em 9 cenários** (23/04/2026): run inicial, 409 duplicado, verify match, tampering detectado, replace com reason, replace 400 sem reason, audit page, UI, regression salary_engine 48/48.
 
 ### Camada T2 — Valores dynasty FantasyCalc no preview de trade ✅ Done (22/04/2026)
 
@@ -372,6 +383,28 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 - **`trade_date` vem do `created` (ms epoch) do Sleeper**, não `datetime.utcnow()` — preserva cronologia histórica correta (listagem em `/trades` mostra ordem cronológica real).
 
 - **Validação via Flask test_client:** backfill → 29 imported; re-run → 0 imported, 29 skipped; contagens SQL corretas.
+
+### 23/04/2026 — Camada M8 (Lottery auditável + bolinhas + duas fases)
+
+- **Tabela `LotteryAudit` separada, não colunas em `DraftLotteryResult`.** Granularidade é por execução (5 picks afetadas), não por pick. Colunas em `DraftLotteryResult` duplicariam o valor em 12 rows e complicariam histórico de re-runs. Decisão clara.
+
+- **`pool_json` snapshot foi essencial, não cosmético.** Meu primeiro instinto (diagnose) era salvar apenas `weights_json`. Feedback do owner e reflexão subsequente revelaram: se `SeasonStandings` for editada depois do lottery (admin corrige um rank), a reprodução via `/verify` falharia mesmo sem tampering. Pool snapshotado resolve isso — congela os 5 times + seus seeds + pesos no exato momento da execução.
+
+- **Algoritmo bolinhas literais + `random.shuffle` em vez de `random.uniform + cumulative sum`.** Matematicamente equivalentes em distribuição (cada bolinha = 1/total chance), mas diferentes em sequência de números aleatórios consumidos — resultados com mesmo seed são DIFERENTES entre os dois algoritmos. Escolhi bolinhas porque: (a) alinha exatamente com a UI de pool visual, (b) é mais intuitivo pro owner que pergunta "e se eu quiser reproduzir manualmente?", (c) `random.shuffle` é determinístico em Python garantido.
+
+- **Seed derivado contínuo (Opção B), não reset por pick.** `random.seed(seed)` **uma vez** no início do helper, depois `random.shuffle` roda com estado atual do RNG. Alternativa rejeitada: resetar seed antes de cada pick com `seed + ":" + pick_num`. Contínuo é mais simples e reproduzível do mesmo jeito; reset per-pick sugeriria "cada pick tem seu próprio seed", semântica confusa.
+
+- **Fluxo duas fases explícitas, fechando cherry-picking.** Originalmente o prompt previa re-runs livres antes do lock. Discussão com owner revelou brecha: admin rodaria 10x até pegar resultado favorável. Solução: fase 1 puramente estatística (pool de bolinhas + % chance, SEM botão testar), fase 2 oficial única (confirm duplo + commit). Re-run existe mas exige `reason` textual e fica público em `/picks/lottery/<season>`. Trust by design.
+
+- **`hash_match=True` + `match=False` após tampering manual** é o estado correto, não bug. O `result_hash` deriva da reprodução via seed+pool (audit íntegra). Se alguém editar `DraftLotteryResult` direto no DB, o hash da audit continua batendo com a reprodução (porque audit não foi tocada), mas `DraftLotteryResult` diverge — detectado via `match=False`. Owner que fizer a verificação vê imediatamente que algo foi adulterado no DB.
+
+- **Paleta fixa 5 cores (vermelho/azul/verde/roxo/laranja) em vez de HSL gerado.** Com 5 times, HSL espaçado produziria pares como laranja/amarelo que se confundem em tela pequena. Paleta fixa garante contraste entre vizinhos — decisão puramente visual.
+
+- **Animação controlada: só 1 bolinha em destaque por vez**, não 95 simultâneas. Primeiro instinto seria embaralhar as 95 bolinhas antes de cada pick (`@keyframes ballShuffleBrief`). Simplifiquei para só highlighted/eliminated — menos ruído visual, leitura mais clara do que está acontecendo. Sem prejuízo de auditoria (dados estão no backend, animação é cerimônia).
+
+- **Reveal backend-first.** `run_lottery` retorna resultado completo num único POST (backend é autoridade). UI anima pick 1 → pick 5 via `setTimeout` 1500ms. Alternativa rejeitada: 5 POSTs separados (um por pick). Adicionaria 5× a latência + riscos de race conditions sem ganho real.
+
+- **Tabela nova via `db.create_all()`, sem Migration em `_run_migrations`.** Mesmo padrão de `TradeProposal` (T1): `db.create_all()` é chamado no boot e cria tabelas novas em DBs existentes sem tocar nas antigas. Sem schema change em tabelas existentes = sem migration explícita.
 
 ### 23/04/2026 — T3 (sugestões de assets) descartado após review do T2
 

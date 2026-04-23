@@ -23,7 +23,7 @@
 | M2 | Tela de aprovação em lote de jogadores `needs_review=True` | Média | 🔲 |
 | M3 | Exportar dynasty.db em formato legível para os outros owners | Baixa | 🔲 |
 | M4 | Banner de sync desatualizada com timestamp e botão "Sincronizar agora" | Baixa | 🔲 |
-| M8 | Auditoria pública do sorteio de lottery (seed + página pública) | Baixa | 🔲 |
+| M8 | Auditoria do lottery (seed + página de verificação) + visualização de bolinhas + fluxo em 2 fases | Baixa | ✅ 23/04/2026 |
 | M9 | Redesign da tela de picks: grid compacto + dono atual visível | Média | 🔲 |
 | M10 | Autocomplete de jogador na calculadora de salário | Baixa | 🔲 |
 | M11 | Teste de auto-containment documental | Média | ✅ 22/04/2026 |
@@ -279,8 +279,47 @@ CREATE TABLE trade_proposals (
 
 ---
 
-### M8 — Auditoria Pública do Sorteio de Lottery
-🔲 **Pendente** — Prioridade **Baixa**
+### M8 — Lottery auditável + visualização de bolinhas + fluxo duas fases
+✅ **Concluído (23/04/2026)** — Prioridade **Baixa**
+
+**Implementado em três frentes (backend + UX + transparência):**
+
+**Backend — auditoria com seed reprodutível:**
+1. Modelo novo `LotteryAudit` em `models.py`: `random_seed`, `weights_json`, `pool_json` (snapshot dos 5 times + seeds + pesos), `executed_at`, `executed_by`, `result_hash` (SHA256 dos picks 1-5), `previous_audit_id`, `reason`, `is_canonical`. Criado via `db.create_all()` (tabela nova).
+2. Helper `_draw_weighted_lottery(pool, seed)` em `routes/offseason.py`: bolinhas literais (cada time repetido `weight` vezes) + `random.seed(seed)` único + `random.shuffle` por pick (Opção B — seed derivado contínuo). Função pura, determinística, unit-testable.
+3. `run_lottery` reescrito: gera `secrets.token_hex(16)`, delega picks 1-5 ao helper, persiste `LotteryAudit` com `is_canonical=True`. Retorna **409** se já existe audit canônica da season.
+4. `POST /api/offseason/lottery/replace`: exige `reason` no body; marca audit canônica como superseded; grava nova row com `previous_audit_id` + `reason` + `is_canonical=True`. Cada re-run preserva histórico completo.
+5. `GET /api/picks/lottery/<season>/verify`: re-roda `_draw_weighted_lottery` com o pool+seed salvos no audit canônico, compara com `DraftLotteryResult` + compara hash. Retorna `{match, result_hash_match, reproduced, actual}`.
+6. Page `GET /picks/lottery/<season>`: template `lottery_audit.html` com seed, pool snapshot, picks 1-12, botão verificar, + histórico de tentativas superseded com timestamp + reason.
+
+**UX — fluxo em duas fases no `/offseason`:**
+7. **Fase 1 (pré-execução):** pool de 95 bolinhas coloridas (paleta fixa: vermelho 12º, azul 11º, verde 10º, roxo 9º, laranja 8º) em grid + legenda com % chance por time. **Nenhum botão "testar sorteio"** — fase é puramente estatística, remove cherry-picking.
+8. **Fase 2 (execução única):** botão "🎲 Executar Sorteio Oficial" com confirm duplo. Ao executar: reveal animado pick a pick com `setTimeout 1500ms`, bolinhas do time sorteado são destacadas (`scale 1.6 + glow dourado`) e depois `eliminated` (opacity .15). Picks 6-12 aparecem de uma vez após os 5. Pós-reveal: "Travar" + "Executar novamente" + "Ver auditoria".
+9. **Re-run com atrito:** modal secundário pede textarea `reason` obrigatória. POST a `/lottery/replace`. Nova row LotteryAudit linkada à anterior. Histórico público na page de auditoria.
+
+**Decisões de design registradas no Log do devplan (23/04/2026):**
+- Tabela `LotteryAudit` separada (não coluna em `DraftLotteryResult`) — granularidade por execução.
+- `pool_json` snapshot — reprodução resistente a edições posteriores de `SeasonStandings`.
+- Algoritmo bolinhas literais + `random.shuffle` — alinha com UI, auditoria didática. Matematicamente equivalente ao `random.uniform + cumulative sum` anterior, mas mais transparente.
+- Fluxo duas fases — simulação estatística (só probabilidades) + sorteio oficial único. Fecha cherry-picking (admin não pode rodar 10x e travar o que prefere).
+- Re-run caro, não proibido — `reason` obrigatório + histórico visível em `/picks/lottery/<season>`.
+- Paleta fixa 5 cores (vermelho/azul/verde/roxo/laranja) em vez de HSL gerado — contraste garantido.
+
+**Validação (23/04/2026) — 9 cenários via Flask test_client:**
+
+| # | Cenário | Resultado |
+|---|---------|-----------|
+| 1 | `POST /run_lottery` inicial | 200, seed, hash, is_canonical=True, 12 picks |
+| 2 | `POST /run_lottery` duplicado | 409 com mensagem apontando `/replace` |
+| 3 | `GET /verify` match | `match=true, result_hash_match=true` |
+| 4 | `UPDATE team_name` manual + verify | `match=false` (tampering detectado); `result_hash_match=true` correto pq audit é íntegra |
+| 5 | `POST /lottery/replace` com reason | 200, `previous_audit_id` preenchido, nova row canônica |
+| 6 | `POST /lottery/replace` sem reason | 400 "reason obrigatório" |
+| 7 | `/picks/lottery/2026` template | 200, Seed + Pool + Histórico visíveis |
+| 8 | `/offseason` UI | 95 bolinhas renderizadas, botão "Executar Sorteio Oficial" visível em estado limpo, "Travar" + "Ver auditoria" visíveis pós-execução |
+| 9 | `salary_engine_test.py` | 48/48 passam |
+
+**Arquivos modificados:** `models.py` (+modelo), `routes/offseason.py` (+helper, rewrite, replace endpoint, compute_result_hash), `routes/picks.py` (page + verify endpoint), `templates/offseason.html` (pool + reveal + modal), `templates/lottery_audit.html` (novo), `static/style.css` (classes lottery + keyframes).
 
 **Problema:** O sorteio de lottery (`routes/offseason.py:258-357`) usa `random.uniform()` sem seed fixo. O resultado é salvo na tabela `draft_lottery_result` (season, pick_number, team_name, source, locked) mas sem registro do seed usado, dos pesos aplicados, nem do histórico de sorteios anteriores que foram descartados. Qualquer owner pode questionar se o sorteio foi justo — não há prova auditável.
 

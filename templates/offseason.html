@@ -98,7 +98,7 @@
       </div>
 
     {% elif step.num == 2 %}
-      {# ── STEP 2: Draft Lottery ── #}
+      {# ── STEP 2: Draft Lottery (M8) ── #}
       <div class="step-content">
         {% set any_locked = lottery and lottery[0].locked %}
 
@@ -118,27 +118,86 @@
             {% endfor %}
             </tbody>
           </table>
+          <p style="margin-top:.75rem">
+            <a href="{{ url_for('picks.lottery_audit_page', season=season + 1) }}" class="btn btn-secondary">📜 Ver auditoria</a>
+          </p>
         {% else %}
-          <h3>Probabilidades do Lottery (picks 1-5)</h3>
-          <p class="text-dim">Times 8o-12o do standings. Pesos sao normalizados automaticamente.</p>
-          <div class="lottery-weights">
-            {% for seed, pct in lottery_weights.items() %}
-            <div class="weight-row">
-              <label>Seed {{ seed }} — {{ lottery_seeds.get(seed, '?') }} ({{ 13 - seed }}o lugar):</label>
-              <input type="number" class="input-sm lottery-weight" data-seed="{{ seed }}" value="{{ pct }}" min="0" style="width:60px">
-              <span class="text-dim">%</span>
-            </div>
+          <h3>Pool do Lottery — cada bolinha é uma chance</h3>
+          <p class="text-dim">
+            Times 8º–12º do standings recebem bolinhas proporcionais ao peso.
+            Total: 95 bolinhas (50 + 25 + 12 + 5 + 3). O sorteio acontece no passo seguinte e é <strong>definitivo</strong>.
+          </p>
+
+          {% set pool_entries = [] %}
+          {% for seed, pct in lottery_weights.items() %}
+            {% set _ = pool_entries.append({
+              'seed': seed,
+              'team_name': lottery_seeds.get(seed, '?'),
+              'weight': pct,
+              'color_class': 'ball-color-' ~ seed,
+              'rank': 13 - seed,
+            }) %}
+          {% endfor %}
+          {% set total_weight = pool_entries|sum(attribute='weight') %}
+
+          <div class="lottery-pool" id="lottery-pool" data-total="{{ total_weight }}">
+            {% for entry in pool_entries %}
+              {% for _ in range(entry.weight|int) %}
+              <div class="lottery-ball {{ entry.color_class }}"
+                   data-team="{{ entry.team_name }}"
+                   data-seed="{{ entry.seed }}"
+                   title="{{ entry.team_name }} ({{ entry.rank }}º lugar)"></div>
+              {% endfor %}
             {% endfor %}
           </div>
 
+          <div class="lottery-legend">
+            <h4 style="margin:.75rem 0 .4rem 0;font-size:.9rem">Legenda</h4>
+            <table class="data-table">
+              <thead><tr><th></th><th>Time</th><th>Rank</th><th>Bolinhas</th><th>% chance</th></tr></thead>
+              <tbody>
+              {% for entry in pool_entries %}
+              <tr>
+                <td><span class="lottery-legend-swatch {{ entry.color_class }}"></span></td>
+                <td>{{ entry.team_name }}</td>
+                <td class="text-dim">{{ entry.rank }}º</td>
+                <td>{{ entry.weight|int }}</td>
+                <td>{{ '%.1f' | format(entry.weight * 100.0 / total_weight) }}%</td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          {# Advanced: editar pesos (colapsado por padrão) #}
+          <details style="margin-top:.75rem">
+            <summary class="text-dim small-text" style="cursor:pointer">Editar pesos (avançado)</summary>
+            <div class="lottery-weights" style="margin-top:.5rem">
+              {% for seed, pct in lottery_weights.items() %}
+              <div class="weight-row">
+                <label>Seed {{ seed }} — {{ lottery_seeds.get(seed, '?') }} ({{ 13 - seed }}º):</label>
+                <input type="number" class="input-sm lottery-weight" data-seed="{{ seed }}" value="{{ pct }}" min="0" style="width:60px">
+                <span class="text-dim">bolinhas</span>
+              </div>
+              {% endfor %}
+            </div>
+          </details>
+
           <div class="step-actions" style="margin-top:1rem">
-            <button class="btn btn-primary" onclick="runLottery()">🎲 Realizar Sorteio</button>
-            <button class="btn btn-secondary" onclick="runLottery()">🔄 Refazer Sorteio</button>
+            {% if lottery %}
+              {# Canonical audit já existe — reveal estático, botão travar, botão re-run #}
+              <button class="btn btn-danger" onclick="lockLottery()">🔒 Travar Sorteio (irreversível)</button>
+              <button class="btn btn-secondary btn-sm" onclick="openReplaceModal()" style="font-size:.8rem">↻ Executar novamente (com justificativa)</button>
+              <a href="{{ url_for('picks.lottery_audit_page', season=season + 1) }}" class="btn btn-secondary">📜 Ver auditoria</a>
+            {% else %}
+              <button class="btn btn-primary" onclick="runLotteryOfficial()">🎲 Executar Sorteio Oficial</button>
+            {% endif %}
           </div>
 
           <div id="lottery-results" style="margin-top:1rem">
             {% if lottery %}
-            <table class="data-table">
+            <h4 style="margin-bottom:.4rem;font-size:.9rem">Resultado</h4>
+            <table class="data-table" id="lottery-result-table">
               <thead><tr><th>Pick</th><th>Time</th><th>Origem</th></tr></thead>
               <tbody>
               {% for l in lottery %}
@@ -152,15 +211,25 @@
             </table>
             {% endif %}
           </div>
-
-          <div id="lock-lottery-wrap" class="step-actions" style="margin-top:1rem;{{ '' if lottery else 'display:none' }}">
-            <button class="btn btn-danger" onclick="lockLottery()"
-                    data-tooltip="Acao irreversivel! Trava o resultado do&#10;sorteio e libera o Season Rollover.">
-              🔒 Travar Sorteio (irreversivel)
-            </button>
-          </div>
         {% endif %}
         <div id="step2-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+      </div>
+
+      {# Modal: re-run com reason obrigatório #}
+      <div id="replace-modal" class="modal" style="display:none">
+        <div class="modal-overlay" onclick="closeReplaceModal()"></div>
+        <div class="modal-box">
+          <h2>↻ Executar sorteio novamente</h2>
+          <p class="text-dim small-text">Re-execução fica registrada no audit com sua justificativa. Transparência total.</p>
+          <label style="display:block;margin-top:.75rem">Motivo (obrigatório):</label>
+          <textarea id="replace-reason" rows="3"
+                    style="width:100%;padding:.5rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.15);border-radius:4px;color:var(--text);margin-top:.3rem"
+                    placeholder="Ex: correção do rank de algum time, erro no standings importado, etc."></textarea>
+          <div class="modal-actions" style="margin-top:.75rem">
+            <button class="btn btn-secondary" onclick="closeReplaceModal()">Cancelar</button>
+            <button class="btn btn-danger" onclick="submitReplace()">Confirmar re-execução</button>
+          </div>
+        </div>
       </div>
 
     {% elif step.num == 3 %}
@@ -317,35 +386,135 @@ function saveManualStandings() {
   });
 }
 
-// ── Step 2: Lottery ──
+// ── Step 2: Lottery (M8) ──
 
-function runLottery() {
+const REVEAL_DELAY_MS = 1500;
+
+function gatherLotteryWeights() {
   const weights = {};
   document.querySelectorAll('.lottery-weight').forEach(el => {
     weights[el.dataset.seed] = parseFloat(el.value) || 0;
   });
+  return weights;
+}
+
+function runLotteryOfficial() {
+  if (!confirm(
+    '🎲 Executar o sorteio oficial?\n\n' +
+    'O resultado será registrado em audit com seed público e fica visível ' +
+    'para todos os owners. Re-execuções depois exigem justificativa.\n\nProsseguir?'
+  )) return;
+  if (!confirm('Última confirmação: seed será gerado e gravado. Executar agora?')) return;
+
+  const weights = gatherLotteryWeights();
   fetch('/api/offseason/run_lottery', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({weights})
   }).then(r => r.json()).then(d => {
     if (d.error) { showResult('step2-result', false, d.error); return; }
-    let html = '<table class="data-table"><thead><tr><th>Pick</th><th>Time</th><th>Origem</th></tr></thead><tbody>';
-    d.results.sort((a, b) => a.pick_number - b.pick_number);
-    d.results.forEach(r => {
-      const cls = r.source === 'lottery' ? 'tag-trade' : 'tag-current';
-      html += `<tr><td><strong>${r.pick_number}</strong></td><td>${r.team_name}</td>
-               <td><span class="tag ${cls}">${r.source}</span></td></tr>`;
-    });
-    html += '</tbody></table>';
-    document.getElementById('lottery-results').innerHTML = html;
-    document.getElementById('lock-lottery-wrap').style.display = '';
-    showResult('step2-result', true, 'Sorteio realizado! Trave quando estiver satisfeito.');
+    animateReveal(d.results, d.audit);
   });
 }
 
+function openReplaceModal() {
+  document.getElementById('replace-reason').value = '';
+  document.getElementById('replace-modal').style.display = 'flex';
+}
+
+function closeReplaceModal() {
+  document.getElementById('replace-modal').style.display = 'none';
+}
+
+function submitReplace() {
+  const reason = document.getElementById('replace-reason').value.trim();
+  if (!reason) { alert('Informe o motivo da re-execução.'); return; }
+
+  const weights = gatherLotteryWeights();
+  fetch('/api/offseason/lottery/replace', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({weights, reason})
+  }).then(r => r.json()).then(d => {
+    if (d.error) { showResult('step2-result', false, d.error); return; }
+    closeReplaceModal();
+    animateReveal(d.results, d.audit);
+  });
+}
+
+function animateReveal(results, audit) {
+  // Sort picks 1-5 + ensure picks 6-12 ordered
+  results.sort((a, b) => a.pick_number - b.pick_number);
+  const lottery5 = results.filter(r => r.source === 'lottery');
+  const fixed = results.filter(r => r.source === 'standings');
+
+  // Clear result area
+  const container = document.getElementById('lottery-results');
+  container.innerHTML = '<h4 style="margin-bottom:.4rem;font-size:.9rem">Resultado</h4><table class="data-table" id="lottery-result-table"><thead><tr><th>Pick</th><th>Time</th><th>Origem</th></tr></thead><tbody id="reveal-tbody"></tbody></table>';
+  const tbody = document.getElementById('reveal-tbody');
+
+  const pool = document.getElementById('lottery-pool');
+  // Reset pool visual state (todos os balls voltam)
+  if (pool) {
+    pool.querySelectorAll('.lottery-ball').forEach(b => {
+      b.classList.remove('eliminated', 'highlighted');
+    });
+  }
+
+  let idx = 0;
+  function revealNext() {
+    if (idx >= lottery5.length) {
+      // Após picks 1-5, adicionar 6-12 de uma vez (fixed standings)
+      fixed.forEach(r => {
+        tbody.innerHTML += `<tr><td><strong>${r.pick_number}</strong></td><td>${r.team_name}</td><td><span class="tag tag-current">standings</span></td></tr>`;
+      });
+      const seed = audit ? audit.random_seed : '';
+      showResult('step2-result', true,
+        `Sorteio executado! Seed: ${seed.slice(0, 16)}… Clique "Travar" para confirmar ou "Executar novamente" se houver erro.`);
+      // Re-render buttons: trocar runLotteryOfficial por Travar + re-run
+      swapToLockedActions();
+      return;
+    }
+    const pick = lottery5[idx];
+    // Highlight balls do time na pool
+    if (pool) {
+      const teamBalls = pool.querySelectorAll(`.lottery-ball[data-team="${CSS.escape(pick.team_name)}"]:not(.eliminated)`);
+      if (teamBalls.length > 0) {
+        const ball = teamBalls[0];
+        ball.classList.add('highlighted');
+      }
+    }
+    // Append row
+    tbody.innerHTML += `<tr><td><strong>${pick.pick_number}</strong></td><td>${pick.team_name}</td><td><span class="tag tag-trade">lottery</span></td></tr>`;
+
+    // Após delay: elimina bolinhas do time + avança
+    setTimeout(() => {
+      if (pool) {
+        pool.querySelectorAll(`.lottery-ball[data-team="${CSS.escape(pick.team_name)}"]`).forEach(b => {
+          b.classList.remove('highlighted');
+          b.classList.add('eliminated');
+        });
+      }
+      idx += 1;
+      setTimeout(revealNext, 400);  // pequeno gap entre picks
+    }, REVEAL_DELAY_MS);
+  }
+
+  revealNext();
+}
+
+function swapToLockedActions() {
+  // Após reveal: substituir botão "Executar Oficial" por "Travar" + "Executar novamente"
+  const actions = document.querySelector('#step-body-2 .step-actions');
+  if (actions) {
+    actions.innerHTML = `
+      <button class="btn btn-danger" onclick="lockLottery()">🔒 Travar Sorteio (irreversível)</button>
+      <button class="btn btn-secondary btn-sm" onclick="openReplaceModal()" style="font-size:.8rem">↻ Executar novamente (com justificativa)</button>
+    `;
+  }
+}
+
 function lockLottery() {
-  if (!confirm('ATENCAO: Travar o sorteio e IRREVERSIVEL.\n\nTem certeza?')) return;
-  if (!confirm('Ultima chance — confirmar travamento do sorteio?')) return;
+  if (!confirm('ATENÇÃO: Travar o sorteio é IRREVERSÍVEL.\n\nTem certeza?')) return;
+  if (!confirm('Última chance — confirmar travamento do sorteio?')) return;
   fetch('/api/offseason/lock_lottery', {method: 'POST'})
     .then(r => r.json()).then(d => {
       showResult('step2-result', d.success, d.error || 'Sorteio travado!');

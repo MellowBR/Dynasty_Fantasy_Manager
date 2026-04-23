@@ -548,6 +548,43 @@ class F8PlayerBackup(db.Model):
     snapshot_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class LotteryAudit(db.Model):
+    """M8 — auditoria do draft lottery. 1 row por execução (canônica + superseded).
+    Reprodução via seed + pool_json snapshot: resistente a edições posteriores de standings."""
+    __tablename__ = "lottery_audit"
+
+    id = db.Column(db.Integer, primary_key=True)
+    season = db.Column(db.Integer, nullable=False)
+    random_seed = db.Column(db.String(64), nullable=False)  # secrets.token_hex(16) = 32 chars
+    weights_json = db.Column(db.Text, nullable=False)  # {"1": 50, "2": 25, ...}
+    pool_json = db.Column(db.Text, nullable=False)  # [{team_id, team_name, seed, weight}, ...]
+    executed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    executed_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    result_hash = db.Column(db.String(64), nullable=False)  # SHA256 hex
+    previous_audit_id = db.Column(db.Integer, db.ForeignKey("lottery_audit.id"), nullable=True)
+    reason = db.Column(db.Text, nullable=True)  # obrigatório quando previous_audit_id preenchido
+    is_canonical = db.Column(db.Boolean, default=True, nullable=False)
+
+    executor = db.relationship("User", foreign_keys=[executed_by])
+    previous = db.relationship("LotteryAudit", remote_side=[id], foreign_keys=[previous_audit_id])
+
+    def to_dict(self):
+        import json as _json
+        return {
+            "id": self.id,
+            "season": self.season,
+            "random_seed": self.random_seed,
+            "weights": _json.loads(self.weights_json),
+            "pool": _json.loads(self.pool_json),
+            "executed_at": self.executed_at.strftime("%d/%m/%Y %H:%M") if self.executed_at else None,
+            "executed_by_name": self.executor.name if self.executor else None,
+            "result_hash": self.result_hash,
+            "previous_audit_id": self.previous_audit_id,
+            "reason": self.reason,
+            "is_canonical": self.is_canonical,
+        }
+
+
 class TradeProposal(db.Model):
     """T1 — simulação de trade salva com UUID para compartilhar via link.
     Expira 7 dias após created_at. Assets armazenados como JSON arrays

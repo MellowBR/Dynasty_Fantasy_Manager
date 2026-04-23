@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Auditoria Lottery {{ season }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">🎲 Auditoria do Lottery — {{ season }}</h1>
+  <p class="page-subtitle">Seed + pesos salvos no momento do sorteio. Reprodução determinística.</p>
+</div>
+
+{% if error %}
+<div class="card">
+  <div class="alert alert-warn" style="margin:0">⚠️ {{ error }}</div>
+  <p style="margin-top:1rem">
+    <a href="{{ url_for('picks.picks_page') }}" class="btn btn-secondary">← Voltar ao Picks</a>
+  </p>
+</div>
+{% else %}
+
+<div class="card">
+  <h2 class="card-title">Execução canônica</h2>
+  <div class="stat-grid" style="margin-bottom:1rem">
+    <div class="stat-item">
+      <span class="stat-label">Seed</span>
+      <span class="stat-num" style="font-size:.9rem;font-family:monospace">{{ audit.random_seed }}</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Executado em</span>
+      <span class="stat-num" style="font-size:.95rem">{{ audit.executed_at.strftime('%d/%m/%Y %H:%M') }}</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Executado por</span>
+      <span class="stat-num" style="font-size:.95rem">{{ audit.executor.name if audit.executor else '—' }}</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Hash do resultado</span>
+      <span class="stat-num" style="font-size:.72rem;font-family:monospace">{{ audit.result_hash[:16] }}…</span>
+    </div>
+  </div>
+
+  <h3 class="card-title" style="font-size:.95rem;margin-top:1rem">Pool (ranks 8-12) no momento do sorteio</h3>
+  <table class="data-table">
+    <thead><tr><th>Seed</th><th>Time</th><th>Peso</th></tr></thead>
+    <tbody>
+      {% for entry in pool %}
+      <tr>
+        <td>{{ entry.seed }}</td>
+        <td>{{ entry.team_name }}</td>
+        <td>{{ entry.weight|int }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3 class="card-title" style="font-size:.95rem;margin-top:1rem">Ordem do draft</h3>
+  <table class="data-table">
+    <thead><tr><th>Pick</th><th>Time</th><th>Fonte</th></tr></thead>
+    <tbody>
+      {% for p in picks %}
+      <tr class="{{ 'row-renewal' if p.source == 'lottery' else '' }}">
+        <td><strong>{{ p.pick_number }}</strong></td>
+        <td>{{ p.team_name }}</td>
+        <td class="text-dim small-text">{{ '🎲 lottery' if p.source == 'lottery' else '📊 standings' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div style="margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+    <button class="btn btn-primary" onclick="verifyLottery()">✓ Verificar reprodução</button>
+    <a href="{{ url_for('picks.picks_page') }}" class="btn btn-secondary">← Voltar ao Picks</a>
+  </div>
+  <div id="verify-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+</div>
+
+{% if superseded %}
+<div class="card">
+  <h2 class="card-title">📜 Histórico de tentativas anteriores ({{ superseded|length }})</h2>
+  <p class="text-dim small-text" style="margin-bottom:.5rem">
+    Execuções anteriores que foram substituídas por re-run com justificativa. Transparência total.
+  </p>
+  <table class="data-table">
+    <thead><tr><th>Executado em</th><th>Por</th><th>Seed</th><th>Substituído porque</th></tr></thead>
+    <tbody>
+      {% for a in superseded %}
+      <tr>
+        <td class="text-dim small-text">{{ a.executed_at.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ a.executor.name if a.executor else '—' }}</td>
+        <td style="font-family:monospace;font-size:.72rem">{{ a.random_seed[:16] }}…</td>
+        <td class="text-dim small-text">{{ a.reason or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if not error %}
+<script>
+function verifyLottery() {
+  const res = document.getElementById('verify-result');
+  res.style.display = 'block';
+  res.className = 'result-box';
+  res.textContent = '⏳ Reproduzindo sorteio com seed salvo...';
+
+  fetch('/api/picks/lottery/{{ season }}/verify')
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) {
+        res.className = 'result-box result-error';
+        res.textContent = '❌ ' + d.error;
+        return;
+      }
+      if (d.match && d.result_hash_match) {
+        res.className = 'result-box result-ok';
+        res.innerHTML = '✅ <strong>Reprodução confere.</strong> Picks 1-5 reproduzidos com o seed batem exatamente com o DB. Hash SHA256 também confere.';
+      } else {
+        res.className = 'result-box result-error';
+        let msg = '❌ <strong>Divergência detectada.</strong><br>';
+        msg += `match picks: ${d.match} · match hash: ${d.result_hash_match}<br>`;
+        msg += '<br><strong>Reproduzido:</strong><br>';
+        msg += d.reproduced.map(p => `  ${p.pick_number}: ${p.team_name}`).join('<br>');
+        msg += '<br><br><strong>No DB:</strong><br>';
+        msg += d.actual.map(p => `  ${p.pick_number}: ${p.team_name}`).join('<br>');
+        res.innerHTML = msg;
+      }
+    })
+    .catch(e => {
+      res.className = 'result-box result-error';
+      res.textContent = '❌ ' + e;
+    });
+}
+</script>
+{% endif %}
+{% endblock %}

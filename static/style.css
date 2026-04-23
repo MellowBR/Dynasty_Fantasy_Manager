@@ -1222,3 +1222,63 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   border: 1px solid rgba(255,255,255,.08);
   color: var(--text-dim, #aaa);
 }
+
+/* ── M8: Draft Lottery Visualization ─────────────────────────────────────── */
+
+.lottery-pool {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(22px, 1fr));
+  gap: 4px;
+  margin: .75rem 0;
+  padding: .75rem;
+  background: rgba(255,255,255,.02);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 8px;
+}
+
+.lottery-ball {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3), inset 0 -2px 3px rgba(0,0,0,0.2);
+  cursor: default;
+  transition: transform .3s ease, opacity .3s ease, box-shadow .3s ease;
+  justify-self: center;
+}
+
+.lottery-ball.eliminated {
+  opacity: 0.15;
+  transform: scale(0.8);
+}
+
+.lottery-ball.highlighted {
+  transform: scale(1.6);
+  z-index: 10;
+  box-shadow: 0 0 18px #fde047, 0 0 32px rgba(253, 224, 71, 0.5), inset 0 -2px 3px rgba(0,0,0,0.2);
+  animation: ballGlow 1.2s ease infinite alternate;
+}
+
+@keyframes ballGlow {
+  from { box-shadow: 0 0 12px #fde047, 0 0 24px rgba(253, 224, 71, 0.4), inset 0 -2px 3px rgba(0,0,0,0.2); }
+  to   { box-shadow: 0 0 22px #fde047, 0 0 40px rgba(253, 224, 71, 0.6), inset 0 -2px 3px rgba(0,0,0,0.2); }
+}
+
+/* Paleta fixa 5 cores — seed 1 (12º/pior) → seed 5 (8º) */
+.ball-color-1 { background: #ef4444; }  /* vermelho — 12º (pior) */
+.ball-color-2 { background: #3b82f6; }  /* azul     — 11º */
+.ball-color-3 { background: #10b981; }  /* verde    — 10º */
+.ball-color-4 { background: #a855f7; }  /* roxo     — 9º */
+.ball-color-5 { background: #f59e0b; }  /* laranja  — 8º */
+
+.lottery-legend-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  vertical-align: middle;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.lottery-legend {
+  margin: .5rem 0;
+}

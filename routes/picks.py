@@ -1,6 +1,7 @@
-from flask import Blueprint, render_template, request, jsonify
+import json as _json
+from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import login_required
-from models import db, Pick, Team, DraftLotteryResult, SeasonStandings, get_config, get_current_season
+from models import db, Pick, Team, DraftLotteryResult, SeasonStandings, LotteryAudit, get_config, get_current_season
 from routes.auth import admin_required
 
 picks_bp = Blueprint("picks", __name__)
@@ -220,3 +221,88 @@ def reset_pick(pick_id):
     pick.notes = ""
     db.session.commit()
     return jsonify(pick.to_dict())
+
+
+# ── M8: Draft Lottery Audit ──────────────────────────────────────────────────
+
+@picks_bp.route("/picks/lottery/<int:season>")
+@login_required
+def lottery_audit_page(season):
+    """M8 — página de auditoria do lottery. Mostra audit canônica + histórico
+    de tentativas superseded + botão de verificação."""
+    canonical = LotteryAudit.query.filter_by(season=season, is_canonical=True).first()
+    if not canonical:
+        return render_template("lottery_audit.html",
+                               season=season,
+                               error=f"Nenhum lottery executado para a season {season}."), 404
+
+    superseded = (LotteryAudit.query
+                  .filter_by(season=season, is_canonical=False)
+                  .order_by(LotteryAudit.executed_at.desc())
+                  .all())
+
+    picks = (DraftLotteryResult.query
+             .filter_by(season=season)
+             .order_by(DraftLotteryResult.pick_number)
+             .all())
+
+    try:
+        pool = _json.loads(canonical.pool_json or "[]")
+    except (ValueError, TypeError):
+        pool = []
+
+    return render_template("lottery_audit.html",
+                           season=season,
+                           audit=canonical,
+                           pool=pool,
+                           superseded=superseded,
+                           picks=picks)
+
+
+@picks_bp.route("/api/picks/lottery/<int:season>/verify")
+@login_required
+def lottery_audit_verify(season):
+    """M8 — re-roda o lottery com seed + pool salvos e compara com DraftLotteryResult.
+    Retorna match booleano + hash_match + diff."""
+    from routes.offseason import _draw_weighted_lottery, _compute_result_hash
+
+    canonical = LotteryAudit.query.filter_by(season=season, is_canonical=True).first()
+    if not canonical:
+        return jsonify({"error": f"Nenhum audit canônico para season {season}"}), 404
+
+    try:
+        pool = _json.loads(canonical.pool_json)
+        weights = _json.loads(canonical.weights_json)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Audit corrompida"}), 500
+
+    # Reproduce
+    reproduced = _draw_weighted_lottery(pool, canonical.random_seed)
+    reproduced_hash = _compute_result_hash(reproduced)
+
+    # Actual from DraftLotteryResult (picks 1-5 com source='lottery')
+    actual_rows = (DraftLotteryResult.query
+                   .filter(DraftLotteryResult.season == season,
+                           DraftLotteryResult.pick_number <= 5)
+                   .order_by(DraftLotteryResult.pick_number)
+                   .all())
+    actual = [{"pick_number": r.pick_number, "team_name": r.team_name, "team_id": r.team_id}
+              for r in actual_rows]
+
+    # Compare
+    match = (len(reproduced) == len(actual) and
+             all(r["pick_number"] == a["pick_number"] and r["team_name"] == a["team_name"]
+                 for r, a in zip(reproduced, actual)))
+    hash_match = reproduced_hash == canonical.result_hash
+
+    return jsonify({
+        "match": match,
+        "result_hash_match": hash_match,
+        "seed": canonical.random_seed,
+        "weights": weights,
+        "pool": pool,
+        "reproduced": reproduced,
+        "actual": actual,
+        "reproduced_hash": reproduced_hash,
+        "stored_hash": canonical.result_hash,
+    })

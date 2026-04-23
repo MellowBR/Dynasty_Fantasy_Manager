@@ -9,13 +9,16 @@ Steps:
   5-7. Rookie Draft, Keepers, FA Auction (informational)
 """
 
+import hashlib
+import json as _json
 import random
+import secrets
 import requests as req
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
-from flask_login import login_required
+from flask_login import login_required, current_user
 from models import (
     db, Team, Pick, Player, SalaryHistory,
-    SeasonStandings, DraftLotteryResult, AppConfig,
+    SeasonStandings, DraftLotteryResult, AppConfig, LotteryAudit,
     get_config, set_config, get_current_season, is_offseason,
     SALARY_CAP, MY_OWNER_ID, MY_TEAM_NAME, LEAGUE_ID,
 )
@@ -27,6 +30,51 @@ SLEEPER_BASE = "https://api.sleeper.app/v1"
 
 # Default lottery weights: 12th place → 8th place
 DEFAULT_LOTTERY_WEIGHTS = {1: 50, 2: 25, 3: 12, 4: 5, 5: 3}
+
+
+# ── M8: Auditable draw via literal balls + seed ───────────────────────────────
+
+def _draw_weighted_lottery(pool: list, seed: str) -> list:
+    """
+    Pure, testable draw for picks 1-5 using literal balls (each team repeated
+    'weight' times) + random.shuffle with a seeded RNG.
+
+    Option B (continuous seed): random.seed(seed) called ONCE at start.
+    Subsequent shuffles consume the RNG state; determinism is preserved as
+    long as same seed + same pool are provided.
+
+    pool: list of {"team_id", "team_name", "weight"} (5 items)
+    seed: hex string (secrets.token_hex result)
+    returns: list of 5 {"pick_number", "team_id", "team_name"}
+    """
+    # Expand into literal balls
+    balls = []
+    for entry in pool:
+        balls.extend([(entry["team_id"], entry["team_name"])] * int(entry["weight"]))
+
+    random.seed(seed)
+
+    results = []
+    for pick_num in range(1, 6):
+        if not balls:
+            break
+        random.shuffle(balls)
+        drawn_team_id, drawn_team_name = balls[0]
+        results.append({
+            "pick_number": pick_num,
+            "team_id": drawn_team_id,
+            "team_name": drawn_team_name,
+        })
+        balls = [b for b in balls if b[0] != drawn_team_id]
+
+    return results
+
+
+def _compute_result_hash(picks_1_to_5: list) -> str:
+    """SHA256 of 'picknum:team_name' comma-joined, for tampering detection."""
+    ordered = sorted(picks_1_to_5, key=lambda p: p["pick_number"])
+    key = ",".join(f"{p['pick_number']}:{p['team_name']}" for p in ordered)
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
 # ── Helper: step status ─────────────────────────────────────────────────────
@@ -267,8 +315,15 @@ def run_lottery():
       Pick 11:    Runner-up
       Pick 12:    Champion
     """
+    # M8: block duplicate official execution — force /replace with reason
     season = get_current_season()
     draft_season = season + 1
+    existing = LotteryAudit.query.filter_by(season=draft_season, is_canonical=True).first()
+    if existing:
+        return jsonify({
+            "error": "Lottery já foi executada oficialmente. Use /api/offseason/lottery/replace com justificativa se precisa re-executar."
+        }), 409
+
     data = request.get_json() or {}
     weights = data.get("weights", DEFAULT_LOTTERY_WEIGHTS)
 
@@ -277,41 +332,91 @@ def run_lottery():
     if len(standings) < 12:
         return jsonify({"error": f"Standings incompletos ({len(standings)} times)"}), 400
 
-    # Identify groups by rank
+    audit, all_results = _execute_lottery_and_persist(
+        season=season,
+        draft_season=draft_season,
+        standings=standings,
+        weights=weights,
+        previous_audit_id=None,
+        reason=None,
+    )
+    return jsonify({"success": True, "results": all_results, "audit": audit.to_dict()})
+
+
+@offseason_bp.route("/api/offseason/lottery/replace", methods=["POST"])
+@admin_required
+def lottery_replace():
+    """
+    M8: Re-executa lottery depois da canônica ter sido criada. Exige reason.
+    Marca canônica anterior como superseded (is_canonical=False), grava nova row
+    com previous_audit_id = id da anterior.
+    """
+    season = get_current_season()
+    draft_season = season + 1
+    data = request.get_json() or {}
+    reason = (data.get("reason") or "").strip()
+    if not reason:
+        return jsonify({"error": "Campo 'reason' é obrigatório para re-execução"}), 400
+
+    prev_audit = LotteryAudit.query.filter_by(season=draft_season, is_canonical=True).first()
+    if not prev_audit:
+        return jsonify({"error": "Nenhuma lottery canônica encontrada. Use /run_lottery primeiro."}), 404
+
+    standings = SeasonStandings.query.filter_by(season=season)\
+        .order_by(SeasonStandings.rank).all()
+    if len(standings) < 12:
+        return jsonify({"error": f"Standings incompletos ({len(standings)} times)"}), 400
+
+    # Demote previous
+    prev_audit.is_canonical = False
+    db.session.add(prev_audit)
+
+    weights = data.get("weights", DEFAULT_LOTTERY_WEIGHTS)
+    audit, all_results = _execute_lottery_and_persist(
+        season=season,
+        draft_season=draft_season,
+        standings=standings,
+        weights=weights,
+        previous_audit_id=prev_audit.id,
+        reason=reason,
+    )
+    return jsonify({
+        "success": True,
+        "results": all_results,
+        "audit": audit.to_dict(),
+        "superseded_audit_id": prev_audit.id,
+    })
+
+
+def _execute_lottery_and_persist(season, draft_season, standings, weights,
+                                  previous_audit_id, reason):
+    """
+    M8 shared body: draws picks 1-5 via _draw_weighted_lottery, computes picks
+    6-12 from standings, replaces DraftLotteryResult, persists LotteryAudit.
+    Returns (audit_row, all_results_list).
+    """
     by_rank = {s.rank: s for s in standings}
 
-    # Lottery pool: ranks 8-12 (worst 5 teams)
+    # Lottery pool: ranks 8-12 (worst 5 teams). seed 1 = 12º (pior), 5 = 8º.
     lottery_pool = []
     for i, rank in enumerate([12, 11, 10, 9, 8]):
         s = by_rank.get(rank)
         if s:
-            seed = i + 1  # 1=worst (12th place), 5=best (8th)
-            w = float(weights.get(str(seed), weights.get(seed, 1)))
-            lottery_pool.append({"team_name": s.team_name, "team_id": s.team_id,
-                                 "seed": seed, "weight": w})
+            seed_idx = i + 1
+            w = float(weights.get(str(seed_idx), weights.get(seed_idx, 1)))
+            lottery_pool.append({
+                "team_name": s.team_name,
+                "team_id": s.team_id,
+                "seed": seed_idx,
+                "weight": w,
+            })
 
-    # Weighted lottery draw (without replacement)
-    lottery_results = []
-    pool = list(lottery_pool)
-    for pick_num in range(1, 6):
-        total_w = sum(p["weight"] for p in pool)
-        if total_w <= 0:
-            break
-        r = random.uniform(0, total_w)
-        cumulative = 0
-        drawn = pool[0]
-        for p in pool:
-            cumulative += p["weight"]
-            if r <= cumulative:
-                drawn = p
-                break
-        lottery_results.append({
-            "pick_number": pick_num,
-            "team_name": drawn["team_name"],
-            "team_id": drawn["team_id"],
-            "source": "lottery",
-        })
-        pool = [p for p in pool if p["team_name"] != drawn["team_name"]]
+    # Generate seed + draw via helper
+    random_seed = secrets.token_hex(16)
+    lottery_draws = _draw_weighted_lottery(lottery_pool, random_seed)
+    lottery_results = [
+        {**d, "source": "lottery"} for d in lottery_draws
+    ]
 
     # Fixed picks 6-12
     fixed_results = []
@@ -341,7 +446,7 @@ def run_lottery():
 
     all_results = lottery_results + fixed_results
 
-    # Save (but don't lock)
+    # Save picks (replaces unlocked rows)
     DraftLotteryResult.query.filter_by(season=draft_season, locked=False).delete()
     for r in all_results:
         db.session.add(DraftLotteryResult(
@@ -352,9 +457,29 @@ def run_lottery():
             source=r["source"],
             locked=False,
         ))
+
+    # M8: persist audit
+    result_hash = _compute_result_hash(lottery_results)
+    pool_json_str = _json.dumps(lottery_pool, ensure_ascii=False)
+    # Convert weights keys to string for JSON stability
+    weights_serializable = {str(k): v for k, v in weights.items()}
+    weights_json_str = _json.dumps(weights_serializable, ensure_ascii=False)
+
+    audit = LotteryAudit(
+        season=draft_season,
+        random_seed=random_seed,
+        weights_json=weights_json_str,
+        pool_json=pool_json_str,
+        executed_by=current_user.id if current_user.is_authenticated else None,
+        result_hash=result_hash,
+        previous_audit_id=previous_audit_id,
+        reason=reason,
+        is_canonical=True,
+    )
+    db.session.add(audit)
     db.session.commit()
 
-    return jsonify({"success": True, "results": all_results})
+    return audit, all_results
 
 
 @offseason_bp.route("/api/offseason/save_lottery", methods=["POST"])
