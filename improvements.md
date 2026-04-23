@@ -24,10 +24,12 @@
 | M3 | Exportar dynasty.db em formato legível para os outros owners | Baixa | 🔲 |
 | M4 | Banner de sync desatualizada com timestamp e botão "Sincronizar agora" | Baixa | 🔲 |
 | M8 | Auditoria do lottery (seed + página de verificação) + visualização de bolinhas + fluxo em 2 fases | Baixa | ✅ 23/04/2026 |
-| M9 | Redesign da tela de picks: grid compacto + dono atual visível | Média | 🔲 |
+| M9 | Redesign tela de picks: grid navegável + atalho para trade | Média | 🔲 |
 | M10 | Autocomplete de jogador na calculadora de salário | Baixa | 🔲 |
 | M11 | Teste de auto-containment documental | Média | ✅ 22/04/2026 |
 | M12 | Vincular owners a times via tela de admin com lookup do Sleeper | Média | ✅ 22/04/2026 |
+| M13 | Página de jogador + "Propor Trade" | Média | 🔲 |
+| M14 | /trades aceitar query params team_a/team_b (pré-requisito M9 + M13) | Média | 🔲 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
@@ -330,16 +332,73 @@ CREATE TABLE trade_proposals (
 
 ---
 
-### M9 — Redesign da Tela de Picks: Grid Compacto
+### M9 — Redesign tela de picks: grid navegável + atalho para trade
 🔲 **Pendente** — Prioridade **Média**
 
-**Problema:** A tela de picks (`/picks`, `routes/picks.py`) exibe picks em listas por season/round, mas não deixa claro visualmente quem é o **dono atual** de cada pick quando ela foi trocada. O modelo `Pick` tem `original_team_name` e `current_team_name` (`sync_sleeper.py:358-395`), mas o template pode não distinguir bem picks próprias de picks recebidas via trade.
+**Problema:** A tela `/picks` exibe picks em listas sem deixar claro quem é o **dono atual** quando a pick foi trocada. Para encontrar a pick 1.03 (ou qualquer pick futura) e propor trade, o owner faz 4 passos: (1) navegar pela lista, (2) identificar dono atual, (3) ir pra `/trades`, (4) selecionar manualmente os dois times. Fluxo longo e suscetível a erro.
 
 **Proposta:**
-1. **Layout em grid:** Matrix `12 times × 3 rounds` por season, cada célula mostra o pick com: dono original + dono atual (se diferente, destacar visualmente)
-2. **Picks trocadas sem duplicação:** Hoje a mesma pick pode aparecer sob o time original e sob o time atual. No grid, cada pick aparece uma vez na posição do dono original, com indicação visual de quem detém atualmente
-3. **Compacto:** Badges coloridos por time, tooltip com detalhes, sem cards grandes
-4. **Código existente:** `_build_pick_projections()` (linha 82-137) já resolve posição projetada de cada pick. `Pick.traded_away` e `Pick.current_team_name` já existem no modelo
+
+1. **Grid visual por season:** matrix compacta com todas as picks organizadas por round e posição projetada. Cada célula mostra: **dono original** + **dono atual** (se diferente, destacar visualmente — badge colorido, tooltip com histórico da pick). Picks sem posição projetada (seasons futuras sem sorteio) agrupadas por round com dono atual visível.
+
+2. **Estado do sorteio:** se `LotteryAudit.is_canonical=True` existe para a season (M8), usar posições reais do lottery. Se não existe, mostrar dono atual sem posição projetada.
+
+3. **Clique numa pick → atalho para trade:** abre `/trades?team_a=<current_user.team_rel.name>&team_b=<current_team_name_da_pick>` com os dois times pré-selecionados via M14. Reduz o fluxo de 4 cliques para 1.
+
+4. **Picks trocadas sem duplicação:** cada pick aparece uma vez (na posição do dono original), com indicação visual de quem detém atualmente. Elimina a duplicação atual onde a mesma pick aparece sob original e atual.
+
+**Código existente a reusar:**
+- `_build_pick_projections()` (`routes/picks.py:83-137`) — já resolve posição projetada considerando lottery + standings.
+- `Pick.traded_away`, `Pick.current_team_name`, `Pick.original_team_name` — já no modelo.
+- `LotteryAudit.is_canonical` (M8) — fonte de verdade pra posições reais.
+
+**Pré-requisito:** M14 (`/trades` aceitar query params).
+
+---
+
+### M13 — Página de jogador + "Propor Trade"
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** Não existe página dedicada por jogador no Manager. Para propor trade por um jogador específico (de outro time), o owner vai até `/trades` e seleciona manualmente os times e o jogador na lista de checkboxes. Navegação indireta.
+
+**Proposta:**
+
+1. **Rota `GET /player/<id>` (`@login_required`):** página dedicada por jogador com:
+   - **Header:** nome, posição (pos-badge), time atual, foto do jogador via template Sleeper — `https://sleepercdn.com/content/nfl/players/thumb/<sleeper_player_id>.jpg` com `onerror="this.style.display='none'"` (mesmo padrão dos avatars de team). Fallback silencioso para retirees, rookies recém-chegados, DSTs.
+   - **Bloco contrato:** `salary`, `contract_year`, `contract_start_season`, `acquisition_type`, `espn_ref_value`, **`dynasty_value`** (FantasyCalc via `dynastyMap` do T2 — lookup por `sleeper_player_id`).
+   - **Timeline:** histórico de eventos reusando `/api/player/<id>/history` (endpoint já existe com `display_notes` formatados e ordenação cronológica do F8).
+   - **Botão "⇄ Propor Trade":** abre `/trades?team_a=<current_user.team_rel.name>&team_b=<time_do_jogador>` com os dois times pré-selecionados via M14.
+
+2. **Links para `/player/<id>` a partir de:**
+   - Tela de roster (`/`) — clicar no nome do jogador
+   - Tela `/salary_history` — clicar no nome do jogador no card
+   - Tela `/trades` — nomes de jogadores nos checkboxes (ou ícone 🔗 discreto ao lado)
+
+3. **Reuso:** `Player.to_dict()` cobre a maioria dos campos. `dynastyMap` do T2 resolve valor dynasty. `/api/player/<id>/history` de F7 resolve timeline.
+
+**Pré-requisito:** M14 (`/trades` aceitar query params).
+
+---
+
+### M14 — `/trades` aceitar query params `team_a`/`team_b` para pré-selecionar
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** Hoje `trades_page` (`routes/trades.py:17-27`) carrega a tela com dois `<select>` vazios. Para a tela ser endpoint de atalho (vinda de M9 clique em pick, M13 botão "Propor Trade"), precisa aceitar `?team_a=<nome>&team_b=<nome>` e pré-carregar os seletores automaticamente.
+
+**Proposta:**
+
+1. **Backend (`routes/trades.py`):** `trades_page` lê `request.args.get("team_a")` e `team_b`, valida contra `Team.query.filter_by(name=...)` (ignora silenciosamente se não existir), passa como contexto Jinja (`preselect_a`, `preselect_b`).
+
+2. **Template (`trades.html`):** dois `data-*` attributes no container principal:
+   ```
+   <div class="trade-layout" data-preselect-a="{{ preselect_a or '' }}" data-preselect-b="{{ preselect_b or '' }}">
+   ```
+
+3. **JS:** no `DOMContentLoaded`, ler os data-attributes. Se presentes e não-vazios, setar o `<select>` correspondente + chamar `loadSide('a', name)` e/ou `loadSide('b', name)` automaticamente. Fluxo normal de uso manual permanece inalterado.
+
+4. **Escopo:** ~20 linhas no total. Backend puro de leitura de args, JS aditivo no onload.
+
+**Justificativa de ID separado:** é pré-requisito trackeável e reusável — além de M9 e M13, pode servir futuras features (ex: link "Propor trade" em cima do McBride na timeline do `/salary_history`).
 
 ---
 
