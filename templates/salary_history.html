@@ -287,14 +287,11 @@ function loadHistory() {
         a.info.player_name.localeCompare(b.info.player_name, 'pt-BR')
       );
     } else {
-      // "pos": POS_ORDER primeiro, salary DESC como tiebreaker, nome asc como 3º critério
+      // "pos": POS_ORDER primeiro, nome asc dentro de cada posição.
       arr.sort((a, b) => {
         const pa = POS_ORDER[normalizePos(a.info.position)] ?? 99;
         const pb = POS_ORDER[normalizePos(b.info.position)] ?? 99;
         if (pa !== pb) return pa - pb;
-        const sa = a.info.current_salary || 0;
-        const sb = b.info.current_salary || 0;
-        if (sa !== sb) return sb - sa;
         return a.info.player_name.localeCompare(b.info.player_name, 'pt-BR');
       });
     }
