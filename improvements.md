@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b concluídos; UX5 e UX4-c registrados)
+> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b concluídos; UX5, UX4-c, UX6 registrados)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -62,6 +62,7 @@
 | UX4 | Macro compartilhada de linha de roster (HYBRID) — converge layout de /team/<id> e / com densidade estilo FantasyPros | Média | ✅ 24/04/2026 |
 | UX4-b | Redesign de densidade e layout da página de detalhe de time (4 camadas + ESPN/Projeção em ambas telas) | Triagem | ✅ 24/04/2026 |
 | UX4-c | Aperto visual final de /team/<id> e / (barra C + espaçamento entre grupos + colgroup denso) | Média | 🔲 |
+| UX6 | Revisão da largura máxima do container global da aplicação (~700px de ar lateral em monitor 1920px) | Média | 🔲 |
 | UX5 | Redesign da seção Picks em detalhe de time (3 tabelas anuais com baixa densidade, coluna Notas vazia) | Média | 🔲 |
 | DATA-1 | Badges TRADE e REVISÃO removidos da macro de listagem (info pertence à timeline/admin, não à listagem) | Média | ✅ 24/04/2026 |
 
@@ -1337,6 +1338,52 @@ F1 de UX5 mapeia estado atual (frequência de uso de Notas, payload do handler, 
 - Aperto do colgroup pode truncar valores raros (ex: salário > $99 com 3 dígitos). F1 audita valores reais no DB antes de cortar larguras.
 
 **Pré-requisito:** nenhum bloqueante.
+
+---
+
+### UX6 — Revisão da Largura Máxima do Container Global da Aplicação
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** Análise visual das páginas do Fantasy Manager (24/04/2026, pós-UX4-b) identificou que o conteúdo principal (roster, cap breakdown, picks, trades, etc.) está espremido no centro da viewport com **margens laterais significativas** — em monitor de ~1920px de largura, ~700px ficam como ar lateral (~350px em cada lado). A causa provável é um `max-width` conservador no container/wrapper global da aplicação (provavelmente em `base.html` ou CSS equivalente), que define a largura útil de todas as páginas.
+
+Referências externas modernas (FantasyPros, apps de produtividade) usam max-widths maiores (~1400-1600px) ou full-width com padding lateral controlado. O valor atual penaliza proporcionalmente telas densas (cap projector, trades, admin review) que teriam maior benefício de largura extra.
+
+**Referências:** commits UX4 (`a10fcb6`), UX4-b (`e495453`).
+
+**Escopo candidato (a fechar na F1 de UX6):**
+
+- **F1 — diagnose:** identificar o(s) seletor(es) que impõem `max-width` global (provavelmente em `base.html` via classe wrapper ou em `static/style.css` em regra envolvente `.container`/`main`/`body`). Medir valor atual. Mapear overrides locais existentes (se alguma tela já força largura maior).
+
+- **F1 — mapeamento cross-tela:** percorrer as 12+ telas (roster, detalhe de time, trades, cap_projector, admin, league hub, picks, auction, offseason, player detail, salary history, salary) e avaliar por tela:
+  - Qual largura útil atual ocupa e qual faria sentido
+  - Se há componentes com largura fixa (ex: modais, cards centralizados) que poderiam quebrar com container mais largo
+  - Se tabelas densas (cap_projector com 10 colunas, admin review) ganhariam com mais largura
+
+- **F1 — decisão entre 3 abordagens:**
+  - **(a) Aumentar `max-width` global** para 1400-1600px. Simples, 1 valor. Todas as telas ganham.
+  - **(b) Full-width com padding lateral controlado** (`max-width: 100%; padding: 0 Xrem`). Flexibilidade máxima por viewport.
+  - **(c) Max-width por rota/seção** (telas densas ganham mais, landing/config ficam estreitas). Mais controle, mais complexidade.
+
+**Infra relacionada:**
+- `base.html` provavelmente tem o wrapper global.
+- Classes CSS como `.container`, `.main`, ou similares — mapear na F1.
+- Algumas seções já têm max-width próprio (ex: `.cap-by-pos-table` com 360px, `.page-header-left/right`); F1 identifica se colidem.
+
+**Impacto cross-tela:** afeta **todas as páginas do app**. Risco de regressão em layouts específicos que implicitamente assumem a largura conservadora atual. F1 precisa mapear amplamente.
+
+**Relação com outros items:**
+- **Independente de UX4-c** (densidade localizada em `/team/<id>` e `/`), **UX5** (Picks), **UX2** (PT-BR).
+- **Pode reduzir ou eliminar** necessidade de alguns aperfeiçoamentos localizados se liberar largura horizontal suficiente — ex: pressão no colgroup (UX4-c frente 3) diminui se a tabela tem mais espaço horizontal para distribuir colunas.
+- **Sugestão de ordem:** executar UX6 **antes** de UX4-c pode mudar o cálculo de aperto do colgroup. F1 de UX4-c deveria referenciar o estado pós-UX6.
+
+**Riscos:**
+- Componentes com largura fixa (cards, modais, filtros centrados) podem ficar visualmente desbalanceados com container mais largo — precisa mapear na F1.
+- Tabelas longas (cap_projector) podem ganhar com mais espaço mas também podem virar "parede de dados" difícil de scanear — validação visual empírica pós-implementação.
+- Telas com poucas colunas (admin users, offseason standings) podem parecer vazias/ilhadas em container muito largo. Padding interno ou `max-width` de tabela específica resolve.
+
+**Pré-requisito:** nenhum bloqueante.
+
+**Observação estratégica:** este é um dos poucos items do backlog com **escopo cross-app verdadeiro**. Enquanto UX1-UX5 tocaram telas específicas, UX6 muda o framing visual de tudo. Por isso F1 merece cuidado extra — mapeamento amplo antes de qualquer F2, e possivelmente prototipagem em 1 tela específica antes de roll-out.
 
 ---
 
