@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 concluídos; UX4-b, UX5, DATA-1 registrados)
+> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 concluídos; UX4-b e UX5 registrados)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -62,7 +62,7 @@
 | UX4 | Macro compartilhada de linha de roster (HYBRID) — converge layout de /team/<id> e / com densidade estilo FantasyPros | Média | ✅ 24/04/2026 |
 | UX4-b | Restaurar ESPN + Projeção salarial no roster principal (métricas omitidas na F1 do UX4) | Triagem | 🔲 |
 | UX5 | Redesign da seção Picks em detalhe de time (3 tabelas anuais com baixa densidade, coluna Notas vazia) | Média | 🔲 |
-| DATA-1 | Semântica e reset rule de `Player.via_trade` (badge TRADE acumulando em players de temporadas anteriores) | Média | 🔲 |
+| DATA-1 | Badges TRADE e REVISÃO removidos da macro de listagem (info pertence à timeline/admin, não à listagem) | Média | ✅ 24/04/2026 |
 
 ---
 
@@ -1270,36 +1270,34 @@ F1 de UX5 mapeia estado atual (frequência de uso de Notas, payload do handler, 
 
 ---
 
-### DATA-1 — Semântica e Reset Rule de `Player.via_trade`
-🔲 **Pendente** — Prioridade **Média**
+### DATA-1 — Badges TRADE e REVISÃO Removidos de Listagens de Roster
+✅ **Concluído (24/04/2026)** — Prioridade **Média**
 
-**Problema:** Análise visual da página `/team/<id>` (24/04/2026) identificou que o badge TRADE ao lado do nome do jogador, derivado do campo `Player.via_trade` (boolean), aparece em players de **temporadas anteriores** além da atual (ex: Matthew Stafford, Michael Penix). Não há definição explícita de semântica do campo — pode ser vitalício (marca qualquer player que já passou por trade em algum momento) ou sazonal (marca só trades da temporada corrente). Não há lógica de reset no rollover de offseason atual. Consequência: o badge acumula com o tempo e polui telas de ciclo corrente, perdendo poder de sinal.
+**Reformulação UX:** a investigação read-only sobre `Player.via_trade` confirmou semântica vitalícia por omissão (campo setado por `_sync_trades` em `sync_sleeper.py:529`, nunca resetado automaticamente). A conversa sobre casos de uso de `/team/<id>` (olhando roster alheio) reformulou a pergunta primária: **"essa info deveria aparecer em tela de listagem?"** Resposta: listagem mostra estado atual; timeline de `/player/<id>` mostra história (fonte canônica); contexto admin mostra tarefas operacionais. Badge TRADE numa listagem duplica info que pertence à timeline; badge REVISÃO em roster alheio é info admin-interna irrelevante para owner não-admin. Remover ambos resolve o problema na raiz sem tocar nos campos do modelo.
 
-**Referências:** observação visual pós-UX4 (commit `a10fcb6`); diagnose `MAN-UX4-b-F1` (24/04/2026).
+**Entregue:**
 
-**Escopo (a fechar na F1 de DATA-1):**
+- **Template `_macros.html`** (macro `player_roster_row`): removidas 2 linhas que renderizavam `{% if player.via_trade %}TRADE{% endif %}` e `{% if player.needs_review %}REVISÃO{% endif %}`. Afeta ambos contextos (`/team/<id>` e `/`) por construção. Outros badges da célula `name-main` (IR, ANO 4) preservados.
 
-- **F1 — diagnose**: mapear callsites de `via_trade` em todo o codebase:
-  - **Setters**: `sync_sleeper.py` (`_sync_trades`), backfill de trades órfãs em `routes/admin.py`, possíveis mutações manuais em `routes/trades.py` (confirmar na F1).
-  - **Consumidores (UI)**: `team_detail.html` (via macro `player_roster_row`), `roster.html` (idem, via UX4), possivelmente `trades.html`, `player_detail.html`.
-  - **Comportamento no rollover**: `routes/offseason.py` passo "Season Rollover" — confirmar que `via_trade` não é tocado hoje.
-- **F1 — decisão**: propor regras candidatas:
-  - **(a) Vitalício** (mantém como está; badge = "já foi tradado em algum momento"). Documentar semântica explicitamente; reavaliar utilidade do badge.
-  - **(b) Sazonal com reset no rollover** (badge = "foi tradado na temporada corrente"). Adicionar `via_trade = False` no passo de rollover; pode exigir novo campo `last_trade_season` se histórico for útil.
-  - **(c) Derivado dinamicamente** (eliminar o campo; calcular via `PlayerHistory` filtrado por season corrente). Mais rigoroso, custo maior.
+- **Modelo intocado:** `Player.via_trade` e `Player.needs_review` continuam sendo setados por `_sync_trades` (sync de trade do Sleeper) e sync de player novo (match CSV). Continuam editáveis via `PATCH /api/player/<id>`. Continuam consumidos em rebuild de history em `routes/admin.py`.
 
-**Impacto nas telas consumidoras:**
-- Se (b): badge some dos players tradados em temporadas anteriores após rollover. Visualmente mais limpo, semântica clara.
-- Se (c): consulta a cada render. Performance a validar, mas elimina risco de drift.
+- **CSS preservado:** classes `.tag-trade` e `.tag-review` mantidas — ambas ainda consumidas em múltiplos contextos legítimos:
+  - `.tag-trade` em `auction.html` (entry_type fa_auction), `offseason.html` (source lottery), `player_detail.html` + `salary_history.html` (EVENT_LABELS para trade/fa_waiver/fa_auction/free_agent).
+  - `.tag-review` em `cap_projector.html` (needs_review JS), `roster.html` (banner alert), `player_detail.html` (IR/Dropado + drop/commissioner/salary_correction/cut EVENT_LABELS), `salary_history.html` (mesmos EVENT_LABELS).
 
-**Relação com outros items:**
-- **Independente de UX4-b** — UX4-b trata densidade/layout da página, DATA-1 trata semântica do campo.
-- **Pode impactar o workflow de offseason** se regra decidida for (b) ou (c) — mudança no passo "Season Rollover".
-- **Sem relação com UX5** (redesign de Picks) nem com UX2 (PT-BR).
+- **Fora de escopo (preservado):** banner de alerta `roster.html:85` (lista agregada de `needs_review` como link linkificado), `cap_projector.html:114` (badge REVISÃO em projeção — listagem diferente, fora do escopo "macro de roster").
 
-**Pré-requisito:** nenhum bloqueante.
+**Validação:**
+- `salary_engine_test.py` 48/48.
+- Smoke `GET /team/<id>`, `/`, `/admin`, `/player/<id>`: todos HTTP 200.
+- Grep de `class="tag tag-trade">TRADE` e `class="tag tag-review">REVISÃO` nos HTMLs de `/team/<id>` e `/`: 0 matches em cada. Badge IR continua presente (contagem > 0).
+- `/player/<id>`: `tag-trade` continua presente no HTML (EVENT_LABELS JS intocado). Timeline preservada.
+- Grep `via_trade` em `templates/_macros.html`: 0 matches. Mesmo para `needs_review`.
+- Grep `via_trade` no codebase total: ocorrências apenas em `models.py`, `sync_sleeper.py`, `routes/admin.py`, `routes/roster.py` (PATCH endpoint). Zero em templates de listagem.
 
-**Observação:** mesma investigação pode avaliar `Player.needs_review` — campo boolean com dinâmica similar (set pelo Sleeper sync, raramente resetado manualmente via `/admin`). Se F1 encontrar padrão convergente, ampliar escopo ou registrar como DATA-2.
+**Ganho:** telas de listagem ficam mais limpas visualmente (sem badges históricos acumulados). Mental model claro: estado atual aqui, história lá. Campos persistem vitalícios no modelo, mas agora sem consumidor UI visual em listagem — deixa de ser dor.
+
+**Débito reduzido (não criado):** o problema original "via_trade vitalício por omissão" deixa de ser urgente. Se algum futuro caso de uso pedir "players tradados recentemente", implementar via query filtrada em `PlayerHistory` por `event_type='trade' AND season=corrente`, sem depender do campo boolean.
 
 ---
 

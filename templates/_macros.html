@@ -39,9 +39,7 @@
     <div class="name-main">
       {{ player_name_link(player) }}
       {% if player.is_on_ir %}<span class="tag tag-ir">🏥 IR</span>{% endif %}
-      {% if player.via_trade %}<span class="tag tag-trade">TRADE</span>{% endif %}
       {% if player.is_renewal_candidate() %}<span class="tag tag-renewal">ANO 4</span>{% endif %}
-      {% if player.needs_review %}<span class="tag tag-review">REVISÃO</span>{% endif %}
     </div>
     <div class="name-meta">{{ player.nfl_team or '—' }}</div>
   </td>
