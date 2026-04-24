@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 parcial)
+> Atualizado em: 24/04/2026 (UX1 + UX3 concluídos)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -58,7 +58,7 @@
 | IR-CLEANUP | Remover seletor manual de IR no roster (sync Sleeper já é autoritativo) | Baixa | 🔲 |
 | UX1 | Redesign tabela de roster em /team/<id>: foto, badge acquisition PT-BR, dynasty inline | Média | ✅ 24/04/2026 |
 | UX2 | Acquisition types PT-BR em todas as telas (team_detail, roster, salary_history) | Baixa | 🔲 (team_detail ✅ via UX1) |
-| UX3 | Fotos de jogadores em telas densas (team_detail, cap_projector) | Baixa | ⚠️ 24/04/2026 (3/6 telas — faltam trades, trade_proposal, salary_history) |
+| UX3 | Fotos de jogadores em telas densas (team_detail, cap_projector) | Baixa | ✅ 24/04/2026 |
 
 ---
 
@@ -1140,16 +1140,23 @@ Signature ganhou parâmetro opcional `values_map=None` para evitar I/O extra qua
 ---
 
 ### UX3 — Fotos de Jogadores em Telas Densas
-⚠️ **Parcial (24/04/2026)** — Prioridade **Baixa**
+✅ **Concluído (24/04/2026)** — Prioridade **Baixa**
 
-**Concluído junto com UX1 (cenário C):** 3 telas ganharam foto — `team_detail.html`, `roster.html` (tela `/`), `cap_projector.html`. Macro Jinja `player_photo` e helper JS `renderPlayerPhoto` criados como infra reusável.
+**Entregue em 2 camadas:**
+- **UX1 (cenário C, commit `dbfb76e`):** 3 telas — `team_detail.html`, `roster.html` (`/`), `cap_projector.html`. Macro Jinja `player_photo` + helper JS `renderPlayerPhoto` criados como infra reusável.
+- **UX3-b (camada dedicada):** 3 telas remanescentes — `trade_proposal.html` (SSR), `trades.html` (CSR Trade Manager), `salary_history.html` (CSR card por player).
 
-**Débito remanescente (3 telas ainda sem foto):**
-- `trades.html` (Trade Manager) — asset items na lista de jogadores de cada lado.
-- `trade_proposal.html` (preview de proposta compartilhada) — render server-side das trades propostas.
-- `salary_history.html` — timeline de eventos do jogador.
+**UX3-b — detalhes:**
+- Backend: `routes/salary.py` (`/api/salary_history`) passou a incluir `sleeper_player_id` no dict de cada record — era o único bloqueio identificado na diagnose F1.
+- Zero helper/macro novo. Reuso total da infra UX1.
+- Zero CSS novo. Tamanho único `player-photo-sm` (32px) em todas as 6 telas — decisão explícita por padronização > granularidade por contexto (se algum mobile ficar apertado no Trade Manager, ajuste vira `@media` pontual).
+- Grep da URL Sleeper CDN em `templates/` + `static/`: 2 matches (macro + JS helper), 0 inlines. Convenção "1 source por modo de render" (O1) preservada.
 
-**Decisão de recorte:** as 3 telas restantes têm estruturas distintas (Trade Manager é denso com dynasty badges já competindo por espaço; salary_history é timeline cronológica; trade_proposal é server-side mas com layout diferente). Propagar a foto nelas exige decisões visuais próprias e não compartilha critério com o cenário C. Fica como UX3-b se virar dor.
+**Validação:**
+- `salary_engine_test.py` 48/48.
+- `GET /trades` + `GET /salary_history`: HTTP 200 com `renderPlayerPhoto` no JS.
+- `GET /api/salary_history?team=<name>`: 85 records, 100% com campo `sleeper_player_id`.
+- Smoke SSR de `/trades/proposta/<uuid>`: não executado localmente (sem TradeProposal ativa em DB local); validado via leitura do template + padrão SSR já provado em `team_detail`.
 
 ---
 

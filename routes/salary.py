@@ -142,6 +142,7 @@ def salary_history_data():
         out.append({
             "player_id": p.id,
             "player_name": p.name,
+            "sleeper_player_id": p.sleeper_player_id,
             "position": p.position,
             "team_name": p.fantasy_team_name,
             "current_salary": p.salary,

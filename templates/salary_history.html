@@ -278,6 +278,7 @@ function renderPlayerCard(group) {
     <div class="player-card" data-player-id="${p.player_id}">
       <div class="player-card-header" onclick="togglePlayerTimeline(${p.player_id}, this)">
         <span class="pos-badge pos-${escapeHtml(posClass)}">${escapeHtml(p.position || '?')}</span>
+        ${renderPlayerPhoto({sleeper_player_id: p.sleeper_player_id, name: p.player_name}, 'player-photo-sm')}
         <a class="player-name" href="/player/${p.player_id}"
            onclick="event.stopPropagation()"
            title="Abrir página do jogador">${escapeHtml(p.player_name)}</a>

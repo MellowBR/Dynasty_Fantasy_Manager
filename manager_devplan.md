@@ -751,3 +751,17 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 - **Decisão: UX3 marcado ⚠️ parcial com 3/6 telas.** **Why:** propagar foto pras 3 telas restantes (`trades.html`, `trade_proposal.html`, `salary_history.html`) exige decisões visuais próprias — cada uma tem estrutura (asset checkboxes / server-side timeline / events) distinta da tabela densa do cenário C. Fica como UX3-b se virar dor; não é evolução trivial do UX3 atual.
 
 - **Validação end-to-end via test_client + direct app_context:** `/team/<id>` HTTP 200 com `col-photo`, `dynasty-value-inline`, PT-BR; `dynasty_total` bate com sum dos `p.dynasty_value` dos ativos (57514 no time testado). `/`, `/cap_projector`, `/player/<id>` todos HTTP 200 consumindo macro/helper. Grep da URL: 2 matches (macro+JS), 0 inlines.
+
+### 24/04/2026 — Camada UX3-b (fechamento de UX3 — 3 telas densas restantes)
+
+- **Decisão: fechar débito na mesma sessão.** **Why:** F1 mostrou que o custo era trivial (~15-25 LOC total, 4 arquivos) e a infra UX1 cobria 100% sem variante/helper novos. Deixar pendente geraria overhead de contexto numa sessão futura por economia marginal. UX1 ⚠️ virou UX1 ✅ sem nova diagnose estrutural.
+
+- **Decisão CSS: reuso total de `player-photo-sm` (32px) em todas as 6 telas, zero classe modifier nova.** **Why:** tamanho único simplifica o sistema de design — foto em lista densa tem 32px, ponto. Alternativa rejeitada (3 tamanhos: 28px Trade Manager, 24px preview, 32px salary history) dispersaria a escolha estética e criaria 2 classes CSS novas para ganho visual marginal. Se mobile ficar apertado no Trade Manager (denso com pos-badge + foto + nome + salary + dynasty badge), ajuste vira `@media` pontual, não refator estrutural.
+
+- **Decisão: incluir `sleeper_player_id` no payload de `/api/salary_history`** (linha em `routes/salary.py:145`). **Why:** único bloqueio real identificado na F1 — sem esse campo, o JS não conseguiria invocar `renderPlayerPhoto` na tela de salary history. Extensão mínima de contrato (1 campo adicionado, nenhum removido ou renomeado), backwards-compatible. Paralelo com T2-FIX-2 que ampliou `/api/picks` com `dynasty_value`.
+
+- **Decisão: `renderPlayerPhoto` em `salary_history.html` recebe objeto sintético** `{sleeper_player_id: p.sleeper_player_id, name: p.player_name}` em vez do record inteiro. **Why:** o endpoint usa `player_name` (não `name`) como convenção existente; o helper espera `name`. Em vez de mudar convenção do endpoint (risco de quebrar outros consumidores hipotéticos), mapeia inline. Se futuro reuso tiver mais fricção, padroniza num helper de adaptação — hoje é adaptação localizada e não bloqueante.
+
+- **Mobile no Trade Manager — não validado empiricamente** (CLI não abre DevTools responsive). Layout `.asset-item` flex ganhou 1 elemento novo (foto 32px), somando a pos-badge + foto + nome + salary text + dynasty badge. Risco visual potencial em viewport < 400px. Sem ajuste planejado nesta camada; se virar dor no uso real, `@media` em CSS já existente.
+
+- **Validação:** `salary_engine_test.py` 48/48; `GET /trades` e `/salary_history` HTTP 200 com `renderPlayerPhoto` no JS; `GET /api/salary_history?team=<name>` retorna 85 records 100% com `sleeper_player_id`. SSR de `/trades/proposta/<uuid>` não smoke-testado localmente (sem proposta ativa em DB local) — confiança via leitura do template + padrão SSR já validado em `team_detail`. Grep da URL Sleeper CDN: 2 matches (macro + JS helper), 0 inlines.
