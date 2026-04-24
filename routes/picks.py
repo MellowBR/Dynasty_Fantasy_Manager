@@ -2,6 +2,7 @@ import json as _json
 from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import login_required, current_user
 from models import db, Pick, Team, DraftLotteryResult, SeasonStandings, LotteryAudit, get_config, get_current_season
+from dynasty_values import get_dynasty_values, pick_sleeper_id, resolve_asset_value
 from routes.auth import admin_required
 
 picks_bp = Blueprint("picks", __name__)
@@ -83,8 +84,12 @@ def api_picks():
         q = q.filter_by(current_team_name=team_name)
     picks = q.order_by(Pick.season, Pick.round).all()
 
-    # Enrich with projected position
+    # Enrich with projected position and pre-resolved dynasty value.
+    # dynasty_value pré-resolvido no backend elimina réplica da lógica DP_/FP_
+    # no frontend (T2-FIX-2). Fonte única: dynasty_values.pick_sleeper_id.
     proj = _build_pick_projections()
+    values_map = get_dynasty_values().get("values", {})
+    current_season = get_current_season()
     result = []
     for p in picks:
         d = p.to_dict()
@@ -93,9 +98,12 @@ def api_picks():
         if pos_info:
             d["projected_pick"] = pos_info["pick_number"]
             d["projection_locked"] = pos_info["locked"]
+            p.projected_pick = pos_info["pick_number"]
         else:
             d["projected_pick"] = None
             d["projection_locked"] = False
+        sid = pick_sleeper_id(p, current_season, values_map)
+        d["dynasty_value"] = resolve_asset_value(values_map, sid)
         result.append(d)
     return jsonify(result)
 

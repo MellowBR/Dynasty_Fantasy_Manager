@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 23/04/2026
+> Atualizado em: 24/04/2026
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -53,8 +53,12 @@
 | N1 | Redesign navbar: estrutura com dropdowns + acesso rápido aos times | Média | ✅ 23/04/2026 |
 | C1 | Cap projector: modo "drop programado" para simular liberações de cap | Média | 🔲 |
 | M8-PERM | Lottery: simulação aberta a owners + bloqueio server-side pós-oficial | Média | ✅ 23/04/2026 |
-| T2-FIX | Picks Rd2+ sem dynasty value no preview/proposta de trade | Média | ✅ 23/04/2026 |
+| T2-FIX | Picks Rd2+ sem dynasty value no preview/proposta de trade | Média | ✅ 24/04/2026 |
+| T2-FIX-2 | Réplica JS pickFcSid em trades.html (fix estrutural — `/api/picks` pré-resolve dynasty_value) | Alta | ✅ 24/04/2026 |
 | IR-CLEANUP | Remover seletor manual de IR no roster (sync Sleeper já é autoritativo) | Baixa | 🔲 |
+| UX1 | Redesign tabela de roster em /team/<id>: foto, badge acquisition PT-BR, dynasty inline | Média | 🔲 |
+| UX2 | Acquisition types PT-BR em todas as telas (team_detail, roster, salary_history) | Baixa | 🔲 |
+| UX3 | Fotos de jogadores em telas densas (team_detail, cap_projector) | Baixa | 🔲 |
 
 ---
 
@@ -872,8 +876,11 @@ Validado (7 cenários): 108 células clicáveis (12×3×3), 9 minhas (pick_a) + 
 
 **Objetivo:**
 - **Stats históricas:** buscar da Sleeper API (`/stats/nfl/player/<sleeper_player_id>?season_type=regular&season=<year>`) — pontos totais e média por semana por temporada disponível.
-- **ADP/Ranking:** usar `adp` e `search_rank` já presentes no Sleeper players cache (`.sleeper_players_cache.json`) — zero request extra. Para ranking ESPN, usar ESPN ref value (`espn_ref_value`) já no banco como proxy de tier.
-- Apresentar de forma compacta, sem sobrecarregar a página.
+- **ECR/ADP:** usar `adp` e `search_rank` já presentes no Sleeper players cache (`.sleeper_players_cache.json`) — zero request extra. Para ranking ESPN, usar ESPN ref value (`espn_ref_value`) já no banco como proxy de tier.
+- **Schedule próximo (consolidado de UX4):** próximas semanas via Sleeper schedule (avaliar fonte exata — `/v1/state/nfl` + matchups por week, ou cache externo).
+- Apresentar de forma compacta, sem sobrecarregar a página. Referência: FantasyPros (abas Overview, Statistics, Schedule).
+
+**Nota:** item UX4 da rodada de 23/04/2026 foi consolidado aqui em vez de duplicado — escopo virtualmente idêntico (mesma API Sleeper, mesma página alvo).
 
 ---
 
@@ -987,7 +994,13 @@ Não persiste nenhuma alteração no banco — é simulação pura, análoga ao 
 ---
 
 ### T2-FIX — Picks Rd2+ sem dynasty value no preview/proposta de trade
-✅ **Concluído (23/04/2026)** — Prioridade **Média**
+✅ **Concluído (24/04/2026)** — Prioridade **Média**
+
+**Helper Python** corrigido em 23/04 (commit `55bfb16`). **Réplica JS** eliminada em 24/04 via T2-FIX-2 (fix estrutural — `/api/picks` passou a pré-resolver `dynasty_value` no backend, JS virou lookup direto por `pick.dynasty_value`). Não existe mais lógica de construção de chave `DP_*`/`FP_*` no frontend.
+
+---
+
+
 
 **Causa raiz (diagnose MAN-T2-FIX-F1):** Bug duplo em `pick_sleeper_id` (`dynasty_values.py`). O helper gerava `DP_<year_offset>_<pick_index_global>` mas o FantasyCalc usa **dois formatos**:
 - `DP_<round-1>_<pick_in_round-1>` — picks específicas do draft próximo (2026)
@@ -1018,6 +1031,31 @@ Signature ganhou parâmetro opcional `values_map=None` para evitar I/O extra qua
 
 ---
 
+### T2-FIX-2 — Réplica JS pickFcSid Espelhar Lógica 3-Tier do Python
+✅ **Concluído (24/04/2026)** — Prioridade **Alta**
+
+**Problema original:** helper Python `pick_sleeper_id` (corrigido no T2-FIX, commit `55bfb16`) tinha uma réplica em JS (`pickFcSid` em `templates/trades.html:170-179`) com **bug ainda pior** — não só 3-tier errado, mas fórmula de índice linear `(round-1)*ROSTER_SIZE + (pp-1)` que gerava `DP_0_14` em vez do formato `DP_<round-1>_<pp-1>`. Sintoma em prod: picks Rd2+ mostravam 🪙— vazias, Rd1 mostrava valor de Rd2.
+
+**Decisão: fix estrutural (opção D), não as 3 opções tácticas da diagnose F2.** As tácticas (a/b/c) mantinham a lógica replicada entre Python e JS — anti-padrão que as 4 regras novas do `DEV_METHODOLOGY.md` (sessão 23/04) existem exatamente para prevenir. Resolver certo nesta primeira oportunidade pós-regras.
+
+**Implementado:**
+
+**Backend (`routes/picks.py`):** endpoint `GET /api/picks` passa a carregar `dynasty_values` uma vez por request e chamar `pick_sleeper_id` + `resolve_asset_value` para cada pick. Payload ganha campo novo `dynasty_value: int | None`. Zero cópia de lógica — reusa o helper Python fixado no T2-FIX.
+
+**Frontend (`templates/trades.html`):** função `pickFcSid` removida inteira (10 linhas). Variáveis órfãs `currentSeasonInt` e `DYNASTY_ROSTER_SIZE` também removidas. Os 2 call sites (`loadSide` e `computeSideDynastyTotal`) passam a ler `pick.dynasty_value` direto do payload. `dynastyMap` e o fetch `/api/dynasty_values` ficam só para jogadores (mapeados por `sleeper_player_id`).
+
+**Não alterado:** `dynasty_values.py` (já correto), `/trades/proposta/<uuid>` (já era server-side via `_pick_asset_dict`), `/api/dynasty_values` (continua servindo players para o dynastyMap).
+
+**Validação (24/04/2026):**
+- `salary_engine_test.py`: 48/48.
+- Teste manual de `pick_sleeper_id` em 4 casos — sids 100% corretos (`FP_2026_1`, `FP_2026_2`, `DP_0_3`, `None`). Valores absolutos têm drift pequeno vs. handoff do dia anterior (FantasyCalc atualiza continuamente) — 2571/1282/3264 hoje vs. 2695/1291/3272 em 23/04.
+- Smoke `GET /api/picks?team=<name>` via test_client: HTTP 200, 9 picks, 100% com campo `dynasty_value` populado. Tier 1 (DP com `projected_pick`) e Tier 2 (FP agregado) ambos resolvendo.
+- Grep de auditoria: `pickFcSid`, `DP_[0-9]`, `FP_[0-9]` em `templates/` e `static/` → **0 matches**. Réplica eliminada, regra das 4 regras do DEV_METHODOLOGY auditada.
+
+**Impacto:** picks de qualquer round em `/trades` renderizam valor dynasty correto. Barra dynasty em tempo real calcula totais corretos. Primeiro fix estrutural pós-adoção das 4 regras — precedente de "resolver réplica, não ensinar JS a fazer a mesma conta".
+
+---
+
 ### IR-CLEANUP — Remover Seletor Manual de IR no Roster
 🔲 **Pendente** — Prioridade **Baixa**
 
@@ -1039,6 +1077,64 @@ Signature ganhou parâmetro opcional `values_map=None` para evitar I/O extra qua
 **Validação esperada:** após remoção, 16 players IR continuam IR; sync mantém o número alinhado com Sleeper; cap projector continua ignorando IR no total.
 
 **Caveat de UX:** se quiser preservar capacidade de override em ambiente sem Sleeper (offline ou API fora), avaliar alternativa conservadora — manter o seletor mas adicionar tooltip "Será sobrescrito no próximo sync". Recomendação default é remover (regra do projeto: ações na UI devem ser efetivas ou marcadas claramente como simulação).
+
+---
+
+### UX1 — Redesign Tabela de Roster em /team/<id>
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** A tabela de roster em `team_detail.html` (L1) exibe jogadores sem foto, com `acquisition_type` em inglês cru ("auction_draft", "fa_waiver"), sem dynasty value inline. Densidade visual baixa comparada com referências do setor.
+
+**Referências analisadas:**
+- **FantasyPros** — foto + ECR + stats inline na linha do jogador.
+- **Flock Fantasy** — ranking inline, agrupamento limpo por posição.
+- **Fantasy Optimizer** (próprio) — badges coloridos por status.
+
+**Objetivo:** redesign da tabela por posição com:
+- Foto do jogador (Sleeper CDN, padrão `player_detail.html`).
+- Time NFL + salário + contrato.
+- Dynasty value 🪙 inline (lookup via `get_dynasty_values()`, mesmo padrão da route `team_detail`).
+- Acquisition badge PT-BR colorido (depende de UX2 para o mapa de tradução).
+
+**Escopo:** apenas `templates/team_detail.html` + CSS. Sem mudança de backend nem de payload.
+
+**Pré-requisito:** UX2 (mapa de tradução) idealmente entregue antes.
+
+---
+
+### UX2 — Acquisition Types PT-BR em Todas as Telas
+🔲 **Pendente** — Prioridade **Baixa**
+
+**Problema:** Valores enum como `auction_draft`, `free_agent`, `fa_waiver`, `fa_auction`, `rookie_draft`, `unknown` aparecem em inglês cru em `team_detail.html`, `roster.html` (badge inline), `salary_history.html` (timeline). Termos técnicos do schema vazando para a UI.
+
+**Objetivo:** mapa de tradução PT-BR centralizado, aplicado consistentemente:
+
+| acquisition_type | Label PT-BR |
+|------------------|-------------|
+| auction_draft | Auction |
+| rookie_draft | Rookie Draft |
+| fa_waiver | Waiver |
+| fa_auction | FA Auction |
+| free_agent | Free Agent |
+| unknown | — |
+
+**Implementação proposta:**
+- Macro Jinja `acquisition_label(acq_type)` em `templates/_macros.html` para contextos server-side.
+- Helper JS `acquisitionLabel(t)` em `base.html` (junto com `renderPlayerNameLink`) para JS template strings.
+- Aplicar em: `team_detail.html`, `roster.html` (badge inline), `salary_history.html`, `cap_projector.html`, `admin.html` (review_players).
+
+**Pré-requisito:** nenhum.
+
+---
+
+### UX3 — Fotos de Jogadores em Telas Densas
+🔲 **Pendente** — Prioridade **Baixa**
+
+**Problema:** Foto do jogador existe em `player_detail.html` (M13) via Sleeper CDN (`https://sleepercdn.com/content/nfl/players/thumb/<sleeper_player_id>.jpg`) com `onerror` fallback, mas não aparece em telas onde o owner navega multiplamente (team_detail roster, cap_projector).
+
+**Objetivo:** adicionar thumbnail (24-32px) na coluna de nome do jogador em `team_detail.html` e `cap_projector.html`. Reusar padrão do M13 (mesmo URL, mesmo `onerror`). Avaliar performance (12-22 imgs por tela — Sleeper CDN tem cache HTTP agressivo, impacto deve ser baixo, mas medir antes de declarar concluído).
+
+**Pré-requisito:** UX1 (que estabelece o redesign da tabela onde a foto entra). Se UX1 já incluir fotos no escopo, UX3 vira sub-item.
 
 ---
 

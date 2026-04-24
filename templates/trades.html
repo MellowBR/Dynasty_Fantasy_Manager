@@ -158,25 +158,11 @@ const selected = { players: {a: new Set(), b: new Set()}, picks: {a: new Set(), 
 const sideData = { players: {a:[], b:[]}, picks: {a:[], b:[]} };
 
 // T2: dynasty values map carregado uma vez ao abrir a página.
-// dynastyMap[sleeperId] = value (int). Para picks usa prefixo DP_...
-// pickFcSid(pick) gera o sleeper_id estilo FantasyCalc para lookup.
+// dynastyMap[sleeperId] = value (int) — usado só para jogadores.
+// Picks recebem dynasty_value pré-resolvido via /api/picks (T2-FIX-2).
 let dynastyMap = {};
 let dynastyAvailable = false;
 let dynastyMeta = { count: 0, age_hours: null, fetched_at: null };
-let currentSeasonInt = null;
-
-const DYNASTY_ROSTER_SIZE = 12;
-
-function pickFcSid(pick) {
-  if (pick.season == null || pick.round == null || currentSeasonInt == null) return null;
-  const yearOffset = parseInt(pick.season) - currentSeasonInt;
-  if (yearOffset < 0) return null;
-  const pp = pick.projected_pick || 0;
-  const idx = pp > 0
-    ? (parseInt(pick.round) - 1) * DYNASTY_ROSTER_SIZE + (pp - 1)
-    : (parseInt(pick.round) - 1) * DYNASTY_ROSTER_SIZE + 5;
-  return `DP_${yearOffset}_${idx}`;
-}
 
 function fmtValue(v) {
   if (v == null) return '—';
@@ -228,12 +214,9 @@ function refreshDynasty() {
     });
 }
 
-// Kick off dynasty load + current_season fetch on page open
+// Kick off dynasty load on page open
 fetch('/api/teams').catch(() => {}); // warm-up
 loadDynastyValues();
-// current_season via context processor is exposed via g_current_season — but we need int.
-// Use a tiny endpoint probe: try to read from the DOM via a data attribute set by Jinja.
-currentSeasonInt = parseInt("{{ g_current_season }}") || null;
 
 function loadSide(side, teamName) {
   if (!teamName) return;
@@ -288,8 +271,7 @@ function loadSide(side, teamName) {
           label += ` ${prefix}${p.projected_pick}`;
         }
         const extra = p.traded_away ? ' (via trade)' : '';
-        const fcSid = pickFcSid(p);
-        const dv = fcSid ? dynastyMap[fcSid] : null;
+        const dv = p.dynasty_value;
         const estimateSuffix = dv != null && !p.projected_pick ? ' est.' : '';
         const dvBadge = dynastyAvailable
           ? `<span class="dynasty-value-badge">🪙${dv != null ? fmtValue(dv) + estimateSuffix : '—'}</span>`
@@ -348,7 +330,7 @@ function computeSideDynastyTotal(side) {
   for (const pkId of selected.picks[side]) {
     const pk = sideData.picks[side].find(x => x.id === pkId);
     if (pk) {
-      const v = dynastyMap[pickFcSid(pk)];
+      const v = pk.dynasty_value;
       if (v) total += v;
     }
   }

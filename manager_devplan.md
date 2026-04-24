@@ -414,6 +414,28 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 
 - **Validação via Flask test_client:** backfill → 29 imported; re-run → 0 imported, 29 skipped; contagens SQL corretas.
 
+### 23/04/2026 — META: 4 regras novas no DEV_METHODOLOGY (transversais)
+
+- **Origem:** o T2-FIX (mesma sessão) corrigiu o helper Python `pick_sleeper_id` mas o usuário reportou o mesmo bug em produção. Diagnose F2 revelou réplica em JS (`pickFcSid` em `templates/trades.html`) que não foi tocada — a diagnose F1 não perguntou sobre réplicas, e a restrição "alterar apenas dynasty_values.py" amarrou o escopo antes de o Code descobrir o gap. Análise post-mortem com Claude.ai identificou padrão sistêmico.
+
+- **Regra 1 — Diagnose obrigatória de réplicas:** seção "Fase 1 Diagnose" agora exige a pergunta "esta lógica/formato existe em mais de um lugar (JS, templates, outros módulos)?". Sem isso, fixes ficam pela metade.
+
+- **Regra 2 — RESTRIÇÕES por intenção:** prompts devem descrever o que NÃO alterar em termos de domínio/contrato (ex: "não alterar schema, salary_engine") em vez de caminho de arquivo ("alterar apenas X.py"). Restrição por arquivo amarra escopo prematuramente.
+
+- **Regra 3 — Code grep antes de aceitar escopo:** seção "Antes de implementar" do Code agora exige grep pelo padrão de saída (literal, prefixo, formato) em todo o codebase — não só pelo nome da função. Réplicas client-side raramente importam o helper Python.
+
+- **Regra 4 — Checklist de fim de sessão (NOVA, descoberta agora):** ao fechar sessão, validar que (a) ✅/⚠️/🔲 em improvements.md reflete realidade end-to-end (não só backend); (b) diagnoses subsequentes (F2/F3) que descobriram novos itens viraram entradas no backlog; (c) sub-fixes (FIX, FIX2) têm entradas no log do devplan, não só commit message; (d) meta-mudanças têm registro de motivação em algum log canônico. Origem: 4 gaps factuais encontrados nesta sessão antes de encerrar — todos com o mesmo padrão "info ficou em chat/commit, não migrou pra doc canônico".
+
+- **Propagação:** as 4 regras aplicadas nos 3 ecossistemas (`~/fantasy/`, `~/energy/`, `~/finance/gestor-financeiro/DEV_METHODOLOGY.md`). Memória do Code também recebeu Regra 3 e Regra 4 como feedback memories (defesa redundante quando DEV_METHODOLOGY não for carregado).
+
+### 23/04/2026 — N1-FIX + N1-FIX2 (correções pós-deploy do redesign navbar)
+
+- **N1-FIX (commit 65ef289):** dropdowns abertos só por `:hover + :focus-within` (CSS-only) não funcionavam em desktop quando o usuário clicava — `:focus-within` se perde ao mover mouse. Adicionado handler global `document.addEventListener('click')` que toggleia `.nav-open` no grupo, fecha demais, click fora fecha tudo, Esc fecha. CSS `.nav-group:focus-within > .nav-dropdown` substituído por `.nav-group.nav-open > .nav-dropdown` (mais previsível).
+
+- **N1-FIX2 (commit fffea3f):** mesmo após FIX, dropdown continuava invisível em produção. Causa raiz: `.nav-links { overflow-x: auto }` (regra pré-N1, para permitir scroll horizontal dos 9 links flat originais). Quando `overflow` é `auto/scroll` numa dimensão, browsers forçam a outra a não ser `visible` (spec CSS Overflow). Resultado: `.nav-dropdown` (`position: absolute; top: 100%`) clipado verticalmente. Removida 1 linha (`overflow-x: auto`). Mobile não afetado (já usa hamburger overlay com `display: none` na nav-links).
+
+- **Decisão registrada (Regra 4 violada momentaneamente):** decisão original do log do N1 ("dropdowns desktop CSS-only") ficou desatualizada — esta entrada é o registro corretivo. Antes desta correção, quem lesse só o log do N1 teria info errada.
+
 ### 23/04/2026 — Camada T2-FIX (pick_sleeper_id formato FantasyCalc)
 
 - **Decisão:** rewrite completo de `pick_sleeper_id` em vez de patch parcial. **Why:** diagnose MAN-T2-FIX-F1 revelou bug **duplo** — Rd1 exibia valor errado (DP_1_5 = Rd2 valor) silenciosamente, Rd2+ retornava None. Patchar apenas o índice deixaria Rd1 ainda apontando para keys DP_ erradas. Rewrite usando os formatos reais do FantasyCalc (DP_<round-1>_<pick-1> + FP_<year>_<round>) corrige ambos numa só passada.
@@ -693,3 +715,19 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 - **Decisão UX:** UI usa inputs inline + botões por linha (mesmo padrão da tabela
   "Donos dos Times" que já existia em `/admin`). Sem modais, sem framework JS —
   fetch() nativo. Consistência visual com admin.html.
+
+### 24/04/2026 — Camada T2-FIX-2 (Fix estrutural: eliminar réplica JS `pickFcSid`)
+
+- **Decisão: fix estrutural (opção D), não as 3 tácticas da diagnose F2.** As tácticas documentadas (a/b/c) mantinham a lógica 3-tier replicada entre Python e JS — o anti-padrão que as 4 regras novas do `DEV_METHODOLOGY.md` (adotadas ontem) existem para prevenir. **Why:** primeira oportunidade pós-regras; aplicar táctica agora seria incoerente com a motivação das regras. O refator é pequeno (~10 linhas movidas de template para endpoint) — custo comparável ao da opção (b) recomendada no handoff.
+
+- **Decisão: enriquecer `/api/picks` em vez de criar endpoint novo `/api/picks/dynasty_values`.** **Why:** `/api/picks` já é chamado pelo `loadSide()` de `/trades` e já enriquece picks com `projected_pick`/`projection_locked` no backend. Adicionar `dynasty_value` ali preserva a semântica "tudo sobre pick vem em um único fetch", evita segunda chamada HTTP, e não cria contrato novo. Endpoint dedicado teria sido overkill.
+
+- **Decisão: mutar `p.projected_pick` na instância ORM em vez de usar SimpleNamespace.** **Why:** `pick_sleeper_id` em `dynasty_values.py` usa `getattr(pick, "projected_pick", None)` — o Pick model não tem a coluna, então setar o atributo cria apenas um Python attr não-persistente no objeto da sessão read-only. SQLAlchemy não marca dirty para atributos que não são colunas mapeadas. Alternativa (SimpleNamespace) funcionaria mas adicionaria import + wrapper sem ganho.
+
+- **Decisão: manter `dynastyMap` e `fetch('/api/dynasty_values')` no frontend.** **Why:** o mapa ainda é usado para jogadores (lookup por `sleeper_player_id`) em 2 lugares — `loadSide` linha ~260 e `computeSideDynastyTotal` linha ~344. Remover o fetch quebraria badges dynasty de jogadores. Apenas as variáveis órfãs do `pickFcSid` (`currentSeasonInt`, `DYNASTY_ROSTER_SIZE`) foram removidas.
+
+- **Auditoria da regra 3 (grep de réplicas antes de fechar):** `pickFcSid`, `DP_[0-9]`, `FP_[0-9]` em `templates/` e `static/` → 0 matches. Nenhuma lógica de construção de chave FantasyCalc permanece no frontend. Fonte única: `dynasty_values.pick_sleeper_id` (Python).
+
+- **Validação com valores concretos:** teste unitário de `pick_sleeper_id` em 4 casos — sids 100% corretos (`FP_2026_1`, `FP_2026_2`, `DP_0_3`, `None`), valores absolutos com drift pequeno vs. validação do T2-FIX no dia anterior (FC atualiza continuamente: 2571/1282/3264 em 24/04 vs. 2695/1291/3272 em 23/04). O que importa é que os sids resolvidos batem com o Python — antes do fix, JS gerava sids linearmente errados (`DP_0_14` para Rd2 pp=3, em vez de `DP_1_2`). Smoke `GET /api/picks?team=<name>` retornou HTTP 200 com `dynasty_value` populado em 100% das picks.
+
+- **Custo do bug latente que o fix também corrige:** a diagnose F1 revelou que a fórmula JS era **pior** do que o "3-tier errado" originalmente reportado — era índice linear `(round-1)*ROSTER_SIZE + (pp-1)` em vez de `DP_<round-1>_<pp-1>`. Rd1 mostrava valor de uma slot específica da Rd2 (não de toda a Rd2 como eu havia assumido). Só o fix estrutural garante que nenhuma variante do bug sobrevive, porque elimina o lugar onde a fórmula existe.
