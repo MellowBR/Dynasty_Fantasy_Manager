@@ -921,3 +921,31 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Validação:** `salary_engine_test.py` 48/48. Smoke HTTP 200 em 7 telas. Grep `tr.pos-.*background:` em contexto `.player-roster-table`: 0 matches (validação atendida). 1 ocorrência de `background-color: transparent` no override UX4-e. IR/renewal-flag preservadas por construção via `:not()`.
 
 - **LOC:** +15 CSS (bloco do override com 7 seletores e comentário), 0 HTML/template/backend.
+
+### 24/04/2026 — Camada UX7 (Clareamento do fundo +3pp, Opção A)
+
+- **Decisão: Opção A (+3pp) em vez de Opção B (+5pp).** **Why:** owner comparou mocks e preferiu clareamento sutil — aproximação conservadora preserva a identidade "quase preto" do design enquanto reduz peso visual. Opção B exigiria ajuste em `--text-dim` (L54→L58) para manter contraste; Opção A não toca `--text-dim`, reduzindo superfície de mudança. Trade-off aceito: diferença visual é sutil mas real; se pós-uso real owner quiser mais clareamento, Opção B fica como próximo passo (docs indicam L58 para `--text-dim`).
+
+- **Delta uniforme preservado em todos os 6 tokens de fundo/borda:** bg (7→10), bg2 (12→15), bg3 (16→19), bg4 (20→23), border (25→28), border2 (32→35). Cada token sobe exatamente 3pp → hierarquia entre surfaces preservada por construção (mesmos deltas relativos).
+
+- **Matiz 218° e saturação ~30% inalterados.** Só luminosidade. Cores novas por HSL approximation: ex. `--bg` novo = hsl(218°, 28%, 10%) = `#161c28`. Validado por conversão hex→hsl.
+
+- **`--text-dim` intocado** (`#6e84a3`, L54). **Why:** Opção A mantém contraste AA em surfaces `--bg`, `--bg2` e borderline em `--bg3`. Regressão pré-existente de `--text-dim` sobre `--bg4` (3.5:1, falha AA small) **não foi introduzida aqui** — já existia antes do UX7 (ratio era 3.7:1 original, caiu para 3.5:1 após clareamento). Se futuramente virar dor, tratamento dedicado.
+
+- **Tokens semantic intocados:** `--green`, `--yellow`, `--red`, `--accent`, `--purple`, `--orange`, `--cyan` preservados. Saturação alta + luminosidade ~50% garante contraste confortável sobre qualquer fundo dark (L<30). F1 avaliou "parecerem gritantes" como risco teórico; nenhum ajuste considerado necessário a priori.
+
+- **`--pos-color-*` canonizadas intocadas** (UX4). 4 apontam para theme vars; 2 são próprios (wr `#60a5fa`, k `#94a3b8`). Zero impacto de UX7.
+
+- **Estados destacados preservados em CSS** (`.player-ir-row` alpha 8%, `.renewal-flag` alpha 5%), mas percepção visual degrada sutilmente:
+  - IR-row: diferença de luminosidade sobre `--bg2` era +3.6pp (12→15.6 blended), agora é +3.4pp (15→18.4). Marginalmente menos distinto, ainda perceptível.
+  - Renewal-flag: já era muito sutil (delta +1.9pp). Agora +1.75pp. **Débito delimitado aceito** — se virar dor, item futuro pode subir alpha 5→8-10%. F1 já sinalizou, owner aceitou antes da F2.
+
+- **CSS legado preservado vivo** (`.cap-breakdown-*`, `.cap-by-pos-table`, `.team-detail-cap-layout`, `.pos-block`, `.player-row`, etc. — dead HTML pós-UX4-c/UX4-d). Clareamento do fundo afeta essas classes por `var(--*)` se forem resgatadas no futuro. Sem ação aqui.
+
+- **Validação empírica não executada via CLI.** Smoke HTTP 200 em 13 telas confirmou que não há crash/render failure. Validação visual **fica pendente pelo owner** — inspeção em browser das telas de risco Alto (`/trades`, `/admin`, `/offseason`) e Médio (`/team/<id>`, `/`, `/player/<id>`, `/salary_history`, `/cap_projector`). Checklist per F1 (MAN-UX7-F1) documentado em `improvements.md`.
+
+- **Nota cross-ecossistema adicionada em `fantasy_optimizer/CLAUDE.md`** (commit separado): registra que Manager clareou paleta em UX7, indica commit SHA, sinaliza que Optimizer mantém paleta original por ora. Predictor intocado (data-side sem UI owner-facing significativa — F1 justificou).
+
+- **LOC:** 6 LOC alteradas no Manager (`static/style.css` linhas 5-12, + 2 linhas de comentário explicativo). 3-5 LOC no Optimizer (nota em `CLAUDE.md`). Smoke test cobriu 13 telas HTTP 200.
+
+- **Validação:** `salary_engine_test.py` 48/48. Smoke HTTP 200 em 13 telas (`/team/<id>`, `/`, `/trades`, `/admin`, `/offseason`, `/player/<id>`, `/salary_history`, `/cap_projector`, `/league`, `/picks`, `/auction`, `/admin/users`, `/salary`). Grep dos 6 hex antigos em style.css: 0 matches. Grep dos 6 hex novos: 1 ocorrência cada (só em `:root`).

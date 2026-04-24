@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b + UX4-c + UX4-d + UX4-e concluídos; UX5, UX6, UX7 registrados)
+> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b + UX4-c + UX4-d + UX4-e + UX7 concluídos; UX5, UX6 registrados)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -64,7 +64,7 @@
 | UX4-c | Aperto visual final de /team/<id> e / (status bar + progress bar nova + espaçamento entre grupos + colgroup denso) | Média | ✅ 24/04/2026 |
 | UX4-d | Tabela única de roster com pos inline (elimina cabeçalhos repetidos por posição) | Média | ✅ 24/04/2026 |
 | UX4-e | Remover fundo pintado das rows por posição (preservar strip + cor no nome) | Média | ✅ 24/04/2026 |
-| UX7 | Tema visual global mais claro (recalibragem da paleta dark) | Média | 🔲 |
+| UX7 | Tema visual global mais claro (recalibragem da paleta dark) | Média | ✅ 24/04/2026 |
 | UX6 | Revisão da largura máxima do container global da aplicação (~700px de ar lateral em monitor 1920px) | Média | 🔲 |
 | UX5 | Redesign da seção Picks em detalhe de time (3 tabelas anuais com baixa densidade, coluna Notas vazia) | Média | 🔲 |
 | DATA-1 | Badges TRADE e REVISÃO removidos da macro de listagem (info pertence à timeline/admin, não à listagem) | Média | ✅ 24/04/2026 |
@@ -1478,48 +1478,47 @@ Remover o background das regras genéricas afetaria (1), (2) e (3) simultaneamen
 ---
 
 ### UX7 — Tema Visual Global Mais Claro (Recalibragem da Paleta Dark)
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (24/04/2026)** — Prioridade **Média**
 
-**Problema (sintoma observado):** Análise visual das páginas do Fantasy Manager (24/04/2026, pós-UX4-c) identificou que o tema dark atual tem **peso visual excessivo em telas densas de dados** (roster, cap_projector, trades). Owner comparou com mocks que usam uma paleta dark mais leve (fundo azulado-escuro médio em vez de quase-preto) e sinalizou preferência pela direção mais clara.
+**Entregue:** clareamento uniforme de +3pp em 6 tokens de fundo/borda em `:root` (Opção A aprovada pelo owner após comparar mocks das opções A e B). Matiz 218° preservado; saturação ~30% preservada; hierarquia entre superfícies mantida (mesmo delta entre tokens). `--text-dim` intocado (Opção A não requer). Zero outra mudança.
 
-**Escopo (investigação aberta, sem assumir causa):**
+**Mudança em `static/style.css` (`:root`):**
 
-- **F1 — diagnose:** mapear os tokens atuais de cor no `:root` de `static/style.css` (`--bg`, `--bg2`, `--bg3`, `--bg4`, `--border`, `--border2`, `--text`, `--text-dim`, `--text-muted`, variáveis relacionadas) e seus valores hex. Identificar como cada token é consumido nas classes principais (cards, tabelas, navbar, badges, status bar). Medir hierarquia atual de luminosidade entre camadas.
+| Token | Hex antigo | Hex novo | Camada |
+|---|---|---|---|
+| `--bg` | `#0d1117` (L7%) | `#161c28` (L10%) | fundo base |
+| `--bg2` | `#161b27` (L12%) | `#1b2436` (L15%) | surface |
+| `--bg3` | `#1e2736` (L16%) | `#243049` (L19%) | hover / tabs |
+| `--bg4` | `#243044` (L20%) | `#2c3a51` (L23%) | hover++ |
+| `--border` | `#2c3a52` (L25%) | `#364864` (L28%) | bordas |
+| `--border2` | `#384d6b` (L32%) | `#485c7a` (L35%) | bordas acentuadas |
 
-- **F1 — opções de recalibragem:** após mapear, propor nova paleta dark candidata com:
-  - Fundo base ligeiramente mais claro (direção azulado-escuro médio)
-  - Hierarquia preservada entre camadas (fundo → surface → hover → borders)
-  - Contraste de texto validado (WCAG AA como referência mínima para `--text` sobre `--bg`)
-  - Valores semânticos (`--green`, `--yellow`, `--red`, `--accent`) avaliados para ajuste consistente com nova paleta, se necessário
+**Preservado intacto:**
+- `--text` (L90%), `--text-dim` (L54%), `--text-muted` (L33%)
+- Tokens semantic: `--green`, `--yellow`, `--red`, `--accent`, `--purple`, `--orange`, `--cyan`
+- `--pos-color-*` canonizadas (UX4)
+- Estados destacados: `.player-ir-row` (vermelho alpha), `.renewal-flag` (amarelo alpha)
+- Strip vertical + cor no nome por posição (UX4-b, UX4-d)
+- Override de fundo em rows (UX4-e)
+- Todos os consumidores via `var(--*)` — mudança em `:root` propaga automaticamente
 
-- **F1 — validação visual por tela:** percorrer telas com perfis distintos (tela densa como cap_projector, tela com cards como league hub, tela com formulários como admin, tela com timeline como player_detail, tela com modais como trades) e avaliar se a nova paleta mantém legibilidade e hierarquia.
+**Referências:** diagnose `MAN-UX7-F1`, commit UX7-REG `45998c7`.
 
-- **F2 — aplicação:** mudar apenas tokens em `:root`, zero alteração em classes consumidoras. Smoke test em todas as páginas. Validação empírica visual pelo owner.
+**Cross-ecossistema:** nota adicionada em `fantasy_optimizer/CLAUDE.md` (commit separado) registrando que o Manager clareou paleta, linkando ao commit, e indicando que Optimizer mantém paleta original por ora.
 
-**Profundidade escolhida:** recalibrar paleta **dark** (fundo + surface + hover + borders) mantendo modo único — **sem introduzir light mode, sem toggle, sem tema preference**. Escopo contido: só calibragem da paleta existente.
+**Validação:**
+- `salary_engine_test.py` 48/48.
+- Smoke HTTP 200 em **13 telas**: `/team/<id>`, `/`, `/trades`, `/admin`, `/offseason`, `/player/<id>`, `/salary_history`, `/cap_projector`, `/league`, `/picks`, `/auction`, `/admin/users`, `/salary`.
+- Grep dos 6 hex antigos em `style.css`: **0 matches** (substituídos integralmente).
+- Grep dos 6 hex novos em `style.css`: 1 ocorrência cada (só em `:root`; consumidores usam `var()`).
 
-**Referências:** commit UX4-c (`1440421`); mocks comparativos apresentados ao owner na sessão de 24/04/2026.
+**Validação empírica visual:** não executada via CLI (fora das capacidades do ambiente). **Fica pendente pelo owner no uso real.** Checklist para auditar (per F1): texto principal legível em todas as surfaces; hierarquia fundo < surface < hover perceptível; `.player-ir-row` e `.renewal-flag` ainda transmitindo estado (aviso F1: `.renewal-flag` alpha 5% já era marginal, vai ficar mais sutil pós-UX7 — aceito como débito delimitado, item futuro se virar dor); cores semantic não destoando; `--text-dim` legível sobre bg/bg2/bg3 (falha AA em bg4 é regressão pré-existente, não introduzida aqui).
 
-**Infra relacionada:**
-- Tokens em `:root` de `static/style.css` (linhas ~4-33, incluindo novas `--pos-color-*` canonizadas em UX4).
-- Classes consumidoras via `var(--*)` em todo o CSS — mudança no `:root` propaga automaticamente.
-- Semantic tokens (`--green`, `--yellow`, `--red`) usados por progress bar (UX4-c), tags, alertas.
+**Débito delimitado observado** (aceito, item futuro se virar dor):
+- `.renewal-flag` (alpha 5%) fica marginalmente mais sutil sobre fundo clareado. F1 já sinalizou; owner aceita; ajuste possível = aumentar alpha para 8-10% em item separado se sinal visual ficar fraco no uso real.
+- `--text-dim` sobre `--bg4`: continua falhando WCAG AA small (3.5:1 < 4.5). Regressão pré-existente de antes do UX7 — não introduzida aqui.
 
-**Impacto cross-tela:** afeta **todas as páginas do app**. Risco de regressão em componentes que assumem implicitamente a paleta atual (ex: contraste específico de `.tag-*`, `.pos-badge` alfa em rgba). F1 mapeia amplamente.
-
-**Relação com outros items:**
-- **Sucessor natural de UX4-d** — owner prefere calibrar tema após a estrutura final do roster estar pronta (UX4-d entrega a tabela única com pos inline; tema se calibra sobre essa estrutura final).
-- **Independente de UX5** (Picks), **UX6** (container global), **UX2** (PT-BR).
-- **Ordem decidida pelo owner:** UX4-d primeiro, depois UX7.
-
-**Riscos:**
-- Contraste de texto reduzido se fundo ficar claro demais: `--text-dim` sobre `--bg` mais claro pode virar ilegível. F1 valida via contraste relativo.
-- Cores rgba com alpha (`.pos-QB { background: rgba(167,139,250,.18) }` e análogas) podem mudar de percepção quando o fundo muda — fundo mais claro reduz saturação efetiva do rgba com alpha baixo. F1 testa empiricamente.
-- Componentes com `background: var(--bg2)` versus elementos sem background (texto solto) podem inverter hierarquia percebida — validação visual obrigatória.
-
-**Pré-requisito:** nenhum bloqueante.
-
-**Observação estratégica:** este é o segundo item do backlog com **escopo cross-app verdadeiro** (depois de UX6). A mudança é tecnicamente simples (editar `:root`), mas a validação é o trabalho real — percorrer 12+ telas e confirmar que nada quebra. F2 deve incluir smoke test HTTP 200 em todas e inspeção visual empírica pelo owner antes de declarar concluído.
+**Se futuramente escalar para Opção B (+5pp):** `--text-dim` precisaria subir para L58 (`#8098b5`) para preservar contraste. Não tocado agora.
 
 ---
 

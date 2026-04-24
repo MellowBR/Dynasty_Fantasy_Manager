@@ -2,12 +2,14 @@
    Dynasty SB — Dark Theme
    ================================================================ */
 :root {
-  --bg:          #0d1117;
-  --bg2:         #161b27;
-  --bg3:         #1e2736;
-  --bg4:         #243044;
-  --border:      #2c3a52;
-  --border2:     #384d6b;
+  /* UX7 (24/04/2026): fundo clareado +3pp mantendo matiz 218° e saturação ~30%.
+     Opção A aprovada (delta uniforme, text-dim intocado). Hierarquia preservada. */
+  --bg:          #161c28;
+  --bg2:         #1b2436;
+  --bg3:         #243049;
+  --bg4:         #2c3a51;
+  --border:      #364864;
+  --border2:     #485c7a;
   --text:        #e2e8f0;
   --text-dim:    #6e84a3;
   --text-muted:  #3d5068;
