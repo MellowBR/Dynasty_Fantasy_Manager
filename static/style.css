@@ -1584,6 +1584,24 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 .player-roster-table tr.pos-DEF .player-name { color: var(--pos-color-def); }
 /* tr.pos-K intencionalmente ausente — mantém cor default --text */
 
+/* UX4-e: remover fundo pintado das rows por posição.
+   As regras genéricas .pos-* (style.css:476-482) aplicam background via rgba
+   para pos-badge (componente reusável em col-pos, counts, status bar pos-chips).
+   Por herança, rows <tr class="pos-XX"> também recebiam esse fundo — 3 camadas
+   de cor por posição (fundo + strip + nome) saturava visualmente rows densas.
+   Override scoped aqui neutraliza SÓ no contexto da row, preservando o fundo
+   do pos-badge nos outros lugares. :not() protege backgrounds semânticos
+   de status (.player-ir-row vermelho, .renewal-flag amarelo). */
+.player-roster-table tbody tr.pos-QB:not(.player-ir-row):not(.renewal-flag),
+.player-roster-table tbody tr.pos-RB:not(.player-ir-row):not(.renewal-flag),
+.player-roster-table tbody tr.pos-WR:not(.player-ir-row):not(.renewal-flag),
+.player-roster-table tbody tr.pos-TE:not(.player-ir-row):not(.renewal-flag),
+.player-roster-table tbody tr.pos-K:not(.player-ir-row):not(.renewal-flag),
+.player-roster-table tbody tr.pos-DST:not(.player-ir-row):not(.renewal-flag),
+.player-roster-table tbody tr.pos-DEF:not(.player-ir-row):not(.renewal-flag) {
+  background-color: transparent;
+}
+
 /* UX4-d: separador discreto entre grupos de posição (tabela única). */
 .player-roster-table tr[data-group-first]:not(:first-child) > td {
   border-top: 1px dashed var(--border);

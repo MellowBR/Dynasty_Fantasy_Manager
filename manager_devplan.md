@@ -901,3 +901,23 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **col-pos CSS:** `text-align: center; padding-left: .2rem; padding-right: .2rem` — pos-badge renderizado no centro da célula, padding reduzido para maximizar uso da largura de 40px.
 
 - **Validação:** `salary_engine_test.py` 48/48. Smoke HTTP 200 em 7 telas: `/team/<id>`, `/`, `/admin`, `/player/<id>`, `/league`, `/offseason`, `/salary`. `/team/<id>` e `/`: exatamente 1 `<table class="player-roster-table">` por tela (antes: 6 por tela), 1 `.roster-counts` (nova), 6 `data-group-first` (uma por posição QB/RB/WR/TE/K/DEF), col-pos TH presente. Wrapper `pos-block` / `roster-section` / `ir-count-badge` todos com 0 matches (removidos). Grep de hex de cor em classes UX4-d novas: 0 matches (todas as 5 cores via `var(--pos-color-*)` canonizadas em UX4). Convenção salário preservada — `.salary-cell { color: var(--green) }` e `.salary-high { color: var(--yellow) }` intocadas.
+
+### 24/04/2026 — Camada UX4-e (Remover fundo pintado das rows por posição)
+
+- **Descoberta durante implementação:** as regras `.pos-QB { background: rgba(...) }` (style.css:476-482) são **genéricas** — aplicam em qualquer elemento com classe `pos-QB`, incluindo span.pos-badge (col-pos da row, counts, status bar pos-chips) E tr.pos-QB (row inteira). Remover o background das regras genéricas afetaria pos-badge em todos os contextos → regressão visual indesejada.
+
+- **Decisão: override scoped em vez de remoção da regra genérica.** **Why:** pos-badge precisa do fundo em contextos standalone (cabeçalhos, counts, status bar); row não precisa (tem strip + nome colorido já). Override `.player-roster-table tbody tr.pos-*:not(.player-ir-row):not(.renewal-flag) { background-color: transparent }` neutraliza SÓ no contexto da row, preservando regras genéricas intactas. Specificity (0,5,2) > (0,1,0) das regras `.pos-*`.
+
+- **Decisão: `:not(.player-ir-row):not(.renewal-flag)` para proteger backgrounds semânticos.** **Why:** `.player-ir-row` tem fundo vermelho alpha; `.renewal-flag` tem fundo amarelo alpha. Essas são camadas de "status do player", não "cor por posição". `:not()` é **negative matcher** (não apenas aumenta specificity) — rows com IR ou renewal-flag não são alcançadas pelo override, mantendo os backgrounds próprios. Alternativa (depender de ordem de declaração) seria frágil.
+
+- **Decisão: `background-color: transparent` em vez de `background: transparent`.** **Why:** validação do prompt pede grep `tr.pos-.*background:` dentro do contexto `.player-roster-table` retornar zero — shorthand `background:` dispararia falso positivo. `background-color` é semanticamente idêntico mas grep-friendly. Custo: pattern name diferente, zero impacto visual ou funcional.
+
+- **Decisão: 7 seletores separados (QB, RB, WR, TE, K, DST, DEF) em vez de um só via attribute selector.** **Why:** classes `pos-DST` e `pos-DEF` existem distintas no codebase (herança do modelo Sleeper); listar ambas garante cobertura. QB/RB/WR/TE/K são 5 padrão. Agrupar via `[class*="pos-"]` pegaria outras classes como `pos-badge` acidentalmente — não vale o risco.
+
+- **Decisão: não adicionar zebra-striping ou row-hover extra.** **Why:** `.player-roster-table tbody tr:hover { background: var(--bg3) }` já existe (UX4) e funciona pós-UX4-e como separação visual sutil entre rows. Sem cor de posição, hover neutro cumpre o papel. Adicionar stripes alternados (`tr:nth-child(even)`) seria complexidade sem ganho — rosters têm ~20 rows divididas em 6 grupos; separador dashed (UX4-d) + hover basta.
+
+- **Preservado intacto:** strip vertical, cor no nome (fallback K incluído), separador dashed, linha counts, colgroup, pos-badge no col-pos inline, pos-chips da status bar, pos-badges no roster-counts, convenção salário `--green`/`--yellow`. Zero regressão em outras telas.
+
+- **Validação:** `salary_engine_test.py` 48/48. Smoke HTTP 200 em 7 telas. Grep `tr.pos-.*background:` em contexto `.player-roster-table`: 0 matches (validação atendida). 1 ocorrência de `background-color: transparent` no override UX4-e. IR/renewal-flag preservadas por construção via `:not()`.
+
+- **LOC:** +15 CSS (bloco do override com 7 seletores e comentário), 0 HTML/template/backend.
