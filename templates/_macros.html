@@ -1,4 +1,4 @@
-{# Macros reutilizáveis. Use {% from "_macros.html" import player_name_link, player_photo, nav_link, nav_dropdown %}. #}
+{# Macros reutilizáveis. Use {% from "_macros.html" import player_name_link, player_photo, player_roster_row, player_roster_colgroup, nav_link, nav_dropdown %}. #}
 
 {# player_name_link(player, klass='', target=None, stop_propagation=False)
    player precisa ter .id e .name. #}
@@ -52,7 +52,11 @@
       —
     {%- endif -%}
   </td>
-  <td class="col-acq">{{ player.acquisition_label }}</td>
+  <td class="col-espn">
+    {%- if player.espn_ref_value -%}${{ '%.1f'|format(player.espn_ref_value) }}{%- else -%}—{%- endif -%}
+  </td>
+  <td class="col-proj">${{ player.projected_next_salary() }}</td>
+  <td class="col-acq" title="{{ player.acquisition_label }}">{{ player.acquisition_label }}</td>
   {%- if context == 'roster' %}
   <td class="col-actions">
     {% if player.is_on_ir -%}
@@ -63,6 +67,26 @@
   </td>
   {%- endif %}
 </tr>
+{%- endmacro %}
+
+{# player_roster_colgroup(context='team_detail')
+   <colgroup> compartilhado para .player-roster-table. Garante larguras explícitas
+   e alinhamento vertical entre as múltiplas tabelas por posição (na mesma tela)
+   e entre as 2 telas (/team/<id> e /). context controla presença de col-actions. #}
+{% macro player_roster_colgroup(context='team_detail') -%}
+<colgroup>
+  <col class="col-photo">
+  <col class="col-name">
+  <col class="col-salary">
+  <col class="col-contract">
+  <col class="col-dynasty">
+  <col class="col-espn">
+  <col class="col-proj">
+  <col class="col-acq">
+  {%- if context == 'roster' %}
+  <col class="col-actions">
+  {%- endif %}
+</colgroup>
 {%- endmacro %}
 
 {# _nav_match — true se request.path bate com algum prefix.

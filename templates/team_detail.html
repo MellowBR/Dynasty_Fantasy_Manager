@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import player_name_link, player_photo, player_roster_row %}
+{% from "_macros.html" import player_name_link, player_photo, player_roster_row, player_roster_colgroup %}
 {% block title %}{{ team.name }} — Dynasty SB{% endblock %}
 
 {% block content %}
@@ -34,45 +34,47 @@
 
 <section class="team-detail-section">
   <h2 class="section-title">Cap Breakdown</h2>
-  <div class="cap-breakdown-grid">
-    <div class="cap-breakdown-stat">
-      <span class="stat-label">Cap usado</span>
-      <span class="stat-num {% if cap_used > cap %}cap-negative{% endif %}">${{ cap_used|int }}</span>
+  <div class="team-detail-cap-layout">
+    <div class="cap-breakdown-grid">
+      <div class="cap-breakdown-stat">
+        <span class="stat-label">Cap usado</span>
+        <span class="stat-num {% if cap_used > cap %}cap-negative{% endif %}">${{ cap_used|int }}</span>
+      </div>
+      <div class="cap-breakdown-stat">
+        <span class="stat-label">Cap restante</span>
+        <span class="stat-num {% if cap_remaining < 0 %}cap-negative{% endif %}">${{ cap_remaining|int }}</span>
+      </div>
+      <div class="cap-breakdown-stat">
+        <span class="stat-label">Cap total</span>
+        <span class="stat-num">${{ cap|int }}</span>
+      </div>
+      <div class="cap-breakdown-stat">
+        <span class="stat-label">Jogadores ativos</span>
+        <span class="stat-num">{{ active_count }}</span>
+      </div>
+      <div class="cap-breakdown-stat">
+        <span class="stat-label">IR ({{ ir_count }})</span>
+        <span class="stat-num">${{ ir_cap|int }}</span>
+      </div>
+      <div class="cap-breakdown-stat">
+        <span class="stat-label">Dynasty total</span>
+        <span class="stat-num">{% if dynasty_total %}🪙 {{ dynasty_total }}{% else %}—{% endif %}</span>
+      </div>
     </div>
-    <div class="cap-breakdown-stat">
-      <span class="stat-label">Cap restante</span>
-      <span class="stat-num {% if cap_remaining < 0 %}cap-negative{% endif %}">${{ cap_remaining|int }}</span>
-    </div>
-    <div class="cap-breakdown-stat">
-      <span class="stat-label">Cap total</span>
-      <span class="stat-num">${{ cap|int }}</span>
-    </div>
-    <div class="cap-breakdown-stat">
-      <span class="stat-label">Jogadores ativos</span>
-      <span class="stat-num">{{ active_count }}</span>
-    </div>
-    <div class="cap-breakdown-stat">
-      <span class="stat-label">IR ({{ ir_count }})</span>
-      <span class="stat-num">${{ ir_cap|int }}</span>
-    </div>
-    <div class="cap-breakdown-stat">
-      <span class="stat-label">Dynasty total</span>
-      <span class="stat-num">{% if dynasty_total %}🪙 {{ dynasty_total }}{% else %}—{% endif %}</span>
-    </div>
+    {% if cap_by_pos %}
+    <table class="data-table cap-by-pos-table">
+      <thead><tr><th>Posição</th><th>Salário comprometido</th></tr></thead>
+      <tbody>
+        {% for pos, total in cap_by_pos.items() %}
+        <tr>
+          <td><span class="pos-badge pos-{{ pos|replace('/','') }}">{{ pos }}</span></td>
+          <td>${{ total|int }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
   </div>
-  {% if cap_by_pos %}
-  <table class="data-table cap-by-pos-table">
-    <thead><tr><th>Posição</th><th>Salário comprometido</th></tr></thead>
-    <tbody>
-      {% for pos, total in cap_by_pos.items() %}
-      <tr>
-        <td><span class="pos-badge pos-{{ pos|replace('/','') }}">{{ pos }}</span></td>
-        <td>${{ total|int }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
 </section>
 
 <section class="team-detail-section">
@@ -84,6 +86,7 @@
       <span class="text-dim small-text">{{ players|length }}</span>
     </h3>
     <table class="player-roster-table">
+      {{ player_roster_colgroup(context='team_detail') }}
       <thead>
         <tr>
           <th class="col-photo"></th>
@@ -91,6 +94,8 @@
           <th class="col-salary">Salário</th>
           <th class="col-contract">Contrato</th>
           <th class="col-dynasty">🪙 Dynasty</th>
+          <th class="col-espn">ESPN</th>
+          <th class="col-proj">Proj 2026</th>
           <th class="col-acq">Aquisição</th>
         </tr>
       </thead>

@@ -799,3 +799,44 @@ Estes passos não podem ser executados pelo Claude Code — requerem ação manu
 - **Decisão: não tocar banner alert em `roster.html:85` nem cap_projector REVISÃO.** **Why:** fora do escopo "macro de roster". Banner de roster é alerta agregado admin (info útil para quem tem time próprio); cap_projector é tela de planejamento salarial com contexto próprio. Se owner quiser ampliar remoção, camada separada.
 
 - **Validação:** `salary_engine_test.py` 48/48. Smoke `GET /team/<id>`, `/`, `/admin`, `/player/<id>`: todos HTTP 200. Grep `class="tag tag-trade">TRADE` e `class="tag tag-review">REVISÃO` nos HTMLs de `/team/<id>` e `/`: 0 matches cada. Badge IR persistente (contagem > 0). `/player/<id>` timeline intocada (`tag-trade` no HTML via EVENT_LABELS JS). Grep `via_trade` em `templates/_macros.html`: 0 matches. Grep `via_trade` no codebase: ocorrências apenas em contextos não-UI (`models.py`, `sync_sleeper.py`, `routes/admin.py`, `routes/roster.py` PATCH).
+
+### 24/04/2026 — Camada UX4-b (Redesign de densidade e layout de detalhe de time)
+
+- **Decisão: 4 camadas coordenadas em commit único.** **Why:** camadas D (ESPN+Projeção), C (distribuição de colunas), A (densidade cap breakdown), B (layout 2-col cap by pos) têm interdependência visual — mudar apenas 1 deixaria inconsistência percebida pelo owner. Ordem da F1 respeitada (D→C→A→B) mas o commit agrega tudo. Vantagem: 1 review, 1 validação, 1 rollback.
+
+- **Decisão: ESPN+Projeção em ambos contextos (paridade total), não só em `/`.** **Why:** F1 deixou decisão aberta. Argumentos a favor da paridade: consistência da macro (mesmo layout em ambas telas facilita mental model), info de ESPN ref é útil para scout de trade (owner olhando roster alheio pode querer comparar `salary` vs `espn_ref_value`), Projeção ajuda a avaliar custo real do player no offseason seguinte. Contra (rejeitado): "info off-team de baixa relevância" — marginal; o ganho de simetria supera.
+
+- **Decisão: colgroup via macro nova `player_roster_colgroup(context)`, invocada antes do `<thead>` em cada tabela.** **Why:** alternativa (inline em cada template) geraria réplica do colgroup HTML 12+ vezes. Alternativa (include de partial) funciona mas exige arquivo novo. Macro é o padrão estabelecido em O1 e UX4 — coerente com "1 source por modo de render". Context param controla presença de `col-actions` condicional, espelhando o padrão de `player_roster_row`.
+
+- **Larguras de `<col>` calibradas por conteúdo real (documentadas no CSS):**
+
+| col | width | racional |
+|---|---|---|
+| col-photo    | 44px  | foto 32px + padding lateral (UX1) |
+| col-name     | auto  | flex com o resto (min-width: 0 via CSS) |
+| col-salary   | 72px  | `$28` ~40px; aguenta `$999` em tabular-nums |
+| col-contract | 90px  | `Ano 2/4` ~70px; 90 dá folga |
+| col-dynasty  | 96px  | `🪙 2.695` ~85px; aguenta `🪙 12.345` |
+| col-espn     | 68px  | `$23.4` ~50px; folga modest |
+| col-proj     | 78px  | `$28` ~35px; 78 permite 3 dígitos |
+| col-acq      | 128px | `Startup Auction` ~110px; texto longo trunca com ellipsis |
+| col-actions  | 84px  | `↑ Tirar IR` ~90px; compromisso |
+
+Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-name recebe o resto. Em 1200px viewport, col-name fica ~540-620px.
+
+- **Decisão: `td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }` global na tabela + override `td.col-name { white-space: normal }`.** **Why:** `table-layout: fixed` + widths explícitas respeitadas 100%, mas conteúdo que exceder trunca (não estica a coluna). col-name precisa wrap para o stacked "nome + NFL em 2 linhas" funcionar — exceção explícita.
+
+- **Densidade Cap Breakdown (camada A) — valores:**
+  - `stat-num`: 1.6rem → 1.2rem (redução 25%)
+  - `stat-label`: .72rem → .68rem (redução marginal; mantém hierarquia)
+  - `padding`: .65rem .8rem → .4rem .55rem (redução ~35%)
+  - Grid `minmax(140px, 1fr)` → `minmax(120px, 1fr)` (mais densidade horizontal)
+  - **Scope-safe:** override via `.cap-breakdown-stat .stat-num` (classe parent + descendente) — zero risco em telas `/league`, `/offseason`, `/lottery_audit`, `/espn_import`, `/salary` que consomem `.stat-num` / `.stat-label` globais (smoke test HTTP 200 em todas).
+
+- **Decisão: camada B (layout 2-col) com `grid-template-columns: 1fr 360px`.** **Why:** cards ocupam o espaço disponível à esquerda (1fr); cap-by-pos fixa em 360px à direita. `max-width: none` aplicado em `.team-detail-cap-layout .cap-by-pos-table` para sobrescrever o limit original de 360px — a tabela preenche a coluna do grid inteira. Breakpoint 768px empilha vertical (single column) — escolha pragmática para preservar leitura em mobile/tablet.
+
+- **`@media` ampliado para esconder ESPN+Proj em <640px** junto com Contrato+Aquisição (já existentes). Sempre visíveis em mobile: strip + foto + nome+NFL + salário + [actions em roster]. Em <414px, Dynasty também some (regra pré-existente mantida).
+
+- **Validação:** `salary_engine_test.py` 48/48. Smoke HTTP 200 em todas as 7 telas testadas: `/team/<id>`, `/`, `/admin`, `/player/<id>`, `/league`, `/offseason`, `/salary`. `/team/<id>` tem 6 `<colgroup>` (1 por posição), headers ESPN+Proj 2026 presentes, wrapper `team-detail-cap-layout` presente. `/` tem 6 `<colgroup>` dinâmicos, headers idem, `toggleIR` preservado. Grep hex pos-color em classes prefixed novas UX4-b: 0 matches (strip usa apenas CSS vars canonizadas em UX4). Zero consumidores de `.stat-num`/`.stat-label` globais afetados — override scoped preservado.
+
+- **Alinhamento vertical cross-table e cross-page:** `<colgroup>` com widths explícitas + `table-layout: fixed` força cada tabela a respeitar as larguras dos `<col>`. Resultado: colunas SALÁRIO, CONTRATO, DYNASTY, ESPN, PROJEÇÃO, AQUISIÇÃO ficam em posições X idênticas entre QB/RB/WR/TE/K/DEF na mesma tela e entre `/team/<id>` e `/`. Validação empírica visual por inspeção no browser fica para owner; smoke via HTML confirmou estrutura e larguras aplicadas.

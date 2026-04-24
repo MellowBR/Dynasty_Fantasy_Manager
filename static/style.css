@@ -1420,13 +1420,18 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 }
 
 /* ── UX4: .player-roster-table — tabela compartilhada /team/<id> + / ────────
-   Consumida via macro player_roster_row em _macros.html.
+   Consumida via macros player_roster_row + player_roster_colgroup em _macros.html.
    Strip de cor por posição via border-left com var(--pos-color-*).
+   UX4-b camada C: table-layout fixed + <colgroup> com larguras explícitas em
+   <col class="col-*"> garantem alinhamento vertical entre as múltiplas tabelas
+   por posição (mesma tela) e entre /team/<id> e /. Larguras calibradas com base
+   em conteúdo real — ver devplan UX4-b para justificativa.
    .player-row (legacy) permanece viva — uso residual em admin review_players. */
 .player-roster-table {
   width: 100%;
   border-collapse: collapse;
   font-size: .8rem;
+  table-layout: fixed;
 }
 .player-roster-table thead tr {
   border-bottom: 2px solid var(--border);
@@ -1444,6 +1449,9 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   padding: .3rem .6rem;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .player-roster-table tbody tr {
   border-left: 3px solid transparent;
@@ -1454,23 +1462,50 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 .player-roster-table tbody tr:last-child td {
   border-bottom: none;
 }
-.player-roster-table .col-photo { width: 44px; padding-right: 0; }
-.player-roster-table .col-name  { min-width: 0; }
+
+/* Larguras explícitas via <col> — garantem alinhamento cross-table */
+.player-roster-table col.col-photo    { width: 44px; }
+.player-roster-table col.col-name     { width: auto; }
+.player-roster-table col.col-salary   { width: 72px; }
+.player-roster-table col.col-contract { width: 90px; }
+.player-roster-table col.col-dynasty  { width: 96px; }
+.player-roster-table col.col-espn     { width: 68px; }
+.player-roster-table col.col-proj     { width: 78px; }
+.player-roster-table col.col-acq      { width: 128px; }
+.player-roster-table col.col-actions  { width: 84px; }
+
+.player-roster-table .col-photo { padding-right: 0; }
+.player-roster-table td.col-name { white-space: normal; }
 .player-roster-table .col-salary,
-.player-roster-table .col-dynasty {
+.player-roster-table .col-dynasty,
+.player-roster-table .col-espn,
+.player-roster-table .col-proj {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+}
+.player-roster-table th.col-salary,
+.player-roster-table th.col-dynasty,
+.player-roster-table th.col-espn,
+.player-roster-table th.col-proj {
+  font-variant-numeric: tabular-nums;
 }
 .player-roster-table .col-contract,
-.player-roster-table .col-acq {
+.player-roster-table .col-acq,
+.player-roster-table .col-espn,
+.player-roster-table .col-proj {
   color: var(--text-dim);
   font-size: .74rem;
+}
+/* col-acq: texto longo ("Origem não registrada") trunca com ellipsis; title attr
+   na macro preserva info completa no hover. */
+.player-roster-table td.col-acq {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .player-roster-table .col-actions {
   text-align: right;
   white-space: nowrap;
-  width: 80px;
 }
 .player-roster-table .name-main {
   font-weight: 600;
@@ -1504,17 +1539,27 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 .player-roster-table tbody tr.pos-DEF { border-left-color: var(--pos-color-def); }
 
 /* Responsividade progressiva:
-   < 640px → some Contrato e Aquisição
-   < 414px → some também Dynasty */
+   < 640px → some Contrato, Aquisição, ESPN, Projeção
+   < 414px → some também Dynasty
+   (strip + foto + nome+NFL + salário + [actions] sempre visíveis) */
 @media (max-width: 640px) {
+  .player-roster-table col.col-contract,
+  .player-roster-table col.col-acq,
+  .player-roster-table col.col-espn,
+  .player-roster-table col.col-proj,
   .player-roster-table .col-contract,
   .player-roster-table .col-acq,
+  .player-roster-table .col-espn,
+  .player-roster-table .col-proj,
   .player-roster-table thead th.col-contract,
-  .player-roster-table thead th.col-acq {
+  .player-roster-table thead th.col-acq,
+  .player-roster-table thead th.col-espn,
+  .player-roster-table thead th.col-proj {
     display: none;
   }
 }
 @media (max-width: 414px) {
+  .player-roster-table col.col-dynasty,
   .player-roster-table .col-dynasty,
   .player-roster-table thead th.col-dynasty {
     display: none;
@@ -1751,20 +1796,39 @@ a.player-name:hover {
   padding-bottom: .35rem;
   border-bottom: 1px solid var(--border);
 }
+/* UX4-b camada B: wrapper 2-col para Cap Breakdown + cap-by-pos em desktop */
+.team-detail-cap-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 1rem;
+  align-items: start;
+}
+@media (max-width: 768px) {
+  .team-detail-cap-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.team-detail-cap-layout .cap-breakdown-grid { margin-bottom: 0; }
+.team-detail-cap-layout .cap-by-pos-table { max-width: none; }
+
 .cap-breakdown-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: .75rem;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: .6rem;
   margin-bottom: .85rem;
 }
 .cap-breakdown-stat {
   display: flex;
   flex-direction: column;
-  padding: .65rem .8rem;
+  padding: .4rem .55rem;
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: 6px;
 }
+/* UX4-b camada A: override scoped — .stat-num/.stat-label globais não tocados
+   (usados em admin, espn_import, league, lottery_audit fora deste contexto). */
+.cap-breakdown-stat .stat-num { font-size: 1.2rem; }
+.cap-breakdown-stat .stat-label { font-size: .68rem; margin-bottom: .1rem; }
 .cap-by-pos-table { max-width: 360px; }
 .pos-block { margin-bottom: 1rem; }
 .pos-block-title { font-size: .9rem; margin: .5rem 0 .35rem; display: flex; gap: .5rem; align-items: center; }

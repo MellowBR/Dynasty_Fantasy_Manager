@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 concluídos; UX4-b e UX5 registrados)
+> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b concluídos; UX5 registrado)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -60,7 +60,7 @@
 | UX2 | Acquisition types PT-BR em telas restantes (admin, cap_projector, salary, salary_history) | Baixa | 🔲 (team_detail + roster ✅ via UX1+UX4) |
 | UX3 | Fotos de jogadores em telas densas (team_detail, cap_projector) | Baixa | ✅ 24/04/2026 |
 | UX4 | Macro compartilhada de linha de roster (HYBRID) — converge layout de /team/<id> e / com densidade estilo FantasyPros | Média | ✅ 24/04/2026 |
-| UX4-b | Restaurar ESPN + Projeção salarial no roster principal (métricas omitidas na F1 do UX4) | Triagem | 🔲 |
+| UX4-b | Redesign de densidade e layout da página de detalhe de time (4 camadas + ESPN/Projeção em ambas telas) | Triagem | ✅ 24/04/2026 |
 | UX5 | Redesign da seção Picks em detalhe de time (3 tabelas anuais com baixa densidade, coluna Notas vazia) | Média | 🔲 |
 | DATA-1 | Badges TRADE e REVISÃO removidos da macro de listagem (info pertence à timeline/admin, não à listagem) | Média | ✅ 24/04/2026 |
 
@@ -1205,34 +1205,54 @@ Signature ganhou parâmetro opcional `values_map=None` para evitar I/O extra qua
 
 ---
 
-### UX4-b — Restaurar ESPN + Projeção Salarial no Roster Principal
-🔲 **Pendente** — Prioridade **Triagem**
+### UX4-b — Redesign de Densidade e Layout da Página de Detalhe de Time
+✅ **Concluído (24/04/2026)** — Prioridade **Triagem**
 
-**Problema:** UX4 (commit `a10fcb6`, 24/04/2026) convergiu `/team/<id>` e `/` para uma macro compartilhada tabular stacked. A F1 do UX4 (`MAN-UX4-F1`) especificou positivamente a célula `nome + meta` como "nome + NFL team em 2 linhas". O F2 manteve esse escopo estrito, o que implicou em **remover 2 métricas que o layout de card anterior exibia** em `/`:
+**Escopo expandido:** originalmente registrado para "restaurar ESPN + Projeção no roster principal", UX4-b cresceu após análise visual completa em `MAN-UX4-b-F1` — 4 camadas coordenadas entregues em 1 commit, cobrindo densidade dos cards de Cap Breakdown, layout 2-col do Cap Breakdown + cap-by-pos, distribuição de colunas da tabela de roster (alinhamento vertical entre posições), e restauração de ESPN/Projeção com paridade em ambas as telas.
 
-- `ESPN: ${{ p.espn_ref_value }}` — valor nominal de referência ESPN (usado como baseline de contratos)
-- `Projeção 2026: ${{ p.projected_next_salary() }}` — salário projetado pro próximo ano (orienta decisões de drop pré-auction)
+**Implementado:**
 
-Essas 2 métricas têm utilidade real para planejamento de offseason (quem dropar, quem renovar). A omissão foi consequência de `F1` especificar positivamente sem mapear o delta contra o estado atual.
+**Camada D — ESPN + Projeção (restauração + paridade):**
+- Macro `player_roster_row` ganha 2 células: `col-espn` (consome `player.espn_ref_value` formatado como `$X.X`) e `col-proj` (consome `player.projected_next_salary()` como `$X`).
+- Renderizadas em **ambos contextos** (`team_detail` e `roster`) — paridade total.
+- Headers ESPN + Proj 2026 em ambos templates.
 
-**Referências:** commit `a10fcb6` (UX4), design `MAN-UX4-F1`.
+**Camada C — distribuição e alinhamento de colunas:**
+- `table-layout: fixed` em `.player-roster-table`.
+- Nova macro `player_roster_colgroup(context)` em `_macros.html` renderiza `<colgroup>` compartilhado com `<col class="col-*">` para cada coluna. Invocada antes do `<thead>` em cada instância de tabela (6 posições × 2 telas = 12 invocações).
+- CSS `col.col-* { width: Xpx }` — larguras explícitas garantem alinhamento cross-table (entre as 6 tabelas por posição) e cross-page (entre `/team/<id>` e `/`).
+- `tabular-nums` também nos `<th>` das colunas numéricas (alinha visualmente com valores).
+- `col-acq` ganha `overflow: hidden; text-overflow: ellipsis; white-space: nowrap` + macro adiciona `title="{{ player.acquisition_label }}"` para preservar info completa no hover.
+- `td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }` global na tabela, com override `td.col-name { white-space: normal }` para permitir wrap do nome stacked.
 
-**Objetivo (escopo candidato, a fechar na F1 de UX4-b):**
+**Camada A — densidade dos cards de Cap Breakdown:**
+- Override **scoped** em `.cap-breakdown-stat .stat-num { font-size: 1.2rem }` (era 1.6rem) e `.cap-breakdown-stat .stat-label { font-size: .68rem }`.
+- `.cap-breakdown-stat` padding reduzido de `.65rem .8rem` para `.4rem .55rem`.
+- Grid minmax reduzido de 140px para 120px.
+- Zero alteração em `.stat-num`/`.stat-label` globais (preservados para outros 4 templates consumidores: admin, espn_import, league, lottery_audit).
 
-Restaurar ESPN + Projeção 2026 em `/` (roster principal). Formatos candidatos:
-- **(a) Colunas dedicadas** — adicionar 2 colunas à `.player-roster-table` exclusivas do `context='roster'`. Exige nova variante no macro ou parametrização.
-- **(b) Meta expandida** — adicionar linha secundária (`.name-meta`) em `/` com `ESPN · Projeção` abaixo do NFL team, preservando layout tabular. Mudança interna à célula col-name, não afeta estrutura de colunas. Menor intrusão.
-- **(c) Tooltip/popover on hover** — mover info pra affordance secundária. Muda UX (info menos acessível).
-- **(d) Restauração em `/team/<id>` também** — avaliar se essas métricas fazem sentido em ambas as telas (consistência) ou só em `/` (diferenciação).
+**Camada B — layout 2-col Cap Breakdown + cap-by-pos:**
+- Wrapper novo `.team-detail-cap-layout` envolve `.cap-breakdown-grid` + `.cap-by-pos-table`.
+- `display: grid; grid-template-columns: 1fr 360px` em desktop.
+- `@media (max-width: 768px)` empilha vertical (1 col).
+- `.team-detail-cap-layout .cap-by-pos-table { max-width: none }` permite tabela preencher sua coluna de 360px.
 
-F1 de UX4-b decide entre estas opções.
+**Responsividade progressiva (@media atualizado):**
+- < 640px: esconde `col-contract`, `col-acq`, `col-espn`, `col-proj` (inclui os 2 novos).
+- < 414px: esconde também `col-dynasty`.
+- Sempre visíveis: strip + foto + nome+NFL + salário + actions.
 
-**Relação com outros items:**
-- **Sucessor imediato de UX4** — corrige blind spot específico da F1, não é retrabalho estrutural.
-- **Independente de UX2** — UX2 trata de PT-BR em outras telas, sem overlap.
-- **Sem relação com UX3** (já concluído).
+**Valores calibrados (documentados no devplan):**
+- Colgroup widths calibrados por conteúdo real (72px salary, 90px contract, 96px dynasty, 68px ESPN, 78px proj, 128px acq, 84px actions). Total fixo 576px (team_detail) / 660px (roster); col-name flexível com o resto.
+- Densidade: 1.2rem stat-num (redução 25% vs 1.6rem), 0.4/0.55rem padding (redução ~35%).
 
-**Pré-requisito:** nenhum bloqueante.
+**Validação:**
+- `salary_engine_test.py` 48/48.
+- Smoke `GET /team/<id>`, `/`, `/admin`, `/player/<id>`, `/league`, `/offseason`, `/salary`: todos HTTP 200.
+- `/team/<id>` tem 6 `<colgroup>` (1 por posição), col-espn TH, col-proj TH, wrapper `team-detail-cap-layout` presentes.
+- `/` tem 6 `<colgroup>` dinâmicos por posição, col-espn/proj TH, `toggleIR` handler intocado.
+- Grep de hex pos-color em classes prefixed novas UX4-b: 0 matches (strip e col usam apenas CSS vars canonizadas em UX4).
+- Outras telas consumidoras de `.stat-num`/`.stat-label` (league, offseason, lottery_audit, espn_import, salary) renderizam sem mudança visual — override scoped não afeta.
 
 **Observação metodológica (para futuros F1 de refatoração de UI):** a dinâmica que gerou UX4-b sugere regra nova potencial no DEV_METHODOLOGY — F1 de refatoração de UI deveria listar explicitamente "campos presentes hoje que não estão no design proposto", com parecer por item (remoção intencional / perda não-intencional / deslocamento). Especificação positiva por si só omite silenciosamente. Item para próximo baseline do DEV_METHODOLOGY se priorizar.
 

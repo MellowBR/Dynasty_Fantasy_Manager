@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import player_photo, player_roster_row %}
+{% from "_macros.html" import player_photo, player_roster_row, player_roster_colgroup %}
 {% block title %}Roster{% endblock %}
 
 {% block content %}
@@ -103,6 +103,7 @@
       {% if ir %}<span class="ir-count-badge">{{ ir | length }} IR</span>{% endif %}
     </h2>
     <table class="player-roster-table">
+      {{ player_roster_colgroup(context='roster') }}
       <thead>
         <tr>
           <th class="col-photo"></th>
@@ -110,6 +111,8 @@
           <th class="col-salary">Salário</th>
           <th class="col-contract">Contrato</th>
           <th class="col-dynasty">🪙 Dynasty</th>
+          <th class="col-espn">ESPN</th>
+          <th class="col-proj">Proj 2026</th>
           <th class="col-acq">Aquisição</th>
           <th class="col-actions"></th>
         </tr>
