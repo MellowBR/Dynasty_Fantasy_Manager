@@ -840,3 +840,41 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Validação:** `salary_engine_test.py` 48/48. Smoke HTTP 200 em todas as 7 telas testadas: `/team/<id>`, `/`, `/admin`, `/player/<id>`, `/league`, `/offseason`, `/salary`. `/team/<id>` tem 6 `<colgroup>` (1 por posição), headers ESPN+Proj 2026 presentes, wrapper `team-detail-cap-layout` presente. `/` tem 6 `<colgroup>` dinâmicos, headers idem, `toggleIR` preservado. Grep hex pos-color em classes prefixed novas UX4-b: 0 matches (strip usa apenas CSS vars canonizadas em UX4). Zero consumidores de `.stat-num`/`.stat-label` globais afetados — override scoped preservado.
 
 - **Alinhamento vertical cross-table e cross-page:** `<colgroup>` com widths explícitas + `table-layout: fixed` força cada tabela a respeitar as larguras dos `<col>`. Resultado: colunas SALÁRIO, CONTRATO, DYNASTY, ESPN, PROJEÇÃO, AQUISIÇÃO ficam em posições X idênticas entre QB/RB/WR/TE/K/DEF na mesma tela e entre `/team/<id>` e `/`. Validação empírica visual por inspeção no browser fica para owner; smoke via HTML confirmou estrutura e larguras aplicadas.
+
+### 24/04/2026 — Camada UX4-c (Aperto visual final: status bar + pos-block compact + colgroup denso)
+
+- **Decisão: 3 frentes em commit único, ordem 3→2→1 (conforme F1).** **Why:** frente 3 (colgroup) é trivial CSS-only sem dependência, calibra a base da tabela. Frente 2 (pos-block) mesmo perfil, independente. Frente 1 (status bar) é a mais complexa (toca template + CSS novo + progress bar feature nova) e se beneficia de começar com as bases já apertadas. Commit único porque o valor visual é coletivo — owner avalia o conjunto, não peça por peça.
+
+- **Decisão: progress bar como feature nova em `/team/<id>`** (não existia antes; roster `/` tinha via `.cap-bar-wrap` separado). **Why:** owner aprovou explicitamente na F1. Paridade visual com o roster principal + sinal imediato de saúde do cap sem demandar leitura numérica. Cores via semantic tokens do theme (`--green`, `--yellow`, `--red`) — zero hex novo.
+
+- **Valores finais para colunas tight (Frente 3):**
+  - `col-espn: 58px` — pior caso `$68.4` (~40px + padding 19 = 59px). Tight mas funcional em tabular-nums. **Fallback documentado: 62-64px** se visual quebrar no browser. Sem ajuste reservado agora.
+  - `col-actions: 76px` — botão `↑ Tirar IR` ~90px default. Com padding reduzido via `.btn-sm` (classe existente), cabe em 76. **Fallback documentado: 84px** se botão quebrar linha. Sem ajuste reservado agora.
+  - Demais colunas da Frente 3 (photo 40, salary 56, contract 72, dynasty 88, proj 56, acq 108) ficam com folga conforme auditoria do DB (n=280 players).
+
+- **Semantic tokens da progress bar:** `--green: #22c55e`, `--yellow: #f59e0b`, `--red: #ef4444` — definidos em `:root` (style.css:16, 17, 18). Aplicados via classes `.progress-ok`, `.progress-warn`, `.progress-over`. Zero hex novo introduzido pelo UX4-c. Grep de `#22c55e`/`#f59e0b`/`#ef4444` continua mostrando apenas os valores canônicos em `:root` + usos pré-existentes (`.acq-*`, theme vars).
+
+- **Medição vertical pós-UX4-c (Frente 2):**
+  - Gap entre última row de um pos-block e primeira row do próximo:
+    - Antes: 16 (margin-bottom) + 8 (title margin-top) + ~22 (title) + ~6 (title margin-bottom) = **~52px**
+    - Depois: 8 + 4 + ~20 + 3.2 = **~35px**
+    - Redução: ~17px por gap × 5 gaps em 6 posições = **~85px vertical economizados** por página de roster.
+
+- **Medição horizontal pós-UX4-c (Frente 3):**
+  - Total fixo das colunas:
+    - team_detail (sem actions): 576 → 478 (**-98px, -17%**)
+    - roster (com actions): 660 → 554 (**-106px, -16%**)
+  - `col-name` (auto) absorve a redução, ganhando ~100px extras de largura.
+
+- **Medição do header (Frente 1):**
+  - Antes (UX4-b): `.team-detail-cap-layout` com cards `.cap-breakdown-grid` (~180px altura) + `.cap-by-pos-table` (~240px altura) empilhados desbalanceados em 2-col. Altura efetiva do section: ~**240px** (a maior das duas).
+  - Depois: `.team-status-bar` (~50px) + `.team-cap-progress` (5px + .4rem margin = ~11px) = **~61-65px**.
+  - **Economia estimada: ~175-180px verticais** em `/team/<id>`. Empiricamente um ganho de densidade significativo — toda a info crítica de cap cabe em ~25% da altura anterior.
+
+- **Decisão: pos-chips inline no template, sem macro nova.** **Why:** F1 confirmou. 6 invocações inline em `{% for pos, total in cap_by_pos.items() %}` são enxutas e manuteníveis. Macro nova para 6 usos em 1 único template seria engenharia prematura. CSS vars `--pos-color-*` canonizadas (UX4) garantem zero duplicação de cor no novo seletor `.team-status-bar .pos-chip.pos-*`.
+
+- **Decisão: HTML antigo removido do template, CSS antigo mantido vivo.** Classes `.cap-breakdown-grid`, `.cap-breakdown-stat`, `.cap-by-pos-table`, `.team-detail-cap-layout` ainda existem no `style.css` mas não há mais consumidor HTML. **Why:** não removi para reduzir blast radius do commit; git history preserva para resgate. Se owner quiser limpeza de CSS dead, item separado no backlog. Atualmente "dead CSS" é menor que "risco de regressão subtil em outra tela que eu não mapeei".
+
+- **Responsividade (Frente 1):** `@media (max-width: 768px)` esconde `.status-pos-group` inteiro; `@media (max-width: 414px)` esconde `.status-ir-cost`. Cap overview + progress bar sempre visíveis. Não validado empiricamente em viewport real — smoke test via HTML confirmou que o CSS está aplicado; comportamento visual em mobile fica para owner validar no uso real.
+
+- **Validação:** `salary_engine_test.py` 48/48. Smoke HTTP 200 em 7 telas: `/team/<id>`, `/`, `/admin`, `/player/<id>`, `/league`, `/offseason`, `/salary`. `/team/<id>`: 1 `.team-status-bar`, 2 `.team-cap-progress` (wrapper + fill), 6 pos-chips, classe `progress-over` aplicada corretamente em time over-cap testado. HTML antigo ausente: `cap-breakdown-grid`, `cap-by-pos-table`, `team-detail-cap-layout` todos 0 matches. `/`: HTTP 200, pos-block compactado via CSS da Frente 2, colgroup denso da Frente 3 aplicado. Grep de hex de cor em CSS UX4-c novo: 0 matches (tudo via CSS vars).

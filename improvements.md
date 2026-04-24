@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b concluídos; UX5, UX4-c, UX6 registrados)
+> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b + UX4-c concluídos; UX5, UX6 registrados)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -61,7 +61,7 @@
 | UX3 | Fotos de jogadores em telas densas (team_detail, cap_projector) | Baixa | ✅ 24/04/2026 |
 | UX4 | Macro compartilhada de linha de roster (HYBRID) — converge layout de /team/<id> e / com densidade estilo FantasyPros | Média | ✅ 24/04/2026 |
 | UX4-b | Redesign de densidade e layout da página de detalhe de time (4 camadas + ESPN/Projeção em ambas telas) | Triagem | ✅ 24/04/2026 |
-| UX4-c | Aperto visual final de /team/<id> e / (barra C + espaçamento entre grupos + colgroup denso) | Média | 🔲 |
+| UX4-c | Aperto visual final de /team/<id> e / (status bar + progress bar nova + espaçamento entre grupos + colgroup denso) | Média | ✅ 24/04/2026 |
 | UX6 | Revisão da largura máxima do container global da aplicação (~700px de ar lateral em monitor 1920px) | Média | 🔲 |
 | UX5 | Redesign da seção Picks em detalhe de time (3 tabelas anuais com baixa densidade, coluna Notas vazia) | Média | 🔲 |
 | DATA-1 | Badges TRADE e REVISÃO removidos da macro de listagem (info pertence à timeline/admin, não à listagem) | Média | ✅ 24/04/2026 |
@@ -1293,51 +1293,49 @@ F1 de UX5 mapeia estado atual (frequência de uso de Notas, payload do handler, 
 ---
 
 ### UX4-c — Aperto Visual Final de /team/<id> e /
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (24/04/2026)** — Prioridade **Média**
 
-**Problema:** Análise visual pós-UX4-b (commit `e495453`, 24/04/2026) identificou 3 problemas residuais de densidade não endereçados pelas camadas anteriores:
+**Entregue:** 3 frentes coordenadas em 1 commit, seguindo a ordem da F1 (3 → 2 → 1).
 
-1. **Header de `/team/<id>` com ~240px de altura + espaço morto lateral.** O layout 2-col da camada B de UX4-b (`display: grid; 1fr 360px`) gerou alturas desiguais entre cards de Cap Breakdown (~180px) e tabela `cap-by-pos` (~240px). A coluna esquerda fica com ar visível abaixo dos cards; a tabela pos à direita exige rolagem de mais cards ou espaço vazio dependendo do número de posições.
+**Frente 3 — Colgroup denso:** widths reduzidas em 7 colunas com base em auditoria do DB (n=280 active players):
+- col-photo: 44 → 40
+- col-salary: 72 → 56 (pior caso `$63` = 3 chars)
+- col-contract: 90 → 72 + ellipsis defensivo com `title` attr na macro
+- col-dynasty: 96 → 88 (pior caso `🪙 11.179`)
+- col-espn: 68 → 58 (pior caso `$68.4`, tight mas dentro do limite em tabular-nums)
+- col-proj: 78 → 56 (pior caso `$63`)
+- col-acq: 128 → 108 (`Origem não registrada` 21 chars trunca com ellipsis + title)
+- col-actions: 84 → 76 (`↑ Tirar IR` compacto)
 
-2. **Espaçamento vertical entre grupos de posição acumula ar em ambas as telas.** `.pos-block { margin-bottom: 1rem }` + `.pos-block-title { margin: .5rem 0 .35rem }` geram ~30-40px de ar entre QB → RB → WR → TE → K → DEF. Em rosters com 5-6 posições, isso soma ~180-240px de espaço vertical sem valor informacional.
+Redução total fixa: 576→478px (team_detail, -17%); 660→554px (roster, -16%). `col-name` (auto) absorve ~100px extras de largura, beneficiando nomes longos e tags.
 
-3. **Colgroup da camada C de UX4-b garantiu alinhamento, mas larguras ainda permitem aperto.** Widths atuais (72px salary, 90px contract, 96px dynasty, 68px ESPN, 78px proj, 128px acq) foram calibradas com folga para 3 dígitos. Para a maioria dos valores reais, redução marginal é possível sem truncamento.
+**Frente 2 — Compactação de `.pos-block`:** gap vertical entre grupos de posição reduzido:
+- `.pos-block { margin-bottom: 1rem → .5rem }` (16→8px)
+- `.pos-block-title { font-size: .9rem → .85rem; margin: .5rem 0 .35rem → .25rem 0 .2rem }`
+- Gap efetivo: ~52px → ~36px por par de grupos (-30%). Em 6 posições (5 gaps), economia vertical de ~80px.
 
-**Decisão de abordagem (owner, pós-UX4-b):** **Opção C — barra horizontal "status bar"** substituindo cards + cap by pos no header de detalhe de time. Linha única compacta com Cap usado/total, Restante, Ativos/IR, Dynasty total, e pos-chips com salário por posição.
+**Frente 1 — Status bar compacta + progress bar em `/team/<id>`:**
+- Substituiu `cap-breakdown-grid` + `cap-by-pos-table` (layout 2-col de UX4-b) por `.team-status-bar` horizontal única.
+- 11 elementos: Cap usado/total, Resto, Dynasty, Ativos, IR (+custo), divider vertical, 6 pos-chips (QB/RB/WR/TE/K/DEF).
+- Pos-chips com strip de cor via `border-left-color: var(--pos-color-*)` — reuso canônico UX4, zero hex novo.
+- **Progress bar nova:** 5px altura abaixo da status bar. Cores via semantic tokens do theme: `--green` (< 80%), `--yellow` (80-100%), `--red` (> 100%). Feature que não existia em `/team/<id>` antes — roster principal tinha via `.cap-bar` separado, agora detalhe de time ganha paralelo visual.
+- Responsividade progressiva: `@media < 768px` esconde pos-chips inteiras; `@media < 414px` esconde também o detalhe `(custo)` do IR. Cap overview e progress bar sempre visíveis.
 
-**Referências:** commits UX4 (`a10fcb6`), UX4-b (`e495453`), DATA-1 (`c4f919f`).
+**Ganho agregado no header:** redução estimada de ~240px → ~65px (economia de ~175px verticais em `/team/<id>`). Empiricamente, muito mais densidade informacional em linha única que em cards dispersos.
 
-**Escopo em 3 frentes coordenadas (a fechar na F1 de UX4-c):**
+**Zero mudanças no backend** (handler já fornecia todos os agregados — confirmado F1). **Zero macro/helper novo** (pos-chips são 6 invocações inline).
 
-- **Frente 1 — Barra horizontal C (header de `/team/<id>`):** substituir `.team-detail-cap-layout` (wrapper 2-col de UX4-b) + `.cap-breakdown-grid` + `.cap-by-pos-table` por uma barra horizontal única `.team-status-bar` contendo:
-  - Cap usado/total (ex: `$132/$200`)
-  - Cap restante (ex: `$68`)
-  - Ativos/IR (ex: `22/2`)
-  - Dynasty total (ex: `🪙 57.514`)
-  - Pos-chips: 6 chips coloridos (QB $18, RB $32, WR $45, ...) usando CSS vars `--pos-color-*`
-  - Responsividade: F1 decide entre wrap, scroll horizontal, ou colapso seletivo em mobile
-  - Afeta SOMENTE `/team/<id>` (roster principal `/` tem header próprio em `.cap-bar-wrap` com outra semântica — NÃO alterado aqui)
+**Decisões delegadas:**
+1. **col-espn 58px (tight)** e **col-actions 76px (tight)** — calibrados no limite do pior caso observado. Fallbacks se quebrarem visualmente: 62px e 84px respectivamente. Sem ajuste reservado agora; owner valida no uso real.
+2. **Progress bar cores via theme vars** (`--green`, `--yellow`, `--red` já em `:root`) — zero hex novo introduzido no CSS.
 
-- **Frente 2 — Compactação de `.pos-block` em ambas telas:** reduzir `margin-bottom` e `.pos-block-title` margin/padding. Target: ~15-20px entre grupos em vez de ~30-40px atuais. Afeta via CSS da macro UX4 (`.pos-block`, `.pos-block-title`); impacta `/team/<id>` e `/` simultaneamente pela natureza compartilhada.
-
-- **Frente 3 — Colgroup denso:** revisar widths do `<colgroup>` (camada C de UX4-b) para aperto marginal. Candidatos: salary 72→64, contract 90→82, dynasty 96→88, ESPN 68→60, proj 78→70, acq 128→110. F1 valida com maior valor real observado por coluna antes de cortar.
-
-**Infra reusável:**
-- CSS vars `--pos-color-*` canonizadas (UX4) — pos-chips da barra consomem diretamente.
-- Classe `.player-roster-table` + macros `player_roster_row` / `player_roster_colgroup` (UX4 + UX4-b) — frente 3 ajusta apenas larguras no CSS.
-- Handler `routes/league.py:team_detail` já fornece `cap_used`, `cap_remaining`, `cap_by_pos`, `active_count`, `ir_count`, `ir_cap`, `dynasty_total` no summary — zero mudança de payload.
-
-**Relação com outros items:**
-- **Sucessor imediato de UX4-b.**
-- **Independente de UX5** (redesign de Picks em `/team/<id>`, toca seção diferente).
-- **Sem relação com UX2** (PT-BR em outras telas).
-- **Frente 1 específica de `/team/<id>`;** frentes 2 e 3 afetam ambas telas via macro UX4.
-
-**Riscos:**
-- Responsividade da barra horizontal em viewport < 640px: escolha entre wrap multi-linha (densidade perdida), scroll horizontal (UX chata em mobile), ou colapso progressivo (esconder pos-chips primeiro). F1 decide.
-- Aperto do colgroup pode truncar valores raros (ex: salário > $99 com 3 dígitos). F1 audita valores reais no DB antes de cortar larguras.
-
-**Pré-requisito:** nenhum bloqueante.
+**Validação:**
+- `salary_engine_test.py` 48/48.
+- Smoke HTTP 200 em 7 telas: `/team/<id>`, `/`, `/admin`, `/player/<id>`, `/league`, `/offseason`, `/salary`.
+- `/team/<id>`: status bar renderiza (1 match), progress bar renderiza (2 matches — wrapper + fill), 6 pos-chips presentes, HTML antigo ausente (`cap-breakdown-grid`, `cap-by-pos-table`, `team-detail-cap-layout` todos 0 matches).
+- Classe `progress-over` aplicada corretamente em time over-cap.
+- Outras telas consumidoras de `.stat-num`/`.stat-label` globais renderizam sem mudança (override scoped removido implicitamente com HTML, mas as classes globais estão intocadas).
+- Grep de hex de cor em UX4-c novo: 0 matches (tudo via CSS vars do theme / `--pos-color-*` canonizadas).
 
 ---
 

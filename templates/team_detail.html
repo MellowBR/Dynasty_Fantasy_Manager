@@ -33,47 +33,46 @@
 </div>
 
 <section class="team-detail-section">
-  <h2 class="section-title">Cap Breakdown</h2>
-  <div class="team-detail-cap-layout">
-    <div class="cap-breakdown-grid">
-      <div class="cap-breakdown-stat">
-        <span class="stat-label">Cap usado</span>
-        <span class="stat-num {% if cap_used > cap %}cap-negative{% endif %}">${{ cap_used|int }}</span>
-      </div>
-      <div class="cap-breakdown-stat">
-        <span class="stat-label">Cap restante</span>
-        <span class="stat-num {% if cap_remaining < 0 %}cap-negative{% endif %}">${{ cap_remaining|int }}</span>
-      </div>
-      <div class="cap-breakdown-stat">
-        <span class="stat-label">Cap total</span>
-        <span class="stat-num">${{ cap|int }}</span>
-      </div>
-      <div class="cap-breakdown-stat">
-        <span class="stat-label">Jogadores ativos</span>
-        <span class="stat-num">{{ active_count }}</span>
-      </div>
-      <div class="cap-breakdown-stat">
-        <span class="stat-label">IR ({{ ir_count }})</span>
-        <span class="stat-num">${{ ir_cap|int }}</span>
-      </div>
-      <div class="cap-breakdown-stat">
-        <span class="stat-label">Dynasty total</span>
-        <span class="stat-num">{% if dynasty_total %}🪙 {{ dynasty_total }}{% else %}—{% endif %}</span>
-      </div>
+  {# UX4-c Frente 1: status bar horizontal compacta substitui cap-breakdown-grid + cap-by-pos-table.
+     Progress bar é feature nova em /team/<id> (tela não tinha antes; roster.html já tinha). #}
+  <div class="team-status-bar">
+    <div class="status-group">
+      <span class="status-item">
+        <span class="status-label">Cap</span>
+        <span class="status-value {% if cap_used > cap %}cap-negative{% endif %}">${{ cap_used|int }}/${{ cap|int }}</span>
+      </span>
+      <span class="status-item">
+        <span class="status-label">Resto</span>
+        <span class="status-value {% if cap_remaining < 0 %}cap-negative{% endif %}">${{ cap_remaining|int }}</span>
+      </span>
+      <span class="status-item">
+        <span class="status-label">Dynasty</span>
+        <span class="status-value">{% if dynasty_total %}🪙 {{ dynasty_total }}{% else %}—{% endif %}</span>
+      </span>
+      <span class="status-item">
+        <span class="status-label">Ativos</span>
+        <span class="status-value">{{ active_count }}</span>
+      </span>
+      <span class="status-item">
+        <span class="status-label">IR</span>
+        <span class="status-value">{{ ir_count }}<span class="status-ir-cost"> (${{ ir_cap|int }})</span></span>
+      </span>
     </div>
     {% if cap_by_pos %}
-    <table class="data-table cap-by-pos-table">
-      <thead><tr><th>Posição</th><th>Salário comprometido</th></tr></thead>
-      <tbody>
-        {% for pos, total in cap_by_pos.items() %}
-        <tr>
-          <td><span class="pos-badge pos-{{ pos|replace('/','') }}">{{ pos }}</span></td>
-          <td>${{ total|int }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="status-group status-pos-group">
+      {% for pos, total in cap_by_pos.items() %}
+      <span class="pos-chip pos-{{ pos|replace('/','') }}">
+        <span class="pos-chip-label">{{ pos }}</span>
+        <span class="pos-chip-value">${{ total|int }}</span>
+      </span>
+      {% endfor %}
+    </div>
     {% endif %}
+  </div>
+  {% set cap_pct = (cap_used / cap * 100) if cap else 0 %}
+  <div class="team-cap-progress" title="Cap usado: {{ cap_pct|round(1) }}%">
+    <div class="team-cap-progress-fill {% if cap_pct > 100 %}progress-over{% elif cap_pct >= 80 %}progress-warn{% else %}progress-ok{% endif %}"
+         style="width: {{ [cap_pct, 100]|min }}%"></div>
   </div>
 </section>
 

@@ -44,7 +44,7 @@
     <div class="name-meta">{{ player.nfl_team or '—' }}</div>
   </td>
   <td class="col-salary">${{ player.salary|int }}</td>
-  <td class="col-contract">{{ player.contract_display() }}</td>
+  <td class="col-contract" title="{{ player.contract_display() }}">{{ player.contract_display() }}</td>
   <td class="col-dynasty">
     {%- if player.dynasty_value -%}
       🪙 {{ "{:,}".format(player.dynasty_value).replace(",", ".") }}

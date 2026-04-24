@@ -1463,16 +1463,18 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   border-bottom: none;
 }
 
-/* Larguras explícitas via <col> — garantem alinhamento cross-table */
-.player-roster-table col.col-photo    { width: 44px; }
+/* Larguras explícitas via <col> — garantem alinhamento cross-table.
+   UX4-c: widths apertadas com base em auditoria do DB (n=280). Pior caso
+   real por coluna documentado no devplan; col-name (auto) absorve redução. */
+.player-roster-table col.col-photo    { width: 40px; }
 .player-roster-table col.col-name     { width: auto; }
-.player-roster-table col.col-salary   { width: 72px; }
-.player-roster-table col.col-contract { width: 90px; }
-.player-roster-table col.col-dynasty  { width: 96px; }
-.player-roster-table col.col-espn     { width: 68px; }
-.player-roster-table col.col-proj     { width: 78px; }
-.player-roster-table col.col-acq      { width: 128px; }
-.player-roster-table col.col-actions  { width: 84px; }
+.player-roster-table col.col-salary   { width: 56px; }
+.player-roster-table col.col-contract { width: 72px; }
+.player-roster-table col.col-dynasty  { width: 88px; }
+.player-roster-table col.col-espn     { width: 58px; }
+.player-roster-table col.col-proj     { width: 56px; }
+.player-roster-table col.col-acq      { width: 108px; }
+.player-roster-table col.col-actions  { width: 76px; }
 
 .player-roster-table .col-photo { padding-right: 0; }
 .player-roster-table td.col-name { white-space: normal; }
@@ -1830,9 +1832,112 @@ a.player-name:hover {
 .cap-breakdown-stat .stat-num { font-size: 1.2rem; }
 .cap-breakdown-stat .stat-label { font-size: .68rem; margin-bottom: .1rem; }
 .cap-by-pos-table { max-width: 360px; }
-.pos-block { margin-bottom: 1rem; }
-.pos-block-title { font-size: .9rem; margin: .5rem 0 .35rem; display: flex; gap: .5rem; align-items: center; }
+/* UX4-c Frente 2: compactação vertical entre grupos de posição (ambas telas). */
+.pos-block { margin-bottom: .5rem; }
+.pos-block-title { font-size: .85rem; margin: .25rem 0 .2rem; display: flex; gap: .5rem; align-items: center; }
 .picks-season-block { margin-bottom: 1rem; }
+
+/* UX4-c Frente 1: status bar horizontal compacta em /team/<id>. Substitui
+   o antigo cap-breakdown-grid + cap-by-pos-table. Pos-chips consomem
+   CSS vars --pos-color-* (UX4). Progress bar abaixo usa semantic tokens
+   --green, --yellow, --red do theme. Zero hex novo. */
+.team-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: .55rem .75rem;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.team-status-bar .status-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.team-status-bar .status-pos-group {
+  padding-left: 1rem;
+  border-left: 1px solid var(--border);
+  gap: .4rem;
+}
+.team-status-bar .status-item {
+  display: flex;
+  align-items: baseline;
+  gap: .3rem;
+}
+.team-status-bar .status-label {
+  font-size: .68rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.team-status-bar .status-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: .95rem;
+  white-space: nowrap;
+}
+.team-status-bar .status-value.cap-negative { color: var(--red); }
+.team-status-bar .status-ir-cost {
+  font-weight: 500;
+  color: var(--text-dim);
+  font-size: .8rem;
+}
+.team-status-bar .pos-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .3rem;
+  padding: .15rem .45rem .15rem .5rem;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .04);
+  border-left: 3px solid var(--border);
+  font-size: .78rem;
+  white-space: nowrap;
+}
+.team-status-bar .pos-chip.pos-QB  { border-left-color: var(--pos-color-qb); }
+.team-status-bar .pos-chip.pos-RB  { border-left-color: var(--pos-color-rb); }
+.team-status-bar .pos-chip.pos-WR  { border-left-color: var(--pos-color-wr); }
+.team-status-bar .pos-chip.pos-TE  { border-left-color: var(--pos-color-te); }
+.team-status-bar .pos-chip.pos-K   { border-left-color: var(--pos-color-k); }
+.team-status-bar .pos-chip.pos-DST,
+.team-status-bar .pos-chip.pos-DEF { border-left-color: var(--pos-color-def); }
+.team-status-bar .pos-chip-label {
+  font-weight: 600;
+  font-size: .68rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+.team-status-bar .pos-chip-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* Progress bar — feature nova em /team/<id> via UX4-c */
+.team-cap-progress {
+  height: 5px;
+  background: var(--bg3);
+  border-radius: 2px;
+  margin-top: .4rem;
+  overflow: hidden;
+}
+.team-cap-progress-fill {
+  height: 100%;
+  transition: width .3s ease;
+}
+.team-cap-progress-fill.progress-ok   { background: var(--green); }
+.team-cap-progress-fill.progress-warn { background: var(--yellow); }
+.team-cap-progress-fill.progress-over { background: var(--red); }
+
+/* Responsividade: colapso progressivo (não wrap, não scroll). */
+@media (max-width: 768px) {
+  .team-status-bar .status-pos-group { display: none; }
+}
+@media (max-width: 414px) {
+  .team-status-bar .status-ir-cost { display: none; }
+}
 
 /* ── N1: Navbar dropdowns + mobile ──────────────────────────────────────── */
 
