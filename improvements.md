@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 concluídos; UX4-b e UX5 registrados)
+> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 concluídos; UX4-b, UX5, DATA-1 registrados)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -62,6 +62,7 @@
 | UX4 | Macro compartilhada de linha de roster (HYBRID) — converge layout de /team/<id> e / com densidade estilo FantasyPros | Média | ✅ 24/04/2026 |
 | UX4-b | Restaurar ESPN + Projeção salarial no roster principal (métricas omitidas na F1 do UX4) | Triagem | 🔲 |
 | UX5 | Redesign da seção Picks em detalhe de time (3 tabelas anuais com baixa densidade, coluna Notas vazia) | Média | 🔲 |
+| DATA-1 | Semântica e reset rule de `Player.via_trade` (badge TRADE acumulando em players de temporadas anteriores) | Média | 🔲 |
 
 ---
 
@@ -1266,6 +1267,39 @@ F1 de UX5 mapeia estado atual (frequência de uso de Notas, payload do handler, 
 - **Sem conflito com UX4** — UX4 redesenhou a seção Roster em `/team/<id>`; UX5 toca seção diferente (Picks) da mesma página.
 
 **Pré-requisito:** nenhum bloqueante.
+
+---
+
+### DATA-1 — Semântica e Reset Rule de `Player.via_trade`
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** Análise visual da página `/team/<id>` (24/04/2026) identificou que o badge TRADE ao lado do nome do jogador, derivado do campo `Player.via_trade` (boolean), aparece em players de **temporadas anteriores** além da atual (ex: Matthew Stafford, Michael Penix). Não há definição explícita de semântica do campo — pode ser vitalício (marca qualquer player que já passou por trade em algum momento) ou sazonal (marca só trades da temporada corrente). Não há lógica de reset no rollover de offseason atual. Consequência: o badge acumula com o tempo e polui telas de ciclo corrente, perdendo poder de sinal.
+
+**Referências:** observação visual pós-UX4 (commit `a10fcb6`); diagnose `MAN-UX4-b-F1` (24/04/2026).
+
+**Escopo (a fechar na F1 de DATA-1):**
+
+- **F1 — diagnose**: mapear callsites de `via_trade` em todo o codebase:
+  - **Setters**: `sync_sleeper.py` (`_sync_trades`), backfill de trades órfãs em `routes/admin.py`, possíveis mutações manuais em `routes/trades.py` (confirmar na F1).
+  - **Consumidores (UI)**: `team_detail.html` (via macro `player_roster_row`), `roster.html` (idem, via UX4), possivelmente `trades.html`, `player_detail.html`.
+  - **Comportamento no rollover**: `routes/offseason.py` passo "Season Rollover" — confirmar que `via_trade` não é tocado hoje.
+- **F1 — decisão**: propor regras candidatas:
+  - **(a) Vitalício** (mantém como está; badge = "já foi tradado em algum momento"). Documentar semântica explicitamente; reavaliar utilidade do badge.
+  - **(b) Sazonal com reset no rollover** (badge = "foi tradado na temporada corrente"). Adicionar `via_trade = False` no passo de rollover; pode exigir novo campo `last_trade_season` se histórico for útil.
+  - **(c) Derivado dinamicamente** (eliminar o campo; calcular via `PlayerHistory` filtrado por season corrente). Mais rigoroso, custo maior.
+
+**Impacto nas telas consumidoras:**
+- Se (b): badge some dos players tradados em temporadas anteriores após rollover. Visualmente mais limpo, semântica clara.
+- Se (c): consulta a cada render. Performance a validar, mas elimina risco de drift.
+
+**Relação com outros items:**
+- **Independente de UX4-b** — UX4-b trata densidade/layout da página, DATA-1 trata semântica do campo.
+- **Pode impactar o workflow de offseason** se regra decidida for (b) ou (c) — mudança no passo "Season Rollover".
+- **Sem relação com UX5** (redesign de Picks) nem com UX2 (PT-BR).
+
+**Pré-requisito:** nenhum bloqueante.
+
+**Observação:** mesma investigação pode avaliar `Player.needs_review` — campo boolean com dinâmica similar (set pelo Sleeper sync, raramente resetado manualmente via `/admin`). Se F1 encontrar padrão convergente, ampliar escopo ou registrar como DATA-2.
 
 ---
 
