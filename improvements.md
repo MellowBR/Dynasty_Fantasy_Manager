@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 concluídos)
+> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 concluídos; UX4-b registrado)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -60,6 +60,7 @@
 | UX2 | Acquisition types PT-BR em telas restantes (admin, cap_projector, salary, salary_history) | Baixa | 🔲 (team_detail + roster ✅ via UX1+UX4) |
 | UX3 | Fotos de jogadores em telas densas (team_detail, cap_projector) | Baixa | ✅ 24/04/2026 |
 | UX4 | Macro compartilhada de linha de roster (HYBRID) — converge layout de /team/<id> e / com densidade estilo FantasyPros | Média | ✅ 24/04/2026 |
+| UX4-b | Restaurar ESPN + Projeção salarial no roster principal (métricas omitidas na F1 do UX4) | Triagem | 🔲 |
 
 ---
 
@@ -1199,6 +1200,39 @@ Signature ganhou parâmetro opcional `values_map=None` para evitar I/O extra qua
 - `toggleIR` handler intocado e funcional em `/`.
 - Admin review_players modal (`.player-row` legacy) renderiza inalterado.
 - Grep Sleeper CDN: 2 matches (macro + JS helper), 0 inlines novos. Grep de hex de pos-color em pos-color direta: só `#60a5fa` e `#94a3b8` (1 ocorrência cada). Os outros 4 apontam para theme vars — canonização estrutural.
+
+---
+
+### UX4-b — Restaurar ESPN + Projeção Salarial no Roster Principal
+🔲 **Pendente** — Prioridade **Triagem**
+
+**Problema:** UX4 (commit `a10fcb6`, 24/04/2026) convergiu `/team/<id>` e `/` para uma macro compartilhada tabular stacked. A F1 do UX4 (`MAN-UX4-F1`) especificou positivamente a célula `nome + meta` como "nome + NFL team em 2 linhas". O F2 manteve esse escopo estrito, o que implicou em **remover 2 métricas que o layout de card anterior exibia** em `/`:
+
+- `ESPN: ${{ p.espn_ref_value }}` — valor nominal de referência ESPN (usado como baseline de contratos)
+- `Projeção 2026: ${{ p.projected_next_salary() }}` — salário projetado pro próximo ano (orienta decisões de drop pré-auction)
+
+Essas 2 métricas têm utilidade real para planejamento de offseason (quem dropar, quem renovar). A omissão foi consequência de `F1` especificar positivamente sem mapear o delta contra o estado atual.
+
+**Referências:** commit `a10fcb6` (UX4), design `MAN-UX4-F1`.
+
+**Objetivo (escopo candidato, a fechar na F1 de UX4-b):**
+
+Restaurar ESPN + Projeção 2026 em `/` (roster principal). Formatos candidatos:
+- **(a) Colunas dedicadas** — adicionar 2 colunas à `.player-roster-table` exclusivas do `context='roster'`. Exige nova variante no macro ou parametrização.
+- **(b) Meta expandida** — adicionar linha secundária (`.name-meta`) em `/` com `ESPN · Projeção` abaixo do NFL team, preservando layout tabular. Mudança interna à célula col-name, não afeta estrutura de colunas. Menor intrusão.
+- **(c) Tooltip/popover on hover** — mover info pra affordance secundária. Muda UX (info menos acessível).
+- **(d) Restauração em `/team/<id>` também** — avaliar se essas métricas fazem sentido em ambas as telas (consistência) ou só em `/` (diferenciação).
+
+F1 de UX4-b decide entre estas opções.
+
+**Relação com outros items:**
+- **Sucessor imediato de UX4** — corrige blind spot específico da F1, não é retrabalho estrutural.
+- **Independente de UX2** — UX2 trata de PT-BR em outras telas, sem overlap.
+- **Sem relação com UX3** (já concluído).
+
+**Pré-requisito:** nenhum bloqueante.
+
+**Observação metodológica (para futuros F1 de refatoração de UI):** a dinâmica que gerou UX4-b sugere regra nova potencial no DEV_METHODOLOGY — F1 de refatoração de UI deveria listar explicitamente "campos presentes hoje que não estão no design proposto", com parecer por item (remoção intencional / perda não-intencional / deslocamento). Especificação positiva por si só omite silenciosamente. Item para próximo baseline do DEV_METHODOLOGY se priorizar.
 
 ---
 
