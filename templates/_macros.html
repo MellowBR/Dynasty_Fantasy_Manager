@@ -23,17 +23,20 @@
 {%- endif -%}
 {%- endmacro %}
 
-{# player_roster_row(player, context='team_detail')
+{# player_roster_row(player, context='team_detail', group_first=False)
    Renderiza <tr> compartilhada da tabela de roster (UX4).
    player precisa vir enriquecido com .dynasty_value (int|None) e .acquisition_label (str PT-BR).
    context: 'team_detail' (sem coluna actions) ou 'roster' (com botão IR + renewal-flag visual).
+   group_first (UX4-d): True se é a 1ª row do grupo de posição — adiciona data-group-first
+   para CSS `tr[data-group-first]:not(:first-child)` renderizar separador dashed entre grupos.
    Strip de cor por posição via class pos-* no <tr> (fonte canônica: CSS vars --pos-color-*). #}
-{% macro player_roster_row(player, context='team_detail') -%}
+{% macro player_roster_row(player, context='team_detail', group_first=False) -%}
 {%- set pos_cls = (player.position or '')|replace('/', '') -%}
 {%- set row_cls = 'pos-' ~ pos_cls -%}
 {%- if player.is_on_ir %}{% set row_cls = row_cls ~ ' player-ir-row' %}{% endif -%}
 {%- if context == 'roster' and player.is_renewal_candidate() %}{% set row_cls = row_cls ~ ' renewal-flag' %}{% endif -%}
-<tr class="{{ row_cls }}">
+<tr class="{{ row_cls }}"{% if group_first %} data-group-first{% endif %}>
+  <td class="col-pos"><span class="pos-badge pos-{{ pos_cls }}">{{ player.position or '?' }}</span></td>
   <td class="col-photo">{{ player_photo(player, klass='player-photo-sm') }}</td>
   <td class="col-name">
     <div class="name-main">
@@ -75,6 +78,7 @@
    e entre as 2 telas (/team/<id> e /). context controla presença de col-actions. #}
 {% macro player_roster_colgroup(context='team_detail') -%}
 <colgroup>
+  <col class="col-pos">
   <col class="col-photo">
   <col class="col-name">
   <col class="col-salary">

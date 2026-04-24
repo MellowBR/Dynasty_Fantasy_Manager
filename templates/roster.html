@@ -94,37 +94,42 @@
 </div>
 {% endif %}
 
-{% for pos, pos_players in summary.players_by_pos %}
-  {% set ir = pos_players | selectattr('is_on_ir') | list %}
-  <section class="roster-section">
-    <h2 class="section-title">
-      <span class="pos-badge pos-{{ pos | replace('/', '') }}">{{ pos }}</span>
-      <span class="count-badge">{{ pos_players | length }}</span>
-      {% if ir %}<span class="ir-count-badge">{{ ir | length }} IR</span>{% endif %}
-    </h2>
-    <table class="player-roster-table">
-      {{ player_roster_colgroup(context='roster') }}
-      <thead>
-        <tr>
-          <th class="col-photo"></th>
-          <th class="col-name">Jogador</th>
-          <th class="col-salary">Salário</th>
-          <th class="col-contract">Contrato</th>
-          <th class="col-dynasty">🪙 Dynasty</th>
-          <th class="col-espn">ESPN</th>
-          <th class="col-proj">Proj 2026</th>
-          <th class="col-acq">Aquisição</th>
-          <th class="col-actions"></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for p in pos_players %}
-          {{ player_roster_row(p, context='roster') }}
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
-{% endfor %}
+{# UX4-d: tabela única em vez de 6 por posição; counts agregados no topo (absorve ir-count-badge antigo) #}
+<div class="roster-counts">
+  {% for pos, pos_players in summary.players_by_pos %}
+  <span class="roster-count-item">
+    <span class="pos-badge pos-{{ pos|replace('/','') }}">{{ pos }}</span>
+    <span class="roster-count-num">{{ pos_players|length }}</span>
+  </span>
+  {% endfor %}
+  {% if summary.ir_count > 0 %}
+  <span class="roster-count-item roster-count-ir">IR <span class="roster-count-num">{{ summary.ir_count }}</span></span>
+  {% endif %}
+</div>
+<table class="player-roster-table">
+  {{ player_roster_colgroup(context='roster') }}
+  <thead>
+    <tr>
+      <th class="col-pos">Pos</th>
+      <th class="col-photo"></th>
+      <th class="col-name">Jogador</th>
+      <th class="col-salary">Salário</th>
+      <th class="col-contract">Contrato</th>
+      <th class="col-dynasty">🪙 Dynasty</th>
+      <th class="col-espn">ESPN</th>
+      <th class="col-proj">Proj 2026</th>
+      <th class="col-acq">Aquisição</th>
+      <th class="col-actions"></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for pos, pos_players in summary.players_by_pos %}
+      {% for p in pos_players %}
+        {{ player_roster_row(p, context='roster', group_first=loop.first) }}
+      {% endfor %}
+    {% endfor %}
+  </tbody>
+</table>
 
 {% else %}
 <div class="empty-state">

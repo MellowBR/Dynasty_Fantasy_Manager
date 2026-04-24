@@ -1464,8 +1464,10 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 }
 
 /* Larguras explícitas via <col> — garantem alinhamento cross-table.
-   UX4-c: widths apertadas com base em auditoria do DB (n=280). Pior caso
-   real por coluna documentado no devplan; col-name (auto) absorve redução. */
+   UX4-c: widths apertadas com base em auditoria do DB (n=280).
+   UX4-d: col-pos adicionada como 1ª coluna (pos-badge inline); col-name (auto)
+   absorve os 40px extras. */
+.player-roster-table col.col-pos      { width: 40px; }
 .player-roster-table col.col-photo    { width: 40px; }
 .player-roster-table col.col-name     { width: auto; }
 .player-roster-table col.col-salary   { width: 56px; }
@@ -1476,6 +1478,7 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 .player-roster-table col.col-acq      { width: 108px; }
 .player-roster-table col.col-actions  { width: 76px; }
 
+.player-roster-table .col-pos { text-align: center; padding-left: .2rem; padding-right: .2rem; }
 .player-roster-table .col-photo { padding-right: 0; }
 .player-roster-table td.col-name { white-space: normal; }
 .player-roster-table .col-salary,
@@ -1567,6 +1570,48 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
     display: none;
   }
 }
+
+/* UX4-d: cor canônica no nome do jogador por posição (via --pos-color-*).
+   K (kicker) mantém --text default: pos-color-k (cinza-azulado) ficaria
+   visualmente "apagado" contra as 5 posições saturadas — pos-badge
+   colorido já carrega a identidade visual de K. Fallback aplicado a priori
+   por impossibilidade de validação empírica via CLI. */
+.player-roster-table tr.pos-QB .player-name { color: var(--pos-color-qb); }
+.player-roster-table tr.pos-RB .player-name { color: var(--pos-color-rb); }
+.player-roster-table tr.pos-WR .player-name { color: var(--pos-color-wr); }
+.player-roster-table tr.pos-TE .player-name { color: var(--pos-color-te); }
+.player-roster-table tr.pos-DST .player-name,
+.player-roster-table tr.pos-DEF .player-name { color: var(--pos-color-def); }
+/* tr.pos-K intencionalmente ausente — mantém cor default --text */
+
+/* UX4-d: separador discreto entre grupos de posição (tabela única). */
+.player-roster-table tr[data-group-first]:not(:first-child) > td {
+  border-top: 1px dashed var(--border);
+}
+
+/* UX4-d: linha de counts agregada no topo da tabela única (ambas telas).
+   Absorve o ir-count-badge legado do roster.html por coerência cross-tela. */
+.roster-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem;
+  margin-bottom: .4rem;
+  font-size: .78rem;
+  color: var(--text-dim);
+  align-items: center;
+}
+.roster-counts .roster-count-item {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+}
+.roster-counts .roster-count-num {
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.roster-counts .roster-count-ir { color: var(--red); }
+.roster-counts .roster-count-ir .roster-count-num { color: var(--red); }
 
 .player-detail-info h1 {
   margin: 0 0 .4rem;

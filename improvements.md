@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b + UX4-c concluídos; UX5, UX6, UX4-d, UX7 registrados)
+> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b + UX4-c + UX4-d concluídos; UX5, UX6, UX7 registrados)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -62,7 +62,7 @@
 | UX4 | Macro compartilhada de linha de roster (HYBRID) — converge layout de /team/<id> e / com densidade estilo FantasyPros | Média | ✅ 24/04/2026 |
 | UX4-b | Redesign de densidade e layout da página de detalhe de time (4 camadas + ESPN/Projeção em ambas telas) | Triagem | ✅ 24/04/2026 |
 | UX4-c | Aperto visual final de /team/<id> e / (status bar + progress bar nova + espaçamento entre grupos + colgroup denso) | Média | ✅ 24/04/2026 |
-| UX4-d | Tabela única de roster com pos inline (elimina cabeçalhos repetidos por posição) | Média | 🔲 |
+| UX4-d | Tabela única de roster com pos inline (elimina cabeçalhos repetidos por posição) | Média | ✅ 24/04/2026 |
 | UX7 | Tema visual global mais claro (recalibragem da paleta dark) | Média | 🔲 |
 | UX6 | Revisão da largura máxima do container global da aplicação (~700px de ar lateral em monitor 1920px) | Média | 🔲 |
 | UX5 | Redesign da seção Picks em detalhe de time (3 tabelas anuais com baixa densidade, coluna Notas vazia) | Média | 🔲 |
@@ -1378,62 +1378,48 @@ Redução total fixa: 576→478px (team_detail, -17%); 660→554px (roster, -16%
 ---
 
 ### UX4-d — Tabela Única de Roster com Pos Inline
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (24/04/2026)** — Prioridade **Média**
 
-**Problema:** o roster em `/team/<id>` e `/` é renderizado hoje (pós-UX4-c) como **6 `<table>` separadas** — uma por posição (QB, RB, WR, TE, K, DEF) — cada uma com:
-- Cabeçalho externo flutuando acima do box: `[POS] count` (~20-25px por grupo)
-- Linha de headers da tabela: `Jogador | Salário | Contrato | Dynasty | ESPN | Proj | Aquisição | [Actions]` (~22-25px por grupo)
+**Entregue:** colapso estrutural 6 `<table>` → 1 tabela única em ambas as telas, com 6 decisões consolidadas pela F1.
 
-Em 6 posições: redundância de ~150-180px verticais só com estruturas repetidas que não agregam informação nova (mesmos headers 6x, mesma "caixa" visual de tabela 6x).
+**Implementado:**
 
-**Decisão de abordagem (owner, após ver mock):** **tabela única para todo o roster**, com:
-- **Pos-badge inline como primeira coluna** (em cada row), em vez de cabeçalho externo por grupo
-- **Cor canônica aplicada nas letras** (nome do jogador, salário, pos-badge) via `--pos-color-*` — reforça identidade visual por posição sem depender de estrutura de agrupamento
-- **Strip vertical colorido preservado na borda esquerda da row** (já existe via UX4, permanece)
-- **Todas as colunas atuais preservadas** — nenhuma removida
+1. **Macro `player_roster_row`** ganha 1ª `<td class="col-pos">` com pos-badge inline. Novo param `group_first` adiciona atributo `data-group-first` no `<tr>` quando é a 1ª row de um grupo de posição (usado pelo CSS para separador dashed).
 
-**Referências:** commits UX4 (`a10fcb6`), UX4-b (`e495453`), UX4-c (`1440421`).
+2. **Macro `player_roster_colgroup`** ganha 1ª `<col class="col-pos">` (width 40px).
 
-**Escopo (a fechar na F1 de UX4-d):**
+3. **Templates** substituem o loop externo por posição + wrapper (`pos-block` / `roster-section`) por **1 única `<table class="player-roster-table">`** com loop aninhado `{% for pos %}{% for p %}...{{ player_roster_row(..., group_first=loop.first) }}`. Linha `.roster-counts` no topo agrega contagem por posição.
 
-- **Mudança estrutural na macro/template:** hoje o template tem `{% for pos, players in players_by_pos %}...<table>...` — envolve cada grupo em um `<section class="pos-block">` + `<table>`. Proposta: **uma única `<table class="player-roster-table">`** abarcando todos os players, com `player_roster_row` chamada sobre uma lista ordenada unificada. `pos-block` e `pos-block-title` desaparecem do template de roster (permanecem no CSS como legacy se ainda houver consumidor, ou limpam).
+4. **roster.html**: `ir-count-badge` legado absorvido na linha de counts (badge agregado `IR N` no final da linha, em `var(--red)`).
 
-- **Macro `player_roster_row` ganha 1 coluna nova:** `col-pos` como primeira coluna (antes de `col-photo`), renderizando `<span class="pos-badge pos-{{ pos }}">{{ pos }}</span>`. Colgroup atualizado com `<col class="col-pos" width=~40px>`.
+5. **CSS novo:** col-pos width 40px (centrada); 5 regras de cor de nome por posição (`.player-roster-table tr.pos-{QB,RB,WR,TE,DST/DEF} .player-name { color: var(--pos-color-*) }`); separador `.player-roster-table tr[data-group-first]:not(:first-child) > td { border-top: 1px dashed var(--border) }`; estilo `.roster-counts` (flex wrap, tabular-nums nos números).
 
-- **Cor canônica nas letras:** aplicar `color: var(--pos-color-*)` em elementos específicos da row baseado na classe `pos-*` do `<tr>`. Candidatos (F1 decide):
-  - Nome do jogador (atualmente `--text` default)
-  - Salário (atualmente `--green` via `.salary-cell`)
-  - Apenas pos-badge (já colorido)
-  - Combinação moderada (evitar "semáforo" visual chamativo)
+**Decisões delegadas, tomadas:**
 
-- **Decisões técnicas para a F1:**
-  1. **Ordem das rows:** manter agrupamento por posição (QB → RB → WR → TE → K → DEF) na ordem em que aparecem no payload (`players_by_pos` atual), ou permitir ordenação alternativa (por salário, por dynasty, por nome)? Recomendação inicial: preservar ordem atual + chave `data-pos` para ordenação JS futura.
-  2. **Separadores visuais entre grupos:** apenas strip colorido (sutil, depende do olho do usuário notar a mudança de cor), ou linha de separação discreta (`border-top: 1px dashed var(--border)`)? Trade-off: densidade vs clareza de transição.
-  3. **Total de players por posição (hoje em `[POS] count`):** sumir completamente, virar badge discreto no canto da tabela, ou ir para a status bar do header (`/team/<id>` só)? Em `/` (que não tem status bar), decidir separadamente.
+- **Localização dos counts: linha dedicada em ambas as telas.** Justificativa: coerência cross-tela, redundância com status bar em team_detail é aceitável (status bar mostra `$` por pos; linha de counts mostra `quantidade` por pos — info complementar, não duplicada). Alternativa (integrar na status bar só em team_detail) criaria divergência entre as 2 telas.
 
-**Infra canônica reusável:**
-- CSS vars `--pos-color-*` canonizadas (UX4) — reuso direto para cor nas letras.
-- Macro `player_roster_row` + colgroup (UX4 + UX4-b + UX4-c) — extensão com coluna nova, não reescrita.
-- Classe `.player-roster-table` (UX4) — mantida, um único uso por tela após UX4-d.
-- Handler dos 2 templates já fornece `players_by_pos` — pode-se iterar plano ou preservar agrupamento via `{% for pos, players in players_by_pos %}{% for p in players %}` mantendo só 1 `<table>` como container.
+- **Fallback K aplicado a priori:** `tr.pos-K .player-name` deliberadamente omitida das 5 regras de cor. Justificativa: `var(--pos-color-k) = #94a3b8` (cinza-azulado) renderizaria o nome visualmente "apagado" em contraste com as 5 posições saturadas (roxo, verde, azul, laranja, ciano). K preserva cor `--text` default; pos-badge colorido já carrega a identidade visual. Decisão conservadora ante impossibilidade de validação empírica via CLI — se owner quiser a cor aplicada no K, remoção do fallback é 1 linha CSS.
 
-**Impacto nas 2 telas:**
-- **`/team/<id>`:** section "Roster" deixa de ter 6 `pos-block` internas; vira 1 `<table>` única.
-- **`/`:** idem; `roster-section` por posição deixa de existir como múltiplos sections.
-- Ambas via macro compartilhada — modificar template chama macro-level change.
+**Colgroup atualizado:**
+- col-pos: 40px (nova)
+- Demais colunas: widths UX4-c preservadas (photo 40, salary 56, contract 72, dynasty 88, espn 58, proj 56, acq 108, actions 76)
+- Total fixo: 478 → **518px** (team_detail, +40px) / 554 → **594px** (roster, +40px)
+- col-name (auto) absorve os +40px
 
-**Relação com outros items:**
-- **Sucessor imediato de UX4-c.**
-- **Pré-requisito natural para um eventual UX7** (tema mais claro / ajuste de paleta geral, não registrado ainda) — faz mais sentido calibrar densidade visual antes de mexer em tema.
-- **Independente de UX5** (Picks, seção diferente) e **UX6** (container global).
-- Afeta ambas as telas via macro `player_roster_row`.
+**Ordem das rows:** QB → RB → WR → TE → K → DEF preservada via loop aninhado (sem JS, sem ordenação clicável — feature futura fora de escopo).
 
-**Riscos:**
-- Perda do "grupo visual por posição" pode dificultar navegação se o usuário está acostumado a saltar para "começo da seção RB". Mitigação: ordem preservada + strip colorido + pos-badge inline + eventual separador discreto.
-- Cor nas letras pode competir com salary-tag / dynasty-value-inline / tag-ir / tag-renewal existentes — saturação visual. F1 valida com balanço (aplicar cor só em 1 elemento, não em 3).
-- Colgroup precisa de cálculo novo (col-pos adicionada) — impacta alinhamento cross-table já estabelecido em UX4-b. F1 mede.
+**Economia vertical agregada estimada (6 posições, pós colapso):**
+- Antes (UX4-c): 6 wrappers `pos-block`/`roster-section` + 6 `<h3>`/`<h2>` título externo + 6 `<thead>` = ~270-300px estruturais
+- Depois (UX4-d): 1 linha de counts (~22px) + 1 `<thead>` único (~22px) + 5 separadores dashed 1px = ~49px
+- **Economia: ~220-250px verticais** por tela de roster típica com 6 posições
 
-**Pré-requisito:** nenhum bloqueante. UX6 pode ser feito antes para liberar largura antes do colgroup absorver uma coluna nova, mas não é bloqueador.
+**Validação:**
+- `salary_engine_test.py` 48/48.
+- Smoke HTTP 200 em 7 telas: `/team/<id>`, `/`, `/admin`, `/player/<id>`, `/league`, `/offseason`, `/salary`.
+- `/team/<id>`: 1 `<table class="player-roster-table">`, 1 `.roster-counts`, 6 `data-group-first` (uma por posição), col-pos TH presente. Wrapper `pos-block` ausente (0 matches).
+- `/`: idem; wrapper `roster-section` ausente (0 matches); `ir-count-badge` legado ausente (absorvido na linha de counts).
+- Grep de novos hex de cor em classes UX4-d: 0 matches (tudo via CSS vars canonizadas em UX4).
+- Convenção salário preservada: `.salary-cell` ainda em `var(--green)`, `.salary-high` em `var(--yellow)`.
 
 ---
 

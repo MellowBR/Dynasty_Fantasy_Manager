@@ -78,34 +78,41 @@
 
 <section class="team-detail-section">
   <h2 class="section-title">Roster</h2>
-  {% for pos, players in players_by_pos %}
-  <div class="pos-block">
-    <h3 class="pos-block-title">
+  {# UX4-d: linha de counts no topo (1 tabela única em vez de 6 por posição) #}
+  <div class="roster-counts">
+    {% for pos, players in players_by_pos %}
+    <span class="roster-count-item">
       <span class="pos-badge pos-{{ pos|replace('/','') }}">{{ pos }}</span>
-      <span class="text-dim small-text">{{ players|length }}</span>
-    </h3>
-    <table class="player-roster-table">
-      {{ player_roster_colgroup(context='team_detail') }}
-      <thead>
-        <tr>
-          <th class="col-photo"></th>
-          <th class="col-name">Jogador</th>
-          <th class="col-salary">Salário</th>
-          <th class="col-contract">Contrato</th>
-          <th class="col-dynasty">🪙 Dynasty</th>
-          <th class="col-espn">ESPN</th>
-          <th class="col-proj">Proj 2026</th>
-          <th class="col-acq">Aquisição</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for p in players %}
-          {{ player_roster_row(p, context='team_detail') }}
-        {% endfor %}
-      </tbody>
-    </table>
+      <span class="roster-count-num">{{ players|length }}</span>
+    </span>
+    {% endfor %}
+    {% if ir_count and ir_count > 0 %}
+    <span class="roster-count-item roster-count-ir">IR <span class="roster-count-num">{{ ir_count }}</span></span>
+    {% endif %}
   </div>
-  {% endfor %}
+  <table class="player-roster-table">
+    {{ player_roster_colgroup(context='team_detail') }}
+    <thead>
+      <tr>
+        <th class="col-pos">Pos</th>
+        <th class="col-photo"></th>
+        <th class="col-name">Jogador</th>
+        <th class="col-salary">Salário</th>
+        <th class="col-contract">Contrato</th>
+        <th class="col-dynasty">🪙 Dynasty</th>
+        <th class="col-espn">ESPN</th>
+        <th class="col-proj">Proj 2026</th>
+        <th class="col-acq">Aquisição</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pos, players in players_by_pos %}
+        {% for p in players %}
+          {{ player_roster_row(p, context='team_detail', group_first=loop.first) }}
+        {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
 </section>
 
 <section class="team-detail-section">
