@@ -1,4 +1,4 @@
-{# Macros reutilizáveis. Use {% from "_macros.html" import player_name_link, nav_link, nav_dropdown %}. #}
+{# Macros reutilizáveis. Use {% from "_macros.html" import player_name_link, player_photo, nav_link, nav_dropdown %}. #}
 
 {# player_name_link(player, klass='', target=None, stop_propagation=False)
    player precisa ter .id e .name. #}
@@ -8,6 +8,19 @@
    {%- if target %} target="{{ target }}"{% endif %}
    {%- if stop_propagation %} onclick="event.stopPropagation()"{% endif %}
    title="Abrir página do jogador">{{ player.name }}</a>
+{%- endmacro %}
+
+{# player_photo(player, klass='')
+   player precisa ter .sleeper_player_id e .name. Fallback onerror esconde a img
+   silenciosamente (retirees, DSTs, rookies recém-chegados). Contraparte JS:
+   renderPlayerPhoto em base.html. #}
+{% macro player_photo(player, klass='') -%}
+{%- if player.sleeper_player_id -%}
+<img src="https://sleepercdn.com/content/nfl/players/thumb/{{ player.sleeper_player_id }}.jpg"
+     onerror="this.style.display='none'"
+     class="player-photo{% if klass %} {{ klass }}{% endif %}"
+     alt="{{ player.name }}">
+{%- endif -%}
 {%- endmacro %}
 
 {# _nav_match — true se request.path bate com algum prefix.

@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026
+> Atualizado em: 24/04/2026 (UX1 + UX3 parcial)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -56,9 +56,9 @@
 | T2-FIX | Picks Rd2+ sem dynasty value no preview/proposta de trade | Média | ✅ 24/04/2026 |
 | T2-FIX-2 | Réplica JS pickFcSid em trades.html (fix estrutural — `/api/picks` pré-resolve dynasty_value) | Alta | ✅ 24/04/2026 |
 | IR-CLEANUP | Remover seletor manual de IR no roster (sync Sleeper já é autoritativo) | Baixa | 🔲 |
-| UX1 | Redesign tabela de roster em /team/<id>: foto, badge acquisition PT-BR, dynasty inline | Média | 🔲 |
-| UX2 | Acquisition types PT-BR em todas as telas (team_detail, roster, salary_history) | Baixa | 🔲 |
-| UX3 | Fotos de jogadores em telas densas (team_detail, cap_projector) | Baixa | 🔲 |
+| UX1 | Redesign tabela de roster em /team/<id>: foto, badge acquisition PT-BR, dynasty inline | Média | ✅ 24/04/2026 |
+| UX2 | Acquisition types PT-BR em todas as telas (team_detail, roster, salary_history) | Baixa | 🔲 (team_detail ✅ via UX1) |
+| UX3 | Fotos de jogadores em telas densas (team_detail, cap_projector) | Baixa | ⚠️ 24/04/2026 (3/6 telas — faltam trades, trade_proposal, salary_history) |
 
 ---
 
@@ -1081,24 +1081,36 @@ Signature ganhou parâmetro opcional `values_map=None` para evitar I/O extra qua
 ---
 
 ### UX1 — Redesign Tabela de Roster em /team/<id>
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (24/04/2026)** — Prioridade **Média**
 
-**Problema:** A tabela de roster em `team_detail.html` (L1) exibe jogadores sem foto, com `acquisition_type` em inglês cru ("auction_draft", "fa_waiver"), sem dynasty value inline. Densidade visual baixa comparada com referências do setor.
+**Escolha de escopo:** Cenário C da diagnose F1 — UX1 + UX3 (3 telas com foto). UX2 (propagação PT-BR pra outras telas) permanece isolado no backlog por ter decisão arquitetural própria (como expor `_ACQ_LABELS` pra JS).
 
-**Referências analisadas:**
-- **FantasyPros** — foto + ECR + stats inline na linha do jogador.
-- **Flock Fantasy** — ranking inline, agrupamento limpo por posição.
-- **Fantasy Optimizer** (próprio) — badges coloridos por status.
+**Implementado:**
 
-**Objetivo:** redesign da tabela por posição com:
-- Foto do jogador (Sleeper CDN, padrão `player_detail.html`).
-- Time NFL + salário + contrato.
-- Dynasty value 🪙 inline (lookup via `get_dynasty_values()`, mesmo padrão da route `team_detail`).
-- Acquisition badge PT-BR colorido (depende de UX2 para o mapa de tradução).
+**Backend (`routes/league.py`):** handler `team_detail` passou a enriquecer cada `Player` com `p.dynasty_value` (via `resolve_asset_value` canônico) e `p.acquisition_label` (via `_ACQ_LABELS` importado de `routes.roster`). `dynasty_total` agregado agora consome `p.dynasty_value` em vez de chamar `resolve_asset_value` de novo (evita double call). Padrão arquitetural: mesmo de T2-FIX-2 para picks — backend resolve, template consome pronto.
 
-**Escopo:** apenas `templates/team_detail.html` + CSS. Sem mudança de backend nem de payload.
+**Template (`team_detail.html`):** tabela de roster ganhou 2 colunas (foto + dynasty inline), total 7 colunas. `acquisition_label` substitui `acquisition_type` cru (PT-BR via `_ACQ_LABELS` sem tocar o mapa). Macro `player_photo` importado de `_macros.html` usa variante `.player-photo-sm`.
 
-**Pré-requisito:** UX2 (mapa de tradução) idealmente entregue antes.
+**Macro nova (`_macros.html`):** `player_photo(player, klass='')` extrai o padrão inline do `player_detail.html` (M13). Fallback `onerror` preservado. Import atualizado no cabeçalho do arquivo.
+
+**Helper JS (`base.html`):** `renderPlayerPhoto(p, klass)` como contraparte client-side, mesmo padrão do O1 (`player_name_link` + `renderPlayerNameLink`). Usado em `cap_projector.html` que renderiza em JS template literals. Mesma URL intencionalmente — single source por modo de render.
+
+**Propagação (UX3):**
+- `player_detail.html` — inline substituído por `{{ player_photo(player) }}`.
+- `roster.html` — foto pequena adicionada antes da `pos-badge`. Acquisition continua cru (escopo UX2 preservado).
+- `cap_projector.html` — foto pequena prepended ao `player-name-cell` JS. Acquisition continua cru.
+
+**CSS (`static/style.css`):** `.player-photo-sm` (32px, border 1px) + `.team-roster-table .col-photo` (44px width) + `.dynasty-value-inline` (tabular-nums). Base `.player-photo` (96px do M13) intocado.
+
+**Validação:**
+- `salary_engine_test.py`: 48/48.
+- Smoke `GET /team/<id>` via test_client: HTTP 200, `col-photo` + `dynasty-value-inline` + acquisition PT-BR + img Sleeper CDN presentes.
+- Backend test: `sum(p.dynasty_value or 0 for p in active)` == `summary.dynasty_total` (bateu em 57514 no time testado).
+- Amostra: "Javonte Williams dv=3089 acq=auction_draft→Startup Auction", "Jared Goff acq=unknown→Origem não registrada". Caminho `_ACQ_LABELS` funcional.
+- Smoke `GET /`, `/cap_projector`, `/player/<id>`: todos HTTP 200, macro/helper resolvendo corretamente.
+- Grep `sleepercdn.com/content/nfl/players/thumb` em `templates/` + `static/`: 2 matches (macro + helper JS), 0 inlines remanescentes. Convenção O1 (1 source por modo de render) seguida.
+
+**Escopo UX2 preservado:** `roster.html:120` e `cap_projector.html:121` continuam renderizando `acquisition_type` cru — mapeamento PT-BR fica para camada UX2 dedicada.
 
 ---
 
@@ -1128,13 +1140,16 @@ Signature ganhou parâmetro opcional `values_map=None` para evitar I/O extra qua
 ---
 
 ### UX3 — Fotos de Jogadores em Telas Densas
-🔲 **Pendente** — Prioridade **Baixa**
+⚠️ **Parcial (24/04/2026)** — Prioridade **Baixa**
 
-**Problema:** Foto do jogador existe em `player_detail.html` (M13) via Sleeper CDN (`https://sleepercdn.com/content/nfl/players/thumb/<sleeper_player_id>.jpg`) com `onerror` fallback, mas não aparece em telas onde o owner navega multiplamente (team_detail roster, cap_projector).
+**Concluído junto com UX1 (cenário C):** 3 telas ganharam foto — `team_detail.html`, `roster.html` (tela `/`), `cap_projector.html`. Macro Jinja `player_photo` e helper JS `renderPlayerPhoto` criados como infra reusável.
 
-**Objetivo:** adicionar thumbnail (24-32px) na coluna de nome do jogador em `team_detail.html` e `cap_projector.html`. Reusar padrão do M13 (mesmo URL, mesmo `onerror`). Avaliar performance (12-22 imgs por tela — Sleeper CDN tem cache HTTP agressivo, impacto deve ser baixo, mas medir antes de declarar concluído).
+**Débito remanescente (3 telas ainda sem foto):**
+- `trades.html` (Trade Manager) — asset items na lista de jogadores de cada lado.
+- `trade_proposal.html` (preview de proposta compartilhada) — render server-side das trades propostas.
+- `salary_history.html` — timeline de eventos do jogador.
 
-**Pré-requisito:** UX1 (que estabelece o redesign da tabela onde a foto entra). Se UX1 já incluir fotos no escopo, UX3 vira sub-item.
+**Decisão de recorte:** as 3 telas restantes têm estruturas distintas (Trade Manager é denso com dynasty badges já competindo por espaço; salary_history é timeline cronológica; trade_proposal é server-side mas com layout diferente). Propagar a foto nelas exige decisões visuais próprias e não compartilha critério com o cenário C. Fica como UX3-b se virar dor.
 
 ---
 

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import player_photo %}
 {% block title %}Roster{% endblock %}
 
 {% block content %}
@@ -105,6 +106,7 @@
     <div class="player-list">
       {% for p in pos_players %}
       <div class="player-row {{ 'player-ir-row' if p.is_on_ir }} {{ 'renewal-flag' if p.is_renewal_candidate() }}" id="player-{{ p.id }}">
+        {{ player_photo(p, klass='player-photo-sm') }}
         <span class="pos-badge pos-{{ p.position | replace('/', '') }}">{{ p.position }}</span>
         <div class="player-info">
           <span class="player-name">

@@ -1388,6 +1388,22 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   background: rgba(255,255,255,.04);
 }
 
+.player-photo-sm {
+  width: 32px;
+  height: 32px;
+  border-width: 1px;
+}
+
+.team-roster-table .col-photo {
+  width: 44px;
+  padding-right: .25rem;
+}
+
+.dynasty-value-inline {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .player-detail-info h1 {
   margin: 0 0 .4rem;
   display: flex;

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import player_photo %}
 {% block title %}{{ player.name }} — Fantasy Manager{% endblock %}
 
 {% block content %}
@@ -10,11 +11,7 @@
 
 <div class="card">
   <div class="player-detail-header">
-    {% if player.sleeper_player_id %}
-    <img src="https://sleepercdn.com/content/nfl/players/thumb/{{ player.sleeper_player_id }}.jpg"
-         onerror="this.style.display='none'" class="player-photo"
-         alt="{{ player.name }}">
-    {% endif %}
+    {{ player_photo(player) }}
 
     <div class="player-detail-info">
       <h1>

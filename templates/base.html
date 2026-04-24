@@ -243,6 +243,17 @@ function renderPlayerNameLink(p, opts) {
   return `<a href="/player/${id}" class="${cls}"${target}${stop} title="Abrir página do jogador">${safe}</a>`;
 }
 
+// ── Helper: renderiza foto de jogador (Sleeper CDN) com fallback silencioso ──
+// Contraparte server-side: macro player_photo em _macros.html. Mesma URL
+// intencionalmente — um source por modo de render (Jinja vs JS).
+function renderPlayerPhoto(p, klass) {
+  const sid = p.sleeper_player_id;
+  if (!sid) return '';
+  const cls = 'player-photo' + (klass ? ' ' + klass : '');
+  const safeName = String(p.name || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return `<img src="https://sleepercdn.com/content/nfl/players/thumb/${sid}.jpg" onerror="this.style.display='none'" class="${cls}" alt="${safeName}">`;
+}
+
 </script>
 
 {% block scripts %}{% endblock %}

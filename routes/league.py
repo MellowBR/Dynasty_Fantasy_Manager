@@ -10,7 +10,7 @@ from models import (
     SALARY_CAP, get_current_season, sort_players_by_pos,
 )
 from dynasty_values import get_dynasty_values, resolve_asset_value
-from routes.roster import _build_players_by_pos as build_players_by_pos
+from routes.roster import _build_players_by_pos as build_players_by_pos, _ACQ_LABELS
 
 league_bp = Blueprint("league", __name__)
 
@@ -77,6 +77,10 @@ def team_detail(team_id):
     season = get_current_season()
 
     players = Player.query.filter_by(team_id=team.id, is_dropped=False).all()
+    dv_map = get_dynasty_values().get("values", {})
+    for p in players:
+        p.dynasty_value = resolve_asset_value(dv_map, p.sleeper_player_id)
+        p.acquisition_label = _ACQ_LABELS.get(p.acquisition_type, p.acquisition_type or "—")
     players_by_pos = build_players_by_pos(players)
 
     picks = Pick.query.filter_by(current_team_id=team.id)\
@@ -86,7 +90,6 @@ def team_detail(team_id):
         picks_by_season[pk.season].append(pk)
 
     standing = SeasonStandings.query.filter_by(season=season, team_id=team.id).first()
-    dv_map = get_dynasty_values().get("values", {})
 
     active = [p for p in players if not p.is_on_ir]
     ir = [p for p in players if p.is_on_ir]
@@ -118,10 +121,7 @@ def team_detail(team_id):
         "active_count": len(active),
         "cap_by_pos": dict(cap_by_pos),
         "dv_map": dv_map,
-        "dynasty_total": sum(
-            resolve_asset_value(dv_map, p.sleeper_player_id) or 0
-            for p in active
-        ),
+        "dynasty_total": sum(p.dynasty_value or 0 for p in active),
         "is_my_team": is_my_team,
         "my_team_name": my_team_name,
         "season": season,

@@ -108,6 +108,7 @@ function render() {
       </label></td>
       <td><span class="pos-badge pos-${p.position.replace('/','')}">${p.position}</span></td>
       <td class="player-name-cell">
+        ${renderPlayerPhoto(p, 'player-photo-sm')}
         ${renderPlayerNameLink(p)}
         ${isRenewal ? '<span class="tag tag-renewal">ANO 4</span>' : ''}
         ${p.needs_review ? '<span class="tag tag-review">REVISÃO</span>' : ''}

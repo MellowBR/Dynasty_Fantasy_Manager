@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import player_name_link %}
+{% from "_macros.html" import player_name_link, player_photo %}
 {% block title %}{{ team.name }} — Dynasty SB{% endblock %}
 
 {% block content %}
@@ -83,15 +83,22 @@
       <span class="pos-badge pos-{{ pos|replace('/','') }}">{{ pos }}</span>
       <span class="text-dim small-text">{{ players|length }}</span>
     </h3>
-    <table class="data-table">
+    <table class="data-table team-roster-table">
       <thead>
         <tr>
-          <th>Jogador</th><th>NFL</th><th>Salário</th><th>Contrato</th><th>Aquisição</th>
+          <th class="col-photo"></th>
+          <th>Jogador</th>
+          <th>NFL</th>
+          <th>Salário</th>
+          <th>Contrato</th>
+          <th>🪙 Dynasty</th>
+          <th>Aquisição</th>
         </tr>
       </thead>
       <tbody>
         {% for p in players %}
         <tr {% if p.is_on_ir %}class="player-ir-row"{% endif %}>
+          <td class="col-photo">{{ player_photo(p, klass='player-photo-sm') }}</td>
           <td>
             {{ player_name_link(p) }}
             {% if p.is_on_ir %}<span class="tag tag-ir">🏥 IR</span>{% endif %}
@@ -101,7 +108,14 @@
           <td class="text-dim">{{ p.nfl_team or '—' }}</td>
           <td>${{ p.salary|int }}</td>
           <td class="text-dim">{{ p.contract_display() }}</td>
-          <td class="text-dim small-text">{{ p.acquisition_type }}</td>
+          <td>
+            {% if p.dynasty_value %}
+              <span class="dynasty-value-inline">🪙 {{ "{:,}".format(p.dynasty_value).replace(",", ".") }}</span>
+            {% else %}
+              <span class="text-dim">—</span>
+            {% endif %}
+          </td>
+          <td class="text-dim small-text">{{ p.acquisition_label }}</td>
         </tr>
         {% endfor %}
       </tbody>
