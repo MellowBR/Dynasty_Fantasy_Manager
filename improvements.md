@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b + UX4-c concluídos; UX5, UX6, UX4-d registrados)
+> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b + UX4-c concluídos; UX5, UX6, UX4-d, UX7 registrados)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -63,6 +63,7 @@
 | UX4-b | Redesign de densidade e layout da página de detalhe de time (4 camadas + ESPN/Projeção em ambas telas) | Triagem | ✅ 24/04/2026 |
 | UX4-c | Aperto visual final de /team/<id> e / (status bar + progress bar nova + espaçamento entre grupos + colgroup denso) | Média | ✅ 24/04/2026 |
 | UX4-d | Tabela única de roster com pos inline (elimina cabeçalhos repetidos por posição) | Média | 🔲 |
+| UX7 | Tema visual global mais claro (recalibragem da paleta dark) | Média | 🔲 |
 | UX6 | Revisão da largura máxima do container global da aplicação (~700px de ar lateral em monitor 1920px) | Média | 🔲 |
 | UX5 | Redesign da seção Picks em detalhe de time (3 tabelas anuais com baixa densidade, coluna Notas vazia) | Média | 🔲 |
 | DATA-1 | Badges TRADE e REVISÃO removidos da macro de listagem (info pertence à timeline/admin, não à listagem) | Média | ✅ 24/04/2026 |
@@ -1433,6 +1434,52 @@ Em 6 posições: redundância de ~150-180px verticais só com estruturas repetid
 - Colgroup precisa de cálculo novo (col-pos adicionada) — impacta alinhamento cross-table já estabelecido em UX4-b. F1 mede.
 
 **Pré-requisito:** nenhum bloqueante. UX6 pode ser feito antes para liberar largura antes do colgroup absorver uma coluna nova, mas não é bloqueador.
+
+---
+
+### UX7 — Tema Visual Global Mais Claro (Recalibragem da Paleta Dark)
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema (sintoma observado):** Análise visual das páginas do Fantasy Manager (24/04/2026, pós-UX4-c) identificou que o tema dark atual tem **peso visual excessivo em telas densas de dados** (roster, cap_projector, trades). Owner comparou com mocks que usam uma paleta dark mais leve (fundo azulado-escuro médio em vez de quase-preto) e sinalizou preferência pela direção mais clara.
+
+**Escopo (investigação aberta, sem assumir causa):**
+
+- **F1 — diagnose:** mapear os tokens atuais de cor no `:root` de `static/style.css` (`--bg`, `--bg2`, `--bg3`, `--bg4`, `--border`, `--border2`, `--text`, `--text-dim`, `--text-muted`, variáveis relacionadas) e seus valores hex. Identificar como cada token é consumido nas classes principais (cards, tabelas, navbar, badges, status bar). Medir hierarquia atual de luminosidade entre camadas.
+
+- **F1 — opções de recalibragem:** após mapear, propor nova paleta dark candidata com:
+  - Fundo base ligeiramente mais claro (direção azulado-escuro médio)
+  - Hierarquia preservada entre camadas (fundo → surface → hover → borders)
+  - Contraste de texto validado (WCAG AA como referência mínima para `--text` sobre `--bg`)
+  - Valores semânticos (`--green`, `--yellow`, `--red`, `--accent`) avaliados para ajuste consistente com nova paleta, se necessário
+
+- **F1 — validação visual por tela:** percorrer telas com perfis distintos (tela densa como cap_projector, tela com cards como league hub, tela com formulários como admin, tela com timeline como player_detail, tela com modais como trades) e avaliar se a nova paleta mantém legibilidade e hierarquia.
+
+- **F2 — aplicação:** mudar apenas tokens em `:root`, zero alteração em classes consumidoras. Smoke test em todas as páginas. Validação empírica visual pelo owner.
+
+**Profundidade escolhida:** recalibrar paleta **dark** (fundo + surface + hover + borders) mantendo modo único — **sem introduzir light mode, sem toggle, sem tema preference**. Escopo contido: só calibragem da paleta existente.
+
+**Referências:** commit UX4-c (`1440421`); mocks comparativos apresentados ao owner na sessão de 24/04/2026.
+
+**Infra relacionada:**
+- Tokens em `:root` de `static/style.css` (linhas ~4-33, incluindo novas `--pos-color-*` canonizadas em UX4).
+- Classes consumidoras via `var(--*)` em todo o CSS — mudança no `:root` propaga automaticamente.
+- Semantic tokens (`--green`, `--yellow`, `--red`) usados por progress bar (UX4-c), tags, alertas.
+
+**Impacto cross-tela:** afeta **todas as páginas do app**. Risco de regressão em componentes que assumem implicitamente a paleta atual (ex: contraste específico de `.tag-*`, `.pos-badge` alfa em rgba). F1 mapeia amplamente.
+
+**Relação com outros items:**
+- **Sucessor natural de UX4-d** — owner prefere calibrar tema após a estrutura final do roster estar pronta (UX4-d entrega a tabela única com pos inline; tema se calibra sobre essa estrutura final).
+- **Independente de UX5** (Picks), **UX6** (container global), **UX2** (PT-BR).
+- **Ordem decidida pelo owner:** UX4-d primeiro, depois UX7.
+
+**Riscos:**
+- Contraste de texto reduzido se fundo ficar claro demais: `--text-dim` sobre `--bg` mais claro pode virar ilegível. F1 valida via contraste relativo.
+- Cores rgba com alpha (`.pos-QB { background: rgba(167,139,250,.18) }` e análogas) podem mudar de percepção quando o fundo muda — fundo mais claro reduz saturação efetiva do rgba com alpha baixo. F1 testa empiricamente.
+- Componentes com `background: var(--bg2)` versus elementos sem background (texto solto) podem inverter hierarquia percebida — validação visual obrigatória.
+
+**Pré-requisito:** nenhum bloqueante.
+
+**Observação estratégica:** este é o segundo item do backlog com **escopo cross-app verdadeiro** (depois de UX6). A mudança é tecnicamente simples (editar `:root`), mas a validação é o trabalho real — percorrer 12+ telas e confirmar que nada quebra. F2 deve incluir smoke test HTTP 200 em todas e inspeção visual empírica pelo owner antes de declarar concluído.
 
 ---
 
