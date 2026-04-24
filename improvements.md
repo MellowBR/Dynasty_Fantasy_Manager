@@ -1504,7 +1504,7 @@ Remover o background das regras genéricas afetaria (1), (2) e (3) simultaneamen
 
 **Referências:** diagnose `MAN-UX7-F1`, commit UX7-REG `45998c7`.
 
-**Cross-ecossistema:** nota adicionada em `fantasy_optimizer/CLAUDE.md` (commit separado) registrando que o Manager clareou paleta, linkando ao commit, e indicando que Optimizer mantém paleta original por ora.
+**Cross-ecossistema:** nota **adicionada localmente** em `fantasy_optimizer/CLAUDE.md` registrando que o Manager clareou paleta (Opção A, +3pp, commit `4af9144`) e indicando que Optimizer mantém paleta original por ora. **Commit pendente com o owner** — o repo do Optimizer tem edits locais pré-existentes não-relacionados ao UX7 (path fix de `DEV_METHODOLOGY.md`, bloco "Pick Valuation" no `CLAUDE.md`, `optimizer_improvements.md` modificado, `DEV_METHODOLOGY.md` deletado localmente). Commit agregado unilateral misturaria contextos; owner decide quando e como commitar (agregado ou separado da nota UX7). Predictor **intocado**. Pendência delimitada, sem bloqueio para Manager.
 
 **Validação:**
 - `salary_engine_test.py` 48/48.
