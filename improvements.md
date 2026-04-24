@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b + UX4-c + UX4-d concluídos; UX5, UX6, UX7 registrados)
+> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b + UX4-c + UX4-d concluídos; UX5, UX6, UX7, UX4-e registrados)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -63,6 +63,7 @@
 | UX4-b | Redesign de densidade e layout da página de detalhe de time (4 camadas + ESPN/Projeção em ambas telas) | Triagem | ✅ 24/04/2026 |
 | UX4-c | Aperto visual final de /team/<id> e / (status bar + progress bar nova + espaçamento entre grupos + colgroup denso) | Média | ✅ 24/04/2026 |
 | UX4-d | Tabela única de roster com pos inline (elimina cabeçalhos repetidos por posição) | Média | ✅ 24/04/2026 |
+| UX4-e | Remover fundo pintado das rows por posição (preservar strip + cor no nome) | Média | 🔲 |
 | UX7 | Tema visual global mais claro (recalibragem da paleta dark) | Média | 🔲 |
 | UX6 | Revisão da largura máxima do container global da aplicação (~700px de ar lateral em monitor 1920px) | Média | 🔲 |
 | UX5 | Redesign da seção Picks em detalhe de time (3 tabelas anuais com baixa densidade, coluna Notas vazia) | Média | 🔲 |
@@ -1420,6 +1421,54 @@ Redução total fixa: 576→478px (team_detail, -17%); 660→554px (roster, -16%
 - `/`: idem; wrapper `roster-section` ausente (0 matches); `ir-count-badge` legado ausente (absorvido na linha de counts).
 - Grep de novos hex de cor em classes UX4-d: 0 matches (tudo via CSS vars canonizadas em UX4).
 - Convenção salário preservada: `.salary-cell` ainda em `var(--green)`, `.salary-high` em `var(--yellow)`.
+
+---
+
+### UX4-e — Remover Fundo Pintado das Rows por Posição
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** após UX4-d (commit `c183b47`, 24/04/2026), análise visual identificou que cada row de roster traz **3 camadas de cor por posição**:
+
+1. **Fundo pintado** (`tr.pos-XX { background: rgba(...) }`) — herdado de UX4
+2. **Strip vertical colorido** (`border-left: 3px solid var(--pos-color-*)`) — UX4-b
+3. **Cor no nome do jogador** (`tr.pos-XX .player-name { color: var(--pos-color-*) }`) — UX4-d
+
+O resultado é **saturação visual excessiva**, especialmente em rosters densos com 20+ players — o olho recebe cor por todos os lados simultaneamente, reduzindo legibilidade e criando peso visual desnecessário.
+
+**Decisão de abordagem (owner, após comparar 3 mocks):** **opção B — preservar strip + cor no nome, remover o fundo pintado**. As 2 camadas restantes (strip discreto na borda + cor no elemento-chave que é o nome) são suficientes para identidade visual por posição sem "encher a row de cor".
+
+**Referências:** commits UX4 (`a10fcb6`), UX4-b (`e495453`), UX4-d (`c183b47`).
+
+**Escopo cirúrgico (a fechar na F1 de UX4-e):**
+
+- **Identificar o(s) seletor(es) CSS** que aplicam `background` nas classes `tr.pos-QB`, `tr.pos-RB`, etc. Provavelmente em `static/style.css` nas regras herdadas de UX4 ou UX4-b (grep por `tr.pos-` + `background`).
+- **Remover apenas as declarações `background`** das 5-6 regras afetadas. Preservar todas as outras propriedades (strip/border-left).
+- **Confirmar que `.pos-badge { background: rgba(...) }`** (o background do próprio badge como componente standalone, usado em contextos fora de row como cabeçalhos, counts, status bar) **NÃO é afetado** — escopo é `tr.pos-XX` em row context, não `.pos-XX` genérico.
+
+**Preservar integralmente:**
+- Strip vertical colorido (`border-left-color: var(--pos-color-*)` em `tr.pos-*`)
+- Cor no nome via `tr.pos-XX .player-name { color: var(--pos-color-*) }` (incluindo fallback K aplicado em UX4-d)
+- Convenção salário `--green`/`--yellow`
+- Linha de counts no topo (`.roster-counts`)
+- Separador dashed entre grupos (`tr[data-group-first]:not(:first-child)`)
+- Pos-badge inline na primeira coluna (`.col-pos`) — mantém cor própria via `.pos-XX`
+
+**LOC estimado:** ~6-10 LOC removidas (apenas declarações `background` dos seletores `tr.pos-*`). Commit minimal, reversível.
+
+**Infra relacionada:**
+- CSS em `static/style.css` — grep por `tr.pos-` + `background` identifica o conjunto exato de regras a editar.
+- `.player-ir-row` e `.renewal-flag` têm seus próprios backgrounds (rgba vermelho/amarelo) — **NÃO tocar** (semântica diferente de "status do player", não "cor por posição").
+
+**Relação com outros items:**
+- **Sucessor imediato de UX4-d.**
+- **Independente de UX5** (Picks), **UX6** (container), **UX7** (paleta de tema).
+- Afeta ambas as telas via CSS compartilhado (seletores `.player-roster-table tr.pos-*`).
+
+**Riscos:**
+- Se algum elemento visual dependia do fundo pintado para contraste (ex: strip mais sutil fica invisível sem fundo colorido reforçando), F1 valida.
+- `.player-ir-row` tem background vermelho alpha — sobreposição com `tr.pos-*` background pode ter sido calibrada; remover o fundo pos-* pode ainda deixar IR-row legível mas F1 confirma.
+
+**Pré-requisito:** nenhum bloqueante.
 
 ---
 
