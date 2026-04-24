@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 concluídos)
+> Atualizado em: 24/04/2026 (UX1 + UX3 concluídos; UX4 registrado)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -59,6 +59,7 @@
 | UX1 | Redesign tabela de roster em /team/<id>: foto, badge acquisition PT-BR, dynasty inline | Média | ✅ 24/04/2026 |
 | UX2 | Acquisition types PT-BR em todas as telas (team_detail, roster, salary_history) | Baixa | 🔲 (team_detail ✅ via UX1) |
 | UX3 | Fotos de jogadores em telas densas (team_detail, cap_projector) | Baixa | ✅ 24/04/2026 |
+| UX4 | Macro compartilhada de linha de roster (HYBRID) — converge layout de /team/<id> e / com densidade estilo FantasyPros | Média | 🔲 |
 
 ---
 
@@ -1160,7 +1161,31 @@ Signature ganhou parâmetro opcional `values_map=None` para evitar I/O extra qua
 
 ---
 
-## Itens Concluídos
+### UX4 — Macro Compartilhada de Linha de Roster (HYBRID)
+🔲 **Pendente** — Prioridade **Média**
+
+**Problema:** A tabela de roster em `/team/<id>` (tabela flat com 7 colunas, entregue em UX1) e a listagem de `/` (cards com flex, pré-UX1) divergem estruturalmente e visualmente. Comparação com referências externas (FantasyPros, Flock Fantasy) indica que ambas se beneficiariam do mesmo padrão: **tabela densa com células stacked** (nome + NFL na mesma célula em duas linhas, colunas numéricas alinhadas à direita, strip de cor vertical por posição, ~40-48px por linha). Hoje são duas implementações estruturais paralelas da mesma ideia — qualquer evolução visual (ex: UX2 PT-BR) exige sincronizar duas telas manualmente.
+
+**Referência / consulta:** `MAN-UX1-REORG-CONSULT` (24/04/2026) — análise comparativa de 3 caminhos (UX1-b CSS isolado, UX1-c migrar roster pra tabela, HYBRID). Recomendação Code: HYBRID. LOC estimado ~85-110, 3-4 arquivos. Trade-offs completos no relatório.
+
+**Objetivo:**
+- Extrair macro Jinja `player_roster_row(player, context='team_detail' | 'roster')` em `_macros.html` consolidando o layout compartilhado (strip pos · foto · nome+NFL stacked · salário · contrato · dynasty · aquisição · actions condicionais).
+- Classe CSS nova `.player-roster-table` (modifier ou independente) com densidade estilo FantasyPros (~40-48px row, tabular-nums nas colunas numéricas, strip de cor via `border-left` por grupo de posição).
+- Aplicar a macro em `team_detail.html` (substituindo `.team-roster-table` inline atual) e em `roster.html` (substituindo `.player-list` + `.player-row` atuais).
+- Parâmetro `context` controla diferenças mínimas entre telas (botão IR em `roster`, ausência dele em `team_detail`, renewal-flag visual, etc.).
+
+**Escopo:** `templates/_macros.html` (macro nova), `templates/team_detail.html` (refactor seção roster), `templates/roster.html` (refactor seção pos blocks), `static/style.css` (classe `.player-roster-table` + variantes), possível ajuste em `templates/admin.html:351` (único outro uso residual de `.player-row` no app — decidir se mantém ou migra).
+
+**Relação com outros itens:**
+- Sucessor natural de **UX1** (UX1 aplicou foto + dynasty + PT-BR em 1 tela mantendo estrutura flat; UX4 extrai o padrão e converge).
+- Deve vir **antes de UX2** — aplicar PT-BR uma vez na macro cobre ambas as telas, evita retrabalho.
+- Sem relação direta com **UX3** (já concluído; macro `player_photo` continua sendo reusada pelo `player_roster_row`).
+
+**Riscos:**
+- Acoplamento visual das 2 telas via macro. Se futuramente divergirem (ex: roster ganhar inline expand que team_detail não tem), parametrizar mais ou dividir em 2 macros. Histórico do projeto é de convergência, não divergência — risco abstrato.
+- Responsividade mobile: tabela densa com 7+ colunas em viewport < 414px exige decisão (scroll horizontal ou colapsar colunas via `@media`). Parte da F2.
+
+**Pré-requisito:** nenhum bloqueante.
 
 ---
 
