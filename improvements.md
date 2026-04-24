@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 concluídos; UX4 registrado)
+> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 concluídos)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -57,9 +57,9 @@
 | T2-FIX-2 | Réplica JS pickFcSid em trades.html (fix estrutural — `/api/picks` pré-resolve dynasty_value) | Alta | ✅ 24/04/2026 |
 | IR-CLEANUP | Remover seletor manual de IR no roster (sync Sleeper já é autoritativo) | Baixa | 🔲 |
 | UX1 | Redesign tabela de roster em /team/<id>: foto, badge acquisition PT-BR, dynasty inline | Média | ✅ 24/04/2026 |
-| UX2 | Acquisition types PT-BR em todas as telas (team_detail, roster, salary_history) | Baixa | 🔲 (team_detail ✅ via UX1) |
+| UX2 | Acquisition types PT-BR em telas restantes (admin, cap_projector, salary, salary_history) | Baixa | 🔲 (team_detail + roster ✅ via UX1+UX4) |
 | UX3 | Fotos de jogadores em telas densas (team_detail, cap_projector) | Baixa | ✅ 24/04/2026 |
-| UX4 | Macro compartilhada de linha de roster (HYBRID) — converge layout de /team/<id> e / com densidade estilo FantasyPros | Média | 🔲 |
+| UX4 | Macro compartilhada de linha de roster (HYBRID) — converge layout de /team/<id> e / com densidade estilo FantasyPros | Média | ✅ 24/04/2026 |
 
 ---
 
@@ -1162,30 +1162,43 @@ Signature ganhou parâmetro opcional `values_map=None` para evitar I/O extra qua
 ---
 
 ### UX4 — Macro Compartilhada de Linha de Roster (HYBRID)
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (24/04/2026)** — Prioridade **Média**
 
-**Problema:** A tabela de roster em `/team/<id>` (tabela flat com 7 colunas, entregue em UX1) e a listagem de `/` (cards com flex, pré-UX1) divergem estruturalmente e visualmente. Comparação com referências externas (FantasyPros, Flock Fantasy) indica que ambas se beneficiariam do mesmo padrão: **tabela densa com células stacked** (nome + NFL na mesma célula em duas linhas, colunas numéricas alinhadas à direita, strip de cor vertical por posição, ~40-48px por linha). Hoje são duas implementações estruturais paralelas da mesma ideia — qualquer evolução visual (ex: UX2 PT-BR) exige sincronizar duas telas manualmente.
+**Entregue:** macro Jinja `player_roster_row(player, context)` + classe CSS `.player-roster-table` + canonização de cores por posição via CSS vars `--pos-color-*`. Aplicada em `team_detail.html` e `roster.html`. `.player-row` legada preservada para uso residual em `admin.html:351` (review_players modal).
 
-**Referência / consulta:** `MAN-UX1-REORG-CONSULT` (24/04/2026) — análise comparativa de 3 caminhos (UX1-b CSS isolado, UX1-c migrar roster pra tabela, HYBRID). Recomendação Code: HYBRID. LOC estimado ~85-110, 3-4 arquivos. Trade-offs completos no relatório.
+**Referência:** `MAN-UX1-REORG-CONSULT` (análise de 3 caminhos; HYBRID recomendado), `MAN-UX4-F1` (design consolidado).
 
-**Objetivo:**
-- Extrair macro Jinja `player_roster_row(player, context='team_detail' | 'roster')` em `_macros.html` consolidando o layout compartilhado (strip pos · foto · nome+NFL stacked · salário · contrato · dynasty · aquisição · actions condicionais).
-- Classe CSS nova `.player-roster-table` (modifier ou independente) com densidade estilo FantasyPros (~40-48px row, tabular-nums nas colunas numéricas, strip de cor via `border-left` por grupo de posição).
-- Aplicar a macro em `team_detail.html` (substituindo `.team-roster-table` inline atual) e em `roster.html` (substituindo `.player-list` + `.player-row` atuais).
-- Parâmetro `context` controla diferenças mínimas entre telas (botão IR em `roster`, ausência dele em `team_detail`, renewal-flag visual, etc.).
+**Implementado:**
 
-**Escopo:** `templates/_macros.html` (macro nova), `templates/team_detail.html` (refactor seção roster), `templates/roster.html` (refactor seção pos blocks), `static/style.css` (classe `.player-roster-table` + variantes), possível ajuste em `templates/admin.html:351` (único outro uso residual de `.player-row` no app — decidir se mantém ou migra).
+**Macro nova (`_macros.html`):** `player_roster_row(player, context='team_detail'|'roster')` renderiza `<tr>` com strip de cor (classe `pos-*`), foto, nome+NFL stacked com tags inline (IR/TRADE/ANO 4/REVISÃO), salário right-aligned, contrato, dynasty, aquisição PT-BR, e — só se `context='roster'` — célula de actions com botão IR. Consome `player_photo` e `player_name_link` existentes (zero réplica).
 
-**Relação com outros itens:**
-- Sucessor natural de **UX1** (UX1 aplicou foto + dynasty + PT-BR em 1 tela mantendo estrutura flat; UX4 extrai o padrão e converge).
-- Deve vir **antes de UX2** — aplicar PT-BR uma vez na macro cobre ambas as telas, evita retrabalho.
-- Sem relação direta com **UX3** (já concluído; macro `player_photo` continua sendo reusada pelo `player_roster_row`).
+**CSS (`style.css`):** classe `.player-roster-table` nova (~65 LOC incluindo `@media`). CSS vars `--pos-color-*` canonicalizadas no `:root` — 4 apontam para theme vars existentes (`--purple`, `--green`, `--orange`, `--cyan`), 2 são hex próprios (`--pos-color-wr`, `--pos-color-k`) por não haver correspondente no theme. `.pos-*` existentes refatoradas para consumir as vars. Strip vertical do `.player-roster-table tbody tr` consome as mesmas vars (zero duplicação de hex em seletor de posição novo).
 
-**Riscos:**
-- Acoplamento visual das 2 telas via macro. Se futuramente divergirem (ex: roster ganhar inline expand que team_detail não tem), parametrizar mais ou dividir em 2 macros. Histórico do projeto é de convergência, não divergência — risco abstrato.
-- Responsividade mobile: tabela densa com 7+ colunas em viewport < 414px exige decisão (scroll horizontal ou colapsar colunas via `@media`). Parte da F2.
+**Responsividade progressiva:**
+- `< 640px`: esconde colunas "Contrato" e "Aquisição"
+- `< 414px`: esconde também "Dynasty" (sempre visíveis: strip + foto + nome+NFL + salário + actions)
 
-**Pré-requisito:** nenhum bloqueante.
+**Backend (`routes/roster.py:index`):** enriquece `all_players` com `p.dynasty_value` (via `resolve_asset_value`) e `p.acquisition_label` (via `_ACQ_LABELS`). Mesmo padrão de UX1 em `routes/league.py:team_detail`.
+
+**Templates:** `team_detail.html` substitui `<tbody>` inline por loop chamando `player_roster_row(p, context='team_detail')`. `roster.html` substitui `<div class="player-list">` + `<div class="player-row">` por `<table class="player-roster-table">` chamando `player_roster_row(p, context='roster')`.
+
+**`.player-row` legacy:** permanece viva no CSS com comentário documentando uso residual em `admin.html:351` (review_players card). Não migrada para macro — semântica diferente (modal admin com campos ad-hoc).
+
+**Decisões delegadas ao Code, documentadas no devplan:**
+
+1. **Badge REVISÃO unificada** em ambos contextos (macro sempre renderiza se `needs_review=True`). Justificativa: status do dado é legítimo em qualquer tela de roster, não depende de ação disponível na tela.
+
+2. **Perda de info em `/` pós-refactor:** roster antigo exibia `ESPN: $X · Projeção 2026: $Y` numa 2ª linha de meta; F1 especificou "name+meta = name + NFL only" — manter escopo estrito do F2 implicou descartar essas 2 métricas. Registrado como débito UX4-b potencial se for necessário restaurar.
+
+**Validação:**
+- `salary_engine_test.py` 48/48.
+- Smoke `GET /team/<id>`, `/`, `/admin`: todos HTTP 200.
+- Tabela com strip: 23 rows em `/team/<id>`, 25 em `/`, distribuídas nas 6 classes `.pos-*`.
+- Sum HTML dynasty_value == backend total (60608 em team testado, 57514 em active-only bate com `dynasty_total` no Cap Breakdown).
+- PT-BR ("Startup Auction") presente em ambas as telas.
+- `toggleIR` handler intocado e funcional em `/`.
+- Admin review_players modal (`.player-row` legacy) renderiza inalterado.
+- Grep Sleeper CDN: 2 matches (macro + JS helper), 0 inlines novos. Grep de hex de pos-color em pos-color direta: só `#60a5fa` e `#94a3b8` (1 ocorrência cada). Os outros 4 apontam para theme vars — canonização estrutural.
 
 ---
 

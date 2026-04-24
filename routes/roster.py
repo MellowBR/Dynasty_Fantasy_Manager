@@ -67,6 +67,13 @@ def index():
                                selected_team=team_query)
 
     all_players = Player.query.filter_by(team_id=selected.id, is_dropped=False).all()
+    # UX4: enrich cada player com dynasty_value + acquisition_label pré-resolvidos.
+    # Mesmo padrão de UX1 em routes/league.py (team_detail).
+    from dynasty_values import get_dynasty_values, resolve_asset_value
+    dv_map = get_dynasty_values().get("values", {})
+    for p in all_players:
+        p.dynasty_value = resolve_asset_value(dv_map, p.sleeper_player_id)
+        p.acquisition_label = _ACQ_LABELS.get(p.acquisition_type, p.acquisition_type or "—")
     active_players = [p for p in all_players if not p.is_on_ir]
     ir_players = [p for p in all_players if p.is_on_ir]
     players_by_pos = _build_players_by_pos(all_players)

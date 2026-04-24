@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import player_photo %}
+{% from "_macros.html" import player_photo, player_roster_row %}
 {% block title %}Roster{% endblock %}
 
 {% block content %}
@@ -95,7 +95,6 @@
 {% endif %}
 
 {% for pos, pos_players in summary.players_by_pos %}
-  {% set healthy = pos_players | rejectattr('is_on_ir') | list %}
   {% set ir = pos_players | selectattr('is_on_ir') | list %}
   <section class="roster-section">
     <h2 class="section-title">
@@ -103,41 +102,24 @@
       <span class="count-badge">{{ pos_players | length }}</span>
       {% if ir %}<span class="ir-count-badge">{{ ir | length }} IR</span>{% endif %}
     </h2>
-    <div class="player-list">
-      {% for p in pos_players %}
-      <div class="player-row {{ 'player-ir-row' if p.is_on_ir }} {{ 'renewal-flag' if p.is_renewal_candidate() }}" id="player-{{ p.id }}">
-        {{ player_photo(p, klass='player-photo-sm') }}
-        <span class="pos-badge pos-{{ p.position | replace('/', '') }}">{{ p.position }}</span>
-        <div class="player-info">
-          <span class="player-name">
-            <a href="{{ url_for('roster.player_detail', player_id=p.id) }}" class="player-name-link" title="Abrir página do jogador">{{ p.name }}</a>
-            {% if p.is_on_ir %}<span class="tag tag-ir">🏥 IR</span>{% endif %}
-            {% if p.via_trade %}<span class="tag tag-trade">TRADE</span>{% endif %}
-            {% if p.is_renewal_candidate() %}<span class="tag tag-renewal">ANO 4</span>{% endif %}
-            {% if p.needs_review %}<span class="tag tag-review">REVISÃO</span>{% endif %}
-          </span>
-          <span class="player-meta">
-            {{ p.nfl_team or '—' }} ·
-            {{ p.contract_display() }} ·
-            <span class="acq-{{ p.acquisition_type }}">{{ p.acquisition_type }}</span>
-          </span>
-          <span class="player-meta text-dim">
-            ESPN: ${{ p.espn_ref_value | round(1) }} · Projeção 2026: <strong>${{ p.projected_next_salary() }}</strong>
-          </span>
-        </div>
-        <div class="player-right">
-          <span class="salary-tag {{ 'salary-high' if p.salary >= 30 else '' }}">${{ p.salary | int }}</span>
-          <div class="player-actions">
-            {% if p.is_on_ir %}
-            <button class="btn-sm btn-ir-remove" onclick="toggleIR({{ p.id }}, false)">↑ Tirar IR</button>
-            {% else %}
-            <button class="btn-sm btn-danger-sm" onclick="toggleIR({{ p.id }}, true)" title="Mover para IR">IR</button>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
+    <table class="player-roster-table">
+      <thead>
+        <tr>
+          <th class="col-photo"></th>
+          <th class="col-name">Jogador</th>
+          <th class="col-salary">Salário</th>
+          <th class="col-contract">Contrato</th>
+          <th class="col-dynasty">🪙 Dynasty</th>
+          <th class="col-acq">Aquisição</th>
+          <th class="col-actions"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in pos_players %}
+          {{ player_roster_row(p, context='roster') }}
+        {% endfor %}
+      </tbody>
+    </table>
   </section>
 {% endfor %}
 

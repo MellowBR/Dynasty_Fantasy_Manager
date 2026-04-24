@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import player_name_link, player_photo %}
+{% from "_macros.html" import player_name_link, player_photo, player_roster_row %}
 {% block title %}{{ team.name }} — Dynasty SB{% endblock %}
 
 {% block content %}
@@ -83,40 +83,20 @@
       <span class="pos-badge pos-{{ pos|replace('/','') }}">{{ pos }}</span>
       <span class="text-dim small-text">{{ players|length }}</span>
     </h3>
-    <table class="data-table team-roster-table">
+    <table class="player-roster-table">
       <thead>
         <tr>
           <th class="col-photo"></th>
-          <th>Jogador</th>
-          <th>NFL</th>
-          <th>Salário</th>
-          <th>Contrato</th>
-          <th>🪙 Dynasty</th>
-          <th>Aquisição</th>
+          <th class="col-name">Jogador</th>
+          <th class="col-salary">Salário</th>
+          <th class="col-contract">Contrato</th>
+          <th class="col-dynasty">🪙 Dynasty</th>
+          <th class="col-acq">Aquisição</th>
         </tr>
       </thead>
       <tbody>
         {% for p in players %}
-        <tr {% if p.is_on_ir %}class="player-ir-row"{% endif %}>
-          <td class="col-photo">{{ player_photo(p, klass='player-photo-sm') }}</td>
-          <td>
-            {{ player_name_link(p) }}
-            {% if p.is_on_ir %}<span class="tag tag-ir">🏥 IR</span>{% endif %}
-            {% if p.via_trade %}<span class="tag tag-trade">TRADE</span>{% endif %}
-            {% if p.is_renewal_candidate() %}<span class="tag tag-renewal">ANO 4</span>{% endif %}
-          </td>
-          <td class="text-dim">{{ p.nfl_team or '—' }}</td>
-          <td>${{ p.salary|int }}</td>
-          <td class="text-dim">{{ p.contract_display() }}</td>
-          <td>
-            {% if p.dynasty_value %}
-              <span class="dynasty-value-inline">🪙 {{ "{:,}".format(p.dynasty_value).replace(",", ".") }}</span>
-            {% else %}
-              <span class="text-dim">—</span>
-            {% endif %}
-          </td>
-          <td class="text-dim small-text">{{ p.acquisition_label }}</td>
-        </tr>
+          {{ player_roster_row(p, context='team_detail') }}
         {% endfor %}
       </tbody>
     </table>
