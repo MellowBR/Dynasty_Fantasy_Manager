@@ -69,6 +69,13 @@
 
 {% if summary %}
 
+{% if g_offseason_mode and summary.own_cap_overrun %}
+<div class="alert alert-warn">
+  ⚠️ <strong>Time está ${{ summary.own_cap_overrun|int }} acima do cap.</strong>
+  Cap será aplicado na entrada do FA auction.
+</div>
+{% endif %}
+
 {% if summary.renewal_candidates %}
 <div class="alert alert-warn">
   ⚠️ <strong>{{ summary.renewal_candidates | length }} jogador(es) no Ano 4</strong> — renovar ou cortar:

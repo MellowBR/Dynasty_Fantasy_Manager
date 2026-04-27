@@ -19,7 +19,8 @@
 | T1 | Redesign Trade Manager: simulador multi-owner + link compartilhável | Alta | ✅ 22/04/2026 |
 | T2 | Integrar valores dynasty FantasyCalc no preview de trade | Média | ✅ 22/04/2026 |
 | Q1 | Script de simulação de temporada (validar salary rollover) | Média | 🔲 |
-| M1 | Validação de cap antes de confirmar trade | Média | 🔲 |
+| M1 | Alerta de cap estourado pós-S1 (preview escalonado + warnings de sync, banner gated por offseason) | Média | ✅ 27/04/2026 |
+| M1-FOLLOWUP | Avaliar auto-desativação de offseason mode após FA auction concluído (banner M1 persiste como ruído se admin esquecer de desligar manualmente) | Baixa | 🔲 |
 | M2 | Tela de aprovação em lote de jogadores `needs_review=True` | Média | ✅ 27/04/2026 |
 | M3 | Exportar dynasty.db em formato legível para os outros owners | Baixa | 🔲 |
 | M4 | Banner de sync desatualizada com timestamp e botão "Sincronizar agora" | Baixa | 🔲 |
@@ -249,14 +250,43 @@ CREATE TABLE trade_proposals (
 
 ---
 
-### M1 — Validação de Cap Antes de Confirmar Trade
-🔲 **Pendente** — Prioridade **Média**
+### M1 — Alerta de Cap Estourado Pós-S1
+✅ **Concluído (27/04/2026)** — Prioridade **Média**
 
-**Problema:** O preview de trade (`routes/trades.py:57-68`) calcula `over_cap` (linha 63) e exibe warning visual, mas `confirm_trade()` (linha 76-145) não bloqueia a confirmação. Um trade que estoura o cap é registrado normalmente.
+**Reframing pós-F1:** o item original assumia paradigma pré-S1 ("validação antes de confirmar trade") com `confirm_trade()` bloqueante. Diagnose `MAN-M1-F1` (27/04/2026) confirmou que esse paradigma não existe mais: T1 transformou Trade Manager em simulador puro (preview + link compartilhável); S1 fez do sync Sleeper o único caminho que materializa trades reais. Owner também esclareceu que **cap é soft** (hard só na entrada do FA auction) — M1 vira alerta, nunca bloqueio. Item reescrito de "gate" para "alerta em duas surfaces complementares".
 
-**Proposta:** Adicionar validação server-side no início de `confirm_trade()`: calcular `cap_a_after` e `cap_b_after` (mesma lógica do preview) e retornar 400 se `> SALARY_CAP`.
+**Implementado (A+B integrados, não redundantes):**
 
-**Nota:** Com S1, trades passam a ser confirmadas via Sleeper sync. A validação de cap pode migrar para um alerta pós-sync ("trade detectada, time X acima do cap") em vez de bloqueio.
+- **Surface A — preview escalonado no Trade Manager** (`templates/trades.html` JS render + `templates/trade_proposal.html` Jinja): `_compute_cap_impact` (`routes/trades.py:86`) já retornava `over_cap: bool` por lado; M1 elevou o sinal de um `<p class="text-danger">⚠️ Acima do cap!</p>` discreto para banner `.cap-overrun-alert` proeminente no topo de cada preview-side com cópia explícita "⚠️ {Time} ficaria $X acima do cap". Aplicado tanto no simulador interativo (`/trades`) quanto na proposta read-only compartilhável (`/trades/proposta/<uuid>`). Zero novo backend — pré-decisão exploratória, owner pode mudar de ideia antes de fechar trade no Sleeper.
+
+- **Surface B — alert de sync + banner pós-fato** (`sync_sleeper.py:_compute_cap_alerts` + `_sync_trades` integration + `routes/roster.py` summary + `templates/roster.html` banner): novo helper `_compute_cap_alerts(affected_team_ids)` computa `Team.active_salary()` para cada time tocado pela leva de transações; teams estritamente acima de `SALARY_CAP` viram entries `{"team": str, "active_salary": float, "over_by": float}` em `result["cap_alerts"]`. `_sync_trades` rastreia `affected_team_ids` durante o loop de movimento e chama o helper antes do `db.session.commit()`, **wrapped em try/except** — falha de cálculo loga em `result["warnings"]` mas **não aborta o sync** (Sleeper é source of truth, asset movement sempre completa). `run_sync` propaga para `summary["cap_alerts"]`. Surface visual: banner em `roster.html` (página `/`) com cópia fixa "⚠️ Time está $X acima do cap. Cap será aplicado na entrada do FA auction." Banner é gated por **`g_offseason_mode` AND `summary.own_cap_overrun`** — durante season ativa, suprimido mesmo se time estiver acima. Captura 100% das trades reais (incluindo as feitas direto no Sleeper sem passar pelo simulador).
+
+- **Threshold estritamente acima:** `active_salary() > SALARY_CAP` dispara alerta. Sub-cap = silêncio. Sem margem de aviso preventivo (rejeitado por gerar ruído crônico). Time exato em $200 não dispara.
+
+- **Sem persistência:** banners recalculam a cada page load via context processor + summary. Cap é estado, não evento — rejeitada coluna nova, tabela nova ou `PlayerHistory` de cap (mistura semântica). Sem `event_type` novo no PH.
+
+- **Sem horizonte temporal:** mensagem do banner é fixa, sem contagem regressiva até FA auction. Owner sabe a janela; Manager só comunica o estado.
+
+- **Canal de retorno do alert: novo campo `cap_alerts` separado de `warnings`.** `warnings` carrega data-integrity issues (roster não mapeado, n-way placeholder, player ausente); `cap_alerts` é estado operacional esperado em offseason. Consumidores existentes de `warnings` (`admin.html:236-237`) continuam ignorando o novo campo sem precisar filtrar.
+
+- **Banner B não vai para navbar nesta camada.** Slot da navbar foi para review_count em M2; cap pode receber slot próprio em camada futura se virar dor — banner no roster do user logado é suficiente por ora.
+
+- **Housekeeping aproveitado:** endpoint legado `POST /api/admin/review_players/<pid>/clear` (preservado em M2 por restrição de retro-compat) **removido nesta camada**. Único consumidor era o JS antigo em `admin.html` deletado em M2; F1 confirmou zero consumidores remanescentes via grep. Caminho atual de aprovação é `POST /approve` (auditável). Linha de housekeeping no commit message é o registro — sem entrada em improvements.md (decisão owner).
+
+**Validação (27/04/2026, smoke transitório `scripts/m1_smoke.py` + page-level):**
+- `salary_engine_test.py`: 48/48.
+- 5 cenários de smoke OK: synthetic player com marker `_M1_TEST_*` injetado no team admin pushed `active_salary` para $449 (over_by=$249); banner aparece com cópia + valor correto quando offseason_mode=true; banner ausente quando offseason_mode=false (gating funciona); helper `_compute_cap_alerts` chamado direto retorna entry com over_by correto; helper com set vazio retorna `[]`. Cenário (iv) "sub-cap → banner ausente" foi skipado graciosamente porque baseline real do team admin já está acima do cap ($239) — exato use case do M1; threshold strict-above coberto via helper.
+- Smoke pages: `/admin` 200, `/admin/review` 200, `/` 200, `/trades` 200, `/api/admin/review_players` 200; `/clear` legado retorna **404** (removido com sucesso).
+- Smoke deletado pós-validação (`scripts/m1_smoke.py` + diretório `scripts/`).
+
+**Não alterado:**
+- `_compute_cap_impact` (já retornava `over_cap` — M1 só consome).
+- `Team.active_salary()`, `Team.cap_remaining()`, helpers do salary engine.
+- Schema do `Player` (sem coluna nova).
+- Lógica de M2 (review approval), auction, lottery, dynasty values.
+- Endpoints `/api/admin/review_players` (GET) e `/api/admin/review_players/<pid>/approve` (POST).
+
+**Gap registrado (item M1-FOLLOWUP):** `is_offseason()` cobre "offseason mode ativo" mas não auto-desativa após FA auction concluído. Aproximação aceita: depende do admin desligar manualmente. Se flag persistir além da janela esperada, banner M1 vira ruído ("cap será aplicado na entrada do FA auction" mostrado mesmo após FA auction acontecer). Item registrado em Status Rápido como `M1-FOLLOWUP` (Baixa) para revisitar.
 
 ---
 

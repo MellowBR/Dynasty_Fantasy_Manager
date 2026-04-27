@@ -443,13 +443,19 @@ function renderPreview(data) {
         Δ <span class="${deltaCls}">${deltaSign}${fmtValue(s.dynasty_delta)}</span></p>`;
     }
 
+    // M1: prominent banner when this side would go over cap (was a tiny <p>).
+    // over_by derived from cap_remaining_after (negative when over) — no hardcoded SALARY_CAP in JS.
+    const overCapBanner = s.over_cap
+      ? `<div class="cap-overrun-alert">⚠️ ${s.name} ficaria $${(-s.cap_remaining_after).toFixed(0)} acima do cap</div>`
+      : '';
+
     return `<div class="preview-side">
       <h3>${s.name}</h3>
+      ${overCapBanner}
       <p>📤 Envia: <strong>${out_p}</strong> | picks: ${out_k}</p>
       <p>📥 Recebe: <strong>${in_p}</strong> | picks: ${in_k}</p>
       <p>Cap: $${s.cap_before} → <span class="${capCls}">$${s.cap_after.toFixed(0)}</span>
          (restante: <span class="${capCls}">$${s.cap_remaining_after.toFixed(0)}</span>)</p>
-      ${s.over_cap ? '<p class="text-danger">⚠️ Acima do cap!</p>' : ''}
       ${dynastyLine}
     </div>`;
   }

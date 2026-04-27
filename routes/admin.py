@@ -688,20 +688,10 @@ def review_players():
     return jsonify(out)
 
 
-@admin_bp.route("/api/admin/review_players/<int:pid>/clear", methods=["POST"])
-@admin_required
-def clear_review(pid):
-    """Legacy endpoint preserved for backward compatibility (M2-F1 restriction).
-
-    No audit trail — predates M2 audit guarantee. Use /approve for auditable flow.
-    """
-    player = db.get_or_404(Player, pid)
-    player.needs_review = False
-    db.session.commit()
-    return jsonify({"success": True})
-
-
 # ── M2: Auditable review approval ─────────────────────────────────────────────
+# Legacy endpoint POST /api/admin/review_players/<pid>/clear removido em M1
+# (housekeeping). Único consumidor era o JS antigo de admin.html, deletado em M2.
+# Caminho atual: POST /api/admin/review_players/<pid>/approve (auditável).
 
 _REVIEW_ALLOWED_EDITS = {"salary", "acquisition_type", "contract_year"}
 

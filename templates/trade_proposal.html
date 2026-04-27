@@ -57,11 +57,14 @@
           <strong>{{ s.name }}</strong>
           {% if s.owner_name %}<span class="text-dim small-text">({{ s.owner_name }})</span>{% endif %}
         </div>
+        {% if s.over_cap %}
+        {# M1: prominent banner when this side goes over cap. cap_remaining_after is negative. #}
+        <div class="cap-overrun-alert">⚠️ {{ s.name }} ficaria ${{ (-s.cap_remaining_after)|int }} acima do cap</div>
+        {% endif %}
         <div class="cap-mini">
           Cap: ${{ s.cap_before|int }} →
           <span class="{{ 'text-danger' if s.over_cap else 'text-ok' }}">${{ s.cap_after|int }}</span>
           · Restante: <span class="{{ 'text-danger' if s.over_cap else 'text-ok' }}">${{ s.cap_remaining_after|int }}</span>
-          {% if s.over_cap %}<span class="text-danger"> ⚠️ Acima do cap</span>{% endif %}
         </div>
       </div>
       <div class="trade-cols">

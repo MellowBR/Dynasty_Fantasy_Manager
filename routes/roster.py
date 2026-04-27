@@ -82,6 +82,15 @@ def index():
     ir_cap = sum(p.salary for p in ir_players)
     cap_pct = round((total_cap / SALARY_CAP) * 100, 1)
 
+    # M1: cap overrun for the user's OWN team (independent of `?team=` viewing).
+    # Banner em roster.html é gated por g_offseason_mode (context processor).
+    # Threshold estritamente acima do cap; sub-cap = silêncio.
+    own_cap_overrun = 0
+    if current_user.is_authenticated and current_user.team_rel:
+        own_active = current_user.team_rel.active_salary()
+        if own_active > SALARY_CAP:
+            own_cap_overrun = round(own_active - SALARY_CAP, 2)
+
     summary = {
         "team": selected,
         "players_by_pos": players_by_pos,
@@ -92,6 +101,7 @@ def index():
         "cap_pct": cap_pct,
         "renewal_candidates": [p for p in active_players if p.is_renewal_candidate()],
         "needs_review": [p for p in all_players if p.needs_review],
+        "own_cap_overrun": own_cap_overrun,
     }
     return render_template("roster.html", summary=summary, teams=teams,
                            selected_team=selected.name, cap=SALARY_CAP)

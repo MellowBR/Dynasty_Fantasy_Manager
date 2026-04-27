@@ -309,6 +309,9 @@ def run_sync() -> dict:
         summary["trades_skipped"] = trades_result["skipped"]
         if trades_result.get("warnings"):
             summary["trade_warnings"] = trades_result["warnings"]
+        # M1: propagate soft-cap alerts for teams affected by trade movement
+        if trades_result.get("cap_alerts"):
+            summary["cap_alerts"] = trades_result["cap_alerts"]
     except Exception as e:
         summary["errors"].append(f"trade sync: {e}")
         summary["trades_imported"] = 0
@@ -461,17 +464,49 @@ def _build_team_map_for_league(league_id: str) -> dict:
     return team_by_roster
 
 
+def _compute_cap_alerts(affected_team_ids: set) -> list[dict]:
+    """M1 — soft-cap alerts for teams affected by a trade leg.
+
+    Computes Team.active_salary() post-movement (within current session, sees
+    pending writes via autoflush). Reports any team strictly above SALARY_CAP.
+
+    Soft-cap semantics: hard enforcement only at FA auction entry. M1 alerts,
+    never blocks. Caller wraps in try/except so a failure here logs but does
+    not abort the sync (Sleeper is source of truth for asset movement).
+
+    Returns list of {"team": str, "active_salary": float, "over_by": float}.
+    """
+    from salary_engine import SALARY_CAP
+    alerts = []
+    for tid in affected_team_ids:
+        team = db.session.get(Team, tid)
+        if not team:
+            continue
+        active = team.active_salary()
+        if active > SALARY_CAP:
+            alerts.append({
+                "team": team.name,
+                "active_salary": round(active, 2),
+                "over_by": round(active - SALARY_CAP, 2),
+            })
+    return alerts
+
+
 def _sync_trades(league_id: str) -> dict:
     """
     Sync completed trades from a Sleeper league. Idempotent via sleeper_transaction_id.
     2-way trades: normal Trade row.
     N-way trades (N>2): placeholder Trade row with team_b="N-way: <others>", description
     prefixed "[N-WAY]". Players/picks still move correctly via adds/drops/draft_picks.
-    Returns {"imported": N, "skipped": M, "warnings": [str, ...]}.
+    Returns {"imported": N, "skipped": M, "warnings": [str, ...], "cap_alerts": [dict, ...]}.
+
+    M1 — cap_alerts populated post-movement, pre-commit, in try/except (failure
+    logs to warnings, sync continues — soft cap, alert never blocks).
     """
     from models import Trade, PlayerHistory, get_current_season
 
-    result = {"imported": 0, "skipped": 0, "warnings": []}
+    result = {"imported": 0, "skipped": 0, "warnings": [], "cap_alerts": []}
+    affected_team_ids: set = set()
     team_by_roster = _build_team_map_for_league(league_id)
     if not team_by_roster:
         result["warnings"].append(f"Nenhum roster mapeado para liga {league_id}")
@@ -527,6 +562,11 @@ def _sync_trades(league_id: str) -> dict:
                 player.fantasy_team = dst_team.name
                 player.is_my_team = dst_team.is_my_team
                 player.via_trade = True
+
+                # M1: track teams whose roster changed (cap recompute target)
+                affected_team_ids.add(dst_team.id)
+                if src_team:
+                    affected_team_ids.add(src_team.id)
 
                 src_name = src_team.name if src_team else "?"
                 notes_prefix = "N-way trade " if is_n_way else "Trade sleeper_sync "
@@ -607,6 +647,15 @@ def _sync_trades(league_id: str) -> dict:
                 )
             db.session.add(trade)
             result["imported"] += 1
+
+    # M1: compute cap-overrun alerts for teams whose roster changed.
+    # Wrapped in try/except — soft cap, alert never blocks sync. Asset
+    # movement is committed regardless of alert computation outcome.
+    try:
+        result["cap_alerts"] = _compute_cap_alerts(affected_team_ids)
+    except Exception as e:
+        result["warnings"].append(f"cap_alerts computation failed: {e}")
+        result["cap_alerts"] = []
 
     db.session.commit()
     return result

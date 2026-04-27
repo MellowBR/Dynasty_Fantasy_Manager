@@ -2295,3 +2295,15 @@ a.player-name:hover {
   .review-row-edit { flex-direction: column; align-items: stretch; gap: .5rem; }
   .review-edit-fields { margin-left: 0; }
 }
+
+/* ── M1: alerta de cap estourado (preview de trade — Surface A) ─────────── */
+.cap-overrun-alert {
+  background: rgba(239, 68, 68, 0.15);
+  border-left: 3px solid var(--red);
+  color: var(--red);
+  padding: .5rem .75rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: .9rem;
+  margin: .5rem 0;
+}
