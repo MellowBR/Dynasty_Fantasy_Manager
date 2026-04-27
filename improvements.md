@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 24/04/2026 (UX1 + UX3 + UX4 + DATA-1 + UX4-b + UX4-c + UX4-d + UX4-e + UX7 concluídos; UX5, UX6 registrados)
+> Atualizado em: 27/04/2026 (T3 registrado em formato REG; O2 refinado para 5 dimensões)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -20,7 +20,7 @@
 | T2 | Integrar valores dynasty FantasyCalc no preview de trade | Média | ✅ 22/04/2026 |
 | Q1 | Script de simulação de temporada (validar salary rollover) | Média | 🔲 |
 | M1 | Validação de cap antes de confirmar trade | Média | 🔲 |
-| M2 | Tela de aprovação em lote de jogadores `needs_review=True` | Média | 🔲 |
+| M2 | Tela de aprovação em lote de jogadores `needs_review=True` | Média | ✅ 27/04/2026 |
 | M3 | Exportar dynasty.db em formato legível para os outros owners | Baixa | 🔲 |
 | M4 | Banner de sync desatualizada com timestamp e botão "Sincronizar agora" | Baixa | 🔲 |
 | M8 | Auditoria do lottery (seed + página de verificação) + visualização de bolinhas + fluxo em 2 fases | Baixa | ✅ 23/04/2026 |
@@ -47,7 +47,7 @@
 | F2 | Ordenação do Round 1 via `draft_lottery_result` + `season_standings` | Alta | ✅ 28/03/2026 |
 | F3 | Histórico inline (accordion) na aba de histórico | Média | ✅ 28/03/2026 |
 | O1 | Linkificar nomes de jogadores em todas as telas | Média | ✅ 23/04/2026 |
-| O2 | Enriquecer página do jogador: stats históricas + ADP | Média | 🔲 |
+| O2 | Enriquecer página do jogador: contexto NFL (time + depth chart) + stats históricas + ECR/ADP + schedule | Média | 🔲 |
 | L1 | League Hub: visão geral da liga + detalhe por time | Alta | ✅ 23/04/2026 |
 | L2 | League Hub season mode: matchups, schedule, standings | Baixa | 🔲 |
 | N1 | Redesign navbar: estrutura com dropdowns + acesso rápido aos times | Média | ✅ 23/04/2026 |
@@ -68,6 +68,7 @@
 | UX6 | Revisão da largura máxima do container global da aplicação (~700px de ar lateral em monitor 1920px) | Média | 🔲 |
 | UX5 | Redesign da seção Picks em detalhe de time (3 tabelas anuais com baixa densidade, coluna Notas vazia) | Média | 🔲 |
 | DATA-1 | Badges TRADE e REVISÃO removidos da macro de listagem (info pertence à timeline/admin, não à listagem) | Média | ✅ 24/04/2026 |
+| T3 | Valores redraft do FantasyCalc no Trade Manager (modelo 3 — duas barras independentes dynasty + redraft) | Média | 🔲 |
 
 ---
 
@@ -260,17 +261,40 @@ CREATE TABLE trade_proposals (
 ---
 
 ### M2 — Tela de Aprovação em Lote de Jogadores `needs_review=True`
-🔲 **Pendente** — Prioridade **Média**
+✅ **Concluído (27/04/2026)** — Prioridade **Média**
 
-**Problema:** Jogadores criados pelo Sleeper sync sem match no CSV ficam com `needs_review=True`, `salary=1.0`, `acquisition_type="unknown"` (`sync_sleeper.py:262-282`). Não há alerta visual nem tela dedicada para revisar esses jogadores em lote.
+**Diagnose F1 (MAN-M2-F1):** três descobertas moldaram o escopo da F2 — (1) `/admin` já tinha `review_count` + card consumindo `/api/admin/review_players` e `/clear`, então F2 estendeu em vez de construir do zero; (2) o flag `Player.needs_review` cobre duas categorias semanticamente distintas — Cat A (sync sem match: `salary=$1`, `acquisition_type='unknown'`, `espn_ref_value=0`) e Cat B (auction registrada manualmente ou outros: dados válidos pendentes de validação cruzada); (3) o caminho de aprovação anterior era lossy — `/clear` não criava `PlayerHistory`, e PATCH bruto via `setattr` ignora o helper canônico que mantém `SalaryHistory` + `PlayerHistory` consistentes.
 
-**Proposta:**
-1. **Badge na navbar:** Contador de jogadores pendentes visível em todas as páginas (context processor)
-2. **Tela de aprovação (`/admin/review`):** Lista todos os jogadores com `needs_review=True`, agrupados por time
-3. **Edição em lote:** Para cada jogador, formulário inline para definir: salary, acquisition_type, contract_year. Botão "Aprovar" marca `needs_review=False`
-4. **Ação em massa:** "Aprovar todos com defaults" para jogadores menores (salary=$1, tipo=unknown → free_agent)
+**Implementado:**
 
-**Código existente:** `Player.needs_review` já existe no modelo. Sleeper sync já seta `needs_review=True` para novos jogadores (linha 276).
+- **Categorização runtime, sem coluna de schema** (`routes/admin.py: _categorize_review_player`): predicate inline `acquisition_type='unknown' AND salary=1.0 AND espn_ref_value=0.0` distingue Cat A; complemento é Cat B. Endpoint `GET /api/admin/review_players` ganha campo `category: "A"|"B"` no payload de cada player — frontend não duplica predicate.
+
+- **Tela dedicada `/admin/review`** (`templates/admin_review.html`, `@admin_required`): duas seções com header e contagem por seção. Cat A — botão "Aprovar todos com defaults (N)" (modal) + aprovação individual. Cat B — aprovação individual com inputs inline editáveis para `salary`, `acquisition_type`, `contract_year`. Modal de bulk computa contagem em runtime na abertura e exige confirmação explícita.
+
+- **Aprovação auditável atômica** (`POST /api/admin/review_players/<pid>/approve`): body opcional `{salary, acquisition_type, contract_year}`. Sem edits + Cat A → aplica defaults (`unknown→free_agent`). Sem edits + Cat B → confirma sem alteração. Com `salary` editado → usa `correct_player_salary` (helper canônico em `models.py:200`) que atualiza Player + SalaryHistory in-place + cria `PlayerHistory(event_type='salary_correction')`. Sempre cria `PlayerHistory(event_type='review_approved')` adicional com notes contextuais (`"Cat A; applied defaults..."` / `"Cat B; edited: salary $X→$Y, ..."` / `"Cat B; confirmed without changes"`). Tudo numa transação.
+
+- **Aprovação em massa Cat A com guard de race condition** (`POST /api/admin/review_players/bulk_approve_cat_a`): body `{player_ids: [...]}`. Server re-valida cada ID contra estado atual; se algum não é mais Cat A (porque outro admin aprovou ou sync mudou estado), rejeita transação inteira com 409 e mensagem "Estado mudou desde abertura do modal — recarregue". Aplicação parcial proibida — modal mostrou "X serão aprovados" e admin clicou OK; aplicar a Y < X seria divergir do que admin aprovou.
+
+- **Badge global no navbar (Slot A)** (`app.py: inject_review_count` + `templates/_macros.html: nav_dropdown` ganha param `badge`): novo `@app.context_processor` expõe `g_review_count` (admin-only — não-admins recebem 0 sem trigger de query). Dropdown "Admin ▾" no desktop renderiza `Admin ▾ (3)` quando count > 0, oculto quando 0. Mobile section title "Admin (3)" + item "Revisão de Jogadores (3)" replicam o contador. Item novo "Revisão de Jogadores" adicionado ao dropdown Admin.
+
+- **Endpoint legado `/clear` preservado intacto** para retro-compatibilidade (decisão da F1: não quebrar consumidores existentes além do mapeado). UI nova usa `/approve`; legado continua acessível mas sem audit trail (sempre foi assim).
+
+- **Card antigo `#review-card` em `/admin` removido** + JS de fetch/clearReview deletado. Stat-item "Revisão pendente" virou link clicável `<a href="/admin/review">` com mesmo número e estilo (a contagem agora vem de `g_review_count` via context processor — fonte única).
+
+**Auditoria prospectiva, não retroativa:** aprovações futuras geram `PlayerHistory(event_type='review_approved')`. Aprovações passadas via `/clear` legado ficam sem rastro — princípio aprendido em F8 (não sintetizar histórico sem fonte canônica).
+
+**Validação (27/04/2026, smoke transitório `scripts/m2_smoke.py` + páginas):**
+- `salary_engine_test.py`: 48/48.
+- 7 cenários de pipeline OK: GET com category, approve Cat A defaults, approve Cat B com edição (correct_player_salary atualiza SH in-place, dois `PlayerHistory` criados — `salary_correction` + `review_approved`), bulk com IDs válidos, race-guard com ID já aprovado (409), approve em player não-em-revisão (400), legacy `/clear` segue 200.
+- Smoke de páginas: `/admin` 200 (sem crash de `review_count`, link `/admin/review` presente); `/admin/review` 200 com título correto; `/api/admin/review_players` retorna lista vazia em DB local (esperado, 0 players em revisão atualmente).
+- DB local zerado obrigou seed sintético com marker `_M2_TEST_*`, `team_id=NULL`. Cleanup atômico no `finally` removeu 3 rows + history. Scripts deletados pós-validação (não merecem slot permanente — se padrão se repetir em camadas futuras, criar `scripts/smoke/` com convenção).
+
+**Não alterado:**
+- Schema de `Player` (Cat A/B é runtime, não coluna).
+- Setters do flag (sync Sleeper, auction manual, PATCH manual).
+- Helper `correct_player_salary` ou outros helpers do salary engine.
+- Banner em `roster.html:81-84` e badge em `cap_projector.html:114` (consumidores leitores do flag em outras telas — coerentes via mesmo flag canônico).
+- Endpoint legado `/clear` (compat).
 
 ---
 
@@ -878,18 +902,30 @@ Validado (7 cenários): 108 células clicáveis (12×3×3), 9 minhas (pick_a) + 
 
 ---
 
-### O2 — Enriquecer Página do Jogador: Stats Históricas + ADP
+### O2 — Enriquecer Página do Jogador: Contexto NFL + Valor de Campo
 🔲 **Pendente** — Prioridade **Média**
 
-**Problema:** A página atual (`player_detail.html`, M13) mostra contrato, salary history e botão "Propor Trade". Falta contexto de valor de campo: pontuações históricas por temporada e posição no ranking/ADP.
+**Problema:** A página atual (`player_detail.html`, M13) mostra contrato, salary history e botão "Propor Trade". Faltam duas camadas de contexto: (a) **valor de campo** — pontuações históricas por temporada, posição no ranking/ADP, próximos jogos; e (b) **contexto NFL básico** — time NFL atual visível no header, e posição relativa do jogador entre os jogadores da mesma posição no time NFL (depth chart).
 
-**Objetivo:**
+**Origem da observação:**
+Caso real DJ Moore (WR) em 27/04/2026 — owner abriu a player page e percebeu ausência completa de contexto NFL: nem o time NFL aparecia no header (apesar de `Player.nfl_team` estar no banco), nem havia indicação de o jogador ser WR1/2/3 do Carolina. Decisão tomada na sessão de planejamento (27/04/2026, decisão A): refinar O2 in-place absorvendo as duas dimensões novas, em vez de abrir item separado (O3). Critérios para refinar e não fragmentar: mesma página alvo (`player_detail.html`), mesma fonte de dados (Sleeper), escopo natural de "enriquecer page do jogador" já existia no item — abrir O3 seria fragmentação artificial.
+
+**Objetivo (5 dimensões, agrupadas):**
+
+*Contexto NFL — dimensões novas, dependem só de campos já presentes no banco/cache:*
+- **Time NFL no header:** exibir `Player.nfl_team` no cabeçalho da player page. Hoje o header mostra posição, nome do jogador e dono na liga, sem o time NFL. Trivial — apenas exibir.
+- **Depth chart NFL embedded:** listar os jogadores da mesma `Player.position` e do mesmo `Player.nfl_team` ranqueados por `depth_chart_order` do Sleeper players cache (campo já consumido pela aplicação). Permite ao owner avaliar em segundos se o jogador é WR1/2/3 do time NFL sem sair da página.
+
+*Valor de campo — dimensões originais do escopo:*
 - **Stats históricas:** buscar da Sleeper API (`/stats/nfl/player/<sleeper_player_id>?season_type=regular&season=<year>`) — pontos totais e média por semana por temporada disponível.
 - **ECR/ADP:** usar `adp` e `search_rank` já presentes no Sleeper players cache (`.sleeper_players_cache.json`) — zero request extra. Para ranking ESPN, usar ESPN ref value (`espn_ref_value`) já no banco como proxy de tier.
 - **Schedule próximo (consolidado de UX4):** próximas semanas via Sleeper schedule (avaliar fonte exata — `/v1/state/nfl` + matchups por week, ou cache externo).
-- Apresentar de forma compacta, sem sobrecarregar a página. Referência: FantasyPros (abas Overview, Statistics, Schedule).
 
-**Nota:** item UX4 da rodada de 23/04/2026 foi consolidado aqui em vez de duplicado — escopo virtualmente idêntico (mesma API Sleeper, mesma página alvo).
+Apresentar de forma compacta, sem sobrecarregar a página. Referência: FantasyPros (abas Overview, Statistics, Schedule).
+
+**Notas para F1:**
+- Item UX4 da rodada de 23/04/2026 foi consolidado aqui em vez de duplicado — escopo virtualmente idêntico (mesma API Sleeper, mesma página alvo).
+- F1 deve avaliar se as 5 dimensões cabem numa única camada de implementação ou se vale propor batches (ex: contexto NFL como batch 1 — só template + leitura de cache local; valor de campo como batch 2 — exige fetch Sleeper stats + schedule), considerando densidade da página e prioridade percebida pelo owner.
 
 ---
 
@@ -1550,6 +1586,69 @@ Remover o background das regras genéricas afetaria (1), (2) e (3) simultaneamen
 **Ganho:** telas de listagem ficam mais limpas visualmente (sem badges históricos acumulados). Mental model claro: estado atual aqui, história lá. Campos persistem vitalícios no modelo, mas agora sem consumidor UI visual em listagem — deixa de ser dor.
 
 **Débito reduzido (não criado):** o problema original "via_trade vitalício por omissão" deixa de ser urgente. Se algum futuro caso de uso pedir "players tradados recentemente", implementar via query filtrada em `PlayerHistory` por `event_type='trade' AND season=corrente`, sem depender do campo boolean.
+
+---
+
+### MAN-T3 — Valores redraft do FantasyCalc no Trade Manager
+🔲 **Pendente (registrado 27/04/2026)** — Prioridade **Média**
+
+*Deadline informal: T3 deve subir para fila ativa até início de junho/2026 — caso contrário, season 2026 perde a janela de pré-season para essa feature.*
+
+> Item em formato Registro (REG) — captura discussão substantiva adiada para implementação futura. Briefing originado em chat do Optimizer (27/04/2026) durante análise da trade real Swift × Harvey. F1 (diagnose) será aberto em sessão futura quando o item subir na fila. Primeiro item do Manager no template Registro de 8 seções (DEV_METHODOLOGY.md, atualizado em 27/04/2026).
+>
+> **Desambiguação histórica:** este T3 é distinto do "T3 (sugestões de assets)" registrado e descartado em 23/04/2026 (ver Log de Decisões do manager_devplan.md naquela data). Aquele T3 nunca chegou a ser persistido em improvements.md como item de backlog; o ID foi reaproveitado.
+
+#### CONTEXTO
+Investigação levantada no chat do Optimizer (briefing recebido em 27/04/2026) durante análise de uma trade real (D'Andre Swift × RJ Harvey). FantasyCalc oferece dois calculadores no mesmo serviço — Dynasty (horizonte 3-5 anos, idade pesa) e Redraft (só temporada vigente, idade quase irrelevante). Hoje o Manager consome apenas Dynasty no Trade Manager (T2 ✅, T2-FIX-2 ✅). O caso real mostrou que a escolha entre as duas perspectivas inverte o veredicto da trade (Harvey ganha +189 dynasty / Swift ganha +265 redraft — flip de 454 pontos). Pergunta: o Manager deve surfar redraft, e em que forma?
+
+#### PROBLEMA / OPORTUNIDADE
+Owners CONTENDER tomam decisões de trade focadas em produção da temporada vigente, mas o número canônico exibido no Trade Manager (dynasty) embute youth premium que não se realiza no curto prazo. O gap entre dynasty e redraft é, em si, um sinal analítico: quantifica o "prêmio de futuro" que cada asset carrega. Expor as duas dimensões em paralelo dá ao owner uma camada de leitura que hoje é invisível, sem prescrever qual ler.
+
+#### DISCUSSAO
+- Três modelos foram avaliados no briefing: (1) substituir dynasty por redraft conforme perfil do time, (2) blend ponderado por perfil, (3) expor as duas dimensões + gap. Modelo 3 venceu por compatibilidade com a arquitetura do Manager (app de exibição, não de cálculo) e por preservar a soberania do owner sobre qual dimensão ler.
+- Tensão inicial: "lado a lado simétrico" parecia apagar o número canônico dynasty. Resolução: duas barras visualmente paralelas, cada uma representando sua dimensão, com origem no zero — uma para dynasty, outra para redraft. Quando o owner adiciona asset de um lado da trade, a barra correspondente desloca-se para o lado oposto na proporção do valor recebido. Como cada barra é independente, não há competição por primazia visual. O gap aparece implicitamente: barras pendendo para lados opostos significam flip de veredicto (caso Swift/Harvey); barras no mesmo sentido mas magnitudes muito diferentes significam youth premium relevante.
+- Consequência da escolha visual: o número numérico do gap deixa de exigir espaço próprio na UI — vira informação acessória (hover, badge, linha de detalhe). A leitura visual transmite o sinal sem precisar do dígito.
+- Trade total no rodapé ganha duplicação natural — exibe os dois totais (dynasty e redraft) lado a lado, sem ambiguidade de "qual número é o canônico". Ambos são canônicos, cada um na sua dimensão.
+- O gap deve ser calculado no backend, alinhado com o aprendizado de T2-FIX-2 (réplicas Python↔JS são anti-pattern). Frontend recebe redraft pronto, não recalcula.
+- Picks de draft provavelmente não têm valor redraft (puro futuro). Tratamento esperado: degradação elegante — a barra de redraft simplesmente não recebe contribuição daquele asset, sem necessidade de marcador "n/a" explícito.
+- Histórico (PlayerHistory) fica fora do escopo: persistir redraft histórico é decisão separada (migration, sync periódica) que não vale acoplar.
+
+#### DECISOES JA TOMADAS
+- Modelo 3 escolhido (lado a lado + gap), com duas barras visualmente paralelas como direção de UX — uma dynasty, uma redraft, ambas com a mesma gramática (origem no zero, deslocamento proporcional ao valor recebido pelo lado oposto).
+- Item registrado como T3, não como subscope de T2 — T2 está fechado e T2-FIX/T2-FIX-2 foram correções de bug, não extensões funcionais.
+- Prioridade Média — caso real é forte mas não bloqueante; entra na fila Média atual sem furar.
+- Gap calculado no backend (em rota a ser decidida na F1), exposto pronto ao frontend. Réplica de cálculo entre Python e JS é proibida.
+- Picks com redraft ausente/zero: degradação elegante (a barra de redraft não recebe contribuição daquele asset; sem marcador explícito).
+- Trade total no rodapé passa a exibir os dois totais (dynasty + redraft). Não há "número principal" — ambos são canônicos em suas dimensões.
+- Search/autocomplete e ranking interno do Manager não mudam — continuam usando dynasty.
+- PlayerHistory e qualquer persistência histórica de redraft ficam fora do escopo desta camada.
+- Forma visual final (horizontal vs vertical, escala, cores, animação, posição relativa das duas barras) fica para F1 propor olhando o template real e o layout em mobile. A decisão acima fixa o conceito (duas barras independentes, par simétrico, dimensões iguais), não o pixel.
+
+#### ALTERNATIVAS DESCARTADAS
+- Modelo 1 (substituir por perfil): rejeitado porque tira informação do owner. Time CONTENDER pode estar avaliando trade win-now específica e querer ver dynasty para contexto; decisão automática pelo perfil é prescritiva demais.
+- Modelo 2 (blend ponderado): rejeitado porque os pesos seriam arbitrários, esconderiam os dois sinais isolados, e criariam um terceiro número que não existe em nenhuma fonte canônica. Manager não calcula, exibe.
+- Modelo 3 com "primazia dynasty" (dynasty principal + redraft secundário em tooltip/expand): considerado e descartado em favor de duas barras independentes paralelas. A primazia hierárquica reintroduz prescrição que o Modelo 3 quer evitar; duas barras simétricas-mas-independentes resolvem isso sem perder soberania do owner.
+- Subscope de T2: rejeitado porque T2 está ✅ fechado e o backlog tem precedente claro de items derivados receberem ID próprio (M8 → M8-PERM, M9 → M9-FIX) só quando são correções, não quando são extensões funcionais.
+- Exibir o número numérico do gap como elemento principal: rejeitado porque a leitura visual das duas barras já transmite o sinal. Gap numérico vira informação acessória (hover/detalhe), não merece espaço próprio.
+
+#### QUESTOES EM ABERTO
+F1 (diagnose) deve responder antes de F2:
+- Endpoint redraft do FantasyCalc: parâmetro adicional na rota existente que o Manager já consome, ou rota distinta? Schema é idêntico ao dynasty (mesmas chaves, mesmo formato de DP_*/FP_*)?
+- Cobertura de jogadores no redraft é comparável à do dynasty (% de presença no payload)?
+- Picks de draft no redraft: o serviço retorna value=0, value=null, ou as keys DP_*/FP_* simplesmente não existem? Define o tratamento da barra de redraft em assets de pick.
+- Refetch dos dois calculadores pode ser feito em paralelo na função que carrega o cache, ou força latência sequencial? Impacto no tempo de load do Trade Manager.
+- Cache: arquivo separado (paralelo ao existente) ou estender o existente com namespace? Inclinação atual é separado, mas F1 deve confirmar olhando como o cache é lido hoje.
+- Onde o redraft_value deve ser exposto: na rota que serve dynasty values (extensão), na rota de picks (que já pré-resolve dynasty desde T2-FIX-2), em rota nova, ou nas duas? Esta lógica/formato existe em mais de um lugar (JS, templates, outros módulos) — onde mais um campo precisa ser populado para evitar fix pela metade?
+- UI: a barra dynasty atual já é centro-zero (deslocamento bidirecional) ou ponta-a-ponta? Define se a camada T3 é "adicionar segunda barra mantendo formato" ou "redesenhar formato + adicionar segunda barra". F1 deve ler o template real antes de propor.
+- UI: barras horizontais empilhadas, verticais lado a lado, ou outra disposição? Mobile aguenta duas barras simultâneas sem quebrar densidade? F1 propõe opções com base no layout real.
+- Escala das duas barras: compartilham mesma escala (comparáveis em magnitude) ou cada uma com sua própria escala (comparáveis em direção apenas)? Tem implicação direta na leitura — se compartilham, a barra menor "some" quando a maior é grande; se separadas, perde-se a sensação de magnitude relativa.
+
+#### DEPENDENCIAS
+- Depende de: T2 ✅ (infra de cache, helpers `get_dynasty_values`, `resolve_asset_value`, `pick_sleeper_id` já existem e podem ser reutilizados/estendidos — em `dynasty_values.py:93,147,195`).
+- Bloqueia: nenhum item ativo do backlog.
+
+#### AO FINALIZAR
+Registrar T3 em improvements.md com 🔲 + Prioridade Média, preservando as 8 seções acima. Adicionar entrada curta no Log de Decisões do manager_devplan.md referenciando o item e o briefing de origem (chat do Optimizer, 27/04/2026). Não abrir F1 nesta sessão — F1 fica para sessão futura quando o item subir na fila.
 
 ---
 

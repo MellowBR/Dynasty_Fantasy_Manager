@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}Revisão de Jogadores{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">🔍 Revisão de Jogadores</h1>
+  <p class="text-dim">
+    {% if total %}
+      {{ total }} jogador(es) com <code>needs_review=True</code>.
+      Cat A é detecção automática do sync Sleeper sem match (defaults a aplicar);
+      Cat B é registro manual ou outros — confirme dados ou edite antes de aprovar.
+    {% else %}
+      Nenhum jogador pendente de revisão. ✅
+    {% endif %}
+  </p>
+</div>
+
+{% if total %}
+<div class="review-page">
+
+  {# ── Cat A ────────────────────────────────────────────────────────────── #}
+  <section class="card review-section">
+    <div class="review-section-header">
+      <h2 class="card-title">Cat A — Sync sem match ({{ cat_a|length }})</h2>
+      <p class="text-dim small-text" style="margin:.25rem 0 .75rem">
+        Players com <code>acquisition_type=unknown</code>, <code>salary=$1</code>,
+        <code>espn_ref_value=0</code>. Aprovação aplica defaults (acquisition_type → <code>free_agent</code>).
+      </p>
+      {% if cat_a %}
+      <button class="btn btn-primary" onclick="openBulkModal()"
+              data-tooltip="Aprova todos os {{ cat_a|length }} players Cat A em uma transação atômica.&#10;Modal mostra contagem real no momento da confirmação.">
+        ✓ Aprovar todos com defaults ({{ cat_a|length }})
+      </button>
+      {% endif %}
+    </div>
+
+    {% if cat_a %}
+    <div class="review-list">
+      {% for p in cat_a %}
+      <div class="player-row review-row" data-pid="{{ p.id }}" data-cat="A">
+        <span class="pos-badge pos-{{ (p.position or '')|replace('/','') }}">{{ p.position or '?' }}</span>
+        <div class="player-info">
+          <a href="{{ url_for('roster.player_detail', player_id=p.id) }}" class="player-name">{{ p.name }}</a>
+          <span class="player-meta text-dim">
+            {{ p.fantasy_team_name }} · {{ p.nfl_team or '—' }} · ${{ p.salary|int }} · {{ p.acquisition_type }}
+          </span>
+        </div>
+        <div class="player-right">
+          <button class="btn-sm btn-secondary" onclick="approvePlayer({{ p.id }}, this)">
+            ✓ Aprovar
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="review-empty text-dim">Nenhum player Cat A pendente.</p>
+    {% endif %}
+  </section>
+
+  {# ── Cat B ────────────────────────────────────────────────────────────── #}
+  <section class="card review-section">
+    <div class="review-section-header">
+      <h2 class="card-title">Cat B — Outros ({{ cat_b|length }})</h2>
+      <p class="text-dim small-text" style="margin:.25rem 0 .75rem">
+        Auction registrada manualmente ou flag setado por outro caminho. Dados
+        já presentes — confirme sem alterar ou edite os campos antes de aprovar.
+      </p>
+    </div>
+
+    {% if cat_b %}
+    <div class="review-list">
+      {% for p in cat_b %}
+      <div class="player-row review-row review-row-edit" data-pid="{{ p.id }}" data-cat="B">
+        <span class="pos-badge pos-{{ (p.position or '')|replace('/','') }}">{{ p.position or '?' }}</span>
+        <div class="player-info">
+          <a href="{{ url_for('roster.player_detail', player_id=p.id) }}" class="player-name">{{ p.name }}</a>
+          <span class="player-meta text-dim">
+            {{ p.fantasy_team_name }} · {{ p.nfl_team or '—' }}
+          </span>
+        </div>
+        <div class="review-edit-fields">
+          <label class="review-field">
+            <span class="review-field-label">Salary</span>
+            <input type="number" min="1" step="1" class="review-input review-input-salary"
+                   value="{{ p.salary|int }}" data-original="{{ p.salary|int }}">
+          </label>
+          <label class="review-field">
+            <span class="review-field-label">Acq. type</span>
+            <select class="review-input review-input-type" data-original="{{ p.acquisition_type }}">
+              <option value="auction_draft" {% if p.acquisition_type == 'auction_draft' %}selected{% endif %}>auction_draft</option>
+              <option value="rookie_draft"  {% if p.acquisition_type == 'rookie_draft'  %}selected{% endif %}>rookie_draft</option>
+              <option value="free_agent"    {% if p.acquisition_type == 'free_agent'    %}selected{% endif %}>free_agent</option>
+              <option value="trade"         {% if p.acquisition_type == 'trade'         %}selected{% endif %}>trade</option>
+              <option value="unknown"       {% if p.acquisition_type == 'unknown'       %}selected{% endif %}>unknown</option>
+            </select>
+          </label>
+          <label class="review-field">
+            <span class="review-field-label">Contract yr</span>
+            <input type="number" min="1" max="4" step="1" class="review-input review-input-year"
+                   value="{{ p.contract_year }}" data-original="{{ p.contract_year }}">
+          </label>
+        </div>
+        <div class="player-right">
+          <button class="btn-sm btn-secondary" onclick="approvePlayer({{ p.id }}, this)">
+            ✓ Aprovar
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="review-empty text-dim">Nenhum player Cat B pendente.</p>
+    {% endif %}
+  </section>
+
+</div>
+
+{# ── Bulk approval modal ──────────────────────────────────────────────────── #}
+<div id="bulk-modal" class="review-modal" style="display:none">
+  <div class="review-modal-backdrop" onclick="closeBulkModal()"></div>
+  <div class="review-modal-content card">
+    <h2 class="card-title">Confirmar aprovação em massa Cat A</h2>
+    <p>
+      <strong id="bulk-modal-count">0</strong> jogador(es) em Cat A serão aprovados
+      como <code>free_agent</code>. Se o estado mudou desde a abertura desta tela,
+      a transação é rejeitada inteira e nada é alterado.
+    </p>
+    <div class="review-modal-actions">
+      <button class="btn btn-secondary" onclick="closeBulkModal()">Cancelar</button>
+      <button class="btn btn-primary" id="bulk-modal-confirm" onclick="confirmBulk()">
+        ✓ Aprovar todos
+      </button>
+    </div>
+    <div id="bulk-modal-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function approvePlayer(pid, btn) {
+  const row = btn.closest('.review-row');
+  const cat = row.dataset.cat;
+  const body = {};
+  if (cat === 'B') {
+    const salaryInput = row.querySelector('.review-input-salary');
+    const typeInput   = row.querySelector('.review-input-type');
+    const yearInput   = row.querySelector('.review-input-year');
+    if (salaryInput && +salaryInput.value !== +salaryInput.dataset.original) {
+      body.salary = +salaryInput.value;
+    }
+    if (typeInput && typeInput.value !== typeInput.dataset.original) {
+      body.acquisition_type = typeInput.value;
+    }
+    if (yearInput && +yearInput.value !== +yearInput.dataset.original) {
+      body.contract_year = +yearInput.value;
+    }
+  }
+  btn.disabled = true;
+  btn.textContent = '⏳';
+  fetch(`/api/admin/review_players/${pid}/approve`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (!ok) {
+        btn.disabled = false;
+        btn.textContent = '✓ Aprovar';
+        alert('❌ ' + (data.error || 'Erro'));
+        return;
+      }
+      row.style.transition = 'opacity .3s';
+      row.style.opacity = '0';
+      setTimeout(() => location.reload(), 350);
+    })
+    .catch(e => {
+      btn.disabled = false;
+      btn.textContent = '✓ Aprovar';
+      alert('❌ ' + e);
+    });
+}
+
+function openBulkModal() {
+  const ids = Array.from(document.querySelectorAll('.review-row[data-cat="A"]'))
+    .map(r => +r.dataset.pid);
+  if (!ids.length) return;
+  document.getElementById('bulk-modal-count').textContent = ids.length;
+  document.getElementById('bulk-modal').style.display = 'flex';
+  document.getElementById('bulk-modal').dataset.ids = JSON.stringify(ids);
+  document.getElementById('bulk-modal-result').style.display = 'none';
+}
+
+function closeBulkModal() {
+  document.getElementById('bulk-modal').style.display = 'none';
+}
+
+function confirmBulk() {
+  const modal = document.getElementById('bulk-modal');
+  const btn = document.getElementById('bulk-modal-confirm');
+  const res = document.getElementById('bulk-modal-result');
+  const ids = JSON.parse(modal.dataset.ids || '[]');
+  btn.disabled = true;
+  btn.textContent = '⏳ Aprovando...';
+  fetch('/api/admin/review_players/bulk_approve_cat_a', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({player_ids: ids}),
+  })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      res.style.display = 'block';
+      if (!ok) {
+        res.className = 'result-box result-error';
+        res.textContent = '❌ ' + (data.error || 'Erro') +
+          (data.details ? ' — ' + data.details : '');
+        btn.disabled = false;
+        btn.textContent = '✓ Aprovar todos';
+        return;
+      }
+      res.className = 'result-box result-ok';
+      res.textContent = `✅ ${data.approved} jogador(es) aprovado(s).`;
+      setTimeout(() => location.reload(), 1500);
+    })
+    .catch(e => {
+      res.style.display = 'block';
+      res.className = 'result-box result-error';
+      res.textContent = '❌ ' + e;
+      btn.disabled = false;
+      btn.textContent = '✓ Aprovar todos';
+    });
+}
+</script>
+{% endblock %}

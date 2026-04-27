@@ -1,6 +1,9 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, session
 from flask_login import login_required
-from models import db, Player, Team, User, SalaryHistory, SyncLog, ESPNValue, ESPNImportLog, CURRENT_SEASON, get_current_season
+from models import (
+    db, Player, Team, User, SalaryHistory, PlayerHistory, SyncLog, ESPNValue, ESPNImportLog,
+    CURRENT_SEASON, get_current_season, correct_player_salary, get_config,
+)
 from salary_engine import apply_season_rollover, CONTRACT_LENGTH
 from routes.auth import admin_required
 
@@ -12,15 +15,12 @@ admin_bp = Blueprint("admin", __name__)
 def admin_page():
     last_sync = SyncLog.query.order_by(SyncLog.synced_at.desc()).first()
     player_count = Player.query.filter_by(is_dropped=False).count()
-    review_count = Player.query.filter_by(needs_review=True, is_dropped=False).count()
     teams_count  = Team.query.count()
-    from models import get_config
     playoffs = get_config("playoffs_started", "false") == "true"
     f8_rebuilt = get_config("f8_rebuilt", "false") == "true"
     return render_template("admin.html",
                            last_sync=last_sync,
                            player_count=player_count,
-                           review_count=review_count,
                            teams_count=teams_count,
                            current_season=get_current_season(),
                            playoffs_started=playoffs,
@@ -661,20 +661,204 @@ def espn_import_status():
     return jsonify({"status": None})
 
 
+def _categorize_review_player(player):
+    """M2 — runtime categorization, no schema column.
+
+    Cat A — Sync Sleeper unmatched: salary=$1, acquisition_type='unknown',
+    espn_ref_value=0. Action: apply defaults (unknown -> free_agent) + approve.
+    Cat B — everything else (auction registered manually, manual flag, etc.).
+    Action: confirm or edit-then-approve.
+    """
+    if (player.acquisition_type == "unknown"
+            and player.salary == 1.0
+            and (player.espn_ref_value or 0.0) == 0.0):
+        return "A"
+    return "B"
+
+
 @admin_bp.route("/api/admin/review_players")
 @login_required
 def review_players():
     players = Player.query.filter_by(needs_review=True, is_dropped=False).all()
-    return jsonify([p.to_dict() for p in players])
+    out = []
+    for p in players:
+        d = p.to_dict()
+        d["category"] = _categorize_review_player(p)
+        out.append(d)
+    return jsonify(out)
 
 
 @admin_bp.route("/api/admin/review_players/<int:pid>/clear", methods=["POST"])
 @admin_required
 def clear_review(pid):
+    """Legacy endpoint preserved for backward compatibility (M2-F1 restriction).
+
+    No audit trail — predates M2 audit guarantee. Use /approve for auditable flow.
+    """
     player = db.get_or_404(Player, pid)
     player.needs_review = False
     db.session.commit()
     return jsonify({"success": True})
+
+
+# ── M2: Auditable review approval ─────────────────────────────────────────────
+
+_REVIEW_ALLOWED_EDITS = {"salary", "acquisition_type", "contract_year"}
+
+
+@admin_bp.route("/api/admin/review_players/<int:pid>/approve", methods=["POST"])
+@admin_required
+def approve_review(pid):
+    """M2 — approve a single needs_review player with full audit trail.
+
+    Body (all optional): {salary, acquisition_type, contract_year}
+    Behavior:
+      * No edits + Cat A: apply defaults (acquisition_type unknown -> free_agent)
+      * No edits + Cat B: confirm without changes
+      * With edits: apply each (salary via correct_player_salary helper to keep
+        SalaryHistory + PlayerHistory consistent; other fields direct)
+    Always: clear needs_review flag + create PlayerHistory(event_type='review_approved').
+    All in one transaction.
+    """
+    player = db.get_or_404(Player, pid)
+    if not player.needs_review:
+        return jsonify({"error": "Player não está em revisão"}), 400
+
+    data = request.get_json(silent=True) or {}
+    edits = {k: v for k, v in data.items() if k in _REVIEW_ALLOWED_EDITS and v is not None}
+    category = _categorize_review_player(player)
+    season = int(get_config("current_season", CURRENT_SEASON))
+    team_name = player.team_rel.name if player.team_rel else ""
+
+    notes_parts = [f"Cat {category}"]
+
+    # 1. Apply explicit edits (if any).
+    if edits:
+        applied = []
+        if "salary" in edits:
+            new_salary = float(edits["salary"])
+            if new_salary != player.salary:
+                # Helper updates Player.salary, latest SalaryHistory in-place,
+                # and emits its own PlayerHistory(event_type='salary_correction').
+                result = correct_player_salary(
+                    player.id, new_salary, reason="Aprovação de revisão (M2)"
+                )
+                if "error" in result:
+                    db.session.rollback()
+                    return jsonify({"error": result["error"]}), 400
+                applied.append(f"salary ${result['old_salary']:.0f}→${new_salary:.0f}")
+        if "acquisition_type" in edits and edits["acquisition_type"] != player.acquisition_type:
+            old = player.acquisition_type
+            player.acquisition_type = edits["acquisition_type"]
+            applied.append(f"acquisition_type {old}→{edits['acquisition_type']}")
+        if "contract_year" in edits:
+            new_yr = int(edits["contract_year"])
+            if new_yr != player.contract_year:
+                old = player.contract_year
+                player.contract_year = new_yr
+                applied.append(f"contract_year {old}→{new_yr}")
+        if applied:
+            notes_parts.append("edited: " + ", ".join(applied))
+        else:
+            notes_parts.append("confirmed without changes")
+    else:
+        # No explicit edits — Cat A applies defaults, Cat B confirms.
+        if category == "A":
+            old_type = player.acquisition_type
+            player.acquisition_type = "free_agent"
+            notes_parts.append(f"applied defaults (acquisition_type {old_type}→free_agent)")
+        else:
+            notes_parts.append("confirmed without changes")
+
+    # 2. Clear the flag.
+    player.needs_review = False
+
+    # 3. Audit trail — always.
+    db.session.add(PlayerHistory(
+        player_id=player.id,
+        season=season,
+        team_name=team_name,
+        event_type="review_approved",
+        salary=player.salary,
+        contract_year=player.contract_year,
+        notes="; ".join(notes_parts),
+    ))
+
+    db.session.commit()
+    out = player.to_dict()
+    out["category"] = _categorize_review_player(player)  # post-approval (defaults applied)
+    return jsonify({"success": True, "player": out, "notes": "; ".join(notes_parts)})
+
+
+@admin_bp.route("/api/admin/review_players/bulk_approve_cat_a", methods=["POST"])
+@admin_required
+def bulk_approve_cat_a():
+    """M2 — bulk approval of Cat A players with race-condition guard.
+
+    Body: {player_ids: [int, ...]}
+    Server re-validates each ID against current state. If any ID is no longer
+    Cat A (or no longer needs_review), rejects the entire transaction — admin
+    must reload and retry. Avoids partial application that diverges from what
+    the modal showed.
+    """
+    data = request.get_json(silent=True) or {}
+    ids = data.get("player_ids", [])
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"error": "player_ids deve ser uma lista não-vazia"}), 400
+
+    players = Player.query.filter(Player.id.in_(ids)).all()
+    found_ids = {p.id for p in players}
+    missing = [i for i in ids if i not in found_ids]
+    if missing:
+        return jsonify({
+            "error": "Estado mudou desde a abertura do modal — recarregue a tela e tente de novo.",
+            "details": f"Players não encontrados: {missing}",
+        }), 409
+
+    not_cat_a = []
+    for p in players:
+        if not p.needs_review or p.is_dropped or _categorize_review_player(p) != "A":
+            not_cat_a.append(p.id)
+    if not_cat_a:
+        return jsonify({
+            "error": "Estado mudou desde a abertura do modal — recarregue a tela e tente de novo.",
+            "details": f"Players não são mais Cat A ou já foram aprovados: {not_cat_a}",
+        }), 409
+
+    season = int(get_config("current_season", CURRENT_SEASON))
+    approved_count = 0
+    for p in players:
+        old_type = p.acquisition_type
+        p.acquisition_type = "free_agent"
+        p.needs_review = False
+        team_name = p.team_rel.name if p.team_rel else ""
+        db.session.add(PlayerHistory(
+            player_id=p.id,
+            season=season,
+            team_name=team_name,
+            event_type="review_approved",
+            salary=p.salary,
+            contract_year=p.contract_year,
+            notes=f"Cat A: bulk approval, applied defaults (acquisition_type {old_type}→free_agent)",
+        ))
+        approved_count += 1
+
+    db.session.commit()
+    return jsonify({"success": True, "approved": approved_count})
+
+
+@admin_bp.route("/admin/review")
+@admin_required
+def review_page():
+    """M2 — dedicated review screen with Cat A / Cat B sectioning."""
+    players = (Player.query
+               .filter_by(needs_review=True, is_dropped=False)
+               .order_by(Player.fantasy_team, Player.name)
+               .all())
+    cat_a = [p for p in players if _categorize_review_player(p) == "A"]
+    cat_b = [p for p in players if _categorize_review_player(p) == "B"]
+    return render_template("admin_review.html", cat_a=cat_a, cat_b=cat_b,
+                           total=len(players))
 
 
 # ── Playoffs Flag ────────────────────────────────────────────────────────────

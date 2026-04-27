@@ -58,10 +58,11 @@
     {% if current_user.is_authenticated and current_user.is_admin %}
     {{ nav_dropdown('Admin ▾', [
       ('/admin', 'Painel', true),
+      ('/admin/review', 'Revisão de Jogadores'),
       ('/admin/users', 'Usuários'),
       ('/offseason', 'Offseason'),
       ('/auction', 'Auction'),
-    ], ['/admin', '/offseason', '/auction']) }}
+    ], ['/admin', '/offseason', '/auction'], badge=g_review_count) }}
     {% endif %}
   </ul>
 
@@ -118,8 +119,9 @@
     {% endif %}
 
     {% if current_user.is_admin %}
-    <div class="nav-mobile-section-title">Admin</div>
+    <div class="nav-mobile-section-title">Admin{% if g_review_count %} ({{ g_review_count }}){% endif %}</div>
     <a href="/admin" class="nav-mobile-item">Painel</a>
+    <a href="/admin/review" class="nav-mobile-item">Revisão de Jogadores{% if g_review_count %} ({{ g_review_count }}){% endif %}</a>
     <a href="/admin/users" class="nav-mobile-item">Usuários</a>
     <a href="/offseason" class="nav-mobile-item">Offseason</a>
     <a href="/auction" class="nav-mobile-item">Auction</a>

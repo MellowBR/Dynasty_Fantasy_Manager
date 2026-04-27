@@ -98,6 +98,19 @@ def create_app():
         ).order_by(Team.name).all()
         return {"g_nav_teams": teams}
 
+    # Context processor — exposes count of players needing review for the navbar
+    # badge. Admin-only — non-admins and unauthenticated users get 0 without
+    # triggering a query. M2 (badge inline no dropdown "Admin ▾").
+    @app.context_processor
+    def inject_review_count():
+        from flask_login import current_user
+        if not (current_user.is_authenticated and current_user.is_admin):
+            return {"g_review_count": 0}
+        from models import Player
+        return {"g_review_count": Player.query.filter_by(
+            needs_review=True, is_dropped=False
+        ).count()}
+
     # Initialize authentication (Flask-Login + Google OAuth)
     from routes.auth import auth_bp, init_auth
     init_auth(app)

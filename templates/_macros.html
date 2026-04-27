@@ -126,10 +126,10 @@
 
 {# nav_dropdown(label, items, active_prefixes)
    items: lista de tuplas (url, sub_label) ou (url, sub_label, exact). #}
-{% macro nav_dropdown(label, items, active_prefixes) -%}
+{% macro nav_dropdown(label, items, active_prefixes, badge=None) -%}
 {%- set is_active = _nav_match(active_prefixes, false)|trim -%}
 <li class="nav-group{% if is_active %} active{% endif %}">
-  <button type="button" class="nav-group-label">{{ label }}</button>
+  <button type="button" class="nav-group-label">{{ label }}{% if badge %} ({{ badge }}){% endif %}</button>
   <ul class="nav-dropdown">
     {% for item in items %}
       {%- set u = item[0] -%}

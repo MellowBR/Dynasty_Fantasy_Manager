@@ -14,9 +14,10 @@
     <div class="stat-grid">
       <div class="stat-item"><span class="stat-num">{{ player_count }}</span><span class="stat-label">Jogadores</span></div>
       <div class="stat-item"><span class="stat-num">{{ teams_count }}</span><span class="stat-label">Times</span></div>
-      <div class="stat-item {{ 'stat-warn' if review_count > 0 else '' }}">
-        <span class="stat-num">{{ review_count }}</span><span class="stat-label">Revisão pendente</span>
-      </div>
+      <a href="/admin/review" class="stat-item stat-item-link {{ 'stat-warn' if g_review_count > 0 else '' }}"
+         title="Abrir tela de revisão">
+        <span class="stat-num">{{ g_review_count }}</span><span class="stat-label">Revisão pendente</span>
+      </a>
       <div class="stat-item"><span class="stat-num">{{ current_season or g_current_season }}</span><span class="stat-label">Temporada atual</span></div>
     </div>
   </div>
@@ -193,11 +194,7 @@
     <div id="backfill-result" class="result-box" style="display:none;margin-top:.75rem"></div>
   </div>
 
-  <!-- Players needing review -->
-  <div class="card" id="review-card" style="display:none">
-    <h2 class="card-title">🔍 Jogadores para Revisão</h2>
-    <div id="review-list"></div>
-  </div>
+  {# M2: dedicated review screen at /admin/review (linkado pelo stat-item e pela navbar) #}
 
 </div>
 {% endblock %}
@@ -339,30 +336,6 @@ function saveOwner(teamId) {
       setTimeout(() => input.style.borderColor = '', 1500);
     }
   });
-}
-
-// Load review players
-fetch('/api/admin/review_players').then(r => r.json()).then(players => {
-  if (!players.length) return;
-  const card = document.getElementById('review-card');
-  card.style.display = '';
-  const list = document.getElementById('review-list');
-  list.innerHTML = players.map(p => `
-    <div class="player-row" style="margin-bottom:.4rem">
-      <span class="pos-badge pos-${p.position.replace('/','')}">${p.position || '?'}</span>
-      <div class="player-info">
-        ${renderPlayerNameLink(p)}
-        <span class="player-meta text-dim">${p.fantasy_team} · $${Math.round(p.salary)} · ${p.acquisition_type}</span>
-      </div>
-      <div class="player-right">
-        <button class="btn-sm btn-secondary" onclick="clearReview(${p.id}, this)">✓ Revisado</button>
-      </div>
-    </div>`).join('');
-});
-
-function clearReview(id, btn) {
-  fetch(`/api/admin/review_players/${id}/clear`, {method:'POST'})
-    .then(() => btn.closest('.player-row').remove());
 }
 
 function f8DryRun() {
