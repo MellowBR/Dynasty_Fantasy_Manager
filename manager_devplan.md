@@ -1085,6 +1085,28 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 
 - **Outputs:** 2 arquivos de código (`sync_sleeper.py`, `routes/admin.py`) + 2 docs (`improvements.md`, `manager_devplan.md`). Sem schema change, sem migration, sem alterações em prod além do auto-deploy via push origin/main. Status MAN-S1-FIX: 🔲 → ✅.
 
+### 28/04/2026 — M10 refinado (escopo ampliado: navbar global + calculadora; correções factuais)
+
+- **MAN-M10-REFINE:** escopo de M10 ampliado in-place absorvendo busca global de jogador. Item passa de "Autocomplete de Jogador na Calculadora de Salário" (Baixa) para "Busca de Jogador: Global + Calculadora" (Média). ID preservado, status 🔲 mantido. Refinamento puramente documental — nenhum código de aplicação tocado nesta sessão. Precedente seguido: MAN-O2-REFINE (27/04/2026).
+
+- **Motivação (gap de navegação básica):** owner observou em 28/04/2026 que o Manager não tem ponto de entrada para chegar à player page (`/player/<id>`, M13) sem antes saber em que time fantasy o jogador está. Os 5 entry points existentes (alert Year 4 e needs_review do roster, admin/review, salary_history timeline, trade simulator asset list) todos pressupõem contexto. Caso real: "queria ver o contrato do Patrick Mahomes" → caminho atual seria abrir os 12 rosters procurando visualmente. Promoção Baixa → Média justificada pelo gap concreto + custo de implementação reduzido (endpoint backend já existe).
+
+- **Decisão de promover M10 in-place vs criar item novo (Opção A — "S1 — Search"):** rejeitada criação de ID novo. Calculadora segue como consumidor legítimo do mesmo backend; expandir escopo de M10 preserva continuidade auditável e o histórico do item. Opção C (refinar in-place) é alinhada com MAN-O2-REFINE como precedente para refinamento documental sem inflação de IDs.
+
+- **Refutação explícita da Opção D (absorver em O2)** baseada nos 3 critérios de MAN-O2-REFINE: (a) **target page diferente** — O2 enriquece o conteúdo de `/player/<id>`, busca global vive na navbar atravessando o app inteiro; (b) **fonte de dados diferente** — O2 puxa Sleeper API + cache, busca usa apenas DB local (`Player.query.filter`); (c) **escopo natural distinto** — "enriquecer página" e "navegar até a página" são verbos diferentes. Refutação registrada dentro do próprio item M10 para auditoria futura.
+
+- **Correções factuais identificadas pelo diagnose MAN-SEARCH-F1, absorvidas no item refinado:**
+  - Endpoint correto é `GET /api/player/search?q=<nome>&team_id=<opt>` (singular) em `routes/roster.py:312-326`. **Já existe** com `Player.name.ilike("%q%")`, limit 20, retornando `Player.to_dict()`. A versão pré-refinamento de M10 propunha criar `/api/players/search` (plural) — premissa incorreta, agora corrigida.
+  - `player_lookup.find_player_by_name()` é matching estrito 4-tier (exact → ci → normalized → None), usado em reconciliação Sleeper/CSV. **Não serve para autocomplete** — incompatível com prefix typing. A versão pré-refinamento sugeria reusar — também corrigido.
+
+- **Reuso confirmado pelo diagnose, registrado como base para F1 do item refinado:** padrão de dropdown UI do team-filter em `templates/roster.html:51-65, 159-170` + `static/style.css:311-340` (vanilla JS, abs-positioned, sem libs); helper JS `renderPlayerNameLink` em `templates/base.html:245`; padrão debounce de `salary_history.html:27-31`.
+
+- **Decisões delegadas a F1 (registradas no item, não fechadas nesta sessão):** breakpoint desktop↔mobile, layout do dropdown dentro do overlay mobile (flow normal vs absolute), criação opcional de `Player.to_search_dict()` minimal (~6 campos vs 21 de `to_dict()`), reuso direto vs manual de `renderPlayerNameLink`, e batching dos 2 consumidores (única camada vs navbar-primeiro / calculadora-depois). F1 avalia priorizando o gap UX maior (navegação global) primeiro.
+
+- **Observações tangenciais do diagnose:** absorvida como nota dentro de M10 a observação sobre `Player.to_dict()` retornar 21 campos com método invocado (`is_renewal_candidate`) e função (`projected_next_salary`) — F1 decide se otimiza. Descartada como decisão de plataforma (não vira item) a ausência de rate limiting global em endpoints Flask.
+
+- **Outputs desta sessão:** 2 docs editados — `improvements.md` (entrada M10 refinada + linha de Status Rápido) e `manager_devplan.md` (este log entry). Nenhum código tocado.
+
 ### 28/04/2026 — MAN-S1-FIX Fase 1 Diagnose ✅
 
 - **Diagnose read-only do bug cross-season de `_sync_trades`.** Mecanismo confirmado contra dados reais (47 Trade rows; 1-29=2025 inseridas 14:49, 30-47=2024 inseridas 18:26 = backfill +3.5h depois; Player.updated_at dos 6 stale = 2026-04-22 19:41:57 coincide com Trade rows 2024). Causa: `_sync_trades` (`sync_sleeper.py:495-661`) muta `Player.team_id` cego (linhas 561-562) + idempotência global por `sleeper_transaction_id` UNIQUE (linha 532) impede correção via re-run. Linha 519 (`season = get_current_season()`) também faz parte do bug raiz — grava `PlayerHistory.season` errada para trades de previous league.
