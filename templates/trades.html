@@ -154,21 +154,21 @@
 <div class="card">
   <h2 class="card-title">📜 Trades Recentes</h2>
   {% if recent_trades %}
-  <table class="data-table">
+  <table class="data-table recent-trades-table">
     <thead><tr><th>Data</th><th>Equipe A</th><th>Equipe B</th><th>Descrição</th></tr></thead>
     <tbody>
       {% for t in recent_trades %}
       <tr>
-        <td class="text-dim" style="white-space:nowrap">{{ t.trade_date.strftime('%d/%m/%Y') if t.trade_date else '—' }}</td>
-        <td class="team-cell">
+        <td class="text-dim recent-trades-date" data-label="Data">{{ t.trade_date.strftime('%d/%m/%Y') if t.trade_date else '—' }}</td>
+        <td class="team-cell" data-label="Equipe A">
           {% if avatar_map.get(t.team_a) %}<img src="https://sleepercdn.com/avatars/{{ avatar_map[t.team_a] }}" class="owner-avatar-sm" onerror="this.style.display='none'">{% endif %}
           {{ t.team_a }}{% if owner_map.get(t.team_a) %} <span class="owner-hint">({{ owner_map[t.team_a] }})</span>{% endif %}
         </td>
-        <td class="team-cell">
+        <td class="team-cell" data-label="Equipe B">
           {% if avatar_map.get(t.team_b) %}<img src="https://sleepercdn.com/avatars/{{ avatar_map[t.team_b] }}" class="owner-avatar-sm" onerror="this.style.display='none'">{% endif %}
           {{ t.team_b }}{% if owner_map.get(t.team_b) %} <span class="owner-hint">({{ owner_map[t.team_b] }})</span>{% endif %}
         </td>
-        <td class="text-dim small-text">{{ t.description }}</td>
+        <td class="text-dim small-text recent-trades-desc" data-label="Descrição">{{ t.description }}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -507,6 +507,8 @@ function previewTrade() {
 }
 
 function renderPreview(data) {
+  // T3: assetLine mostra 🪙 (dynasty) + ⚡ (redraft) por player. Picks têm
+  // redraft=0 sempre, então só dynasty é exibido pra picks (sem ruído ⚡0).
   function assetLine(a, isPick) {
     const name = isPick ? `${a.season} Rd${a.round}` : a.name;
     const salary = isPick ? '' : ` ($${Math.round(a.salary)})`;
@@ -515,8 +517,26 @@ function renderPreview(data) {
     const dvStr = data.dynasty_available && dv != null
       ? ` 🪙${fmtValue(dv)}${estSuffix}`
       : '';
-    return `${name}${salary}${dvStr}`;
+    const rv = a.redraft_value;
+    const rvStr = (data.dynasty_available && !isPick && rv != null && rv > 0)
+      ? ` ⚡${fmtValue(rv)}`
+      : '';
+    return `${name}${salary}${dvStr}${rvStr}`;
   }
+
+  // T3-FIX-UX: badge construído com ambas as dimensões (dynasty + redraft).
+  function makeAdvBadge(emoji, label, deltaA, totalAIn, totalAOut) {
+    const refVal = Math.max(Math.abs(totalAIn), Math.abs(totalAOut), 1);
+    const pct = Math.abs(deltaA) / refVal * 100;
+    if (deltaA === 0 || pct < 5) {
+      return `<div class="dynasty-advantage neutral">${emoji} ${label}: ⚖️ equilibrada</div>`;
+    } else if (deltaA > 0) {
+      return `<div class="dynasty-advantage win">${emoji} ${label}: ✅ ${data.team_a.name} leva +${fmtValue(deltaA)}</div>`;
+    } else {
+      return `<div class="dynasty-advantage win">${emoji} ${label}: ✅ ${data.team_b.name} leva +${fmtValue(-deltaA)}</div>`;
+    }
+  }
+
   function side(s) {
     const out_p = s.players_out.map(p => assetLine(p, false)).join(', ') || '—';
     const in_p  = s.players_in.map(p  => assetLine(p, false)).join(', ') || '—';
@@ -524,52 +544,54 @@ function renderPreview(data) {
     const in_k  = s.picks_in.map(p  => assetLine(p, true)).join(', ') || '—';
     const capCls = s.over_cap ? 'text-danger' : 'text-ok';
 
-    let dynastyLine = '';
+    // T3: linha resumida de ambas as dimensões em uma só (mais compacto que 2 linhas).
+    let dimsLine = '';
     if (data.dynasty_available) {
-      const deltaCls = s.dynasty_delta > 0 ? 'text-ok' : (s.dynasty_delta < 0 ? 'text-danger' : 'text-dim');
-      const deltaSign = s.dynasty_delta > 0 ? '+' : '';
-      dynastyLine = `<p>🪙 Dynasty: envia <strong>${fmtValue(s.dynasty_total_out)}</strong> · recebe <strong>${fmtValue(s.dynasty_total_in)}</strong> ·
-        Δ <span class="${deltaCls}">${deltaSign}${fmtValue(s.dynasty_delta)}</span></p>`;
+      const dDelta = s.dynasty_delta;
+      const rDelta = s.redraft_delta;
+      const dCls = dDelta > 0 ? 'text-ok' : (dDelta < 0 ? 'text-danger' : 'text-dim');
+      const rCls = rDelta > 0 ? 'text-ok' : (rDelta < 0 ? 'text-danger' : 'text-dim');
+      const dSign = dDelta > 0 ? '+' : '';
+      const rSign = rDelta > 0 ? '+' : '';
+      dimsLine = `<p class="preview-dims">
+        🪙 Δ <span class="${dCls}">${dSign}${fmtValue(dDelta)}</span>
+        · ⚡ Δ <span class="${rCls}">${rSign}${fmtValue(rDelta)}</span>
+      </p>`;
     }
 
-    // M1: prominent banner when this side would go over cap (was a tiny <p>).
-    // over_by derived from cap_remaining_after (negative when over) — no hardcoded SALARY_CAP in JS.
+    // M1: cap-overrun banner.
     const overCapBanner = s.over_cap
       ? `<div class="cap-overrun-alert">⚠️ ${s.name} ficaria $${(-s.cap_remaining_after).toFixed(0)} acima do cap</div>`
       : '';
 
+    // Layout reordenado: cap line primeiro (informação crítica), depois assets, depois dims summary.
     return `<div class="preview-side">
       <h3>${s.name}</h3>
       ${overCapBanner}
-      <p>📤 Envia: <strong>${out_p}</strong> | picks: ${out_k}</p>
-      <p>📥 Recebe: <strong>${in_p}</strong> | picks: ${in_k}</p>
       <p>Cap: $${s.cap_before} → <span class="${capCls}">$${s.cap_after.toFixed(0)}</span>
          (restante: <span class="${capCls}">$${s.cap_remaining_after.toFixed(0)}</span>)</p>
-      ${dynastyLine}
+      <p>📤 Envia: <strong>${out_p}</strong>${out_k !== '—' ? ' | picks: ' + out_k : ''}</p>
+      <p>📥 Recebe: <strong>${in_p}</strong>${in_k !== '—' ? ' | picks: ' + in_k : ''}</p>
+      ${dimsLine}
     </div>`;
   }
 
-  // Advantage badge: positive delta for one side means that team receives more value
-  let advBadge = '';
+  // Advantage badges — agora 2: dynasty + redraft. Stacked verticalmente.
+  let advBadgesHtml = '';
   if (data.dynasty_available) {
-    const dA = data.team_a.dynasty_delta;
-    const refVal = Math.max(
-      Math.abs(data.team_a.dynasty_total_in),
-      Math.abs(data.team_a.dynasty_total_out),
-      1
-    );
-    const pct = Math.abs(dA) / refVal * 100;
-    if (dA === 0 || pct < 5) {
-      advBadge = `<div class="dynasty-advantage neutral">⚖️ Trade equilibrada em valor dynasty</div>`;
-    } else if (dA > 0) {
-      advBadge = `<div class="dynasty-advantage win">✅ ${data.team_a.name} leva vantagem em valor dynasty (+${fmtValue(dA)})</div>`;
-    } else {
-      advBadge = `<div class="dynasty-advantage win">✅ ${data.team_b.name} leva vantagem em valor dynasty (+${fmtValue(-dA)})</div>`;
-    }
+    const dynastyBadge = makeAdvBadge('🪙', 'Dynasty',
+      data.team_a.dynasty_delta,
+      data.team_a.dynasty_total_in,
+      data.team_a.dynasty_total_out);
+    const redraftBadge = makeAdvBadge('⚡', 'Redraft',
+      data.team_a.redraft_delta,
+      data.team_a.redraft_total_in,
+      data.team_a.redraft_total_out);
+    advBadgesHtml = dynastyBadge + redraftBadge;
   }
 
   document.getElementById('modal-content').innerHTML =
-    `${advBadge}<div class="preview-grid">${side(data.team_a)}${side(data.team_b)}</div>`;
+    `${advBadgesHtml}<div class="preview-grid">${side(data.team_a)}${side(data.team_b)}</div>`;
 }
 
 function generateLink() {

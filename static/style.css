@@ -1150,6 +1150,8 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   border: 1px solid rgba(255,255,255,.06);
   border-radius: 8px;
   font-size: .85rem;
+  /* Belt-and-suspenders: contém qualquer chip ou conteúdo que tente vazar lateralmente. */
+  overflow: hidden;
 }
 
 .delta-bar-header {
@@ -1244,13 +1246,21 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 }
 
 .delta-bar-chip {
-  display: inline-block;
-  margin-top: .4rem;
+  /* Display block + margin auto centraliza horizontalmente. max-width: 100% +
+     white-space: normal permitem que team names longos quebrem em 2 linhas
+     em vez de causar overflow horizontal da section. */
+  display: block;
+  margin: .4rem auto 0;
+  width: fit-content;
+  max-width: 100%;
   font-size: .78rem;
   padding: .2rem .6rem;
-  border-radius: 99px;
-  white-space: nowrap;
+  border-radius: 12px;
+  white-space: normal;
+  word-break: break-word;
+  text-align: center;
   font-weight: 600;
+  line-height: 1.3;
 }
 .delta-bar-chip.neutral {
   background: rgba(255,255,255,.06);
@@ -1259,6 +1269,66 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 .delta-bar-chip.win-a, .delta-bar-chip.win-b {
   background: rgba(110, 231, 183, 0.15);
   color: #7ee2b5;
+}
+
+/* T3-FIX-UX-3: Recent trades table — stack em mobile pra não estourar largura.
+   Em desktop mantém formato tabular padrão; em <=768px vira lista de cards verticais
+   com label inline (data-label do <td>). Confina text longo de description com word-break. */
+.recent-trades-desc {
+  word-break: break-word;
+}
+@media (max-width: 768px) {
+  .recent-trades-table {
+    display: block;
+    width: 100%;
+  }
+  .recent-trades-table thead {
+    display: none;
+  }
+  .recent-trades-table tbody,
+  .recent-trades-table tr {
+    display: block;
+    width: 100%;
+  }
+  .recent-trades-table tr {
+    border: 1px solid var(--border, rgba(255,255,255,.08));
+    border-radius: 8px;
+    margin-bottom: .5rem;
+    padding: .5rem .65rem;
+    background: rgba(255,255,255,.02);
+  }
+  .recent-trades-table td {
+    display: block;
+    padding: .15rem 0;
+    border: none;
+    width: 100%;
+  }
+  .recent-trades-table td::before {
+    /* Pseudo-label antes do conteúdo da célula em mobile */
+    content: attr(data-label) ": ";
+    font-size: .72rem;
+    color: var(--text-dim, #aaa);
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    margin-right: .35rem;
+    font-weight: 600;
+  }
+  .recent-trades-table .recent-trades-date::before {
+    /* Data: label inline mais discreto */
+    content: '';
+    margin: 0;
+  }
+  .recent-trades-table .recent-trades-date {
+    color: var(--text-dim, #aaa);
+    font-size: .8rem;
+    margin-bottom: .25rem;
+    padding-bottom: .25rem;
+    border-bottom: 1px dashed rgba(255,255,255,.08);
+  }
+  .recent-trades-table .recent-trades-desc {
+    margin-top: .25rem;
+    line-height: 1.4;
+  }
 }
 
 .dynasty-advantage {
