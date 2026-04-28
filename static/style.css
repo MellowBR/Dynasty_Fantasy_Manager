@@ -1138,160 +1138,125 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   font-variant-numeric: tabular-nums;
 }
 
-.dynasty-bar-section {
-  margin: 1rem 0 .75rem;
-  padding: .75rem .85rem;
+/* T3-FIX-UX — Delta-pointing bar (1 fill desloca-se do centro pro lado do
+   vencedor; magnitude proporcional ao |delta|/max). Mobile-first: header em
+   linhas separadas pra evitar overflow horizontal de team names truncados.
+   Compartilhado entre dynasty e redraft (cores via .delta-bar-dynasty/redraft). */
+
+.delta-bar-section {
+  margin: .65rem 0;
+  padding: .65rem .8rem;
   background: rgba(255,255,255,.02);
   border: 1px solid rgba(255,255,255,.06);
   border-radius: 8px;
-}
-
-.dynasty-bar-labels {
-  display: flex;
-  align-items: center;
-  gap: .75rem;
-  margin-bottom: .5rem;
   font-size: .85rem;
 }
 
-.dynasty-bar-label-left {
-  display: flex;
+.delta-bar-header {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
   align-items: baseline;
   gap: .5rem;
-  flex: 1;
-  justify-content: flex-start;
+  margin-bottom: .15rem;
 }
-.dynasty-bar-label-right {
-  display: flex;
-  align-items: baseline;
-  gap: .5rem;
-  flex: 1;
-  justify-content: flex-end;
-}
-.dynasty-bar-team {
-  font-weight: 600;
-}
-.dynasty-bar-total {
-  font-variant-numeric: tabular-nums;
-}
-
-.dynasty-bar-delta-chip {
+.delta-bar-dim {
+  color: var(--text-dim, #aaa);
   font-size: .78rem;
-  padding: .2rem .6rem;
-  border-radius: 99px;
-  white-space: nowrap;
-  font-weight: 600;
 }
-.dynasty-bar-delta-chip.neutral {
-  background: rgba(255,255,255,.06);
+.delta-bar-team-l, .delta-bar-team-r {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.delta-bar-team-l { text-align: left; }
+.delta-bar-team-r { text-align: right; }
+
+.delta-bar-totals {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: .5rem;
+  margin-bottom: .35rem;
+  font-size: .8rem;
   color: var(--text-dim, #aaa);
 }
-.dynasty-bar-delta-chip.win-a {
-  background: rgba(110, 231, 183, 0.15);
-  color: #7ee2b5;
-}
-.dynasty-bar-delta-chip.win-b {
-  background: rgba(110, 231, 183, 0.15);
-  color: #7ee2b5;
-}
+.delta-bar-totals span:nth-child(1) { visibility: hidden; }
+.delta-bar-totals span:nth-child(2) { text-align: left; }
+.delta-bar-totals span:nth-child(3) { text-align: right; }
+.delta-bar-total { font-variant-numeric: tabular-nums; }
 
-.dynasty-bar-track {
+.delta-bar-track {
   display: flex;
+  align-items: stretch;
   height: 14px;
   background: var(--bg4, rgba(255,255,255,.05));
   border-radius: 99px;
   overflow: hidden;
-  gap: 2px;
+  position: relative;
 }
-.dynasty-bar-fill-a,
-.dynasty-bar-fill-b {
+.delta-bar-half {
+  flex: 1 1 50%;
   height: 100%;
-  transition: width .35s ease;
-  max-width: 50%;
-  flex: 0 0 auto;
+  display: flex;
+  position: relative;
 }
-.dynasty-bar-fill-a {
-  background: linear-gradient(90deg, #6ea8fe 0%, #4d8df0 100%);
+.delta-bar-half-left {
+  /* fill cresce do centro pra esquerda (anchored à direita) */
+  justify-content: flex-end;
+}
+.delta-bar-half-right {
+  /* fill cresce do centro pra direita (anchored à esquerda) */
+  justify-content: flex-start;
+}
+.delta-bar-zero {
+  /* marcador vertical fino no centro indicando "zero" */
+  width: 2px;
+  background: rgba(255, 255, 255, 0.25);
+  flex: 0 0 2px;
+  align-self: stretch;
+}
+.delta-bar-fill {
+  height: 100%;
+  width: 0;
+  transition: width .35s ease;
+}
+
+/* Dynasty: paleta original */
+.delta-bar-dynasty .delta-bar-fill-a {
+  background: linear-gradient(90deg, #4d8df0 0%, #6ea8fe 100%);
   border-radius: 99px 0 0 99px;
 }
-.dynasty-bar-fill-b {
+.delta-bar-dynasty .delta-bar-fill-b {
   background: linear-gradient(90deg, #ff8f6b 0%, #e86a3a 100%);
   border-radius: 0 99px 99px 0;
-  margin-left: auto;
+}
+/* Redraft: paleta lighter (irmã caçula) */
+.delta-bar-redraft .delta-bar-fill-a {
+  background: linear-gradient(90deg, #7eaaf5 0%, #a3c4ff 100%);
+  border-radius: 99px 0 0 99px;
+}
+.delta-bar-redraft .delta-bar-fill-b {
+  background: linear-gradient(90deg, #ffb8a0 0%, #f29670 100%);
+  border-radius: 0 99px 99px 0;
 }
 
-/* T3 — Redraft balance bar: paleta dynasty mais clara (irmã caçula visual). */
-.redraft-bar-section {
-  margin: .35rem 0 .75rem;
-  padding: .75rem .85rem;
-  background: rgba(255,255,255,.02);
-  border: 1px solid rgba(255,255,255,.06);
-  border-radius: 8px;
-}
-.redraft-bar-labels {
-  display: flex;
-  align-items: center;
-  gap: .75rem;
-  margin-bottom: .5rem;
-  font-size: .85rem;
-}
-.redraft-bar-label-left {
-  display: flex;
-  align-items: baseline;
-  gap: .5rem;
-  flex: 1;
-  justify-content: flex-start;
-}
-.redraft-bar-label-right {
-  display: flex;
-  align-items: baseline;
-  gap: .5rem;
-  flex: 1;
-  justify-content: flex-end;
-}
-.redraft-bar-team { font-weight: 600; }
-.redraft-bar-total { font-variant-numeric: tabular-nums; }
-.redraft-bar-delta-chip {
+.delta-bar-chip {
+  display: inline-block;
+  margin-top: .4rem;
   font-size: .78rem;
   padding: .2rem .6rem;
   border-radius: 99px;
   white-space: nowrap;
   font-weight: 600;
 }
-.redraft-bar-delta-chip.neutral {
+.delta-bar-chip.neutral {
   background: rgba(255,255,255,.06);
   color: var(--text-dim, #aaa);
 }
-.redraft-bar-delta-chip.win-a,
-.redraft-bar-delta-chip.win-b {
+.delta-bar-chip.win-a, .delta-bar-chip.win-b {
   background: rgba(110, 231, 183, 0.15);
   color: #7ee2b5;
-}
-.redraft-bar-track {
-  display: flex;
-  height: 14px;
-  background: var(--bg4, rgba(255,255,255,.05));
-  border-radius: 99px;
-  overflow: hidden;
-  gap: 2px;
-}
-.redraft-bar-fill-a,
-.redraft-bar-fill-b {
-  height: 100%;
-  transition: width .35s ease;
-  max-width: 50%;
-  flex: 0 0 auto;
-}
-.redraft-bar-fill-a {
-  /* Variante mais clara da dynasty A (#6ea8fe → #a3c4ff / #4d8df0 → #7eaaf5) */
-  background: linear-gradient(90deg, #a3c4ff 0%, #7eaaf5 100%);
-  border-radius: 99px 0 0 99px;
-}
-.redraft-bar-fill-b {
-  /* Variante mais clara da dynasty B (#ff8f6b → #ffb8a0 / #e86a3a → #f29670) */
-  background: linear-gradient(90deg, #ffb8a0 0%, #f29670 100%);
-  border-radius: 0 99px 99px 0;
-  margin-left: auto;
 }
 
 .dynasty-advantage {

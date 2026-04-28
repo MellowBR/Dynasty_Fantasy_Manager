@@ -73,42 +73,50 @@
     </div>
   </div>
 
-  <!-- T2: Dynasty balance bar -->
-  <div id="dynasty-bar-section" class="dynasty-bar-section" style="display:none">
-    <div class="dynasty-bar-labels">
-      <div class="dynasty-bar-label-left">
-        <span class="dynasty-bar-team" id="dyn-name-a">—</span>
-        <span class="dynasty-bar-total">🪙 Dynasty <strong id="dyn-total-a">0</strong></span>
+  <!-- T2/T3-FIX-UX: Delta-pointing balance bar (1 marcador no zero, desloca-se conforme winner) -->
+  <div id="dynasty-bar-section" class="delta-bar-section delta-bar-dynasty" style="display:none">
+    <div class="delta-bar-header">
+      <span class="delta-bar-dim">🪙 Dynasty</span>
+      <span class="delta-bar-team-l" id="dyn-name-a">—</span>
+      <span class="delta-bar-team-r" id="dyn-name-b">—</span>
+    </div>
+    <div class="delta-bar-totals">
+      <span class="delta-bar-total"><strong id="dyn-total-a">0</strong></span>
+      <span class="delta-bar-total"><strong id="dyn-total-b">0</strong></span>
+    </div>
+    <div class="delta-bar-track">
+      <div class="delta-bar-half delta-bar-half-left">
+        <div class="delta-bar-fill delta-bar-fill-a" id="dyn-fill-a" style="width:0%"></div>
       </div>
-      <div class="dynasty-bar-delta-chip" id="dyn-delta-chip">—</div>
-      <div class="dynasty-bar-label-right">
-        <span class="dynasty-bar-total">🪙 Dynasty <strong id="dyn-total-b">0</strong></span>
-        <span class="dynasty-bar-team" id="dyn-name-b">—</span>
+      <div class="delta-bar-zero"></div>
+      <div class="delta-bar-half delta-bar-half-right">
+        <div class="delta-bar-fill delta-bar-fill-b" id="dyn-fill-b" style="width:0%"></div>
       </div>
     </div>
-    <div class="dynasty-bar-track">
-      <div class="dynasty-bar-fill-a" id="dyn-fill-a" style="width:0%"></div>
-      <div class="dynasty-bar-fill-b" id="dyn-fill-b" style="width:0%"></div>
-    </div>
+    <div class="delta-bar-chip" id="dyn-delta-chip">—</div>
   </div>
 
-  <!-- T3: Redraft balance bar (paralelo a dynasty, escala separada) -->
-  <div id="redraft-bar-section" class="redraft-bar-section" style="display:none">
-    <div class="redraft-bar-labels">
-      <div class="redraft-bar-label-left">
-        <span class="redraft-bar-team" id="rdft-name-a">—</span>
-        <span class="redraft-bar-total">⚡ Redraft <strong id="rdft-total-a">0</strong></span>
+  <!-- T3: Redraft delta-pointing bar (paralelo a dynasty, escala separada) -->
+  <div id="redraft-bar-section" class="delta-bar-section delta-bar-redraft" style="display:none">
+    <div class="delta-bar-header">
+      <span class="delta-bar-dim">⚡ Redraft</span>
+      <span class="delta-bar-team-l" id="rdft-name-a">—</span>
+      <span class="delta-bar-team-r" id="rdft-name-b">—</span>
+    </div>
+    <div class="delta-bar-totals">
+      <span class="delta-bar-total"><strong id="rdft-total-a">0</strong></span>
+      <span class="delta-bar-total"><strong id="rdft-total-b">0</strong></span>
+    </div>
+    <div class="delta-bar-track">
+      <div class="delta-bar-half delta-bar-half-left">
+        <div class="delta-bar-fill delta-bar-fill-a" id="rdft-fill-a" style="width:0%"></div>
       </div>
-      <div class="redraft-bar-delta-chip" id="rdft-delta-chip">—</div>
-      <div class="redraft-bar-label-right">
-        <span class="redraft-bar-total">⚡ Redraft <strong id="rdft-total-b">0</strong></span>
-        <span class="redraft-bar-team" id="rdft-name-b">—</span>
+      <div class="delta-bar-zero"></div>
+      <div class="delta-bar-half delta-bar-half-right">
+        <div class="delta-bar-fill delta-bar-fill-b" id="rdft-fill-b" style="width:0%"></div>
       </div>
     </div>
-    <div class="redraft-bar-track">
-      <div class="redraft-bar-fill-a" id="rdft-fill-a" style="width:0%"></div>
-      <div class="redraft-bar-fill-b" id="rdft-fill-b" style="width:0%"></div>
-    </div>
+    <div class="delta-bar-chip" id="rdft-delta-chip">—</div>
   </div>
 
   <div class="trade-actions">
@@ -384,8 +392,16 @@ function computeSideRedraftTotal(side) {
   return total;
 }
 
-function updateDynastyBar() {
-  const section = document.getElementById('dynasty-bar-section');
+// T3-FIX-UX: barra delta-pointing — 1 fill que desloca do centro pro lado do
+// vencedor, magnitude proporcional ao delta. Track tem 2 metades; só uma delas
+// renderiza fill por vez. A wins (totalB > totalA) → fill na metade ESQUERDA
+// (anchored ao centro, cresce pra fora). B wins → fill na metade DIREITA.
+//
+// Renderer compartilhado entre dynasty e redraft (params identificam dimensão).
+function _renderDeltaBar(opts) {
+  const { sectionId, nameAId, nameBId, totalAId, totalBId, fillAId, fillBId,
+          chipId, totalA, totalB } = opts;
+  const section = document.getElementById(sectionId);
   if (!dynastyAvailable) {
     section.style.display = 'none';
     return;
@@ -398,96 +414,71 @@ function updateDynastyBar() {
   }
   section.style.display = '';
 
-  // Totais recebidos por cada time = valor enviado pela CONTRAPARTE (lógica de trade).
-  // O lado A "recebe" o que o lado B ENVIA. Para simplicidade de barra, mostramos
-  // soma direta de cada lado (o que cada um está pondo na mesa).
-  const totalA = computeSideDynastyTotal('a');
-  const totalB = computeSideDynastyTotal('b');
-  const max = Math.max(totalA, totalB, 1);
-  const pctA = (totalA / max) * 100;
-  const pctB = (totalB / max) * 100;
+  document.getElementById(nameAId).textContent = nameA;
+  document.getElementById(nameBId).textContent = nameB;
+  document.getElementById(totalAId).textContent = fmtValue(totalA);
+  document.getElementById(totalBId).textContent = fmtValue(totalB);
 
-  document.getElementById('dyn-name-a').textContent = nameA;
-  document.getElementById('dyn-name-b').textContent = nameB;
-  document.getElementById('dyn-total-a').textContent = fmtValue(totalA);
-  document.getElementById('dyn-total-b').textContent = fmtValue(totalB);
-  document.getElementById('dyn-fill-a').style.width = pctA + '%';
-  document.getElementById('dyn-fill-b').style.width = pctB + '%';
-
-  // Chip no meio: quem recebe mais valor (quem ENVIA menos valor).
+  // delta > 0 → A wins (recebe mais valor). delta < 0 → B wins.
   // A recebe = totalB (o que B envia). B recebe = totalA.
-  const aReceives = totalB;
-  const bReceives = totalA;
-  const delta = aReceives - bReceives;
-  const pct = (Math.max(aReceives, bReceives) > 0)
-    ? Math.abs(delta) / Math.max(aReceives, bReceives) * 100
-    : 0;
-  const chip = document.getElementById('dyn-delta-chip');
+  const delta = totalB - totalA;
+  const max = Math.max(totalA, totalB, 1);
+  const pct = (Math.abs(delta) / max) * 100;  // 0 a 100% da metade
+
+  const fillA = document.getElementById(fillAId);
+  const fillB = document.getElementById(fillBId);
+  if (delta > 0) {
+    // A wins → fill na metade esquerda
+    fillA.style.width = pct + '%';
+    fillB.style.width = '0%';
+  } else if (delta < 0) {
+    // B wins → fill na metade direita
+    fillA.style.width = '0%';
+    fillB.style.width = pct + '%';
+  } else {
+    fillA.style.width = '0%';
+    fillB.style.width = '0%';
+  }
+
+  // Chip: texto contextual com winner + magnitude. Mesma gramática anterior.
+  const chip = document.getElementById(chipId);
   if (totalA === 0 && totalB === 0) {
     chip.textContent = 'Selecione ativos';
-    chip.className = 'dynasty-bar-delta-chip neutral';
+    chip.className = 'delta-bar-chip neutral';
   } else if (pct < 5) {
     chip.textContent = '⚖️ Equilibrada';
-    chip.className = 'dynasty-bar-delta-chip neutral';
+    chip.className = 'delta-bar-chip neutral';
   } else if (delta > 0) {
     chip.textContent = `✅ ${nameA} leva +${fmtValue(Math.abs(delta))}`;
-    chip.className = 'dynasty-bar-delta-chip win-a';
+    chip.className = 'delta-bar-chip win-a';
   } else {
     chip.textContent = `✅ ${nameB} leva +${fmtValue(Math.abs(delta))}`;
-    chip.className = 'dynasty-bar-delta-chip win-b';
+    chip.className = 'delta-bar-chip win-b';
   }
 }
 
-// T3: barra redraft — paralela à dynasty bar, escala separada (cada lado
-// normaliza pelo max dos dois totais redraft, não compartilhado com dynasty).
-// Visual deliberadamente espelhado pra leitura "dois calculadores, mesma gramática".
+function updateDynastyBar() {
+  _renderDeltaBar({
+    sectionId: 'dynasty-bar-section',
+    nameAId: 'dyn-name-a', nameBId: 'dyn-name-b',
+    totalAId: 'dyn-total-a', totalBId: 'dyn-total-b',
+    fillAId: 'dyn-fill-a', fillBId: 'dyn-fill-b',
+    chipId: 'dyn-delta-chip',
+    totalA: computeSideDynastyTotal('a'),
+    totalB: computeSideDynastyTotal('b'),
+  });
+}
+
 function updateRedraftBar() {
-  const section = document.getElementById('redraft-bar-section');
-  if (!dynastyAvailable) {
-    section.style.display = 'none';
-    return;
-  }
-  const nameA = document.getElementById('sel-a').value;
-  const nameB = document.getElementById('sel-b').value;
-  if (!nameA || !nameB) {
-    section.style.display = 'none';
-    return;
-  }
-  section.style.display = '';
-
-  const totalA = computeSideRedraftTotal('a');
-  const totalB = computeSideRedraftTotal('b');
-  const max = Math.max(totalA, totalB, 1);
-  const pctA = (totalA / max) * 100;
-  const pctB = (totalB / max) * 100;
-
-  document.getElementById('rdft-name-a').textContent = nameA;
-  document.getElementById('rdft-name-b').textContent = nameB;
-  document.getElementById('rdft-total-a').textContent = fmtValue(totalA);
-  document.getElementById('rdft-total-b').textContent = fmtValue(totalB);
-  document.getElementById('rdft-fill-a').style.width = pctA + '%';
-  document.getElementById('rdft-fill-b').style.width = pctB + '%';
-
-  const aReceives = totalB;
-  const bReceives = totalA;
-  const delta = aReceives - bReceives;
-  const pct = (Math.max(aReceives, bReceives) > 0)
-    ? Math.abs(delta) / Math.max(aReceives, bReceives) * 100
-    : 0;
-  const chip = document.getElementById('rdft-delta-chip');
-  if (totalA === 0 && totalB === 0) {
-    chip.textContent = 'Selecione ativos';
-    chip.className = 'redraft-bar-delta-chip neutral';
-  } else if (pct < 5) {
-    chip.textContent = '⚖️ Equilibrada';
-    chip.className = 'redraft-bar-delta-chip neutral';
-  } else if (delta > 0) {
-    chip.textContent = `✅ ${nameA} leva +${fmtValue(Math.abs(delta))}`;
-    chip.className = 'redraft-bar-delta-chip win-a';
-  } else {
-    chip.textContent = `✅ ${nameB} leva +${fmtValue(Math.abs(delta))}`;
-    chip.className = 'redraft-bar-delta-chip win-b';
-  }
+  _renderDeltaBar({
+    sectionId: 'redraft-bar-section',
+    nameAId: 'rdft-name-a', nameBId: 'rdft-name-b',
+    totalAId: 'rdft-total-a', totalBId: 'rdft-total-b',
+    fillAId: 'rdft-fill-a', fillBId: 'rdft-fill-b',
+    chipId: 'rdft-delta-chip',
+    totalA: computeSideRedraftTotal('a'),
+    totalB: computeSideRedraftTotal('b'),
+  });
 }
 
 function getPayload() {
