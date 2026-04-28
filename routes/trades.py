@@ -1,4 +1,5 @@
 import json
+import re
 import uuid
 from datetime import datetime, timedelta
 
@@ -16,6 +17,38 @@ trades_bp = Blueprint("trades", __name__)
 
 PROPOSAL_TTL_DAYS = 7
 
+# T3-FIX-UX-4: parse Trade.description into structured "de/para" view
+# Description format from sync_sleeper.py: "Player (TeamFrom→TeamTo); Player (TeamFrom→TeamTo); ..."
+# N-way prefixed with "[N-WAY] " — esses retornam None pra cair no render raw.
+_DESC_TOKEN_RE = re.compile(r"^(.+?)\s*\(\s*(.+?)\s*→\s*(.+?)\s*\)\s*$")
+
+
+def _parse_trade_description(desc: str | None, team_a: str, team_b: str) -> dict | None:
+    """Quebra a descrição da trade em duas listas por direção do envio.
+
+    Returns: {a_to_b: [str], b_to_a: [str], unparsed: [str]}.
+    Returns None se descrição vazia, [N-WAY], ou nenhum token parseável.
+    """
+    if not desc or desc.startswith("[N-WAY]"):
+        return None
+    parts = [p.strip() for p in desc.split(";") if p.strip()]
+    a_to_b, b_to_a, unparsed = [], [], []
+    for p in parts:
+        m = _DESC_TOKEN_RE.match(p)
+        if not m:
+            unparsed.append(p)
+            continue
+        asset, from_t, to_t = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+        if from_t == team_a and to_t == team_b:
+            a_to_b.append(asset)
+        elif from_t == team_b and to_t == team_a:
+            b_to_a.append(asset)
+        else:
+            unparsed.append(p)
+    if not (a_to_b or b_to_a):
+        return None
+    return {"a_to_b": a_to_b, "b_to_a": b_to_a, "unparsed": unparsed}
+
 
 @trades_bp.route("/trades")
 @login_required
@@ -24,6 +57,12 @@ def trades_page():
     recent = Trade.query.order_by(Trade.created_at.desc()).limit(30).all()
     owner_map = {t.name: t.owner_name or "" for t in teams}
     avatar_map = {t.name: t.owner_avatar or "" for t in teams}
+
+    # T3-FIX-UX-4: enriquece cada trade com `flow` (parse estruturado da descrição)
+    # pra render em 2 colunas "de/para" no template. Se None (N-way ou unparseable),
+    # template cai no render raw da descrição.
+    for t in recent:
+        t.flow = _parse_trade_description(t.description, t.team_a, t.team_b)
 
     # M14: aceita ?team_a=<nome>&team_b=<nome> para pré-selecionar os selects.
     # Valida contra a lista de teams; se não bater, ignora silenciosamente.

@@ -168,7 +168,33 @@
           {% if avatar_map.get(t.team_b) %}<img src="https://sleepercdn.com/avatars/{{ avatar_map[t.team_b] }}" class="owner-avatar-sm" onerror="this.style.display='none'">{% endif %}
           {{ t.team_b }}{% if owner_map.get(t.team_b) %} <span class="owner-hint">({{ owner_map[t.team_b] }})</span>{% endif %}
         </td>
-        <td class="text-dim small-text recent-trades-desc" data-label="Descrição">{{ t.description }}</td>
+        <td class="recent-trades-desc" data-label="Descrição">
+          {% if t.flow %}
+          <div class="trade-flow">
+            <div class="flow-col">
+              <div class="flow-col-header">{{ t.team_a }} envia →</div>
+              {% for asset in t.flow.a_to_b %}
+              <div class="flow-asset">{{ asset }}</div>
+              {% else %}
+              <div class="flow-asset text-dim">—</div>
+              {% endfor %}
+            </div>
+            <div class="flow-col">
+              <div class="flow-col-header">{{ t.team_b }} envia →</div>
+              {% for asset in t.flow.b_to_a %}
+              <div class="flow-asset">{{ asset }}</div>
+              {% else %}
+              <div class="flow-asset text-dim">—</div>
+              {% endfor %}
+            </div>
+          </div>
+          {% if t.flow.unparsed %}
+          <div class="text-dim small-text" style="margin-top:.35rem">{{ t.flow.unparsed | join('; ') }}</div>
+          {% endif %}
+          {% else %}
+          <span class="text-dim small-text">{{ t.description }}</span>
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
