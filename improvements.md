@@ -21,7 +21,7 @@
 | Q1 | Script de simulação de temporada (validar salary rollover) | Média | 🔲 |
 | M1 | Alerta de cap estourado pós-S1 (preview escalonado + warnings de sync, banner gated por offseason) | Média | ✅ 27/04/2026 |
 | M1-FOLLOWUP | Avaliar auto-desativação de offseason mode após FA auction concluído (banner M1 persiste como ruído se admin esquecer de desligar manualmente) | Baixa | 🔲 |
-| MAN-S1-FIX | Backfill de previous_league_id reverte estado pós-trades da current league (idempotência cross-season + movimentação cega de Player.team_id em `_sync_trades`) | Alta | 🔲 |
+| MAN-S1-FIX | Backfill de previous_league_id reverte estado pós-trades da current league (idempotência cross-season + movimentação cega de Player.team_id em `_sync_trades`) | Alta | ✅ 28/04/2026 |
 | M2 | Tela de aprovação em lote de jogadores `needs_review=True` | Média | ✅ 27/04/2026 |
 | M3 | Exportar dynasty.db em formato legível para os outros owners | Baixa | 🔲 |
 | M4 | Banner de sync desatualizada com timestamp e botão "Sincronizar agora" | Baixa | 🔲 |
@@ -1662,7 +1662,7 @@ Remover o background das regras genéricas afetaria (1), (2) e (3) simultaneamen
 ---
 
 ### MAN-S1-FIX — Backfill de previous_league_id reverte estado pós-trades da current league
-🔲 **Pendente (registrado 27/04/2026)** — Prioridade **Alta**
+✅ **Resolvido 28/04/2026** — Prioridade **Alta**
 
 **Bug confirmado em auditoria local 27/04/2026** durante diagnose de divergência local↔prod (active_salary local=$239 vs prod=$255 em Cangaceiros). Detectado via análise da ordem de inserção das Trade rows e comparação com PlayerHistory canônico.
 
@@ -1703,6 +1703,114 @@ F1 deve avaliar trade-offs (idempotência preservada vs poder de recovery) e cob
 - Não remover botão "Importar Trades Históricas" — funcionalidade legítima quando rodada na ordem certa; fix protege contra ordem errada.
 
 **Disparo da auditoria:** sessão de validação de M1 em 27/04/2026 detectou `team_admin.active_salary()=$239` localmente, dissonante do `$255` reportado pelo owner em prod. Investigação cascateou de "stale player" → "PlayerHistory canônico vs Player row stale" → "padrão F8" → "Trade rows ordering" → bug arquitetural de `_sync_trades` cross-season.
+
+**Fase 1 Diagnose ✅ 28/04/2026**
+
+**Mecanismo confirmado contra dados reais.** Auditoria SQL local confirmou: 47 Trade rows (id 1-29 = 2025 created 14:49, id 30-47 = 2024 created 18:26 = backfill +3.5h). `Player.updated_at` dos 6 stale = `2026-04-22 19:41:57` coincide com Trade rows 2024. Idempotência por `sleeper_transaction_id` UNIQUE global é o gatilho da impossibilidade de auto-cura. 0 duplicatas de tx_id, 0 tx_ids compartilhados entre as 2 leagues — ambos esperados.
+
+**Achado crítico que altera escopo:** apenas **4 dos 6 players** citados são genuinamente stale. Jaydon Blue e RJ Harvey ESTÃO corretos em Cangaceiros — vieram via trades 2025 (rookies); o `via_trade=True` + `updated_at=22/04 19:41:57` deles é da sync legítima da current league. Diff $239 vs $255 ($16) é compatível com 4 stale, não 6.
+
+**Mecanismo por player:**
+
+| Player | Estado real | Stale? | run_sync corrige? |
+|---|---|---|---|
+| Tank Dell | dropado (PH 984 `drop` Cang 2025) | sim | **NÃO** (sync_sleeper.py:286-291 só seta `is_dropped`) |
+| Emanuel Wilson | em ESPN FL (PH 571 `trade` 2025) | sim | **SIM** (linhas 251-254 com guard `!=`) |
+| Chase Brown | em Pitbull (PH 565 `trade` 2025) | sim | **SIM** |
+| Rico Dowdle | em rafaelferreirap (PH 1104 `fa_auction` 2025) ou dropado | sim | **PROVAVELMENTE SIM** se ainda em roster |
+| Jaydon Blue | em Cangaceiros | **NÃO** (correto) | N/A |
+| RJ Harvey | em Cangaceiros | **NÃO** (correto) | N/A |
+
+**Réplicas de mutação `Player.team_id` (mapeamento completo):**
+
+| Local | Bug? | Justificativa |
+|---|---|---|
+| `sync_sleeper.py:251-254` (run_sync alignment) | NÃO | Guard `if p.team_id != team.id`. Sleeper authoritative. **É parte do recovery natural.** |
+| `sync_sleeper.py:267` (run_sync new player) | NÃO | Só na criação; `sleeper_player_id` UNIQUE. |
+| `sync_sleeper.py:286-291` (drop logic) | NÃO | Só seta `is_dropped`, não muta `team_id`. (Mas explica por que Tank/Rico não são auto-curáveis.) |
+| `sync_sleeper.py:561-562` (`_sync_trades`) | **SIM** | O bug. |
+| `sync_sleeper.py:909` (F8a `_rebuild_player_history`) | **HERDADO** | Itera `_walk_league_chain(LEAGUE_ID)` e chama `_sync_trades(lid)` por liga — herda o bug se chain inclui current+previous sem Trade rows pré-existentes. |
+| `routes/auction.py:320-321` (auction manual) | NÃO | Mutação humana autoritativa, fora do escopo cross-season. |
+| `import_csv.py:50` (CSV import) | NÃO | "Preserves team_id from Sleeper" — só cria novos sem time. |
+| `routes/offseason.py:629-673` (rollover) | NÃO | Não toca `team_id`. |
+
+**Trade-offs das 4 fixes (a/b/c/d):**
+
+| | Esforço | Risco regressão | Recovery automático | Cobertura cross-season + F8a |
+|---|---|---|---|---|
+| **(a)** reject move se `trade.season < season-da-liga` | **baixo** (~10-15 LoC, sem migration) | **baixíssimo** | não (preventivo) | **forte** |
+| (b) idempotência composta `(tx_id, league_id)` | médio (migration ALTER + drop/recreate UNIQUE) | médio | não cura mutação cega | parcial |
+| (c) `force_re_apply` mode | médio (~25 LoC) | médio-alto (force ignora guard) | sim (= recovery iii) | parcial |
+| (d) lookup PH subsequente | médio-alto (~40 LoC) | alto (heurístico ordering) | não | forte |
+
+**Trade-offs das recoveries (i/ii/iii) + (iv) descoberta em F1:**
+
+| | Esforço | Determinístico | Aplicabilidade aos 4 stale | Dependência |
+|---|---|---|---|---|
+| (i) snapshot prod→local | médio-alto (CLI Render ou endpoint admin novo) | sim (se prod limpo) | 4/4 | nenhuma |
+| (ii) SQL re-aplicar trades 2025 | baixo (~30 linhas) | sim | 2/4 (Tank/Rico sem trade 2025) | nenhuma |
+| (iii) `force_re_apply` | trivial após (c) | sim, ordem cronológica | 2/4 (idem) | requer fix (c) |
+| **(iv) `run_sync()` puro** | **mínimo** (1 clique) | parcial (depende roster Sleeper vivo) | 2/4 (Chase/Emanuel via guard); 2 órfãos via path 286-291 | nenhuma |
+
+**Idempotência (resposta direta):** `sleeper_transaction_id` é UNIQUE global na tabela `trades` (`models.py:385-395`, index `uq_trades_sleeper_tx`); filtro de existência (`sync_sleeper.py:532`) cobre **todas as leagues** indiscriminadamente. Tabela não tem `season` nem `league_id`. Tx_ids compartilhados entre as 2 leagues: 0 (esperado).
+
+**Cobertura cross-season:** rollover (`routes/offseason.py:629-673`) não toca `team_id` — imune ao bug raiz. Interação patológica: após rollover, `current_season=2026`, e `_sync_trades:519` (`season = get_current_season()`) graveria `PlayerHistory.season=2026` mesmo para trades de 2024 — agrava o problema. Fix (a) deve usar `season-da-liga-processada` (derivada do `_get(/league/{lid}).season`), **não** `get_current_season()`. Linha 519 é parte do bug raiz, não acessório.
+
+**Risco em prod (latente vs manifesto):** inconclusivo via endpoint público (todas rotas exigem `@login_required`). Hipótese: prod provavelmente latente, não manifesto. Owner valida manualmente em `/team/5` antes do F2 (decisão sobre criar `/api/admin/diag/stale_players` fica para o prompt do F2 — provavelmente desnecessário se 1 visita manual basta).
+
+**Recomendação final:** fix **(a)** + recovery **(iv)** + UPDATE one-shot targeted (Tank Dell + Rico Dowdle). Fix (a) é a menor superfície de regressão; cobre F8a e rollover inerentemente; deve corrigir simultaneamente a linha 519 (gravar `PlayerHistory.season` como `season-da-liga-processada`). Recovery (iv) cura 2/4 (Chase Brown, Emanuel Wilson) sem código novo via guard das linhas 251-254. UPDATE one-shot cura os 2 dropados (`team_id=NULL` + `is_dropped=True`, ou aponta para roster atual no Sleeper se ainda existir). Não escolher (b)/(c)/(d) (cosmético, perigoso ou frágil), nem (i)/(ii)/(iii) (overkill, frágil para Tank/Rico, ou bloqueado por fix).
+
+**Surpresas relevantes para F2:**
+- Escopo de recovery menor: 4 stale (não 6).
+- F8a (`sync_sleeper.py:909`) é caminho indireto do mesmo bug — F2 precisa cobrir e validar.
+- Linha 519 (`season = get_current_season()`) é parte do bug raiz — fix (a) deve cobrir.
+- PH rows 2024 (4 rows criadas em 22/04 19:42:31-32) são **factualmente corretas** (em 2024 esses players foram tradados para Cangaceiros) — preservar como histórico canônico, sem expurgo.
+- Cosmético opcional: botão "Importar Trades Históricas" fica seguro pós-fix mas confuso semanticamente. Owner registra item separado pós-F2 se decidir tratar.
+
+**Pendências de input do owner antes de F2:**
+1. Validar manualmente cobertura prod (4 stale também?) — owner faz via `/team/5`. Sem necessidade de endpoint diagnóstico se 1 visita basta.
+2. Confirmar estado Sleeper atual de Tank Dell e Rico Dowdle (ainda dropped?) — owner consulta no Sleeper. Determina target do UPDATE one-shot.
+3. Preservar PH 2024 — confirmado.
+4. Cosmético do botão de backfill — fora do escopo do F2; eventual item separado pós-F2.
+
+**Fase 2 Implementação ✅ 28/04/2026**
+
+**Validação manual de prod feita pelo owner antes do F2:** prod (Render) está limpo — nenhum dos 4 stale aparece em Cangaceiros lá. Sem migration de prod necessária. Owner também confirmou que os 4 stale têm rosters Sleeper ativos (Chase Brown→Pitbull, Emanuel Wilson→ESPN FL, Tank Dell→rafadgil, Rico Dowdle→rafaelferreirap), tornando recovery via `run_sync()` viável para todos os 4 — UPDATE one-shot tornou-se desnecessário.
+
+**Mudanças aplicadas (apenas guard lógico, zero schema):**
+- `sync_sleeper.py:495+` — assinatura de `_sync_trades` ganhou parâmetro opcional `league_season: int | None = None`. Se não passada, é derivada uma única vez via `_get(/league/{league_id}).season`. Variável local `is_previous_season = (league_season < current_season)` calculada antes do loop de trades.
+- `sync_sleeper.py:587-600` — mutação de `Player.team_id`/`fantasy_team`/`is_my_team`/`via_trade` envolvida em `if not is_previous_season:`. Trade row + PlayerHistory event continuam sendo gravados incondicionalmente (preserva histórico canônico). `affected_team_ids` (cap recompute) também só atualiza dentro do guard — trade cross-season não muda cap atual.
+- `sync_sleeper.py:604-612` — `season=season` (que era `get_current_season()`) trocado por `season=league_season` no INSERT de `PlayerHistory`. PH agora reflete a season da liga sendo processada, não a current global.
+- `routes/admin.py:323-329` — `sync_trades_backfill()` passa `league_season=int(prev_data["season"])` evitando I/O redundante (payload já estava em escopo).
+- `sync_sleeper.py:909-915` — F8a `_rebuild_player_history` passa `league_season=int(league.get("season"))` ao iterar pela chain. Cobre o caminho indireto.
+- `sync_sleeper.py:307` — `run_sync()` chama `_sync_trades(LEAGUE_ID)` sem `league_season` (deriva internamente). Aceitável pelo overhead trivial.
+
+**Resultado dos 6 cenários de validação:**
+
+1. **Backfill cross-season com guard ativo** ✅ — em DB de cópia, deletadas as 29 Trade rows da liga `previous_league_id` e PH correspondentes; chamado `_sync_trades(prev_id, league_season=2024)` (forçando guard ativo, `2024 < 2025`). Resultado: `imported=29` Trade rows criadas + 78 PH novas, **zero mutações de team_id** dos 4 stale.
+
+2. **F8a (caminho indireto)** ✅ — coberto pela mesma função; lógica idêntica. F8a passa `league_season` explicitamente após mudança em `sync_sleeper.py:909-915`.
+
+3. **PlayerHistory.season correto** ✅ — todas as 78 PH novas do Cenário 1 gravadas com `season=2024` (= season da liga processada), zero com `season=current_season`.
+
+4. **Recovery dos 4 stale via run_sync** ✅ — rodado no DB local real após fix:
+   - Tank Dell: team_id=5 (Cangaceiros) → team_id=1 (Pitbull do Samba) [Sleeper retornou Pitbull, não rafadgil; owner confirma]
+   - Emanuel Wilson: team_id=5 → team_id=12 (ESPN FANTASY LEAGUE) ✓
+   - Chase Brown: team_id=5 → team_id=1 (Pitbull do Samba) ✓
+   - Rico Dowdle: team_id=5 → team_id=11 (rafaelferreirap) ✓
+   - Jaydon Blue, RJ Harvey: permaneceram em Cangaceiros (corretos, conforme F1)
+   - **Cangaceiros active_salary: $239 → $255** (bate com prod) ✓
+
+5. **Idempotência** ✅ — segunda passada de `run_sync()`: `players_updated=0`. Backfill de teste rodado 2x: segunda passada `imported=0 skipped=29`, zero mutações.
+
+6. **Regressão zero** ✅ — `salary_engine_test.py` 48/48. Smoke endpoints HTTP não rodado em sessão (recovery via REPL com app context é equivalente — exercitou bootstrap completo, models, sync, salary calc).
+
+**Surpresas/decisões durante implementação:**
+- Sleeper avançou a season da liga entre 22/04 e 28/04: `LEAGUE_ID` agora retorna `season=2026`, `previous_league_id` retorna `season=2025`. AppConfig local ainda em `current_season=2025`. Significa que o cenário do bug *natural* não é reproduzível sem forçar `league_season` explicitamente. Não afeta o fix — apenas a estratégia de teste (forçar via parâmetro).
+- Tank Dell em **Pitbull do Samba** (team_id=1) segundo Sleeper, não rafadgil como reportado pelo owner. Owner deve confirmar visualmente. Recovery aplicou o que Sleeper diz (autoritative).
+- Cangaceiros roster: 25 → 23 jogadores pós-recovery (4 saíram, 2 corretos ficaram = 21; 23 finais sugere que outros 2 players além dos 4 stale foram reclassificados pelo run_sync via roster alignment ou drop logic — coerente com sync rotineiro, não falha).
+
+**Commit:** mudanças em `sync_sleeper.py`, `routes/admin.py`, `improvements.md`, `manager_devplan.md`. Render auto-deploy via push origin/main.
 
 ---
 

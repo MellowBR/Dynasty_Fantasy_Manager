@@ -492,13 +492,23 @@ def _compute_cap_alerts(affected_team_ids: set) -> list[dict]:
     return alerts
 
 
-def _sync_trades(league_id: str) -> dict:
+def _sync_trades(league_id: str, league_season: int | None = None) -> dict:
     """
     Sync completed trades from a Sleeper league. Idempotent via sleeper_transaction_id.
     2-way trades: normal Trade row.
     N-way trades (N>2): placeholder Trade row with team_b="N-way: <others>", description
     prefixed "[N-WAY]". Players/picks still move correctly via adds/drops/draft_picks.
     Returns {"imported": N, "skipped": M, "warnings": [str, ...], "cap_alerts": [dict, ...]}.
+
+    MAN-S1-FIX (cross-season guard): se a liga sendo processada pertence a uma season
+    anterior à `current_season` global (caso típico: backfill de previous_league_id ou
+    F8a iterando pela chain), Trade row + PlayerHistory event continuam sendo criados
+    (preserva histórico canônico), mas Player.team_id/fantasy_team NÃO são mutados
+    (evita sobrescrever estado pós-trades da current league). PlayerHistory.season é
+    sempre a season da liga sendo processada, não `get_current_season()`.
+
+    `league_season` pode ser passada pelo caller para evitar I/O redundante; se None,
+    é derivada uma única vez via /league/{league_id}.
 
     M1 — cap_alerts populated post-movement, pre-commit, in try/except (failure
     logs to warnings, sync continues — soft cap, alert never blocks).
@@ -512,11 +522,27 @@ def _sync_trades(league_id: str) -> dict:
         result["warnings"].append(f"Nenhum roster mapeado para liga {league_id}")
         return result
 
+    if league_season is None:
+        league_data = _get(f"{BASE_URL}/league/{league_id}") or {}
+        try:
+            league_season = int(league_data.get("season")) if league_data.get("season") else None
+        except (ValueError, TypeError):
+            league_season = None
+        if league_season is None:
+            result["warnings"].append(
+                f"Liga {league_id}: season indisponível — guard cross-season pulado, "
+                f"comportamento legado (movimentação aplicada)"
+            )
+
+    current_season = get_current_season()
+    is_previous_season = (
+        league_season is not None and league_season < current_season
+    )
+
     players_by_sid = {
         p.sleeper_player_id: p
         for p in Player.query.filter(Player.sleeper_player_id.isnot(None)).all()
     }
-    season = get_current_season()
 
     for leg in range(1, 19):
         txs = _get(f"{BASE_URL}/league/{league_id}/transactions/{leg}") or []
@@ -558,21 +584,26 @@ def _sync_trades(league_id: str) -> dict:
                     )
                     continue
 
-                player.team_id = dst_team.id
-                player.fantasy_team = dst_team.name
-                player.is_my_team = dst_team.is_my_team
-                player.via_trade = True
+                # MAN-S1-FIX: só muta asset live se a trade pertence à current
+                # league. Trades de previous leagues (backfill, F8a chain walk) só
+                # geram Trade row + PH event histórico, sem sobrescrever team_id.
+                if not is_previous_season:
+                    player.team_id = dst_team.id
+                    player.fantasy_team = dst_team.name
+                    player.is_my_team = dst_team.is_my_team
+                    player.via_trade = True
 
-                # M1: track teams whose roster changed (cap recompute target)
-                affected_team_ids.add(dst_team.id)
-                if src_team:
-                    affected_team_ids.add(src_team.id)
+                    # M1: track teams whose roster changed (cap recompute target).
+                    # Só dentro do guard — trade cross-season não muda cap atual.
+                    affected_team_ids.add(dst_team.id)
+                    if src_team:
+                        affected_team_ids.add(src_team.id)
 
                 src_name = src_team.name if src_team else "?"
                 notes_prefix = "N-way trade " if is_n_way else "Trade sleeper_sync "
                 db.session.add(PlayerHistory(
                     player_id=player.id,
-                    season=season,
+                    season=league_season,
                     team_name=dst_team.name,
                     event_type="trade",
                     salary=player.salary,
@@ -905,8 +936,13 @@ def _rebuild_player_history(dry_run: bool = False) -> dict:
             continue
 
         # Trades via S1 (idempotente). Só executa se not dry_run.
+        # MAN-S1-FIX: passar league_season para o guard cross-season de _sync_trades.
         if not dry_run:
-            trade_result = _sync_trades(lid)
+            try:
+                lid_season = int(league.get("season")) if league.get("season") else None
+            except (ValueError, TypeError):
+                lid_season = None
+            trade_result = _sync_trades(lid, league_season=lid_season)
             result["warnings"].extend(
                 f"[{league.get('season')}] {w}" for w in trade_result.get("warnings", [])
             )

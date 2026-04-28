@@ -322,8 +322,12 @@ def sync_trades_backfill():
 
     prev_data = _get(f"{BASE_URL}/league/{prev_id}") or {}
     prev_season = prev_data.get("season", "?")
+    try:
+        prev_season_int = int(prev_data.get("season")) if prev_data.get("season") else None
+    except (ValueError, TypeError):
+        prev_season_int = None
 
-    result = _sync_trades(prev_id)
+    result = _sync_trades(prev_id, league_season=prev_season_int)
     result["previous_league_id"] = prev_id
     result["previous_season"] = prev_season
     return jsonify(result)
