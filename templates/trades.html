@@ -171,16 +171,16 @@
         <td class="recent-trades-desc" data-label="Descrição">
           {% if t.flow %}
           <div class="trade-flow">
-            <div class="flow-col">
-              <div class="flow-col-header">{{ t.team_a }} envia →</div>
+            <div class="flow-col-header">{{ t.team_a }} envia →</div>
+            <div class="flow-col-header">{{ t.team_b }} envia →</div>
+            <div class="flow-col-list">
               {% for asset in t.flow.a_to_b %}
               <div class="flow-asset">{{ asset }}</div>
               {% else %}
               <div class="flow-asset text-dim">—</div>
               {% endfor %}
             </div>
-            <div class="flow-col">
-              <div class="flow-col-header">{{ t.team_b }} envia →</div>
+            <div class="flow-col-list">
               {% for asset in t.flow.b_to_a %}
               <div class="flow-asset">{{ asset }}</div>
               {% else %}
