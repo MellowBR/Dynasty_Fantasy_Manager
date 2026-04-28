@@ -78,17 +78,36 @@
     <div class="dynasty-bar-labels">
       <div class="dynasty-bar-label-left">
         <span class="dynasty-bar-team" id="dyn-name-a">—</span>
-        <span class="dynasty-bar-total">🪙 <strong id="dyn-total-a">0</strong></span>
+        <span class="dynasty-bar-total">🪙 Dynasty <strong id="dyn-total-a">0</strong></span>
       </div>
       <div class="dynasty-bar-delta-chip" id="dyn-delta-chip">—</div>
       <div class="dynasty-bar-label-right">
-        <span class="dynasty-bar-total">🪙 <strong id="dyn-total-b">0</strong></span>
+        <span class="dynasty-bar-total">🪙 Dynasty <strong id="dyn-total-b">0</strong></span>
         <span class="dynasty-bar-team" id="dyn-name-b">—</span>
       </div>
     </div>
     <div class="dynasty-bar-track">
       <div class="dynasty-bar-fill-a" id="dyn-fill-a" style="width:0%"></div>
       <div class="dynasty-bar-fill-b" id="dyn-fill-b" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- T3: Redraft balance bar (paralelo a dynasty, escala separada) -->
+  <div id="redraft-bar-section" class="redraft-bar-section" style="display:none">
+    <div class="redraft-bar-labels">
+      <div class="redraft-bar-label-left">
+        <span class="redraft-bar-team" id="rdft-name-a">—</span>
+        <span class="redraft-bar-total">⚡ Redraft <strong id="rdft-total-a">0</strong></span>
+      </div>
+      <div class="redraft-bar-delta-chip" id="rdft-delta-chip">—</div>
+      <div class="redraft-bar-label-right">
+        <span class="redraft-bar-total">⚡ Redraft <strong id="rdft-total-b">0</strong></span>
+        <span class="redraft-bar-team" id="rdft-name-b">—</span>
+      </div>
+    </div>
+    <div class="redraft-bar-track">
+      <div class="redraft-bar-fill-a" id="rdft-fill-a" style="width:0%"></div>
+      <div class="redraft-bar-fill-b" id="rdft-fill-b" style="width:0%"></div>
     </div>
   </div>
 
@@ -164,6 +183,10 @@ let dynastyMap = {};
 let dynastyAvailable = false;
 let dynastyMeta = { count: 0, age_hours: null, fetched_at: null };
 
+// T3: redraftMap[sleeperId] = redraft_value (int). Single fetch, both maps.
+// Picks têm redraft_value=0 sempre (puro futuro) — não consultam este map.
+let redraftMap = {};
+
 function fmtValue(v) {
   if (v == null) return '—';
   return v.toLocaleString('pt-BR');
@@ -192,13 +215,15 @@ function loadDynastyValues() {
     .then(r => r.json())
     .then(d => {
       dynastyMap = d.values || {};
+      redraftMap = d.redraft_values || {};
       dynastyAvailable = Object.keys(dynastyMap).length > 0;
       dynastyMeta = { count: d.count || 0, age_hours: d.age_hours, fetched_at: d.fetched_at };
       updateDynastyBanner();
       updateDynastyBar();
+      updateRedraftBar();
     })
     .catch(() => {
-      dynastyMap = {}; dynastyAvailable = false;
+      dynastyMap = {}; redraftMap = {}; dynastyAvailable = false;
       updateDynastyBanner();
     });
 }
@@ -258,6 +283,7 @@ function loadSide(side, teamName) {
         </label>`;
       }).join('');
       updateDynastyBar();
+      updateRedraftBar();
     });
 
   fetch('/api/picks?team=' + encodeURIComponent(teamName))
@@ -297,6 +323,7 @@ function loadSide(side, teamName) {
             cb.checked = true;
             selected.picks[side].add(parseInt(presetId));
             updateDynastyBar();
+            updateRedraftBar();
           }
           // Consume: evita remarcar se loadSide rodar de novo no mesmo page load
           layout.dataset[presetKey] = '';
@@ -304,6 +331,7 @@ function loadSide(side, teamName) {
       }
 
       updateDynastyBar();
+      updateRedraftBar();
     });
 
   fetch('/api/teams').then(r => r.json()).then(teams => {
@@ -317,6 +345,7 @@ function toggleAsset(side, type, id) {
   const set = selected[type][side];
   set.has(id) ? set.delete(id) : set.add(id);
   updateDynastyBar();
+  updateRedraftBar();
 }
 
 function computeSideDynastyTotal(side) {
@@ -335,6 +364,23 @@ function computeSideDynastyTotal(side) {
       if (v) total += v;
     }
   }
+  return total;
+}
+
+// T3: agregação paralela para barra redraft. Picks contribuem 0 (não tem
+// redraft_value relevante — puro futuro). Players sem cobertura redraft
+// contribuem 0 silenciosamente (degradação elegante).
+function computeSideRedraftTotal(side) {
+  let total = 0;
+  for (const pid of selected.players[side]) {
+    const p = sideData.players[side].find(x => x.id === pid);
+    if (p) {
+      const v = redraftMap[p.sleeper_player_id];
+      if (v) total += v;
+    }
+  }
+  // Picks: redraft_value sempre 0 — skip. Mantido o for vazio explícito
+  // pra simetria com computeSideDynastyTotal e para futuro se mudar a regra.
   return total;
 }
 
@@ -389,6 +435,58 @@ function updateDynastyBar() {
   } else {
     chip.textContent = `✅ ${nameB} leva +${fmtValue(Math.abs(delta))}`;
     chip.className = 'dynasty-bar-delta-chip win-b';
+  }
+}
+
+// T3: barra redraft — paralela à dynasty bar, escala separada (cada lado
+// normaliza pelo max dos dois totais redraft, não compartilhado com dynasty).
+// Visual deliberadamente espelhado pra leitura "dois calculadores, mesma gramática".
+function updateRedraftBar() {
+  const section = document.getElementById('redraft-bar-section');
+  if (!dynastyAvailable) {
+    section.style.display = 'none';
+    return;
+  }
+  const nameA = document.getElementById('sel-a').value;
+  const nameB = document.getElementById('sel-b').value;
+  if (!nameA || !nameB) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+
+  const totalA = computeSideRedraftTotal('a');
+  const totalB = computeSideRedraftTotal('b');
+  const max = Math.max(totalA, totalB, 1);
+  const pctA = (totalA / max) * 100;
+  const pctB = (totalB / max) * 100;
+
+  document.getElementById('rdft-name-a').textContent = nameA;
+  document.getElementById('rdft-name-b').textContent = nameB;
+  document.getElementById('rdft-total-a').textContent = fmtValue(totalA);
+  document.getElementById('rdft-total-b').textContent = fmtValue(totalB);
+  document.getElementById('rdft-fill-a').style.width = pctA + '%';
+  document.getElementById('rdft-fill-b').style.width = pctB + '%';
+
+  const aReceives = totalB;
+  const bReceives = totalA;
+  const delta = aReceives - bReceives;
+  const pct = (Math.max(aReceives, bReceives) > 0)
+    ? Math.abs(delta) / Math.max(aReceives, bReceives) * 100
+    : 0;
+  const chip = document.getElementById('rdft-delta-chip');
+  if (totalA === 0 && totalB === 0) {
+    chip.textContent = 'Selecione ativos';
+    chip.className = 'redraft-bar-delta-chip neutral';
+  } else if (pct < 5) {
+    chip.textContent = '⚖️ Equilibrada';
+    chip.className = 'redraft-bar-delta-chip neutral';
+  } else if (delta > 0) {
+    chip.textContent = `✅ ${nameA} leva +${fmtValue(Math.abs(delta))}`;
+    chip.className = 'redraft-bar-delta-chip win-a';
+  } else {
+    chip.textContent = `✅ ${nameB} leva +${fmtValue(Math.abs(delta))}`;
+    chip.className = 'redraft-bar-delta-chip win-b';
   }
 }
 

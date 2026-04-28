@@ -104,6 +104,8 @@ def api_picks():
             d["projection_locked"] = False
         sid = pick_sleeper_id(p, current_season, values_map)
         d["dynasty_value"] = resolve_asset_value(values_map, sid)
+        # T3: picks têm redraft=0 sempre (puro futuro). Mantém key explícito para simetria.
+        d["redraft_value"] = 0
         result.append(d)
     return jsonify(result)
 

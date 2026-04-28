@@ -1015,3 +1015,29 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Validação:** `salary_engine_test.py` 48/48; smoke transitório (`scripts/m1_smoke.py` deletado pós-execução) cobriu 5 cenários: synthetic player com marker `_M1_TEST_*` pushed team admin para `active_salary=$449` (over_by=$249); banner aparece com cópia e valor correto quando offseason_mode=true; banner ausente quando offseason_mode=false (gating funciona); helper `_compute_cap_alerts` retorna entry correto e `[]` para set vazio; cenário (iv) "sub-cap → banner ausente" skipado graciosamente porque baseline real do team admin já está acima do cap ($239) — exato use case do M1, threshold strict-above coberto pelo helper. Smoke pages: `/admin` 200, `/admin/review` 200, `/` 200, `/trades` 200, `/api/admin/review_players` 200; `/clear` legado retorna 404 (removido com sucesso).
 
 - **Observação real-world:** o team admin (`Cangaceiros da Colina`) está com `active_salary=$239` — $39 acima do cap atualmente. Ou seja, M1 já tem trabalho a fazer no momento que offseason_mode for ativado pela próxima vez. Item não é puramente preventivo.
+
+### 27/04/2026 — Camada T3 (Valores redraft do FantasyCalc no Trade Manager)
+
+- **Sessão única:** registro REG → F1 → F2 → commit ocorreram na mesma sessão (27/04/2026), antes do deadline informal de junho/2026 que tinha sido auto-imposto. Owner em mobile remote control (sem acesso a localhost) escolheu implementar imediatamente em auto mode após F1 conclusiva.
+
+- **Descobertas determinantes da F1 (MAN-T3-F1) — reduziram esforço esperado em ~50%:**
+  - **Endpoint `isDynasty=true` do FantasyCalc já retorna `redraftValue`** ao lado de `value` em cada entry. Single fetch, single cache file. Nenhum dos refors arquiteturais antecipados em T3-REG foi necessário (cache paralelo, refetch paralelo, namespace).
+  - **Picks têm `redraftValue=0`** explicit em todos os 12 PICK entries. Tratamento natural sem marcador "n/a" — barra redraft simplesmente não recebe contribuição quando asset é pick.
+  - **Barra dynasty existente (`style.css:1198-1221`) é centro-zero com fills `max-width: 50%`** — estrutura ideal pra clonar visualmente. Replicar a barra redraft é puro CSS + JS espelhado, zero refator do markup existente.
+
+- **5 decisões de design confirmadas pelo owner em troca curta via mobile (27/04/2026):**
+  - **Paleta dynasty mais clara** para a barra redraft (opção C de 3) — variantes lighter dos tokens existentes (`#6ea8fe`→`#a3c4ff`; `#ff8f6b`→`#ffb8a0`). "Irmã caçula" visualmente identificável.
+  - **Naming `redraft_value`** snake_case (opção A) — espelha `dynasty_value` por simetria. Frontend e backend uniformes.
+  - **Manter helper `get_dynasty_values()`** com docstring atualizada (opção C) — zero refs externas mexidas, blast radius zero. Custo de "nome historicamente impreciso" aceito; auditor relê doc e entende.
+  - **Totais nos labels das próprias barras** (opção A) — sem rodapé extra, sem duplicação. Stack vertical das 2 barras já produz o efeito "totais paralelos lado a lado, ambos canônicos" mencionado em T3-REG.
+  - **Implementar agora em auto mode** (opção A de timing) — owner aceitou risco visual residual antecipadamente. Smoke valida lógica/payload; pixel-level pendente de inspeção em desktop.
+
+- **Decisão de escopo emergente em F2:** `trade_proposal.html` (read-only de proposta compartilhável) **não tinha dynasty bar — T2 nunca portou**. Em vez de inflar T3 com bar markup completo (~70 LOC de Jinja), adicionado em F2 linhas compactas estilo `cap-mini` por side: "🪙 Dynasty: envia X · recebe Y · Δ Z" + "⚡ Redraft: envia X · recebe Y · Δ Z". Visualizadores externos veem ambas dimensões sem markup duplicado das barras visuais. Dynasty bar em proposal vira opcional pra camada futura se virar dor.
+
+- **Aprendizado generalizável (não meta-mudança no DEV_METHODOLOGY):** F1 vale o tempo investido **especialmente quando o registro original (REG) lista questões abertas que assumem o pior caso**. T3-REG listou 9 questões cobrindo refator de cache, refetch paralelo, idempotência, etc. F1 confirmou que 7/9 questões caíam por achados simples no payload existente — economia real de horas de F2. Princípio: F1 sempre deve verificar se o sinal já existe no payload/código antes de propor backend novo. Mesmo padrão observado em M1 (`over_cap` já no payload de `_compute_cap_impact`).
+
+- **Ordem REG → F1 → F2 → commit em mesma sessão funciona quando** (a) o registro REG tem 8 seções com rationale completo, (b) F1 é read-only puro e factível com WebFetch + Grep + Read, (c) F2 é majoritariamente UI sobre payload existente. Não generalizar pra todas as camadas — mas registrar como caso possível quando todas as 3 condições batem.
+
+- **Validação:** `salary_engine_test.py` 48/48; smoke transitório (`scripts/t3_smoke.py` deletado pós-execução) cobriu 7 cenários: cache + helper + asset_dicts + cap_impact + endpoints + page render. WebFetch direto na FantasyCalc API confirmou shape do payload (150 entries em redraft, 100 em dynasty, 12 PICK em dynasty com redraftValue=0). **Validação visual (cores, alinhamento, mobile) fica pendente do owner em desktop pós-deploy.**
+
+- **Risco visual residual aceito:** F2 implementada em mobile remote control — owner não consegue inspecionar `/trades` e `/trades/proposta/<uuid>` em browser nesta sessão. Se cores destoarem, alinhamento das 2 barras stacked não ficar bom, ou mobile quebrar densidade, owner sinaliza pós-deploy e ajustamos como camada T3-FIX se necessário.

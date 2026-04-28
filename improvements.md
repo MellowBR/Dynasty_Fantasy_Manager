@@ -21,6 +21,7 @@
 | Q1 | Script de simulação de temporada (validar salary rollover) | Média | 🔲 |
 | M1 | Alerta de cap estourado pós-S1 (preview escalonado + warnings de sync, banner gated por offseason) | Média | ✅ 27/04/2026 |
 | M1-FOLLOWUP | Avaliar auto-desativação de offseason mode após FA auction concluído (banner M1 persiste como ruído se admin esquecer de desligar manualmente) | Baixa | 🔲 |
+| MAN-S1-FIX | Backfill de previous_league_id reverte estado pós-trades da current league (idempotência cross-season + movimentação cega de Player.team_id em `_sync_trades`) | Alta | 🔲 |
 | M2 | Tela de aprovação em lote de jogadores `needs_review=True` | Média | ✅ 27/04/2026 |
 | M3 | Exportar dynasty.db em formato legível para os outros owners | Baixa | 🔲 |
 | M4 | Banner de sync desatualizada com timestamp e botão "Sincronizar agora" | Baixa | 🔲 |
@@ -69,7 +70,7 @@
 | UX6 | Revisão da largura máxima do container global da aplicação (~700px de ar lateral em monitor 1920px) | Média | 🔲 |
 | UX5 | Redesign da seção Picks em detalhe de time (3 tabelas anuais com baixa densidade, coluna Notas vazia) | Média | 🔲 |
 | DATA-1 | Badges TRADE e REVISÃO removidos da macro de listagem (info pertence à timeline/admin, não à listagem) | Média | ✅ 24/04/2026 |
-| T3 | Valores redraft do FantasyCalc no Trade Manager (modelo 3 — duas barras independentes dynasty + redraft) | Média | 🔲 |
+| T3 | Valores redraft do FantasyCalc no Trade Manager (modelo 3 — duas barras independentes dynasty + redraft) | Média | ✅ 27/04/2026 |
 
 ---
 
@@ -1619,66 +1620,88 @@ Remover o background das regras genéricas afetaria (1), (2) e (3) simultaneamen
 
 ---
 
-### MAN-T3 — Valores redraft do FantasyCalc no Trade Manager
-🔲 **Pendente (registrado 27/04/2026)** — Prioridade **Média**
+### T3 — Valores redraft do FantasyCalc no Trade Manager
+✅ **Concluído (27/04/2026)** — Prioridade **Média**
 
-*Deadline informal: T3 deve subir para fila ativa até início de junho/2026 — caso contrário, season 2026 perde a janela de pré-season para essa feature.*
+**Briefing originado em chat do Optimizer (27/04/2026)** durante análise da trade real D'Andre Swift × RJ Harvey, que demonstrou que a escolha entre dynasty e redraft pode inverter o veredicto da trade (Harvey +189 dynasty / Swift +265 redraft — flip de 454 pontos). Item registrado em formato REG primeiro, depois implementado no mesmo dia após F1 conclusiva.
 
-> Item em formato Registro (REG) — captura discussão substantiva adiada para implementação futura. Briefing originado em chat do Optimizer (27/04/2026) durante análise da trade real Swift × Harvey. F1 (diagnose) será aberto em sessão futura quando o item subir na fila. Primeiro item do Manager no template Registro de 8 seções (DEV_METHODOLOGY.md, atualizado em 27/04/2026).
->
-> **Desambiguação histórica:** este T3 é distinto do "T3 (sugestões de assets)" registrado e descartado em 23/04/2026 (ver Log de Decisões do manager_devplan.md naquela data). Aquele T3 nunca chegou a ser persistido em improvements.md como item de backlog; o ID foi reaproveitado.
+**Diagnose F1 (MAN-T3-F1, 27/04/2026):** três descobertas reduziram o escopo de F2 em ~50%:
+1. Endpoint `isDynasty=true` do FantasyCalc **já retorna `redraftValue`** ao lado de `value` em cada entry — sem fetch separado, sem cache paralelo, sem refator de TTL.
+2. Picks têm `redraftValue=0` explícito (12/12 PICK entries verificadas) — degradação elegante natural sem marcador "n/a".
+3. Barra dynasty existente em `style.css:1198-1221` é **centro-zero** com fills `max-width: 50%`, estrutura ideal pra clonar.
 
-#### CONTEXTO
-Investigação levantada no chat do Optimizer (briefing recebido em 27/04/2026) durante análise de uma trade real (D'Andre Swift × RJ Harvey). FantasyCalc oferece dois calculadores no mesmo serviço — Dynasty (horizonte 3-5 anos, idade pesa) e Redraft (só temporada vigente, idade quase irrelevante). Hoje o Manager consome apenas Dynasty no Trade Manager (T2 ✅, T2-FIX-2 ✅). O caso real mostrou que a escolha entre as duas perspectivas inverte o veredicto da trade (Harvey ganha +189 dynasty / Swift ganha +265 redraft — flip de 454 pontos). Pergunta: o Manager deve surfar redraft, e em que forma?
+**Modelo escolhido em planejamento (27/04/2026):** duas barras independentes paralelas (dynasty + redraft), escala separada, totais nos labels da própria barra. Owner confirmou 5 decisões de design: paleta dynasty mais clara para redraft, naming `redraft_value` snake_case, helper `get_dynasty_values` mantido por retro-compat, totais nos labels (sem rodapé extra), implementação imediata.
 
-#### PROBLEMA / OPORTUNIDADE
-Owners CONTENDER tomam decisões de trade focadas em produção da temporada vigente, mas o número canônico exibido no Trade Manager (dynasty) embute youth premium que não se realiza no curto prazo. O gap entre dynasty e redraft é, em si, um sinal analítico: quantifica o "prêmio de futuro" que cada asset carrega. Expor as duas dimensões em paralelo dá ao owner uma camada de leitura que hoje é invisível, sem prescrever qual ler.
+**Implementado:**
 
-#### DISCUSSAO
-- Três modelos foram avaliados no briefing: (1) substituir dynasty por redraft conforme perfil do time, (2) blend ponderado por perfil, (3) expor as duas dimensões + gap. Modelo 3 venceu por compatibilidade com a arquitetura do Manager (app de exibição, não de cálculo) e por preservar a soberania do owner sobre qual dimensão ler.
-- Tensão inicial: "lado a lado simétrico" parecia apagar o número canônico dynasty. Resolução: duas barras visualmente paralelas, cada uma representando sua dimensão, com origem no zero — uma para dynasty, outra para redraft. Quando o owner adiciona asset de um lado da trade, a barra correspondente desloca-se para o lado oposto na proporção do valor recebido. Como cada barra é independente, não há competição por primazia visual. O gap aparece implicitamente: barras pendendo para lados opostos significam flip de veredicto (caso Swift/Harvey); barras no mesmo sentido mas magnitudes muito diferentes significam youth premium relevante.
-- Consequência da escolha visual: o número numérico do gap deixa de exigir espaço próprio na UI — vira informação acessória (hover, badge, linha de detalhe). A leitura visual transmite o sinal sem precisar do dígito.
-- Trade total no rodapé ganha duplicação natural — exibe os dois totais (dynasty e redraft) lado a lado, sem ambiguidade de "qual número é o canônico". Ambos são canônicos, cada um na sua dimensão.
-- O gap deve ser calculado no backend, alinhado com o aprendizado de T2-FIX-2 (réplicas Python↔JS são anti-pattern). Frontend recebe redraft pronto, não recalcula.
-- Picks de draft provavelmente não têm valor redraft (puro futuro). Tratamento esperado: degradação elegante — a barra de redraft simplesmente não recebe contribuição daquele asset, sem necessidade de marcador "n/a" explícito.
-- Histórico (PlayerHistory) fica fora do escopo: persistir redraft histórico é decisão separada (migration, sync periódica) que não vale acoplar.
+- **Backend extensão (`dynasty_values.py`):** `_build_map_from_raw` agora captura `redraft_value` em cada entry do mesmo cache (single fetch, single file). Helper novo `resolve_asset_redraft_value(values_map, sid)` paralelo a `resolve_asset_value` — picks retornam 0 sempre. Helper público `get_dynasty_values()` preservado (zero refs externas mexidas, retro-compat com T2/T2-FIX/T2-FIX-2/M1); docstring atualizada explicitando que retorna ambas dimensões.
 
-#### DECISOES JA TOMADAS
-- Modelo 3 escolhido (lado a lado + gap), com duas barras visualmente paralelas como direção de UX — uma dynasty, uma redraft, ambas com a mesma gramática (origem no zero, deslocamento proporcional ao valor recebido pelo lado oposto).
-- Item registrado como T3, não como subscope de T2 — T2 está fechado e T2-FIX/T2-FIX-2 foram correções de bug, não extensões funcionais.
-- Prioridade Média — caso real é forte mas não bloqueante; entra na fila Média atual sem furar.
-- Gap calculado no backend (em rota a ser decidida na F1), exposto pronto ao frontend. Réplica de cálculo entre Python e JS é proibida.
-- Picks com redraft ausente/zero: degradação elegante (a barra de redraft não recebe contribuição daquele asset; sem marcador explícito).
-- Trade total no rodapé passa a exibir os dois totais (dynasty + redraft). Não há "número principal" — ambos são canônicos em suas dimensões.
-- Search/autocomplete e ranking interno do Manager não mudam — continuam usando dynasty.
-- PlayerHistory e qualquer persistência histórica de redraft ficam fora do escopo desta camada.
-- Forma visual final (horizontal vs vertical, escala, cores, animação, posição relativa das duas barras) fica para F1 propor olhando o template real e o layout em mobile. A decisão acima fixa o conceito (duas barras independentes, par simétrico, dimensões iguais), não o pixel.
+- **Routes (`routes/trades.py`):** `_player_asset_dict` propaga `redraft_value`; `_pick_asset_dict` força `redraft_value=0`. `_compute_cap_impact` calcula bloco paralelo `redraft_total_out`/`redraft_total_in`/`redraft_delta` por side. Endpoint `/api/dynasty_values` ganha mapa paralelo `redraft_values: {sid: int}` (consumidores legacy ignoram). `/api/picks` em `routes/picks.py` extension com `redraft_value=0` por pick.
 
-#### ALTERNATIVAS DESCARTADAS
-- Modelo 1 (substituir por perfil): rejeitado porque tira informação do owner. Time CONTENDER pode estar avaliando trade win-now específica e querer ver dynasty para contexto; decisão automática pelo perfil é prescritiva demais.
-- Modelo 2 (blend ponderado): rejeitado porque os pesos seriam arbitrários, esconderiam os dois sinais isolados, e criariam um terceiro número que não existe em nenhuma fonte canônica. Manager não calcula, exibe.
-- Modelo 3 com "primazia dynasty" (dynasty principal + redraft secundário em tooltip/expand): considerado e descartado em favor de duas barras independentes paralelas. A primazia hierárquica reintroduz prescrição que o Modelo 3 quer evitar; duas barras simétricas-mas-independentes resolvem isso sem perder soberania do owner.
-- Subscope de T2: rejeitado porque T2 está ✅ fechado e o backlog tem precedente claro de items derivados receberem ID próprio (M8 → M8-PERM, M9 → M9-FIX) só quando são correções, não quando são extensões funcionais.
-- Exibir o número numérico do gap como elemento principal: rejeitado porque a leitura visual das duas barras já transmite o sinal. Gap numérico vira informação acessória (hover/detalhe), não merece espaço próprio.
+- **Frontend (`templates/trades.html`):** novo `<div id="redraft-bar-section">` clonado do `dynasty-bar-section` (IDs `rdft-*`), stacked verticalmente logo abaixo da dynasty bar. Função JS `updateRedraftBar()` paralela a `updateDynastyBar()` — same gramática (centro-zero, max-width 50%, chip de delta com cor neutral/win-a/win-b), escala separada (max próprio dos dois totais redraft). `loadDynastyValues` carrega `redraftMap` paralelo a `dynastyMap`. `toggleAsset` chama ambos updaters.
 
-#### QUESTOES EM ABERTO
-F1 (diagnose) deve responder antes de F2:
-- Endpoint redraft do FantasyCalc: parâmetro adicional na rota existente que o Manager já consome, ou rota distinta? Schema é idêntico ao dynasty (mesmas chaves, mesmo formato de DP_*/FP_*)?
-- Cobertura de jogadores no redraft é comparável à do dynasty (% de presença no payload)?
-- Picks de draft no redraft: o serviço retorna value=0, value=null, ou as keys DP_*/FP_* simplesmente não existem? Define o tratamento da barra de redraft em assets de pick.
-- Refetch dos dois calculadores pode ser feito em paralelo na função que carrega o cache, ou força latência sequencial? Impacto no tempo de load do Trade Manager.
-- Cache: arquivo separado (paralelo ao existente) ou estender o existente com namespace? Inclinação atual é separado, mas F1 deve confirmar olhando como o cache é lido hoje.
-- Onde o redraft_value deve ser exposto: na rota que serve dynasty values (extensão), na rota de picks (que já pré-resolve dynasty desde T2-FIX-2), em rota nova, ou nas duas? Esta lógica/formato existe em mais de um lugar (JS, templates, outros módulos) — onde mais um campo precisa ser populado para evitar fix pela metade?
-- UI: a barra dynasty atual já é centro-zero (deslocamento bidirecional) ou ponta-a-ponta? Define se a camada T3 é "adicionar segunda barra mantendo formato" ou "redesenhar formato + adicionar segunda barra". F1 deve ler o template real antes de propor.
-- UI: barras horizontais empilhadas, verticais lado a lado, ou outra disposição? Mobile aguenta duas barras simultâneas sem quebrar densidade? F1 propõe opções com base no layout real.
-- Escala das duas barras: compartilham mesma escala (comparáveis em magnitude) ou cada uma com sua própria escala (comparáveis em direção apenas)? Tem implicação direta na leitura — se compartilham, a barra menor "some" quando a maior é grande; se separadas, perde-se a sensação de magnitude relativa.
+- **Read-only proposal (`templates/trade_proposal.html`):** dynasty bar nunca foi portada pra proposal por T2 — em vez de inflar o escopo de T3, adicionadas linhas compactas Jinja-formatted "🪙 Dynasty: envia X · recebe Y · Δ Z" e "⚡ Redraft: envia X · recebe Y · Δ Z" por side, no mesmo estilo `cap-mini`. Visualizadores externos da proposta veem ambas dimensões sem custo de markup.
 
-#### DEPENDENCIAS
-- Depende de: T2 ✅ (infra de cache, helpers `get_dynasty_values`, `resolve_asset_value`, `pick_sleeper_id` já existem e podem ser reutilizados/estendidos — em `dynasty_values.py:93,147,195`).
-- Bloqueia: nenhum item ativo do backlog.
+- **CSS (`static/style.css`):** classes `.redraft-bar-*` espelhando `.dynasty-bar-*` com paleta lighter — dynasty A `#6ea8fe`/`#4d8df0` → redraft A `#a3c4ff`/`#7eaaf5`; dynasty B `#ff8f6b`/`#e86a3a` → redraft B `#ffb8a0`/`#f29670`. "Irmã caçula" visualmente identificável como variante da dynasty bar.
 
-#### AO FINALIZAR
-Registrar T3 em improvements.md com 🔲 + Prioridade Média, preservando as 8 seções acima. Adicionar entrada curta no Log de Decisões do manager_devplan.md referenciando o item e o briefing de origem (chat do Optimizer, 27/04/2026). Não abrir F1 nesta sessão — F1 fica para sessão futura quando o item subir na fila.
+**Validação (27/04/2026, smoke transitório `scripts/t3_smoke.py` deletado pós-execução):**
+- 7 cenários: cache traz `redraft_value` por entry incluindo picks com 0; `resolve_asset_redraft_value` retorna inteiro pra player; `_player_asset_dict`/`_pick_asset_dict`/`_compute_cap_impact` propagam novos campos; endpoint `/api/dynasty_values` expõe `redraft_values` map; endpoint `/api/picks` retorna `redraft_value=0` por pick; `/trades` renderiza markup das 2 barras com IDs `redraft-bar-section`, `rdft-fill-a`, função `updateRedraftBar()`.
+- `salary_engine_test.py` 48/48.
+- Smoke validou lógica e payload — **validação visual (cores, alinhamento das 2 barras, comportamento mobile) fica pendente do owner em desktop**. Implementação foi feita em sessão mobile remote control (auto mode), risco visual residual aceito antecipadamente. Owner ajusta pixel se algo destoar pós-deploy.
+
+**Não alterado:**
+- Helper `get_dynasty_values()` (nome mantido, escopo expandido via docstring).
+- Schema do `Player` ou `Pick` — `redraft_value` é puro runtime no payload.
+- Idempotência do cache TTL 24h (single fetch retorna ambos os calculadores).
+- Search/autocomplete/ranking interno do Manager (continuam usando dynasty).
+- PlayerHistory e qualquer persistência histórica de redraft (fora de escopo, conforme T3-REG).
+
+**Observação:** ordem de inserção do registro REG → F1 → F2 aconteceu na MESMA sessão (27/04/2026). Caso de uso onde a discussão do Claude.ai forneceu rationale completo + F1 confirmou que o trabalho era menor que esperado + decisões fechadas pela owner em 5 trocas curtas via mobile. F2 implementação executada autonomamente em auto mode.
+
+---
+
+### MAN-S1-FIX — Backfill de previous_league_id reverte estado pós-trades da current league
+🔲 **Pendente (registrado 27/04/2026)** — Prioridade **Alta**
+
+**Bug confirmado em auditoria local 27/04/2026** durante diagnose de divergência local↔prod (active_salary local=$239 vs prod=$255 em Cangaceiros). Detectado via análise da ordem de inserção das Trade rows e comparação com PlayerHistory canônico.
+
+**Mecanismo:**
+- `POST /api/admin/sync_trades/backfill` (`routes/admin.py:305-329`) chama `_sync_trades(previous_league_id)` para importar trades da temporada anterior.
+- `_sync_trades` em `sync_sleeper.py:495+` aplica `player.team_id = dst_team.id` + `player.fantasy_team = dst_team.name` cegamente para cada trade processada — não verifica se uma trade subsequente já moveu o player.
+- Idempotência usa `Trade.query.filter_by(sleeper_transaction_id=tx_id)` em **toda a tabela `trades`** — Trade rows de 2024 e 2025 vivem na mesma tabela. `_sync_trades(LEAGUE_ID=current)` em runs futuros vê Trade rows já existentes e skipa, sem re-mover players.
+- **Resultado:** rodar backfill de previous league **DEPOIS** que a current league já foi sincronizada **destrói o estado atual** dos players envolvidos em trades cross-season. Sem caminho automático de recuperação — sync subsequente reporta `updated=0` mesmo com players claramente fora de lugar.
+
+**Sintomas observados (local DB, 27/04/2026):**
+- 6 players em Cangaceiros local que deveriam estar em outros times: Tank Dell, Emanuel Wilson, Chase Brown, Rico Dowdle (drops/trades 2025 não aplicadas) + Jaydon Blue, RJ Harvey (vieram via trades 2025 mas state diverge).
+- `Player.updated_at` desses 6 = `2026-04-22 19:41:57` — coincide com inserção das Trade rows id 30-47 (todas de 2024-09 a 2024-11).
+- Trade rows ordering confirma: id 1-29 são 2025 (sync da current league), id 30-47 são 2024 (backfill rodou DEPOIS).
+- 4 SyncLogs subsequentes (até 02/04/2026) reportaram `updated=0` — idempotência impediu correção.
+- Owner não lembra de ter clicado o botão "Importar Trades Históricas" em `/admin` — disparo pode ter sido acidental, automação de teste, outro admin, ou ação esquecida. Reforça necessidade de fix arquitetural (não só "não clicar").
+
+**Mecanismo de fix candidato (a ser refinado em F1):**
+- (a) Comparar `current_season` vs `trade.season`: rejeitar movimentação `Player.team_id` quando a trade processada é de uma season anterior à atual — cria apenas Trade row + PlayerHistory event, não move asset.
+- (b) Idempotência composta: `(sleeper_transaction_id, league_id)` em vez de só `tx_id` — permitiria re-processar trades em runs subsequentes para corrigir estado.
+- (c) Modo "force re-apply" ao chamar `_sync_trades` para current league — ignora idempotência e re-aplica movimentações na ordem cronológica das trades.
+- (d) Validação prévia: antes de mover `player.team_id`, checar se existe trade subsequente do mesmo player que já o moveu para outro time (lookup em PlayerHistory).
+
+F1 deve avaliar trade-offs (idempotência preservada vs poder de recovery) e cobertura cross-season (regular + offseason rollover). Provavelmente combinação de (a) + (d) é mais segura.
+
+**Recovery do estado local atual (a discutir em F1 ou ação imediata):**
+- (i) **Snapshot prod → local:** se Render expõe download do `dynasty.db` da persistent disk, é o caminho mais limpo. Se não, custa criar endpoint admin tipo `GET /admin/db_snapshot` ou rota temporária.
+- (ii) **Re-aplicar trades 2025 manualmente via SQL:** scripted patch baseado nas Trade rows id 1-29 já presentes — para cada trade 2025, re-aplicar movimento. Determinístico, ~50 linhas Python, mas não generalizável.
+- (iii) **Hack temporário:** rodar `_sync_trades(LEAGUE_ID)` com modo "force" (ignorando idempotência) uma vez. Bate-pronto se F1 implementar opção (c) primeiro.
+
+**Cobertura prod vs local:**
+- Prod (Render) provavelmente NÃO tem o problema atualmente — se o botão de backfill foi clicado lá, foi antes da sync da current league processar trades 2025 (ordem segura), OU nunca foi clicado.
+- M1 não é afetado em prod — só local mostra cap incorreto. Prod calcula `team_rel.active_salary()` sobre roster real e deveria mostrar `$55 acima` corretamente quando offseason_mode ativar.
+- **Risco residual em prod:** se algum admin clicar o botão futuro mente, o bug se manifesta. Fix arquitetural protege.
+
+**Não fazer no F1:**
+- Não propor implementação imediata — F1 é diagnose das opções (a/b/c/d) e do recovery.
+- Não tocar dynasty.db local antes de decisão sobre recovery.
+- Não remover botão "Importar Trades Históricas" — funcionalidade legítima quando rodada na ordem certa; fix protege contra ordem errada.
+
+**Disparo da auditoria:** sessão de validação de M1 em 27/04/2026 detectou `team_admin.active_salary()=$239` localmente, dissonante do `$255` reportado pelo owner em prod. Investigação cascateou de "stale player" → "PlayerHistory canônico vs Player row stale" → "padrão F8" → "Trade rows ordering" → bug arquitetural de `_sync_trades` cross-season.
 
 ---
 

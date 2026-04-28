@@ -1220,6 +1220,80 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   margin-left: auto;
 }
 
+/* T3 — Redraft balance bar: paleta dynasty mais clara (irmã caçula visual). */
+.redraft-bar-section {
+  margin: .35rem 0 .75rem;
+  padding: .75rem .85rem;
+  background: rgba(255,255,255,.02);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 8px;
+}
+.redraft-bar-labels {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: .5rem;
+  font-size: .85rem;
+}
+.redraft-bar-label-left {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  flex: 1;
+  justify-content: flex-start;
+}
+.redraft-bar-label-right {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  flex: 1;
+  justify-content: flex-end;
+}
+.redraft-bar-team { font-weight: 600; }
+.redraft-bar-total { font-variant-numeric: tabular-nums; }
+.redraft-bar-delta-chip {
+  font-size: .78rem;
+  padding: .2rem .6rem;
+  border-radius: 99px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.redraft-bar-delta-chip.neutral {
+  background: rgba(255,255,255,.06);
+  color: var(--text-dim, #aaa);
+}
+.redraft-bar-delta-chip.win-a,
+.redraft-bar-delta-chip.win-b {
+  background: rgba(110, 231, 183, 0.15);
+  color: #7ee2b5;
+}
+.redraft-bar-track {
+  display: flex;
+  height: 14px;
+  background: var(--bg4, rgba(255,255,255,.05));
+  border-radius: 99px;
+  overflow: hidden;
+  gap: 2px;
+}
+.redraft-bar-fill-a,
+.redraft-bar-fill-b {
+  height: 100%;
+  transition: width .35s ease;
+  max-width: 50%;
+  flex: 0 0 auto;
+}
+.redraft-bar-fill-a {
+  /* Variante mais clara da dynasty A (#6ea8fe → #a3c4ff / #4d8df0 → #7eaaf5) */
+  background: linear-gradient(90deg, #a3c4ff 0%, #7eaaf5 100%);
+  border-radius: 99px 0 0 99px;
+}
+.redraft-bar-fill-b {
+  /* Variante mais clara da dynasty B (#ff8f6b → #ffb8a0 / #e86a3a → #f29670) */
+  background: linear-gradient(90deg, #ffb8a0 0%, #f29670 100%);
+  border-radius: 0 99px 99px 0;
+  margin-left: auto;
+}
+
 .dynasty-advantage {
   padding: .5rem .75rem;
   margin-bottom: .75rem;

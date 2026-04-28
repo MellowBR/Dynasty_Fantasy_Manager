@@ -1,9 +1,15 @@
 """
-dynasty_values.py — FantasyCalc dynasty values integration (T2).
+dynasty_values.py — FantasyCalc values integration (T2 dynasty + T3 redraft).
 
 Fetcher com cache JSON em data/.dynasty_values_cache.json. TTL 24h.
 Matching com players do DB via sleeper_player_id (100% preciso — testado).
 Matching com picks via formato DP_<year_offset>_<pick_index>.
+
+T3 (27/04/2026): payload do FantasyCalc `isDynasty=true` já retorna `redraftValue`
+ao lado de `value` em cada entry — sem fetch separado. Map enriquecido com ambos
+os campos; helpers `resolve_asset_value` (dynasty) e `resolve_asset_redraft_value`
+(redraft) acessam cada dimensão. Picks têm `redraft_value=0` por construção (puro
+futuro, sem expressão na temporada vigente).
 
 Degradação elegante: se API cair, retorna dict vazio e UI mostra '—'.
 """
@@ -39,8 +45,11 @@ def _fetch_fantasycalc_values() -> dict | None:
 
 def _build_map_from_raw(raw: list) -> dict:
     """
-    Build {sleeper_id: {value, name, position, overall_rank, position_rank, is_pick}}
+    Build {sleeper_id: {value, redraft_value, name, position, overall_rank, position_rank, is_pick}}
     from raw FantasyCalc response.
+
+    T3: `redraft_value` extraído do campo `redraftValue` (já presente no payload do
+    isDynasty=true). Picks têm redraftValue=0 por convenção da API.
     """
     values = {}
     for entry in raw:
@@ -54,6 +63,7 @@ def _build_map_from_raw(raw: list) -> dict:
             continue
         values[sid] = {
             "value": entry.get("value") or 0,
+            "redraft_value": entry.get("redraftValue") or 0,
             "name": player.get("name") or "",
             "position": player.get("position") or "",
             "overall_rank": entry.get("overallRank"),
@@ -93,9 +103,13 @@ def _cache_age_hours(cache: dict) -> float:
 def get_dynasty_values(force_refresh: bool = False) -> dict:
     """
     Public accessor — returns cached payload dict:
-      {values: {sid: {value, name, position, overall_rank, position_rank, is_pick}},
+      {values: {sid: {value, redraft_value, name, position, overall_rank, position_rank, is_pick}},
        fetched_at: ISO,
        count: int}
+
+    Returns FantasyCalc values map with dynasty (`value`) + redraft (`redraft_value`)
+    per entry. Single fetch, single cache file — both calculadores no mesmo payload.
+    Nome do helper preservado por retro-compat com T2/T2-FIX/T2-FIX-2/M1.
 
     If cache is stale (>24h) or missing, refetches. On fetch failure, returns
     stale cache (if any) or {values: {}, fetched_at: None, count: 0}.
@@ -193,8 +207,21 @@ def pick_sleeper_id(pick, current_season: int, values_map: dict | None = None) -
 
 
 def resolve_asset_value(values_map: dict, sid: str | None) -> int | None:
-    """Look up value for a single sleeper_id. Returns None if not found."""
+    """Look up dynasty value for a single sleeper_id. Returns None if not found."""
     if not sid or sid not in values_map:
         return None
     entry = values_map[sid]
     return entry.get("value")
+
+
+def resolve_asset_redraft_value(values_map: dict, sid: str | None) -> int | None:
+    """T3 — Look up redraft value for a single sleeper_id. Returns None if not found.
+
+    Picks naturalmente retornam 0 (campo `redraft_value` é 0 nos PICK entries do
+    FantasyCalc). Players sem cobertura redraft (raros) também retornam 0.
+    Caller decide se 0 vira '—' visual ou contribui zero pra agregação.
+    """
+    if not sid or sid not in values_map:
+        return None
+    entry = values_map[sid]
+    return entry.get("redraft_value", 0)

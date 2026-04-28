@@ -66,6 +66,19 @@
           <span class="{{ 'text-danger' if s.over_cap else 'text-ok' }}">${{ s.cap_after|int }}</span>
           · Restante: <span class="{{ 'text-danger' if s.over_cap else 'text-ok' }}">${{ s.cap_remaining_after|int }}</span>
         </div>
+        {# T2/T3: totais de valor por dimensão. Compacto pro proposal read-only. #}
+        <div class="cap-mini">
+          🪙 Dynasty: envia <strong>{{ '{:,}'.format(s.dynasty_total_out|int).replace(',', '.') }}</strong> ·
+          recebe <strong>{{ '{:,}'.format(s.dynasty_total_in|int).replace(',', '.') }}</strong>
+          {% set d = s.dynasty_delta|int %}
+          · Δ <span class="{{ 'text-ok' if d > 0 else ('text-danger' if d < 0 else 'text-dim') }}">{{ '+' if d > 0 else '' }}{{ '{:,}'.format(d).replace(',', '.') }}</span>
+        </div>
+        <div class="cap-mini">
+          ⚡ Redraft: envia <strong>{{ '{:,}'.format(s.redraft_total_out|int).replace(',', '.') }}</strong> ·
+          recebe <strong>{{ '{:,}'.format(s.redraft_total_in|int).replace(',', '.') }}</strong>
+          {% set rd = s.redraft_delta|int %}
+          · Δ <span class="{{ 'text-ok' if rd > 0 else ('text-danger' if rd < 0 else 'text-dim') }}">{{ '+' if rd > 0 else '' }}{{ '{:,}'.format(rd).replace(',', '.') }}</span>
+        </div>
       </div>
       <div class="trade-cols">
         <div>

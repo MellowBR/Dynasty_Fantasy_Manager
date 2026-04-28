@@ -7,7 +7,10 @@ from flask_login import login_required, current_user
 
 from models import db, Player, Pick, Trade, Team, TradeProposal, SALARY_CAP, MY_TEAM_NAME, get_current_season
 from routes.auth import admin_required
-from dynasty_values import get_dynasty_values, pick_sleeper_id, resolve_asset_value, CACHE_TTL_HOURS
+from dynasty_values import (
+    get_dynasty_values, pick_sleeper_id, resolve_asset_value,
+    resolve_asset_redraft_value, CACHE_TTL_HOURS,
+)
 
 trades_bp = Blueprint("trades", __name__)
 
@@ -62,18 +65,22 @@ def trades_page():
 # ── API ──────────────────────────────────────────────────────────────────────
 
 def _player_asset_dict(player, values_map):
-    """Player.to_dict() + dynasty_value via sleeper_player_id."""
+    """Player.to_dict() + dynasty_value + redraft_value via sleeper_player_id (T3)."""
     d = player.to_dict()
     d["dynasty_value"] = resolve_asset_value(values_map, player.sleeper_player_id)
+    d["redraft_value"] = resolve_asset_redraft_value(values_map, player.sleeper_player_id)
     return d
 
 
 def _pick_asset_dict(pick, values_map, current_season):
-    """Pick.to_dict() + dynasty_value via DP_<year_offset>_<pick_index>."""
+    """Pick.to_dict() + dynasty_value via DP_<year_offset>_<pick_index> (T3: redraft sempre 0)."""
     d = pick.to_dict()
     fc_sid = pick_sleeper_id(pick, current_season)
     d["fc_sleeper_id"] = fc_sid
     d["dynasty_value"] = resolve_asset_value(values_map, fc_sid)
+    # T3: picks têm redraft=0 por construção (puro futuro). Mantém o key explícito
+    # pra simetria com player asset; UI agrega 0 e barra redraft não recebe contribuição.
+    d["redraft_value"] = 0
     # Marca picks sem projected_pick como estimativa (valor do middle-of-round)
     d["dynasty_value_is_estimate"] = not getattr(pick, "projected_pick", None)
     return d
@@ -81,6 +88,14 @@ def _pick_asset_dict(pick, values_map, current_season):
 
 def _sum_values(assets):
     return sum((a.get("dynasty_value") or 0) for a in assets)
+
+
+def _sum_redraft_values(assets):
+    """T3: agregação paralela de redraft_value para a barra redraft.
+
+    Picks contribuem 0 (já no payload). Players sem cobertura redraft contribuem 0.
+    """
+    return sum((a.get("redraft_value") or 0) for a in assets)
 
 
 def _compute_cap_impact(team_a, team_b, players_a, players_b, picks_a, picks_b):
@@ -126,8 +141,19 @@ def _compute_cap_impact(team_a, team_b, players_a, players_b, picks_a, picks_b):
             "delta": total_in - total_out,
         }
 
+    def redraft_totals(out_players, in_players, out_picks, in_picks):
+        # T3: paralelo a dynasty_totals. Picks contribuem 0; players sem cobertura redraft contribuem 0.
+        total_out = _sum_redraft_values(out_players) + _sum_redraft_values(out_picks)
+        total_in = _sum_redraft_values(in_players) + _sum_redraft_values(in_picks)
+        return {
+            "total_out": total_out,
+            "total_in": total_in,
+            "delta": total_in - total_out,
+        }
+
     def side(team, cap_before, cap_after, out_players, in_players, out_picks, in_picks):
-        totals = dynasty_totals(out_players, in_players, out_picks, in_picks)
+        d_totals = dynasty_totals(out_players, in_players, out_picks, in_picks)
+        r_totals = redraft_totals(out_players, in_players, out_picks, in_picks)
         return {
             "name": team.name,
             "owner_name": team.owner_name or "",
@@ -140,9 +166,12 @@ def _compute_cap_impact(team_a, team_b, players_a, players_b, picks_a, picks_b):
             "players_in":  in_players,
             "picks_out": out_picks,
             "picks_in":  in_picks,
-            "dynasty_total_out": totals["total_out"],
-            "dynasty_total_in": totals["total_in"],
-            "dynasty_delta": totals["delta"],
+            "dynasty_total_out": d_totals["total_out"],
+            "dynasty_total_in": d_totals["total_in"],
+            "dynasty_delta": d_totals["delta"],
+            "redraft_total_out": r_totals["total_out"],
+            "redraft_total_in": r_totals["total_in"],
+            "redraft_delta": r_totals["delta"],
         }
 
     return {
@@ -173,9 +202,13 @@ def dynasty_values_endpoint():
         except Exception:
             age_hours = None
     # Simplifica payload: {sid: value} direto (UI não precisa do resto)
-    simple = {sid: entry.get("value", 0) for sid, entry in (payload.get("values") or {}).items()}
+    # T3: paralelamente expõe redraft_values map. Consumidores legacy ignoram.
+    entries = (payload.get("values") or {}).items()
+    simple = {sid: entry.get("value", 0) for sid, entry in entries}
+    redraft_simple = {sid: entry.get("redraft_value", 0) for sid, entry in (payload.get("values") or {}).items()}
     return jsonify({
         "values": simple,
+        "redraft_values": redraft_simple,
         "fetched_at": fetched_at,
         "age_hours": age_hours,
         "count": payload.get("count", 0),
