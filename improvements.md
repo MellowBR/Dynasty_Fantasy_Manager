@@ -1794,7 +1794,7 @@ F1 deve avaliar trade-offs (idempotência preservada vs poder de recovery) e cob
 3. **PlayerHistory.season correto** ✅ — todas as 78 PH novas do Cenário 1 gravadas com `season=2024` (= season da liga processada), zero com `season=current_season`.
 
 4. **Recovery dos 4 stale via run_sync** ✅ — rodado no DB local real após fix:
-   - Tank Dell: team_id=5 (Cangaceiros) → team_id=1 (Pitbull do Samba) [Sleeper retornou Pitbull, não rafadgil; owner confirma]
+   - Tank Dell: team_id=5 (Cangaceiros) → team_id=1 (Pitbull do Samba / owner rafadgil) ✓
    - Emanuel Wilson: team_id=5 → team_id=12 (ESPN FANTASY LEAGUE) ✓
    - Chase Brown: team_id=5 → team_id=1 (Pitbull do Samba) ✓
    - Rico Dowdle: team_id=5 → team_id=11 (rafaelferreirap) ✓
@@ -1807,7 +1807,7 @@ F1 deve avaliar trade-offs (idempotência preservada vs poder de recovery) e cob
 
 **Surpresas/decisões durante implementação:**
 - Sleeper avançou a season da liga entre 22/04 e 28/04: `LEAGUE_ID` agora retorna `season=2026`, `previous_league_id` retorna `season=2025`. AppConfig local ainda em `current_season=2025`. Significa que o cenário do bug *natural* não é reproduzível sem forçar `league_season` explicitamente. Não afeta o fix — apenas a estratégia de teste (forçar via parâmetro).
-- Tank Dell em **Pitbull do Samba** (team_id=1) segundo Sleeper, não rafadgil como reportado pelo owner. Owner deve confirmar visualmente. Recovery aplicou o que Sleeper diz (autoritative).
+- (Nota de leitura: "rafadgil" no prompt do F2 é o owner do time "Pitbull do Samba" — não há discrepância nos 4 destinos.)
 - Cangaceiros roster: 25 → 23 jogadores pós-recovery (4 saíram, 2 corretos ficaram = 21; 23 finais sugere que outros 2 players além dos 4 stale foram reclassificados pelo run_sync via roster alignment ou drop logic — coerente com sync rotineiro, não falha).
 
 **Commit:** mudanças em `sync_sleeper.py`, `routes/admin.py`, `improvements.md`, `manager_devplan.md`. Render auto-deploy via push origin/main.

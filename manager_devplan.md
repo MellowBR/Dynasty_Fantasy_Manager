@@ -1079,7 +1079,7 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 
 - **Surpresa de drift de season Sleeper:** entre F1 (28/04 manhã) e início do F2 (28/04 tarde), Sleeper avançou suas próprias seasons — `LEAGUE_ID` agora retorna `season=2026`, `previous_league_id` retorna `season=2025`. AppConfig local ainda em `current_season=2025`. Implica que reproduzir o bug "naturalmente" hoje requer forçar `league_season` explicitamente (Sleeper não devolve mais `previous_season < current_season`). Não afeta o fix; apenas a estratégia de teste. Sinaliza que rollover local de season eventualmente terá que acontecer e o guard continuará válido (`league_season < current_season` é a condição que importa, independentemente dos valores absolutos).
 
-- **Discrepância pequena no estado real vs reportado pelo owner:** Sleeper retorna Tank Dell em **Pitbull do Samba** (team_id=1), não rafadgil como reportado. Recovery aplicou o que Sleeper diz (authoritative). Owner verifica visualmente pós-deploy.
+- **Nota de leitura sobre "rafadgil":** o prompt do F2 listou Tank Dell indo para "rafadgil" — owner esclareceu pós-recovery que rafadgil é o **owner** do time Pitbull do Samba (team_id=1), não o nome do time. Recovery está correto: Sleeper retornou Pitbull do Samba e bate com a expectativa do owner.
 
 - **Cosmético do botão "Importar Trades Históricas":** fora do escopo do F2 conforme alinhado. Owner avalia pós-deploy se vale criar item separado de baixa prioridade.
 
