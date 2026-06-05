@@ -141,7 +141,9 @@ def _build_pick_projections() -> dict:
       Picks N+1..: fixed by standings (M15: default N=6 → picks 1-6 são lottery)
     O branch de lottery é data-driven (lê lr.pick_number direto do DB).
 
-    Rounds 2 and 3 follow the same order as Round 1.
+    M16: o lottery define APENAS o Round 1. Rounds 2 e 3 revertem para a ordem
+    standings-invertida (12º abre, campeão fecha — picks 13/25 ... 24/36), via a
+    fonte única _build_default_draft_order — NÃO a ordem sorteada.
 
     For future seasons without a lottery: fall back to standings order via
     _apply_standings_order → fonte única _build_default_draft_order.
@@ -156,35 +158,28 @@ def _build_pick_projections() -> dict:
     lottery = DraftLotteryResult.query.filter_by(season=draft_season).all()
 
     if lottery:
-        # Lottery result contains pick_number → team_name for all 12 picks.
-        # Apply the same order to all 3 rounds.
-        for lr in lottery:
-            for rnd in PICK_ROUNDS:
-                proj[(draft_season, rnd, lr.team_name)] = {
-                    "pick_number": lr.pick_number,
-                    "locked": lr.locked if rnd == 1 else lottery_locked,
-                }
+        # M16: R1 = lottery; R2/R3 = standings invertido (fonte única).
+        _apply_lottery_with_standings_tail(
+            proj, lottery, standings_season=season,
+            draft_season=draft_season, tail_locked=lottery_locked)
     else:
         # No lottery for draft_season: build order from standings
         _apply_standings_order(proj, season, draft_season, lottery_locked)
 
-    # ── Future seasons (2027, 2028, ...) without lottery ────────────────
+    # ── Future seasons (2027, 2028, ...) ────────────────────────────────
     for future_season in PICK_SEASONS:
         if future_season <= draft_season:
             continue
         # Check if there's a lottery for this future season
         future_lottery = DraftLotteryResult.query.filter_by(season=future_season).all()
         if future_lottery:
-            for lr in future_lottery:
-                for rnd in PICK_ROUNDS:
-                    proj[(future_season, rnd, lr.team_name)] = {
-                        "pick_number": lr.pick_number,
-                        "locked": lr.locked,
-                    }
+            f_locked = future_lottery[0].locked
+            _apply_lottery_with_standings_tail(
+                proj, future_lottery, standings_season=future_season - 1,
+                draft_season=future_season, tail_locked=f_locked)
         else:
             # Try standings from the season before this draft
-            prev_season = future_season - 1
-            _apply_standings_order(proj, prev_season, future_season, False)
+            _apply_standings_order(proj, future_season - 1, future_season, False)
 
     return proj
 
@@ -207,6 +202,33 @@ def _apply_standings_order(proj: dict, standings_season: int,
             proj[(draft_season, rnd, team_name)] = {
                 "pick_number": pick_num,
                 "locked": locked,
+            }
+
+
+def _apply_lottery_with_standings_tail(proj, lottery_rows, standings_season,
+                                       draft_season, tail_locked):
+    """
+    M16: o lottery define APENAS o Round 1. R2/R3 revertem para a ordem
+    standings-invertida (12º abre, campeão fecha), reusando a fonte única
+    _build_default_draft_order — sem reimplementar a ordem por standings.
+    Corrige o fan-out anterior que aplicava a ordem sorteada aos 3 rounds.
+    """
+    from routes.offseason import _build_default_draft_order
+    # R1 = ordem sorteada (data-driven do DraftLotteryResult)
+    for lr in lottery_rows:
+        proj[(draft_season, 1, lr.team_name)] = {
+            "pick_number": lr.pick_number,
+            "locked": lr.locked,
+        }
+    # R2/R3 = standings invertido (lottery não se aplica aos rounds seguintes)
+    standings = SeasonStandings.query.filter_by(season=standings_season)\
+        .order_by(SeasonStandings.rank).all()
+    tail_rounds = [r for r in PICK_ROUNDS if r != 1]
+    for pick_num, team_name in _build_default_draft_order(standings):
+        for rnd in tail_rounds:
+            proj[(draft_season, rnd, team_name)] = {
+                "pick_number": pick_num,
+                "locked": tail_locked,
             }
 
 

@@ -1151,3 +1151,18 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Backend intocado (confirmado na F1).** Endpoints já consumiam `{weights}` e o audit já gravava os pesos usados — a F2 só alinhou a camada de apresentação. Schema do audit, fluxo de 2 fases do M8 e retrocompat do verify (5 seeds) preservados.
 - **Validação:** 8 validações / 15 asserts, 15/15 PASS. As de render (V1/V2/V5) rodaram o **JS real** extraído da página em Node + DOM shim (não uma reimplementação), sobre cópia temporária do DB — `dynasty.db` real intocado. Detalhes em `improvements.md` → M15-FIX → Fase 2.
 - **Arquivos:** `templates/offseason.html`, `routes/picks.py`, `CLAUDE.md`. Commit único agrupando código + docs pendentes da REG/F1.
+
+### 05/06/2026 — M16 (R2/R3 do rookie draft) F1 Diagnose ✅ — bug CONFIRMADO (MAN-M16-REG)
+
+- **Item M16 registrado 🔲 (Alta)**. Verificação read-only pós-lottery (regulamento 8.2.1/8.2.5: lottery define só o R1; R2/R3 = standings invertido, campeão fecha com 12/24/36). **Divergência confirmada:** `_build_pick_projections` (picks.py) aplica o mesmo `lr.pick_number` (ordem sorteada) a R1/R2/R3 via `for rnd in PICK_ROUNDS`. Reprodução em cópia temporária do DB: hoje mongoloides (11º, ganhou pick 1) abre o R2; deveria ser Miller Time! (12º). `R2==lottery=True`, `R2==standings=False`.
+- **Propaga para valores dynasty:** `pick_sleeper_id` (dynasty_values.py:192) usa `projected_pick` para a chave FantasyCalc → R2/R3 com posição errada = valor dynasty errado nos picks de R2/R3 = trade distorcida. Não é cosmético.
+- **Replicada em 3 loops** (todos em `_build_pick_projections`): branch lottery draft_season, branch future com lottery, `_apply_standings_order`. O caso sem-lottery (#3) está correto; o bug é só quando HÁ lottery.
+- **Recomendação F2:** R1 = rows do `DraftLotteryResult`; R2/R3 = `_build_default_draft_order(standings)` (fonte única já existente do M15, dá a ordem standings-invertida). Sem mudar schema/audit/sorteio. Status permanece 🔲. Sem commit docs-only isolado — agrupar com o código do fix. Detalhes em `improvements.md` → M16 → Fase 1 Diagnose.
+
+### 05/06/2026 — M16 (R2/R3 = standings) Fase 2 ✅ (MAN-M16)
+
+- **Causa:** fan-out do `pick_number` nos 3 rounds (`for rnd in PICK_ROUNDS`) no branch de lottery — a ordem sorteada vazava para R2/R3, que pelo regulamento (8.2.1/8.2.5) seguem standings invertido. Corrigido com `_apply_lottery_with_standings_tail()`: R1 das rows do `DraftLotteryResult`, R2/R3 de `_build_default_draft_order(standings)`.
+- **Reuso da fonte única, sem nova implementação.** A ordem standings-invertida de R2/R3 vem do helper já criado no M15 (`_build_default_draft_order`) — o mesmo usado no caso sem-lottery. O orquestrador é compartilhado pelos dois branches de lottery (draft_season + future), eliminando a réplica do fan-out. Caso sem lottery permanece intocado (R1=R2=R3=standings já era correto).
+- **Nota — valores dynasty de R2/R3 estavam distorcidos desde o sorteio.** `pick_sleeper_id` deriva a chave FantasyCalc de `projected_pick`; com R2/R3 na ordem sorteada, os picks de R2/R3 de times do lottery recebiam valor de slot errado em trades. O fix corrige isso de tabela (ex.: mongoloides R2 → `DP_1_1`, antes `DP_1_0`).
+- **Validação:** 8/8 PASS em estado pós-lottery sintético (discriminante: mongoloides 1/14/26, Miller Time! 4/13/25, campeão 12/24/36) sobre cópia temporária do DB; regressão sem-lottery byte-equivalente; `salary_engine` 48/48. `dynasty.db` real intocado.
+- **Arquivo:** `routes/picks.py`. Commit único (código + docs da REG/F1). Pós-deploy, owner confere `/picks` em produção (pick 13 = 12º colocado) — única instância com a audit canônica real.
