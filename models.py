@@ -334,6 +334,91 @@ class AuctionLog(db.Model):
         }
 
 
+# ── OFF26-3: helper atômico canônico de aquisição (ano 1) ─────────────────────
+
+def record_acquisition(*, team, acquisition_type, season, player=None,
+                       player_name=None, position="", value_paid=0.0,
+                       espn_adjusted=0.0, round_num=None, sleeper_player_id=None,
+                       event_ref=None, notes=""):
+    """
+    OFF26-3 — ÚNICA porta de criação de contrato de aquisição (ano 1).
+
+    Cria/atualiza Player + grava SalaryHistory + AuctionLog atomicamente
+    (adiciona à sessão; o CHAMADOR faz commit — permite lote transacional no
+    importador). Salário SEMPRE via salary_engine.year1_salary (canônico):
+    rookie_draft → floor(ESPN×1.2); demais (auction/fa) → value_paid.
+
+    player: Player existente p/ atualizar, ou None p/ criar (usa player_name).
+    event_ref: token de idempotência (ex 'draft:<id>:<pick>') gravado em
+               AuctionLog.notes como '[ref:<event_ref>]'. A checagem de duplicata
+               é do chamador, via acquisition_already_recorded().
+    Retorna (player, salary).
+    """
+    from salary_engine import year1_salary
+    salary = year1_salary(acquisition_type, value_paid, espn_adjusted)
+    is_rookie = (acquisition_type or "").lower().strip() == "rookie_draft"
+    entry_type = "rookie_draft" if is_rookie else "fa_auction"
+
+    if player is None:
+        player = Player(
+            name=(player_name or "").strip(),
+            position=position or "",
+            team_id=team.id,
+            is_my_team=team.is_my_team,
+            needs_review=True,
+            sleeper_player_id=str(sleeper_player_id) if sleeper_player_id else None,
+        )
+        db.session.add(player)
+        db.session.flush()
+
+    player.salary = salary
+    player.contract_year = 1
+    player.contract_start_season = season
+    player.acquisition_type = acquisition_type
+    player.espn_ref_value = espn_adjusted
+    player.team_id = team.id
+    player.is_my_team = team.is_my_team
+    player.is_dropped = False
+    if sleeper_player_id and not player.sleeper_player_id:
+        player.sleeper_player_id = str(sleeper_player_id)
+
+    if is_rookie:
+        rd = f" Rd{round_num}" if round_num else ""
+        rule = f"Rookie Draft{rd}: floor(ESPN×1.2)=${salary}"
+        log_value = salary
+    else:
+        rule = f"FA Auction: ${salary} (bid)"
+        log_value = value_paid or salary
+
+    db.session.add(SalaryHistory(
+        player_id=player.id, season=season, salary=salary, contract_year=1,
+        rule_applied=rule, espn_ref_value=espn_adjusted,
+    ))
+
+    note_full = notes or ""
+    if event_ref:
+        tag = f"[ref:{event_ref}]"
+        note_full = (note_full + " " + tag).strip()
+    note_full = note_full[:200]
+    db.session.add(AuctionLog(
+        season=season, player_id=player.id, team_id=team.id,
+        player_name=player.name, team_name=team.name, entry_type=entry_type,
+        value_paid=log_value, round_num=round_num,
+        espn_ref_value_at_time=espn_adjusted, notes=note_full,
+    ))
+    return player, salary
+
+
+def acquisition_already_recorded(event_ref) -> bool:
+    """OFF26-3 — idempotência SEM mudança de schema: detecta se já existe um
+    AuctionLog com o token '[ref:<event_ref>]' em notes."""
+    if not event_ref:
+        return False
+    tag = f"[ref:{event_ref}]"
+    return db.session.query(AuctionLog.id).filter(
+        AuctionLog.notes.like(f"%{tag}%")).first() is not None
+
+
 class ESPNValue(db.Model):
     __tablename__ = "espn_values"
 

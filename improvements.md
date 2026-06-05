@@ -35,6 +35,13 @@
 | M15 | Lottery com 6 seeds (inclusão do 7º colocado com 1 bolinha; pool 96) — MAN-M15-REG | Média | ✅ 05/06/2026 |
 | M15-FIX | Editor de pesos do lottery: pool/legenda não re-renderizam ao editar + legenda /picks pós-sorteio lê canônico, não o audit | Média | ✅ 05/06/2026 |
 | M16 | Lottery aplica ordem sorteada a R2/R3 (deveria ser standings invertido) — corrompe ordem + valores dynasty de R2/R3 — MAN-M16-REG | Alta | ✅ 05/06/2026 |
+| OFF26-1 | Janela de keepers/cuts selada no Manager (declaração privada + budget ao vivo + lock e revelação simultânea no deadline, audit padrão M8) — MAN-OFF26-REG | Alta | 🔲 |
+| OFF26-2 | Keeper sheet exportável (relatório por time pós-revelação: keepers, salários, budget FA) — insumo do Cowork — MAN-OFF26-REG | Alta | 🔲 |
+| OFF26-3 | Importador de drafts de liga fantasma (rookie linear + FA auction via API, match por sleeper_player_id, preview + helper atômico) — MAN-OFF26-REG | Alta | ✅ 05/06/2026 |
+| OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only) — MAN-OFF26-REG | Média | 🔲 |
+| OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG | Média | 🔲 (doc) |
+| F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | 🔲 |
+| F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | 🔲 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
@@ -863,6 +870,323 @@ docstring). Script de validação descartado pós-run.
 
 **DEPENDENCIAS**
 - Depende de: lottery 2026 executado (feito). Desbloqueia: rookie draft.
+
+---
+
+## Offseason 2026 — pacote OFF26 (cuts selados + ligas fantasmas)
+🔲 **Registrado 05/06/2026** — MAN-OFF26-REG (registro apenas; nenhuma implementação)
+
+**Contexto do pacote (sessão com o comissário, 05/06/2026):** o formato da liga
+(keeper + dynasty + salary cap) não cabe nativamente no Sleeper e a API do Sleeper
+é **read-only** — não há como escrever salários/configuração via API. Decisão: o
+Sleeper mantém o que faz bem (salas de lance ao vivo, via **ligas fantasmas** —
+rookie draft em draft linear e FA Auction em draft auction), e o **Manager** assume
+todo o ciclo de decisão e registro (declaração selada de keepers/cuts, keeper sheet,
+auditoria da config da liga fantasma, import dos resultados dos drafts). A
+transcrição da keeper sheet para o Sleeper é feita via **Cowork + Claude in Chrome**
+(procedimento operacional supervisionado, fora do código do Manager).
+
+**Dependências do pacote:** OFF26-1 → OFF26-2 → OFF26-4; OFF26-3 independente e
+paralelizável; OFF26-5 é documentação (depende conceitualmente de 2 e 4).
+**Prioridades abaixo são triagem inicial — o comissário re-prioriza.**
+**Próximos candidatos naturais de F1 (sessões separadas):** OFF26-1 e OFF26-3.
+
+---
+
+### OFF26-1 — Janela de keepers/cuts selada
+🔲 **Pendente** — Prioridade **Alta**
+
+**Descrição:** cada owner autenticado vê **apenas o próprio roster** e declara
+keepers/cuts no Manager, com budget resultante (`$200 − keepers`) calculado ao vivo
+e validação do regulamento (mínimo $1 por slot vazio, item 8.3.4). Declarações
+editáveis até o deadline; **sigilo total pré-deadline, inclusive para admins** (que
+também são owners); **lock + revelação simultânea** no deadline.
+
+**Motivação:** hoje os cortes acontecem sequencialmente e em público no Sleeper,
+vazando informação entre owners (quem corta por último vê o que já foi liberado). A
+janela selada elimina o vazamento.
+
+**Escopo resumido:** declaração privada por owner + cálculo de budget ao vivo +
+validação 8.3.4 + deadline com lock e revelação simultânea + trilha auditável no
+padrão do M8 (lottery audit). Sigilo aplicado mesmo a admins.
+
+**Dependências:** nenhuma. É a **fonte** dos itens OFF26-2 e OFF26-4.
+
+---
+
+### OFF26-2 — Keeper sheet exportável
+🔲 **Pendente** — Prioridade **Alta**
+
+**Descrição:** relatório por time gerado a partir da revelação do OFF26-1 — keepers,
+salários e budget resultante para o FA Auction.
+
+**Motivação:** é o **insumo** que o Cowork transcreve para a liga fantasma; sem ele,
+a transcrição não tem fonte de verdade.
+
+**Escopo resumido:** exportar, por time, a lista de keepers + salário + budget de FA,
+derivada da revelação selada.
+
+**Dependências:** depende do **OFF26-1**.
+
+---
+
+### OFF26-3 — Importador de drafts de liga fantasma
+✅ **Concluído (05/06/2026)** — Prioridade **Alta**
+
+**Descrição:** lê picks de um draft do Sleeper via API (informado o identificador do
+draft): **rookie draft** (linear → ordem + jogador; salário pela fórmula vigente do
+`salary_engine`) e **FA Auction** (auction → jogador + valor do lance). Match por
+`sleeper_player_id` (exato, **sem matching por nome**), **preview obrigatório** antes
+da confirmação, criação de contratos **exclusivamente via helper atômico canônico**.
+
+**Motivação:** substitui a entrada manual da tela `/auction` — identificada no
+`manager_vision.md` como o passo de **maior risco operacional** do calendário.
+
+**Escopo resumido:** leitura de draft por ID via API; dois modos (linear/auction);
+match estrito por `sleeper_player_id`; preview→confirm; contratos via helper atômico.
+
+**Dependências:** **independente** dos demais; paralelizável. Testável contra os
+drafts de 2025 já presentes na chain de ligas.
+
+#### Fase 2 Implementação ✅ (05/06/2026) — MAN-OFF26-3-F2
+
+**Camada 1 — helper atômico canônico de aquisição (`models.py`):**
+`record_acquisition(...)` é a **única porta** de criação de contrato ano-1:
+cria/atualiza Player + grava SalaryHistory + AuctionLog atomicamente (adiciona à
+sessão; chamador faz commit → lote transacional no importador). Salário **sempre**
+via `salary_engine.year1_salary` (canônico). `acquisition_already_recorded(event_ref)`
+dá idempotência **sem mudança de schema** (token `[ref:<event_ref>]` em
+`AuctionLog.notes`). **`/auction` refatorado:** `register_fa_auction`,
+`register_rookie` e `upload_excel` agora passam pelo helper — criação de contrato
+existe em 1 ponto. **Exceção documentada:** `bulk_register` ficou intocado por ser
+o item **F9** (restrição explícita do F2); é a única réplica inline remanescente, a
+ser consolidada quando o F9 for implementado.
+
+**Camada 2 — importador (`routes/draft_import.py`, blueprint novo):** fluxo único,
+modo auto-detectado por `draft.type` (linear→rookie / auction→FA). Lê 1 draft por
+`draft_id` via API read-only (reusa `sync_sleeper._get`), resolve Player por
+`sleeper_player_id` (`find_player_by_sleeper_id`). **preview** (zero escrita):
+matched com salário (canônico) + alertas de budget (`draft_budget`, **soft** — não
+bloqueia) + unmatched classificados por causa (DST / rookie não cadastrado /
+dropado / roster não mapeado). **confirm**: cada unmatched exige ação explícita
+(resolver→player_id/`create` ou `skip`+justificativa); **nenhum pulo silencioso** →
+confirm bloqueia (400) se houver pendência. Escreve só via `record_acquisition`.
+Idempotente por `event_ref` `draft:<id>:<pick_no>`. Página `/draft_import` (admin).
+
+**Validação (05/06/2026) — 12 asserts / 12 PASS** contra os drafts reais de 2025
+em cópia temporária do `dynasty.db` (produção intocada) + API read-only:
+
+| # | Validação | Resultado |
+|---|-----------|-----------|
+| V1 | dry-run rookie 2025 (36 picks) | 34 match c/ salário = fórmula canônica; 2 unmatched classificados; **0 escritas** |
+| V2 | import auction 2025 | 45 contratos criados, salário gravado = `metadata.amount` em 100%; SalaryHistory + AuctionLog por contrato |
+| V3 | reimport do mesmo draft | **0 criados** (45 já importados); AuctionLog inalterado — idempotência por contagem |
+| V4 | preview/rejeição de junk | **0 escritas** |
+| V5 | `/auction` manual | funcional via helper (Player+SalaryHistory+AuctionLog; salário correto) |
+| V5b | ponto único de criação | helper usado 3× no `/auction`; 1 inline restante = `bulk_register` (F9) |
+| V6 | confirm com unmatched não resolvido | **400 bloqueado** |
+| V8 | `salary_engine_test` | 48/48 |
+
+**Picks sem match (rookie 2025):** 2 de 36 — rookies ainda não cadastrados / DST,
+apresentados no preview com causa, exigindo ação explícita (não há pulo silencioso).
+(Os 21 sem match do F1 eram o agregado das 6 sessões de FA auction, não do rookie.)
+
+**Helper canônico agora existe** — relevante p/ **F9** (consolidar `bulk_register`
+nele) e **OFF26-1** (janela selada deve calcular budget/salário consumindo o
+canônico, não criar réplica).
+
+**Arquivos:** `models.py` (+`record_acquisition`/`acquisition_already_recorded`),
+`routes/auction.py` (3 refactors), `routes/draft_import.py` (novo),
+`templates/draft_import.html` (novo), `app.py` (registro do blueprint), `CLAUDE.md`.
+Script de validação descartado pós-run. **Fora do escopo (itens próprios):** F9
+(`bulk_register`), F10 (réplica JS do budget).
+
+#### Fase 1 Diagnose ✅ (05/06/2026) — MAN-OFF26-3-F1
+Read-only. Código + sonda da Sleeper API (leitura) contra a chain real. Nenhuma
+escrita (probe rodou sobre cópia temporária do DB; `dynasty.db` real intocado).
+
+**1. Infra de leitura de drafts (reaproveitável):** `sync_sleeper.py` já tem o
+necessário, hoje acoplado ao rebuild histórico do PlayerHistory (F8a):
+- `_get`, `_walk_league_chain`, `_classify_draft(draft, is_first)` (linear→rookie_draft;
+  auction→ startup `auction_draft` se rounds≥20 & primeira liga, senão `fa_auction`).
+- `_collect_draft_events()` lê `/league/{lid}/drafts` + `/draft/{did}/picks`, extrai
+  `player_id` (=sleeper_player_id), `metadata.amount` (lance), `round`, `pick_no`,
+  `roster_id`→team. **Reaproveitável o núcleo de leitura**; **adaptar** porque hoje
+  produz event-dicts p/ histórico (salary=amount apenas, sem ESPN p/ rookie, sem
+  resolver Player no DB, sem criar contrato) e varre a chain inteira em vez de 1
+  draft por `draft_id`.
+
+**2. Caminho de criação de contrato (hoje, via `/auction`):** `routes/auction.py`
+faz tudo **inline**, sem helper único: upsert de `Player` + `SalaryHistory` +
+`AuctionLog` + commit. Salário: FA = `max(1, int(value_paid))`; rookie =
+`max(1, int(espn_raw×1.2))`. **NÃO usa o helper canônico `salary_engine.year1_salary`**
+(importado mas não chamado). Matching por **nome** (`Player.name.ilike` + team_id),
+não por sleeper_player_id.
+
+**⚠️ Premissa do prompt corrigida:** o "helper atômico canônico de criação de
+contrato" **não existe**. O que existe: `correct_player_salary()` (models.py:200) —
+canônico só para **correção** de salário (Player+SalaryHistory+PlayerHistory). Criar
+o helper atômico de **aquisição** é construção nova (e deveria absorver as 4 réplicas
+do `/auction`).
+
+**3. Réplicas (resposta: SIM, várias):**
+- **Cálculo de salário ano-1:** canônico = `salary_engine.year1_salary`; replicado
+  inline em `routes/auction.py` (`register_fa_auction:45`, `register_rookie:130`,
+  `bulk_register:217`, `upload_excel:312`) como `max(1, int(...))`. Coincide hoje,
+  mas é divergência latente.
+- **Criação de contrato** (Player+SalaryHistory+AuctionLog): sem canônico; replicada
+  4× em `routes/auction.py`.
+- **Validação de budget:** canônico = `salary_engine.draft_budget`; replicado em **JS**
+  em `templates/cap_projector.html` (~linhas 150-171: raw_budget, usable, aviso
+  "Budget insuficiente").
+- **Ajuste ESPN ×1.2:** inline em vários pontos (auction.py, admin ESPN import).
+- **Achado lateral:** `bulk_register` (auction.py:187) está quebrado (hack `_noop`/
+  `test_request_context`, não grava `SalaryHistory`) — bug pré-existente.
+
+**4. Matching de jogadores:** picks trazem `player_id` (=sleeper_player_id)
+**diretamente** em 100% dos picks (sonda: sid==picks em todos os drafts). Helper
+canônico existe: `player_lookup.find_player_by_sleeper_id` (exato, filtra
+`is_dropped=False`); `Player.sleeper_player_id` é indexado. **Jogador inexistente no
+DB OCORRE:** na sonda de 2025, **21 picks** sem Player correspondente — rookies recém
+draftados (DJ Giddens, Dont'e Thornton), **DST** (`SF`), e jogadores de sessões de FA
+nunca rosterados/ dropados (Najee Harris, Tua, DeAndre Hopkins…). Hoje o `/auction`
+**cria** Player novo por nome com `needs_review=True`; o importador (match por sid)
+precisa de política explícita p/ pick sem match (skip+report vs criar com sid +
+needs_review).
+
+**5. Preview/dry-run/rollback (modelos existentes):** lottery `simulate` (M8 — roda
+sem persistir) + `verify` + `replace`; `_compute_cap_impact` (trade preview sem
+persistir); `F8PlayerBackup` (rollback do rebuild F8a); revisão admin Cat A/B (M2,
+preview→approve). Idempotência por chave: `sleeper_event_ref` (`draft:{did}:{pick_no}`)
+e `sleeper_transaction_id` (S1). Servem de molde p/ preview→confirm + idempotência.
+
+**6. Verificação contra dados reais (sonda read-only):** chain = **3 ligas** (2024
+startup, 2025, 2026). **8 drafts completos**: 1 auction startup 2024 (264 picks,
+`auction_draft`) + **2025: 6 auctions (`fa_auction`) + 1 linear (`rookie_draft`, 36
+picks)** → bate com o "7 drafts (6 auctions + 1 linear)" do F8a. A liga fantasma 2026
+existe como auction `pre_draft` (classif None, ignorada — guard de status OK).
+**Picks de auction carregam `metadata.amount` em 100%** (confirmado); rookie/linear
+não tem amount (salário vem do ESPN). Todos os picks têm sleeper_player_id.
+
+**Divergências DB(2025) × API:** 88 picks 2025 conferidos; **7 divergências de salário**
+em auction — mas concentradas em Joe Mixon, Patrick Mahomes ($19/$100/$498/$3…),
+Isiah Pacheco. **Causa: 2025 teve 6 sessões de FA auction distintas**; a sonda
+comparou o único contrato atual do DB contra TODOS os picks das 6 sessões → o mesmo
+jogador aparece com lances diferentes em sessões diferentes. **Não são bugs limpos** —
+são (a) evidência de que um jogador aparece em múltiplos drafts (o importador DEVE ser
+escopado a 1 `draft_id`, como já previsto) e (b) valores anômalos ($498 p/ Mahomes)
+sugerem drafts de teste/junk em 2025 que o **preview precisa deixar o admin rejeitar**.
+
+**Escopo recomendado p/ F2 — FLUXO ÚNICO com dois modos** (não dois fluxos): rookie e
+auction compartilham ~tudo (ler draft por `draft_id` → resolver picks por sleeper_id →
+preview → criar contrato atômico). Diferem só na fonte de salário, resolvida pelo
+canônico `year1_salary(acquisition_type, value_paid, espn_adj)` — auction usa
+`metadata.amount`, rookie usa `floor(ESPN×1.2)`. Modo auto-detectado por `draft.type`
+via `_classify_draft`. **Gaps classificados:**
+- *Reaproveitar:* `_get`/`_walk_league_chain`/`_classify_draft`; padrão `/draft/{id}/picks`;
+  `year1_salary`; `draft_budget`; `find_player_by_sleeper_id`; modelos
+  SalaryHistory/AuctionLog.
+- *Adaptar:* extrair de `_collect_draft_events` um leitor de **1 draft por id** que
+  resolve Player no DB e separa salário rookie (ESPN) de auction (amount).
+- *Construir novo:* **helper atômico canônico de aquisição** (e refatorar as 4 réplicas
+  do `/auction` p/ usá-lo); **preview→confirm** (molde M8/trade); **idempotência** por
+  `sleeper_event_ref`; **política de pick sem match** (skip+report vs needs_review);
+  matching por sleeper_id no lugar de nome.
+
+**Itens novos descobertos (🔲 próprios sugeridos, decisão do owner):** (a) `bulk_register`
+quebrado no `/auction`; (b) réplica do `draft_budget` em JS no `cap_projector.html`;
+(c) `/auction` não usa `year1_salary` (replica inline). Candidatos a serem absorvidos
+pelo F2 do OFF26-3 (que já vai criar o helper canônico) — registrar como sub-fixes se o
+owner preferir rastrear à parte.
+
+---
+
+### OFF26-4 — Auditoria de keepers pré-leilão
+🔲 **Pendente** — Prioridade **Média**
+
+**Descrição:** após a transcrição via Cowork, compara a keeper sheet (OFF26-2) com a
+configuração **real** da liga fantasma lida via API read-only, reportando diffs
+(keeper ausente, salário divergente, time errado) **antes** do início do leilão.
+
+**Motivação:** a transcrição manual é o ponto de falha; a auditoria pega divergências
+antes que o leilão comece sobre uma configuração errada.
+
+**Escopo resumido:** ler config da liga fantasma via API read-only; diff contra a
+keeper sheet; relatório de divergências como gate pré-leilão.
+
+**Dependências:** depende de **OFF26-1** e **OFF26-2**.
+
+---
+
+### OFF26-5 — Runbook do procedimento Cowork
+🔲 **Pendente** — Prioridade **Média** — **item de documentação (não é código)**
+
+**Descrição:** passo a passo operacional da transcrição supervisionada da keeper
+sheet para a liga fantasma via **Cowork + Claude in Chrome**, incluindo pré-requisitos
+de acesso (sessão do comissário detentor dos direitos no Sleeper, ou co-comissário),
+gravação do workflow na primeira execução para reuso anual, e o gatilho da auditoria
+(OFF26-4) ao término.
+
+**Motivação:** o procedimento é supervisionado e anual; um runbook torna-o
+reproduzível e reduz dependência de memória entre temporadas.
+
+**Escopo resumido:** documento de runbook (pré-requisitos de acesso → gravação do
+workflow → execução → gatilho da auditoria OFF26-4).
+
+**Dependências:** documentação; depende conceitualmente de **OFF26-2** e **OFF26-4**
+para fazer sentido completo.
+
+---
+
+### F9 — `bulk_register` cria jogadores sem SalaryHistory
+🔲 **Pendente** — Prioridade **Alta** — achado lateral de [[MAN-OFF26-3-F1]] (registrado 05/06/2026)
+
+**Descrição:** o endpoint `POST /api/auction/bulk` (`routes/auction.py:187`
+`bulk_register`) cria/atualiza `Player` + `AuctionLog` mas **não grava
+`SalaryHistory`** — diferente dos demais caminhos de aquisição (`register_fa_auction`,
+`register_rookie`, `upload_excel`), que sempre gravam o histórico. O código ainda
+contém um hack inerte (`_noop` + `test_request_context`) sem efeito.
+
+**Motivação:** jogadores registrados em massa ficam sem o registro de histórico
+salarial correspondente — inconsistência silenciosa entre `Player.salary` e a
+timeline de `SalaryHistory` (que alimenta `/salary_history` e auditorias). É **dano
+potencial já existente**, não hipotético, daí prioridade Alta.
+
+**Exige F1 próprio antes do fix** (avaliação de dano), respondendo:
+- A rota `bulk_register` foi efetivamente usada em produção?
+- Existem hoje jogadores sem `SalaryHistory` decorrentes dela (e quantos)?
+- Qual o dano acumulado, se houver, e ele precisa de backfill corretivo?
+
+**Escopo do fix (após o F1):** fazer `bulk_register` passar pelo mesmo caminho
+atômico de aquisição dos demais (idealmente o helper canônico criado no F2 do
+OFF26-3) + remover o hack `_noop`; eventual backfill dos órfãos conforme o F1.
+
+**Ref. cruzada:** [[MAN-OFF26-3-F1]] (diagnose do importador OFF26-3, achado §3).
+
+---
+
+### F10 — `draft_budget` replicado em JavaScript no cap projector
+🔲 **Pendente** — Prioridade **Média** — achado lateral de [[MAN-OFF26-3-F1]] (registrado 05/06/2026)
+
+**Descrição:** a lógica canônica de budget de draft existe no backend
+(`salary_engine.draft_budget` — `$200 − keepers`, mínimo $1 por slot vazio,
+`usable`/`over_cap`/`insufficient`) e está **reimplementada no cliente** em JS, em
+`templates/cap_projector.html` (~linhas 150-171: cálculo de `raw_budget`, `usable`
+e aviso "Budget insuficiente").
+
+**Motivação:** viola o princípio "1 fonte por modo de render" estabelecido no
+**T2-FIX-2** (eliminar réplica de cálculo entre backend e JS). Divergência latente:
+qualquer mudança na regra de budget exigiria editar dois lugares.
+
+**Escopo do fix:** o cliente passa a consumir a fonte canônica via endpoint (expor
+`draft_budget` por time numa rota e o `cap_projector.html` consome em vez de
+recalcular).
+
+**Observação de dependência:** idealmente resolvido **antes do OFF26-1** (janela
+selada de keepers/cuts), que calculará budget ao vivo e deve **nascer consumindo o
+canônico** — evita criar uma terceira réplica.
+
+**Ref. cruzada:** [[MAN-OFF26-3-F1]] (diagnose do importador OFF26-3, achado §3).
 
 ---
 

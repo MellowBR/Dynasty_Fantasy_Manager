@@ -125,6 +125,7 @@ def create_app():
     from routes.admin   import admin_bp
     from routes.offseason import offseason_bp
     from routes.league import league_bp
+    from routes.draft_import import draft_import_bp
 
     app.register_blueprint(roster_bp)
     app.register_blueprint(salary_bp)
@@ -134,6 +135,7 @@ def create_app():
     app.register_blueprint(admin_bp)
     app.register_blueprint(offseason_bp)
     app.register_blueprint(league_bp)
+    app.register_blueprint(draft_import_bp)
 
     # Error pages
     @app.errorhandler(404)

@@ -53,7 +53,7 @@ python seed_users.py --list
 9. `run_sync()` → Sleeper API sync (with try/except — app loads even if Sleeper is down)
 10. `_backfill_player_history()` → create history records
 
-### Route Blueprints (9)
+### Route Blueprints (10)
 
 | Blueprint | URL | Purpose |
 |-----------|-----|---------|
@@ -65,6 +65,7 @@ python seed_users.py --list
 | auction | `/auction` | FA auction & rookie draft registration |
 | admin | `/admin`, `/admin/users`, `/admin/review` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1), PlayerHistory canonical rebuild (F8), dynasty values refresh (T2), revisão admin auditável Cat A/B (M2) |
 | offseason | `/offseason` | 7-step offseason workflow com lottery auditável (M8), 6 seeds via fonte única (M15), editor de pesos reativo com render single-source JS (M15-FIX) |
+| draft_import | `/draft_import` | OFF26-3: importa drafts de liga fantasma (rookie linear / FA auction) via API read-only — preview→confirm, match por sleeper_player_id, idempotente, escreve só via `record_acquisition` |
 | league | `/league`, `/team/<id>` | League Hub (L1): grid de 12 times com cap/picks/dynasty/record + detalhe por time (roster, picks, cap breakdown) |
 
 ### Models (models.py)
@@ -109,6 +110,15 @@ python seed_users.py --list
 ### Player Name Matching (player_lookup.py)
 
 Strict full-name matching to prevent the "3 Browns" bug. Never falls back to partial/substring matching. Three tiers: exact → case-insensitive → normalized (strips accents, suffixes, punctuation).
+
+### Acquisition (criação de contrato ano-1)
+
+`models.record_acquisition(...)` é a **única porta canônica** de criação de contrato
+de aquisição (Player upsert + SalaryHistory + AuctionLog atômicos; salário sempre via
+`salary_engine.year1_salary`). Usado por `/auction` (FA/rookie/excel) e pelo importador
+OFF26-3. Idempotência por token `[ref:<event_ref>]` em `AuctionLog.notes` via
+`acquisition_already_recorded()`. **Exceção:** `bulk_register` ainda escreve inline
+(item F9, pendente). Não criar contrato fora desse helper.
 
 ### Audit Trails
 

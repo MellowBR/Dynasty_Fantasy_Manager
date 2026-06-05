@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Importar Draft{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">📥 Importar Draft de Liga Fantasma</h1>
+  <p class="page-subtitle">Rookie (linear) ou FA Auction. Preview obrigatório → confirmação. Idempotente.</p>
+</div>
+
+<div class="card">
+  <label>Identificador do draft (Sleeper draft_id):</label>
+  <div style="display:flex;gap:.5rem;margin-top:.4rem;flex-wrap:wrap">
+    <input type="text" id="draft-id" class="input-sm" style="width:240px" placeholder="ex: 1234567890123456789">
+    <button class="btn btn-primary" onclick="doPreview()">🔍 Preview (não escreve)</button>
+  </div>
+  <div id="preview-meta" class="text-dim" style="margin-top:.6rem"></div>
+  <div id="result-box" class="result-box" style="display:none;margin-top:.6rem"></div>
+</div>
+
+<div id="budget-alerts"></div>
+
+<div class="card" id="matched-card" style="display:none">
+  <h2 class="card-title">Picks com match</h2>
+  <table class="data-table">
+    <thead><tr><th>Pick</th><th>Jogador</th><th>Time</th><th>Lance</th><th>Salário</th><th>Status</th></tr></thead>
+    <tbody id="matched-body"></tbody>
+  </table>
+</div>
+
+<div class="card" id="unmatched-card" style="display:none">
+  <h2 class="card-title">⚠️ Picks sem match — ação obrigatória</h2>
+  <p class="text-dim small-text">Cada pick precisa ser resolvido (pular com justificativa, ou criar novo jogador) antes de confirmar. Nenhum pulo silencioso.</p>
+  <table class="data-table">
+    <thead><tr><th>Pick</th><th>Jogador (Sleeper)</th><th>Time</th><th>Causa</th><th>Ação</th><th>Justificativa (se pular)</th></tr></thead>
+    <tbody id="unmatched-body"></tbody>
+  </table>
+</div>
+
+<div class="card" id="confirm-card" style="display:none">
+  <button class="btn btn-danger" onclick="doConfirm()">✅ Confirmar importação</button>
+  <span class="text-dim small-text">Rejeitar = simplesmente não confirmar (nada é escrito no preview).</span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let PREVIEW = null;
+
+function show(msg, ok) {
+  const b = document.getElementById('result-box');
+  b.style.display = 'block';
+  b.className = 'result-box ' + (ok ? 'result-ok' : 'result-error');
+  b.innerHTML = msg;
+}
+
+function doPreview() {
+  const id = document.getElementById('draft-id').value.trim();
+  if (!id) { show('❌ Informe o draft_id.', false); return; }
+  show('⏳ Lendo draft via API...', true);
+  fetch('/api/draft_import/preview', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({draft_id: id})
+  }).then(r => r.json()).then(d => {
+    if (d.error) { show('❌ ' + d.error, false); hideAll(); return; }
+    PREVIEW = d;
+    renderPreview(d);
+  });
+}
+
+function hideAll() {
+  ['matched-card','unmatched-card','confirm-card'].forEach(i => document.getElementById(i).style.display = 'none');
+  document.getElementById('budget-alerts').innerHTML = '';
+}
+
+function renderPreview(d) {
+  document.getElementById('preview-meta').textContent =
+    `Tipo: ${d.type} (${d.acquisition_type}) · season ${d.season} · ${d.n_matched} com match · ${d.n_unmatched} sem match · ${d.n_already} já importados`;
+  show(`✅ Preview pronto. Nada foi escrito.`, true);
+
+  // budget alerts
+  const ba = document.getElementById('budget-alerts');
+  ba.innerHTML = (d.budget_alerts || []).map(a =>
+    `<div class="alert alert-warn">⚠️ ${a.team}: ${a.over_cap ? 'cap estourado' : ''} ${a.insufficient_budget ? 'budget insuficiente' : ''} (usável $${a.usable_draft_budget}) — alerta soft, não bloqueia.</div>`
+  ).join('');
+
+  // matched
+  document.getElementById('matched-card').style.display = d.matched.length ? '' : 'none';
+  document.getElementById('matched-body').innerHTML = d.matched.map(m =>
+    `<tr><td>${m.pick_no}</td><td>${m.matched_name}</td><td>${m.team}</td><td>${m.amount ?? '—'}</td><td><strong>$${m.salary}</strong></td><td>${m.already_imported ? '⏭️ já importado' : '✓ novo'}</td></tr>`
+  ).join('');
+
+  // unmatched
+  const uc = document.getElementById('unmatched-card');
+  uc.style.display = d.unmatched.length ? '' : 'none';
+  document.getElementById('unmatched-body').innerHTML = d.unmatched.map(u => {
+    if (u.already_imported) return `<tr><td>${u.pick_no}</td><td>${u.player_name}</td><td>${u.team ?? '—'}</td><td>${u.cause}</td><td colspan="2">⏭️ já importado</td></tr>`;
+    return `<tr data-sid="${u.sleeper_player_id}">
+      <td>${u.pick_no}</td><td>${u.player_name} <span class="text-dim small-text">(${u.sleeper_player_id})</span></td>
+      <td>${u.team ?? '—'}</td><td>${u.cause}</td>
+      <td><select class="u-action">
+        <option value="">— escolher —</option>
+        <option value="skip">Pular</option>
+        <option value="create">Criar novo</option>
+      </select></td>
+      <td><input type="text" class="u-reason input-sm" placeholder="motivo do pulo" style="width:160px"></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('confirm-card').style.display = '';
+}
+
+function doConfirm() {
+  if (!PREVIEW) return;
+  const resolutions = {}, skip_reasons = {};
+  document.querySelectorAll('#unmatched-body tr[data-sid]').forEach(tr => {
+    const sid = tr.dataset.sid;
+    const action = tr.querySelector('.u-action').value;
+    if (action) resolutions[sid] = action;
+    if (action === 'skip') skip_reasons[sid] = tr.querySelector('.u-reason').value.trim();
+  });
+  show('⏳ Confirmando...', true);
+  fetch('/api/draft_import/confirm', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({draft_id: PREVIEW.draft_id, resolutions, skip_reasons})
+  }).then(r => r.json()).then(d => {
+    if (d.error) {
+      let msg = '❌ ' + d.error;
+      if (d.unresolved) msg += '<br>' + d.unresolved.map(u => `• pick ${u.pick_no} ${u.player_name}: ${u.reason}`).join('<br>');
+      show(msg, false); return;
+    }
+    show(`✅ Importado: ${d.created} criados, ${d.already_imported} já existentes, ${d.skipped.length} pulados.`, true);
+    setTimeout(doPreview, 800);  // re-preview mostra idempotência
+  });
+}
+</script>
+{% endblock %}

@@ -1,7 +1,8 @@
 import io
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required
-from models import db, Player, Team, AuctionLog, SalaryHistory, CURRENT_SEASON, get_current_season
+from models import (db, Player, Team, AuctionLog, SalaryHistory, CURRENT_SEASON,
+                    get_current_season, record_acquisition)
 from salary_engine import year1_salary, _floor
 from routes.auth import admin_required
 
@@ -42,62 +43,20 @@ def register_fa_auction():
     if not team:
         return jsonify({"error": f"Equipe não encontrada: {team_name}"}), 404
 
-    salary = max(1, int(value_paid))
     espn_adjusted = espn_raw * 1.2
 
-    # Find or create player
+    # Find existing (by name + team); matching fica no chamador, escrita no helper.
     player = Player.query.filter(
         Player.name.ilike(player_name),
         Player.team_id == team.id,
     ).first()
 
-    if player:
-        player.salary = salary
-        player.contract_year = 1
-        player.contract_start_season = season
-        player.acquisition_type = "auction_draft"
-        player.espn_ref_value = espn_adjusted
-        player.is_dropped = False
-    else:
-        player = Player(
-            name=player_name,
-            position="",
-            team_id=team.id,
-            salary=salary,
-            contract_year=1,
-            contract_start_season=season,
-            acquisition_type="auction_draft",
-            espn_ref_value=espn_adjusted,
-            is_my_team=team.is_my_team,
-            needs_review=True,
-        )
-        db.session.add(player)
-        db.session.flush()
-
-    # Log salary history
-    hist = SalaryHistory(
-        player_id=player.id,
-        season=season,
-        salary=salary,
-        contract_year=1,
-        rule_applied=f"FA Auction: ${salary} (bid)",
-        espn_ref_value=espn_adjusted,
+    # OFF26-3: criação de contrato via helper atômico canônico (única porta).
+    player, _salary = record_acquisition(
+        player=player, player_name=player_name, team=team,
+        acquisition_type="auction_draft", season=season,
+        value_paid=value_paid, espn_adjusted=espn_adjusted, notes=notes,
     )
-    db.session.add(hist)
-
-    # Auction log
-    entry = AuctionLog(
-        season=season,
-        player_id=player.id,
-        team_id=team.id,
-        player_name=player_name,
-        team_name=team_name,
-        entry_type="fa_auction",
-        value_paid=value_paid,
-        espn_ref_value_at_time=espn_adjusted,
-        notes=notes,
-    )
-    db.session.add(entry)
     db.session.commit()
     return jsonify({"success": True, "player": player.to_dict()})
 
@@ -127,59 +86,18 @@ def register_rookie():
         return jsonify({"error": f"Equipe não encontrada: {team_name}"}), 404
 
     espn_adjusted = espn_raw * 1.2
-    salary = max(1, int(espn_adjusted))
 
     player = Player.query.filter(
         Player.name.ilike(player_name),
         Player.team_id == team.id,
     ).first()
 
-    if player:
-        player.salary = salary
-        player.contract_year = 1
-        player.contract_start_season = season
-        player.acquisition_type = "rookie_draft"
-        player.espn_ref_value = espn_adjusted
-        player.is_dropped = False
-    else:
-        player = Player(
-            name=player_name,
-            position="",
-            team_id=team.id,
-            salary=salary,
-            contract_year=1,
-            contract_start_season=season,
-            acquisition_type="rookie_draft",
-            espn_ref_value=espn_adjusted,
-            is_my_team=team.is_my_team,
-            needs_review=True,
-        )
-        db.session.add(player)
-        db.session.flush()
-
-    hist = SalaryHistory(
-        player_id=player.id,
-        season=season,
-        salary=salary,
-        contract_year=1,
-        rule_applied=f"Rookie Draft Rd{round_num}: floor(ESPN×1.2)=floor({espn_raw}×1.2)=${salary}",
-        espn_ref_value=espn_adjusted,
+    # OFF26-3: criação de contrato via helper atômico canônico (única porta).
+    player, _salary = record_acquisition(
+        player=player, player_name=player_name, team=team,
+        acquisition_type="rookie_draft", season=season,
+        espn_adjusted=espn_adjusted, round_num=round_num, notes=notes,
     )
-    db.session.add(hist)
-
-    entry = AuctionLog(
-        season=season,
-        player_id=player.id,
-        team_id=team.id,
-        player_name=player_name,
-        team_name=team_name,
-        entry_type="rookie_draft",
-        value_paid=salary,
-        round_num=round_num,
-        espn_ref_value_at_time=espn_adjusted,
-        notes=notes,
-    )
-    db.session.add(entry)
     db.session.commit()
     return jsonify({"success": True, "player": player.to_dict()})
 
@@ -309,41 +227,15 @@ def upload_excel():
             errors.append("; ".join(reason))
             continue
 
-        salary = max(1, int(value_paid))
         espn_at_time = player.espn_ref_value or 0.0
 
-        # Update player
-        player.salary = salary
-        player.contract_year = 1
-        player.contract_start_season = season
-        player.acquisition_type = "auction_draft"
-        player.team_id = team.id
-        player.fantasy_team = team.name
-        player.is_my_team = team.is_my_team
-        player.is_dropped = False
-
-        # Salary history
-        db.session.add(SalaryHistory(
-            player_id=player.id,
-            season=season,
-            salary=salary,
-            contract_year=1,
-            rule_applied=f"FA Auction (Excel): ${salary}",
-            espn_ref_value=espn_at_time,
-        ))
-
-        # Auction log
-        db.session.add(AuctionLog(
-            season=season,
-            player_id=player.id,
-            team_id=team.id,
-            player_name=player.name,
-            team_name=team.name,
-            entry_type="fa_auction",
-            value_paid=value_paid,
-            espn_ref_value_at_time=espn_at_time,
+        # OFF26-3: criação de contrato via helper atômico canônico (única porta).
+        record_acquisition(
+            player=player, team=team, acquisition_type="auction_draft",
+            season=season, value_paid=value_paid, espn_adjusted=espn_at_time,
             notes="Importado via Excel",
-        ))
+        )
+        player.fantasy_team = team.name  # excel pode mover o time
         imported += 1
 
     db.session.commit()
