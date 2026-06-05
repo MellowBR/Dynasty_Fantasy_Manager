@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 27/04/2026 (T3 registrado em formato REG; O2 refinado para 5 dimensões)
+> Atualizado em: 05/06/2026 (lottery: M15 — 6 seeds/pool 96; M15-FIX — editor de pesos reativo + legenda /picks audit-first; M16 — R2/R3 por standings invertido)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---

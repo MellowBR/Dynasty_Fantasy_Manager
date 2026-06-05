@@ -61,8 +61,9 @@ atualizado instantaneamente para o Optimizer ler na próxima análise.
 
 **Offseason (draft lottery):**
 O comissário executa o draft lottery com os pesos definidos no regulamento. O Manager
-sorteia, registra o resultado, e a ordem do Round 1 passa a refletir o sorteio — sem
-necessidade de manter isso manualmente numa planilha paralela.
+sorteia, registra o resultado, e a ordem do Round 1 passa a refletir o sorteio
+(os Rounds 2 e 3 seguem standings invertidos) — sem necessidade de manter isso
+manualmente numa planilha paralela.
 
 **Consulta cotidiana:**
 Qualquer owner acessa `/` e vê o roster atual do time dele: salários, anos de contrato,
@@ -81,10 +82,12 @@ liga inconsistente.
 O ciclo do offseason começa com a **atualização dos valores ESPN** no Manager —
 sem ESPN atualizado, a VALORIZAÇÃO aplicada no season rollover usa referências do
 ano anterior e produz salários errados. Em seguida o comissário roda o **draft
-lottery** no Manager, que sorteia os picks 1 a 5 com pesos por posição final na
-temporada anterior e fixa os picks 6 a 12 por standings. O **rookie draft**
-acontece no Manager em seguida — é lá que os contratos dos novatos são criados
-pela primeira vez.
+lottery** no Manager, que sorteia os picks 1 a 6 do Round 1 (pesos por posição
+final na temporada anterior, incluindo o 7º colocado com 1 bolinha — M15) e fixa
+os picks 7 a 12 por standings. O sorteio define **apenas** o Round 1; os Rounds 2
+e 3 seguem standings invertidos (12º abre, campeão fecha — M16). O **rookie
+draft** acontece no Manager em seguida — é lá que os contratos dos novatos são
+criados pela primeira vez.
 
 Depois disso o foco muda para o Sleeper: **owners têm um prazo para fazer drops
 e adequar o roster ao cap**, e o comissário **atualiza os rosters no Sleeper e
