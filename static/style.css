@@ -1906,12 +1906,13 @@ a.player-name:hover {
   to   { box-shadow: 0 0 22px #fde047, 0 0 40px rgba(253, 224, 71, 0.6), inset 0 -2px 3px rgba(0,0,0,0.2); }
 }
 
-/* Paleta fixa 5 cores — seed 1 (12º/pior) → seed 5 (8º) */
+/* Paleta fixa 6 cores — seed 1 (12º/pior) → seed 6 (7º) — M15 */
 .ball-color-1 { background: #ef4444; }  /* vermelho — 12º (pior) */
 .ball-color-2 { background: #3b82f6; }  /* azul     — 11º */
 .ball-color-3 { background: #10b981; }  /* verde    — 10º */
 .ball-color-4 { background: #a855f7; }  /* roxo     — 9º */
 .ball-color-5 { background: #f59e0b; }  /* laranja  — 8º */
+.ball-color-6 { background: #06b6d4; }  /* ciano    — 7º (M15) */
 
 .lottery-legend-swatch {
   display: inline-block;

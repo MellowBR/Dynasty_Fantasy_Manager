@@ -61,10 +61,10 @@ python seed_users.py --list
 | roster | `/`, `/player/<id>` | Team rosters, IR management, cap bar, página dedicada por jogador (M13), banner de cap estourado em offseason (M1) |
 | salary | `/salary`, `/salary_history` | Salary calculator, cap projector, salary history com timeline clicável |
 | trades | `/trades`, `/trades/proposta/<uuid>` | Trade simulador puro (T1), preview com dynasty + redraft delta-pointing bars (T2/T3), descrição "de/para" 2-colunas, query params pré-seleção (M14), propostas compartilháveis |
-| picks | `/picks`, `/picks/lottery/<season>` | Grid navegável de picks (M9), auditoria pública do lottery (M8) |
+| picks | `/picks`, `/picks/lottery/<season>` | Grid navegável de picks (M9), auditoria pública do lottery (M8), legenda de odds derivada da config canônica (M15) |
 | auction | `/auction` | FA auction & rookie draft registration |
 | admin | `/admin`, `/admin/users`, `/admin/review` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1), PlayerHistory canonical rebuild (F8), dynasty values refresh (T2), revisão admin auditável Cat A/B (M2) |
-| offseason | `/offseason` | 7-step offseason workflow com lottery auditável (M8) |
+| offseason | `/offseason` | 7-step offseason workflow com lottery auditável (M8), 6 seeds via fonte única (M15) |
 | league | `/league`, `/team/<id>` | League Hub (L1): grid de 12 times com cap/picks/dynasty/record + detalhe por time (roster, picks, cap breakdown) |
 
 ### Models (models.py)
@@ -83,7 +83,7 @@ python seed_users.py --list
 ### Offseason Workflow (7 steps)
 
 1. Close Season → import standings from Sleeper or manual entry
-2. Lock Draft Order → weighted lottery for picks 1-5 (8th-12th place), fixed 6-12
+2. Lock Draft Order → weighted lottery for picks 1-6 (7th-12th place; M15: 7º com 1 bolinha, pool 96, fonte única `DEFAULT_LOTTERY_WEIGHTS`), fixed 7-12
 3. Update ESPN Values → bulk PDF import + player matching
 4. Season Rollover → apply salary rules, increment contract years
 5-7. Informational: rookie draft, keepers/cuts, FA auction (manual via /auction)

@@ -124,8 +124,8 @@
         {% else %}
           <h3>Pool do Lottery — cada bolinha é uma chance</h3>
           <p class="text-dim">
-            Times 8º–12º do standings recebem bolinhas proporcionais ao peso.
-            Total: 95 bolinhas (50 + 25 + 12 + 5 + 3). O sorteio acontece no passo seguinte e é <strong>definitivo</strong>.
+            Times {{ 13 - (lottery_weights.keys()|max) }}º–12º do standings recebem bolinhas proporcionais ao peso.
+            Total: {{ lottery_weights.values()|sum }} bolinhas. O sorteio acontece no passo seguinte e é <strong>definitivo</strong>.
           </p>
 
           {% set pool_entries = [] %}

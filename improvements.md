@@ -32,6 +32,7 @@
 | M12 | Vincular owners a times via tela de admin com lookup do Sleeper | Média | ✅ 22/04/2026 |
 | M13 | Página de jogador + "Propor Trade" | Média | ✅ 23/04/2026 |
 | M14 | /trades aceitar query params team_a/team_b (pré-requisito M9 + M13) | Média | ✅ 23/04/2026 |
+| M15 | Lottery com 6 seeds (inclusão do 7º colocado com 1 bolinha; pool 96) — MAN-M15-REG | Média | ✅ 05/06/2026 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
@@ -407,6 +408,214 @@ CREATE TABLE trade_proposals (
 1. **Salvar seed e pesos:** Ao rodar o lottery, gerar um `random_seed` (ex: hash de timestamp), setar `random.seed(seed)`, e salvar na tabela `draft_lottery_result` ou nova tabela `lottery_audit` (seed, pesos usados, timestamp, resultado completo)
 2. **Página pública:** Rota `/picks/lottery/<season>` acessível sem login (ou com `@login_required`) mostrando: seed usado, pesos por posição, resultado detalhado pick a pick, possibilidade de verificar reproduzindo o sorteio com o mesmo seed
 3. **Modelo `DraftLotteryResult`:** Hoje não tem campo para seed — adicionar coluna `random_seed` ou criar tabela auxiliar
+
+---
+
+### M15 — Lottery com 6 seeds (inclusão do 7º colocado com 1 bolinha) — MAN-M15-REG
+✅ **Concluído (05/06/2026)** — Prioridade **Média**
+
+**CONTEXTO**
+Decisão da liga (owner + comissário, 05/06/2026): o draft lottery passa a incluir
+o 7º colocado como sexto seed, com peso de 1 bolinha. A implementação atual (M8,
+concluída 23/04/2026) assume 5 seeds (8º-12º) em múltiplos pontos e não permite
+a inclusão. O regulamento 8.2.4 já menciona "os seis times não classificados",
+mas lista apenas 5 pesos (50/25/12/5/3, soma 95) — a decisão da liga fecha essa
+lacuna.
+
+**PROBLEMA / OPORTUNIDADE**
+A ferramenta é a fonte de verdade do lottery e hoje bloqueia uma regra já
+acordada pela liga. Sem a mudança, o sorteio de 6 seeds teria que ser feito fora
+do Manager, quebrando a auditabilidade conquistada no M8 (seed reprodutível,
+hash, histórico de re-runs).
+
+**DISCUSSAO**
+- Novo pool: 96 bolinhas — 12º=50, 11º=25, 10º=12, 9º=5, 8º=3, 7º=1.
+- Lottery passa a definir picks 1-6; picks 7-12 ficam fixos por standings
+  (hoje a fronteira é 5/6-12).
+- Percentuais da legenda deixam de ser redondos (50/96 ≈ 52,1%) — exibição
+  deve derivar de bolinhas/total, nunca de % hardcoded.
+- A premissa de 5 seeds está espalhada: pool, paleta fixa de 5 cores na UI,
+  result_hash sobre picks 1-5, pool_json, fronteira lottery/standings.
+- Auditorias antigas (pool de 5 seeds) precisam continuar verificáveis — o
+  endpoint de verify deve operar sobre o pool_json salvo, não sobre a
+  configuração vigente.
+
+**DECISOES JA TOMADAS**
+- 6º seed = 7º colocado, com exatamente 1 bolinha; pesos dos demais inalterados.
+- Pool total = 96 bolinhas; soma de pesos não precisa fechar em 100.
+- Auditabilidade do M8 preservada integralmente (seed, hash, verify, re-run
+  com reason).
+
+**ALTERNATIVAS DESCARTADAS**
+- Rebalancear pesos para somar 100 (ex: 7º com 5 bolinhas): rejeitada — a liga
+  quis impacto mínimo nas chances atuais; 1 bolinha é simbólica e suficiente.
+- Sortear fora do Manager só nesta temporada: rejeitada — perde auditoria e
+  cria precedente de fonte de verdade paralela.
+
+#### Fase 1 Diagnose ✅ (05/06/2026) — MAN-M15-F1
+Read-only. Verificado contra código (commit vigente) + leitura direta de
+`dynasty.db`. Sweep de réplicas: `grep` por `lottery|bolinha|ball-color|95|seed|
+weight|pick_number|[12,11,10,9,8]|range(1,6)` em toda a árvore `fantasy_manager`.
+**Não existe arquivo `static/*.js`** — todo o JS do lottery é inline em
+`offseason.html` / `lottery_audit.html`. Fora dos 6 arquivos abaixo, os únicos
+matches são as definições de modelo em `models.py` (schema, não lógica) e usos
+incidentais de "seed"/"weight"/"95" sem relação com o sorteio (seed_users, etc.).
+
+**A premissa de 5 seeds vive em exatamente 6 arquivos:** `routes/offseason.py`,
+`routes/picks.py`, `templates/offseason.html`, `templates/lottery_audit.html`,
+`static/style.css`, `models.py` (só schema).
+
+**V1 — Literais vs. parametrizados + réplicas (resposta explícita):**
+- **Pesos/pool:** `DEFAULT_LOTTERY_WEIGHTS` (`offseason.py:32`) = 5 entradas,
+  fonte única do backend. No `offseason.html` a render é **data-driven** (pool de
+  bolinhas, legenda e editor de pesos iteram `lottery_weights`).
+- **Percentuais da legenda:** já **derivados** de `weight*100/total_weight`
+  (`offseason.html:165`) — não hardcoded. ✓
+- **Réplica de % hardcoded (SIM, existe):** `routes/picks.py:13-21` `LOTTERY_ODDS`
+  é dict Python literal (`50/25/12/5/3/3/2`) consumido na legenda de
+  `picks.html:112-113`. Está **já divergente da realidade hoje** (7 entradas com
+  pick6=3%/pick7=2% que não batem com o pool real de 5 seeds/95 bolinhas) →
+  ver "Item descoberto" abaixo.
+- **Contagem de bolinhas hardcoded (SIM):** string `"Total: 95 bolinhas
+  (50 + 25 + 12 + 5 + 3)"` em `offseason.html:128`.
+- **Listas de ranks literais (SIM, replicadas):** `[12, 11, 10, 9, 8]` em
+  `offseason.py:144` (lottery_seeds), `:383` (simulate), `:478` (execute) e
+  `picks.py:195` (standings order).
+- **Paleta de cores literal (SIM):** CSS só define `ball-color-1`…`ball-color-5`
+  (`static/style.css:1910-1914`), com comentários atados a 12º-8º. Falta
+  `ball-color-6`. Template gera a classe via `'ball-color-' ~ seed`
+  (`offseason.html:137`) — um 6º seed renderiza com classe inexistente (sem cor).
+- **JS:** sem cálculo de peso/percentual em JS. `animateReveal`
+  (`offseason.html:494`) filtra por `r.source === 'lottery'` (data-driven; a var
+  `lottery5` é só nome).
+
+**V2 — result_hash/verify hardcoded a "picks 1-5"? Audits antigas quebram?**
+- `_compute_result_hash` (`offseason.py:73`) **deriva do tamanho da lista**
+  recebida (não hardcoded; parâmetro só se chama `picks_1_to_5`). ✓
+- **Hardcoded a 5 (SIM, 2 pontos):** o draw `_draw_weighted_lottery`
+  (`offseason.py:58`, `for pick_num in range(1, 6)`) e o verify
+  (`picks.py:313-318`, `DraftLotteryResult.pick_number <= 5`).
+- **Audits antigas (5 seeds) quebram com a mudança? → NÃO**, *desde que* a F2
+  derive a contagem de draws do tamanho do `pool_json` salvo (não de uma
+  constante global "6"). Justificativa: o verify reproduz lendo
+  `canonical.pool_json` + `canonical.random_seed` (snapshot imutável), e o hash
+  já deriva do tamanho da lista. Uma audit de 5 times reproduz 5 picks e bate com
+  seu hash gravado. **O risco de retrocompat só aparece se a F2 trocar `range(1,6)`
+  por `range(1,7)` fixo** — aí audits de 5 seeds desenhariam 6 e divergiriam.
+  Regra para a F2: parametrizar draw e threshold por `len(pool)` do snapshot,
+  nunca por constante de módulo. O `pick_number <= 5` do verify também deve virar
+  `<= len(pool)`.
+
+**V3 — Audit canônica para 2026 no banco? → NÃO.**
+- `lottery_audit`: **0 rows** (tabela vazia). `current_season=2025` →
+  draft_season=2026; `season_locked=false`; `has_canonical_audit`=False.
+- `draft_lottery_result` tem 12 rows para 2026 (5 `source='lottery'`), porém são
+  fallback de standings / execução pré-canônica — **sem** `LotteryAudit`
+  correspondente. **Conclusão: o sorteio oficial 2026 ainda não ocorreu.**
+- **Fluxo da F2 = `POST /api/offseason/run_lottery` normal** (NÃO
+  `/lottery/replace` com reason; replace é só para re-execução pós-canônica).
+
+**V4 — Fronteira picks 5/6→12 (fixos por standings): fonte única? → NÃO,
+replicada em 5 pontos:**
+- `offseason.py:_execute_lottery_and_persist` (linhas 497-521).
+- `offseason.py:lottery_simulate` (linhas 397-414).
+- `offseason.py:save_lottery` (`if pick_num > 5: continue`, linha 573).
+- `picks.py:_apply_standings_order` (linhas 194-215).
+- `picks.py:_build_pick_projections` — branch de lottery é data-driven (lê
+  `lr.pick_number`), mas o fallback de standings delega a `_apply_standings_order`.
+- **Nota útil p/ F2:** com a nova fronteira o rank 7 sai dos fixos e entra no
+  pool; os fixos atuais picks 7-10 = ranks 6,5,4,3 e picks 11/12 = vice/campeão
+  **permanecem idênticos** — só o **pick 6 migra de fixo → lottery**.
+
+**V5 — Recomendação de escopo p/ F2 (parametrizar > ajustar literais):**
+Introduzir uma fonte única (ex.: `LOTTERY_SEEDS = [(seed, rank, weight), …]` ou
+derivar de `DEFAULT_LOTTERY_WEIGHTS` + nº de seeds) e fazer todos os pontos
+consumirem dela / do `len(pool)`. Custo estimado por área:
+- **Backend offseason.py** (pesos, `range`, 3× `[12..8]`, fronteira `>5`,
+  pool builder ×2): ~1.5-2h. Núcleo da mudança.
+- **Backend picks.py** (`_apply_standings_order`, verify `<=5`, `LOTTERY_ODDS`):
+  ~1h. Derivar verify de `len(pool)` é o ponto crítico de retrocompat.
+- **Template offseason.html** (string "95", legenda já ok): ~15min.
+- **CSS** (`ball-color-6`): ~10min.
+- **lottery_audit.html** (textos "Pool (ranks 8-12)" `:40`, "Picks 1-5" `:119`):
+  ~15min — derivar do pool/contagem real.
+- **Validação** (run_lottery 6 seeds → 96 bolinhas, verify de audit nova de 6
+  seeds + verify de audit sintética de 5 seeds ainda verde, hash, `salary_engine_test`):
+  ~1h. **Custo total estimado: ~5-6h.**
+
+**Item descoberto (pré-existente, independente do M15):** a legenda de odds em
+`/picks` (`picks.py:13-21` `LOTTERY_ODDS` → `picks.html:112`) mostra valores
+**errados hoje** (7 posições, pick6=3%/pick7=2%, somando ≠ pool real de 5
+seeds/95 bolinhas). É um defeito de display latente que antecede o M15.
+Recomendação: **absorver na F2 do M15** (a legenda tem de ser reconciliada quando
+os seeds mudam — corrigir agora e re-tocar na F2 seria retrabalho). Registrado
+aqui para o owner decidir se prefere promover a ID própria (ex.: `M16`) antes da
+F2; default proposto = dobrar no M15.
+
+#### Fase 2 Implementação ✅ (05/06/2026) — MAN-M15
+
+**Fonte única criada (`routes/offseason.py`):**
+- `DEFAULT_LOTTERY_WEIGHTS = {1:50, 2:25, 3:12, 4:5, 5:3, 6:1}` (soma 96) — única
+  declaração de seeds/pesos. `_normalize_weights()` (aceita chaves int/str de
+  JSON) e `_seed_rank(seed)` = `13 - seed` (seed 1 = 12º).
+- Três builders compartilhados: `_build_lottery_pool(standings, weights)`,
+  `_build_fixed_picks(standings, num_seeds)` (limiar deriva de `num_seeds`;
+  vice/campeão sempre picks 11/12) e `_build_default_draft_order()` (fallback de
+  projeção sem sorteio). Eliminaram as 3 cópias de pool e as 5 cópias da fronteira.
+
+**Pontos que passaram a derivar da fonte única:**
+- `_draw_weighted_lottery`: `range(1, len(pool)+1)` (era `range(1,6)`) — contagem
+  vem do pool, nunca de constante.
+- `run_lottery` / `lottery_simulate` / `_execute_lottery_and_persist`: usam
+  `_build_lottery_pool` + `_build_fixed_picks`.
+- `offseason_page.lottery_seeds` e `save_lottery` (`> num_seeds`): derivam de
+  `DEFAULT_LOTTERY_WEIGHTS`.
+- `routes/picks.py`: `LOTTERY_ODDS` hardcoded **removido** → `_build_lottery_odds()`
+  (pct = peso/total, importa a config canônica); `_apply_standings_order` delega a
+  `_build_default_draft_order`; verify usa `n_lottery = len(pool)` (era `<= 5`).
+- `_compute_result_hash`: parâmetro renomeado p/ `lottery_picks` (algoritmo
+  intacto; já derivava do tamanho da lista).
+- Templates: `offseason.html` total/range derivam de `lottery_weights` (string
+  "95 bolinhas" removida); `picks.html` legenda ganhou coluna Bolinhas + 6 linhas
+  derivadas; `lottery_audit.html` "Pool (… times)" e texto de verify derivam do
+  snapshot. `static/style.css`: `ball-color-6` (ciano #06b6d4, 7º).
+
+**Retrocompat (decisão-chave):** draws e verify derivam de `len(pool_json)` do
+snapshot salvo, **nunca** de constante global. Audit de 5 seeds reproduz 5 picks
+e bate com seu `result_hash`; audit de 6 seeds reproduz 6. Schema/contrato de
+`LotteryAudit` e fluxo de 2 fases do M8 (409 duplicata, replace com reason)
+**inalterados**.
+
+**Item descoberto absorvido:** o `LOTTERY_ODDS` divergente (legenda errada em
+`/picks`) foi corrigido aqui — passou a derivar da mesma fonte; não virou ID próprio.
+
+**Validação (05/06/2026) — 8 validações via Flask `test_client` sobre cópia
+temporária de `dynasty.db` (DB real intocado), 19 asserts, 19/19 PASS:**
+
+| # | Validação | Resultado |
+|---|-----------|-----------|
+| V1 | `run_lottery` 2026 | 200, 12 picks (1-6 lottery / 7-12 standings), audit pool 6 times, soma pesos = 96 |
+| V2 | verify do audit novo | `match=true`, `result_hash_match=true` |
+| V3 | retrocompat: audit sintético 5 seeds | reproduz exatamente 5 picks, `match=true` (cleanup ok) |
+| V4 | UI `/offseason` | 96 bolinhas, `ball-color-6` presente, legenda 6 linhas, 7º=1.0%, "95 bolinhas" ausente |
+| V5 | legenda odds `/picks` | 6 posições (12º…7º), 12º=52.1% / 7º=1.0%, valores antigos ausentes |
+| V6 | run duplicado / replace sem reason | 409 / 400 (fluxo M8 intacto) |
+| V7 | `lottery/simulate` | 6 lottery + 6 fixos, picks 1-6 sorteados (96 bolinhas) |
+| V8 | `salary_engine_test.py` | 48/48 |
+
+**Arquivos modificados:** `routes/offseason.py` (fonte única + 3 builders +
+refactors), `routes/picks.py` (odds derivada, verify por `len(pool)`, standings
+order delegado), `templates/offseason.html`, `templates/picks.html`,
+`templates/lottery_audit.html`, `static/style.css` (`ball-color-6`), `CLAUDE.md`.
+Script de validação descartado pós-run (não merece slot permanente).
+
+**Nenhum item novo pendente descoberto na F2.** O sorteio oficial 2026 segue a
+cargo do admin via `/offseason` (a fronteira/pool agora suportam 6 seeds).
+
+**DEPENDENCIAS**
+- Depende de: M8 (base auditável — concluído).
+- Bloqueia: execução do lottery 2026 (sorteio oficial ainda não ocorreu; agora
+  desbloqueado — a ferramenta suporta 6 seeds).
 
 ---
 

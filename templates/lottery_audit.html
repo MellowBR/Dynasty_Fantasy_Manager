@@ -37,7 +37,7 @@
     </div>
   </div>
 
-  <h3 class="card-title" style="font-size:.95rem;margin-top:1rem">Pool (ranks 8-12) no momento do sorteio</h3>
+  <h3 class="card-title" style="font-size:.95rem;margin-top:1rem">Pool no momento do sorteio ({{ pool|length }} times)</h3>
   <table class="data-table">
     <thead><tr><th>Seed</th><th>Time</th><th>Peso</th></tr></thead>
     <tbody>
@@ -116,7 +116,7 @@ function verifyLottery() {
       }
       if (d.match && d.result_hash_match) {
         res.className = 'result-box result-ok';
-        res.innerHTML = '✅ <strong>Reprodução confere.</strong> Picks 1-5 reproduzidos com o seed batem exatamente com o DB. Hash SHA256 também confere.';
+        res.innerHTML = '✅ <strong>Reprodução confere.</strong> Os picks do lottery reproduzidos com o seed batem exatamente com o DB. Hash SHA256 também confere.';
       } else {
         res.className = 'result-box result-error';
         let msg = '❌ <strong>Divergência detectada.</strong><br>';

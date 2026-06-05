@@ -107,10 +107,10 @@
   <h2 class="card-title">🎰 Lottery Odds — 1ª Rodada</h2>
   <p class="text-dim" style="margin-bottom:.75rem">Equipes não-playoff disputam picks 1–6 via lottery.</p>
   <table class="data-table" style="max-width:360px">
-    <thead><tr><th>Posição (não-playoff)</th><th>Odds</th></tr></thead>
+    <thead><tr><th>Posição (não-playoff)</th><th>Bolinhas</th><th>Odds</th></tr></thead>
     <tbody>
       {% for pos, info in lottery_odds.items() %}
-      <tr><td>{{ info.label }}</td><td><strong>{{ info.pct }}%</strong></td></tr>
+      <tr><td>{{ info.label }}</td><td class="text-dim">{{ info.weight|int }}</td><td><strong>{{ info.pct }}%</strong></td></tr>
       {% endfor %}
     </tbody>
   </table>

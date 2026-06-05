@@ -3,7 +3,7 @@ routes/offseason.py — Offseason flow: standings, lottery, rollover.
 
 Steps:
   1. Close Season (import standings)
-  2. Lock Draft Order (lottery for picks 1-5)
+  2. Lock Draft Order (lottery for picks 1-6 — M15)
   3. Update ESPN Values
   4. Season Rollover
   5-7. Rookie Draft, Keepers, FA Auction (informational)
@@ -28,24 +28,43 @@ offseason_bp = Blueprint("offseason", __name__)
 
 SLEEPER_BASE = "https://api.sleeper.app/v1"
 
-# Default lottery weights: 12th place → 8th place
-DEFAULT_LOTTERY_WEIGHTS = {1: 50, 2: 25, 3: 12, 4: 5, 5: 3}
+# ── M15: fonte única da configuração do lottery ───────────────────────────────
+# seed_idx → peso (bolinhas). seed 1 = 12º (pior); seed N = (13 - N)º colocado.
+# Decisão da liga 05/06/2026: 6 seeds — o 7º colocado entra com 1 bolinha.
+# Soma = 96 (não fecha em 100, por decisão da liga). TODOS os pontos do lottery
+# (pool, simulação, persistência, fronteira, legendas, paleta) derivam daqui.
+DEFAULT_LOTTERY_WEIGHTS = {1: 50, 2: 25, 3: 12, 4: 5, 5: 3, 6: 1}
+
+
+def _normalize_weights(weights):
+    """Normaliza weights (chaves int ou str, vindos de JSON ou do default) → {int: float}."""
+    if not weights:
+        weights = DEFAULT_LOTTERY_WEIGHTS
+    return {int(k): float(v) for k, v in weights.items()}
+
+
+def _seed_rank(seed_idx) -> int:
+    """seed 1 = 12º (pior colocado). Rank no standing = 13 - seed."""
+    return 13 - int(seed_idx)
 
 
 # ── M8: Auditable draw via literal balls + seed ───────────────────────────────
 
 def _draw_weighted_lottery(pool: list, seed: str) -> list:
     """
-    Pure, testable draw for picks 1-5 using literal balls (each team repeated
-    'weight' times) + random.shuffle with a seeded RNG.
+    Pure, testable draw for the lottery picks using literal balls (each team
+    repeated 'weight' times) + random.shuffle with a seeded RNG.
 
     Option B (continuous seed): random.seed(seed) called ONCE at start.
     Subsequent shuffles consume the RNG state; determinism is preserved as
     long as same seed + same pool are provided.
 
-    pool: list of {"team_id", "team_name", "weight"} (5 items)
+    pool: list of {"team_id", "team_name", "weight"} (N items; N = nº de seeds)
     seed: hex string (secrets.token_hex result)
-    returns: list of 5 {"pick_number", "team_id", "team_name"}
+    returns: list of N {"pick_number", "team_id", "team_name"}
+
+    M15: a contagem de picks deriva de len(pool) (NUNCA de constante global),
+    garantindo que audits antigas de 5 seeds reproduzam exatamente 5 picks.
     """
     # Expand into literal balls
     balls = []
@@ -55,7 +74,7 @@ def _draw_weighted_lottery(pool: list, seed: str) -> list:
     random.seed(seed)
 
     results = []
-    for pick_num in range(1, 6):
+    for pick_num in range(1, len(pool) + 1):
         if not balls:
             break
         random.shuffle(balls)
@@ -70,11 +89,78 @@ def _draw_weighted_lottery(pool: list, seed: str) -> list:
     return results
 
 
-def _compute_result_hash(picks_1_to_5: list) -> str:
-    """SHA256 of 'picknum:team_name' comma-joined, for tampering detection."""
-    ordered = sorted(picks_1_to_5, key=lambda p: p["pick_number"])
+def _compute_result_hash(lottery_picks: list) -> str:
+    """SHA256 of 'picknum:team_name' comma-joined, for tampering detection.
+    M15: deriva do tamanho da lista recebida — mesmo algoritmo p/ qualquer nº
+    de seeds (5 ou 6); audits antigas mantêm o mesmo hash."""
+    ordered = sorted(lottery_picks, key=lambda p: p["pick_number"])
     key = ",".join(f"{p['pick_number']}:{p['team_name']}" for p in ordered)
     return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
+# ── M15: builders únicos de pool / fronteira / ordem padrão ───────────────────
+
+def _build_lottery_pool(standings, weights=None):
+    """Pool do lottery a partir dos standings + weights. Fonte única:
+    seed i → rank (13-i). Retorna lista ordenada por seed
+    [{team_name, team_id, seed, weight}, ...], só com times presentes nos standings."""
+    by_rank = {s.rank: s for s in standings}
+    w = _normalize_weights(weights)
+    pool = []
+    for seed_idx in sorted(w.keys()):
+        s = by_rank.get(_seed_rank(seed_idx))
+        if s:
+            pool.append({
+                "team_name": s.team_name,
+                "team_id": s.team_id,
+                "seed": seed_idx,
+                "weight": w[seed_idx],
+            })
+    return pool
+
+
+def _build_fixed_picks(standings, num_lottery_seeds):
+    """Picks fixos por standings, começando logo após os picks do lottery.
+    Ranks (pior_fora_do_lottery)…3 viram picks; vice = pick 11, campeão = pick 12.
+    Só o limiar lottery/standings muda com num_lottery_seeds; 11/12 são fixos.
+    Ex (6 seeds): ranks 6,5,4,3 → picks 7,8,9,10; vice→11; campeão→12."""
+    by_rank = {s.rank: s for s in standings}
+    worst_lottery_rank = 13 - num_lottery_seeds  # 6 seeds → 7 (pior fora = rank 6)
+    fixed = []
+    pick_num = num_lottery_seeds + 1
+    for rank in range(worst_lottery_rank - 1, 2, -1):  # 6 seeds → [6,5,4,3]
+        s = by_rank.get(rank)
+        if s:
+            fixed.append({"pick_number": pick_num, "team_name": s.team_name,
+                          "team_id": s.team_id, "source": "standings"})
+        pick_num += 1
+    runner_up = next((s for s in standings if s.is_runner_up), None)
+    champion = next((s for s in standings if s.is_champion), None)
+    if runner_up:
+        fixed.append({"pick_number": 11, "team_name": runner_up.team_name,
+                      "team_id": runner_up.team_id, "source": "standings"})
+    if champion:
+        fixed.append({"pick_number": 12, "team_name": champion.team_name,
+                      "team_id": champion.team_id, "source": "standings"})
+    return fixed
+
+
+def _build_default_draft_order(standings, weights=None):
+    """Ordem completa picks 1-12 por standings, SEM sorteio real (fallback de
+    projeção quando não há lottery). Picks 1..N = seeds (rank 13-seed, worst
+    first); picks N+1..12 = fixos. Mesma fonte/fronteira do sorteio real.
+    Retorna [(pick_number, team_name), ...]."""
+    w = _normalize_weights(weights)
+    by_rank = {s.rank: s for s in standings}
+    order = []
+    for seed_idx in sorted(w.keys()):
+        s = by_rank.get(_seed_rank(seed_idx))
+        if s:
+            order.append((seed_idx, s.team_name))
+    num_seeds = len(order) if order else len(w)
+    for f in _build_fixed_picks(standings, num_seeds):
+        order.append((f["pick_number"], f["team_name"]))
+    return order
 
 
 # ── Helper: step status ─────────────────────────────────────────────────────
@@ -138,13 +224,13 @@ def offseason_page():
     has_canonical_audit = LotteryAudit.query.filter_by(
         season=season + 1, is_canonical=True).first() is not None
 
-    # Build lottery seed → team name map from standings (8th-12th place)
-    lottery_seeds = {}  # seed 1=12th, 2=11th, 3=10th, 4=9th, 5=8th
+    # Build lottery seed → team name map from standings (M15: deriva da config)
+    lottery_seeds = {}  # seed i = (13-i)º colocado
     by_rank = {s.rank: s for s in standings}
-    for seed, rank in [(1, 12), (2, 11), (3, 10), (4, 9), (5, 8)]:
-        s = by_rank.get(rank)
+    for seed_idx in DEFAULT_LOTTERY_WEIGHTS:
+        s = by_rank.get(_seed_rank(seed_idx))
         if s:
-            lottery_seeds[seed] = s.team_name
+            lottery_seeds[seed_idx] = s.team_name
 
     return render_template("offseason.html",
                            season=season,
@@ -314,13 +400,13 @@ def save_standings():
 @admin_required
 def run_lottery():
     """
-    Run weighted lottery for picks 1-5 and assign fixed picks 6-12.
-    Draft order rules:
-      Picks 1-5:  Lottery among 8th-12th place (worst teams)
-      Pick 6:     7th place (fixed)
-      Picks 7-10: 3rd-6th place (reverse order: 6th gets pick 7, etc.)
-      Pick 11:    Runner-up
-      Pick 12:    Champion
+    Run weighted lottery for picks 1..N and assign fixed picks N+1..12.
+    M15: N = nº de seeds (default 6 — inclui o 7º colocado com 1 bolinha).
+    Draft order rules (6 seeds):
+      Picks 1-6:   Lottery among 7th-12th place (worst teams)
+      Picks 7-10:  6th-3rd place (fixed; 6th → pick 7, etc.)
+      Pick 11:     Runner-up
+      Pick 12:     Champion
     """
     # M8: block duplicate official execution — force /replace with reason
     season = get_current_season()
@@ -378,40 +464,15 @@ def lottery_simulate():
     if len(standings) < 12:
         return jsonify({"error": f"Standings incompletos ({len(standings)} times)"}), 400
 
-    by_rank = {s.rank: s for s in standings}
-    pool = []
-    for i, rank in enumerate([12, 11, 10, 9, 8]):
-        s = by_rank.get(rank)
-        if s:
-            seed_idx = i + 1
-            w = float(weights.get(str(seed_idx), weights.get(seed_idx, 1)))
-            pool.append({"team_id": s.team_id, "team_name": s.team_name,
-                         "seed": seed_idx, "weight": w})
+    # M15: mesma fonte única do sorteio oficial
+    pool = _build_lottery_pool(standings, weights)
 
     # Disposable seed — no persistence
     sim_seed = secrets.token_hex(16)
     lottery_draws = _draw_weighted_lottery(pool, sim_seed)
     lottery_results = [{**d, "source": "lottery"} for d in lottery_draws]
 
-    # Fixed picks 6-12
-    fixed_results = []
-    s7 = by_rank.get(7)
-    if s7:
-        fixed_results.append({"pick_number": 6, "team_name": s7.team_name,
-                               "team_id": s7.team_id, "source": "standings"})
-    for pick_num, rank in [(7, 6), (8, 5), (9, 4), (10, 3)]:
-        s = by_rank.get(rank)
-        if s:
-            fixed_results.append({"pick_number": pick_num, "team_name": s.team_name,
-                                   "team_id": s.team_id, "source": "standings"})
-    runner_up = next((s for s in standings if s.is_runner_up), None)
-    champion = next((s for s in standings if s.is_champion), None)
-    if runner_up:
-        fixed_results.append({"pick_number": 11, "team_name": runner_up.team_name,
-                               "team_id": runner_up.team_id, "source": "standings"})
-    if champion:
-        fixed_results.append({"pick_number": 12, "team_name": champion.team_name,
-                               "team_id": champion.team_id, "source": "standings"})
+    fixed_results = _build_fixed_picks(standings, len(pool))
 
     return jsonify({
         "simulated": True,
@@ -467,58 +528,20 @@ def lottery_replace():
 def _execute_lottery_and_persist(season, draft_season, standings, weights,
                                   previous_audit_id, reason):
     """
-    M8 shared body: draws picks 1-5 via _draw_weighted_lottery, computes picks
-    6-12 from standings, replaces DraftLotteryResult, persists LotteryAudit.
-    Returns (audit_row, all_results_list).
+    M8/M15 shared body: draws picks 1..N via _draw_weighted_lottery, computes
+    picks N+1..12 from standings (fonte única), replaces DraftLotteryResult,
+    persists LotteryAudit. Returns (audit_row, all_results_list).
     """
-    by_rank = {s.rank: s for s in standings}
+    # M15: pool + fronteira derivam da fonte única (_build_lottery_pool /
+    # _build_fixed_picks). Picks 1..N = lottery; picks N+1..12 = standings.
+    lottery_pool = _build_lottery_pool(standings, weights)
 
-    # Lottery pool: ranks 8-12 (worst 5 teams). seed 1 = 12º (pior), 5 = 8º.
-    lottery_pool = []
-    for i, rank in enumerate([12, 11, 10, 9, 8]):
-        s = by_rank.get(rank)
-        if s:
-            seed_idx = i + 1
-            w = float(weights.get(str(seed_idx), weights.get(seed_idx, 1)))
-            lottery_pool.append({
-                "team_name": s.team_name,
-                "team_id": s.team_id,
-                "seed": seed_idx,
-                "weight": w,
-            })
-
-    # Generate seed + draw via helper
+    # Generate seed + draw via helper (contagem deriva de len(pool))
     random_seed = secrets.token_hex(16)
     lottery_draws = _draw_weighted_lottery(lottery_pool, random_seed)
-    lottery_results = [
-        {**d, "source": "lottery"} for d in lottery_draws
-    ]
+    lottery_results = [{**d, "source": "lottery"} for d in lottery_draws]
 
-    # Fixed picks 6-12
-    fixed_results = []
-
-    # Pick 6: 7th place
-    s7 = by_rank.get(7)
-    if s7:
-        fixed_results.append({"pick_number": 6, "team_name": s7.team_name,
-                               "team_id": s7.team_id, "source": "standings"})
-
-    # Picks 7-10: 6th, 5th, 4th, 3rd place
-    for pick_num, rank in [(7, 6), (8, 5), (9, 4), (10, 3)]:
-        s = by_rank.get(rank)
-        if s:
-            fixed_results.append({"pick_number": pick_num, "team_name": s.team_name,
-                                   "team_id": s.team_id, "source": "standings"})
-
-    # Pick 11: runner-up, Pick 12: champion
-    runner_up = next((s for s in standings if s.is_runner_up), None)
-    champion = next((s for s in standings if s.is_champion), None)
-    if runner_up:
-        fixed_results.append({"pick_number": 11, "team_name": runner_up.team_name,
-                               "team_id": runner_up.team_id, "source": "standings"})
-    if champion:
-        fixed_results.append({"pick_number": 12, "team_name": champion.team_name,
-                               "team_id": champion.team_id, "source": "standings"})
+    fixed_results = _build_fixed_picks(standings, len(lottery_pool))
 
     all_results = lottery_results + fixed_results
 
@@ -561,16 +584,17 @@ def _execute_lottery_and_persist(season, draft_season, standings, weights,
 @offseason_bp.route("/api/offseason/save_lottery", methods=["POST"])
 @admin_required
 def save_lottery():
-    """Save manually edited lottery results (picks 1-5)."""
+    """Save manually edited lottery results (picks 1..N do lottery)."""
     season = get_current_season()
     draft_season = season + 1
     data = request.get_json() or {}
     picks = data.get("picks", [])
 
-    # Only update picks 1-5, keep fixed picks 6-12
+    # M15: edita só os picks do lottery (1..N), mantém os fixos N+1..12
+    num_seeds = len(DEFAULT_LOTTERY_WEIGHTS)
     for p in picks:
         pick_num = p.get("pick_number")
-        if not pick_num or pick_num > 5:
+        if not pick_num or pick_num > num_seeds:
             continue
         existing = DraftLotteryResult.query.filter_by(
             season=draft_season, pick_number=pick_num, locked=False).first()

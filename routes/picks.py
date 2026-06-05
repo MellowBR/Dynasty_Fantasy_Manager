@@ -10,15 +10,21 @@ picks_bp = Blueprint("picks", __name__)
 PICK_SEASONS = [2025, 2026, 2027, 2028]
 PICK_ROUNDS = [1, 2, 3]
 
-LOTTERY_ODDS = {
-    1: {"label": "Último lugar", "pct": 50},
-    2: {"label": "2º último",    "pct": 25},
-    3: {"label": "3º último",    "pct": 12},
-    4: {"label": "4º último",    "pct": 5},
-    5: {"label": "5º último",    "pct": 3},
-    6: {"label": "6º último",    "pct": 3},
-    7: {"label": "7º último",    "pct": 2},
-}
+def _build_lottery_odds():
+    """M15: legenda de odds derivada da fonte única (offseason.DEFAULT_LOTTERY_WEIGHTS).
+    Elimina o LOTTERY_ODDS hardcoded (que estava divergente do pool real).
+    pct = peso/total — nunca hardcoded; reflete sempre a config vigente."""
+    from routes.offseason import DEFAULT_LOTTERY_WEIGHTS, _seed_rank
+    total = sum(DEFAULT_LOTTERY_WEIGHTS.values())
+    odds = {}
+    for seed_idx in sorted(DEFAULT_LOTTERY_WEIGHTS):
+        w = DEFAULT_LOTTERY_WEIGHTS[seed_idx]
+        odds[seed_idx] = {
+            "label": f"{_seed_rank(seed_idx)}º lugar",
+            "weight": w,
+            "pct": round(w * 100.0 / total, 1),
+        }
+    return odds
 
 
 @picks_bp.route("/picks")
@@ -66,7 +72,7 @@ def picks_page():
                            seasons=PICK_SEASONS,
                            rounds=PICK_ROUNDS,
                            teams=[t.name for t in teams],
-                           lottery_odds=LOTTERY_ODDS,
+                           lottery_odds=_build_lottery_odds(),
                            my_team_name=my_team_name)
 
 
@@ -115,15 +121,14 @@ def _build_pick_projections() -> dict:
     Build (season, round, original_team_name) → {pick_number, locked} map.
 
     Draft order for the draft_season with a lottery result:
-      Picks 1-5:  from draft_lottery_result (weighted lottery)
-      Pick 6:     7th place in standings
-      Picks 7-10: 3rd-6th place in standings (6th→pick7, 5th→pick8, etc.)
-      Pick 11:    runner-up
-      Pick 12:    champion
+      Picks 1..N:  from draft_lottery_result (weighted lottery; N = nº de seeds)
+      Picks N+1..: fixed by standings (M15: default N=6 → picks 1-6 são lottery)
+    O branch de lottery é data-driven (lê lr.pick_number direto do DB).
 
     Rounds 2 and 3 follow the same order as Round 1.
 
-    For future seasons without a lottery: fall back to standings (reverse rank).
+    For future seasons without a lottery: fall back to standings order via
+    _apply_standings_order → fonte única _build_default_draft_order.
     If no standings either: no projection (alphabetical fallback in template).
     """
     proj = {}
@@ -172,50 +177,16 @@ def _apply_standings_order(proj: dict, standings_season: int,
                            draft_season: int, locked: bool):
     """
     Build pick order from standings when no lottery result exists.
-    Uses the same logic as the lottery fixed picks:
-      Picks 1-5:  8th-12th place (worst teams, ordered worst-first)
-      Pick 6:     7th place
-      Picks 7-10: 6th, 5th, 4th, 3rd place
-      Pick 11:    runner-up
-      Pick 12:    champion
-    Falls back to reverse rank if standings don't match the expected structure.
+    M15: delega à fonte única _build_default_draft_order (mesma config de seeds
+    e fronteira lottery/standings do sorteio real), evitando réplica do limiar.
     """
+    from routes.offseason import _build_default_draft_order
     standings = SeasonStandings.query.filter_by(season=standings_season)\
         .order_by(SeasonStandings.rank).all()
     if not standings:
         return
 
-    by_rank = {s.rank: s for s in standings}
-    runner_up = next((s for s in standings if s.is_runner_up), None)
-    champion = next((s for s in standings if s.is_champion), None)
-
-    order = []  # list of (pick_number, team_name)
-
-    # Picks 1-5: ranks 12, 11, 10, 9, 8 (worst first)
-    for pick_num, rank in [(1, 12), (2, 11), (3, 10), (4, 9), (5, 8)]:
-        s = by_rank.get(rank)
-        if s:
-            order.append((pick_num, s.team_name))
-
-    # Pick 6: rank 7
-    s7 = by_rank.get(7)
-    if s7:
-        order.append((6, s7.team_name))
-
-    # Picks 7-10: ranks 6, 5, 4, 3
-    for pick_num, rank in [(7, 6), (8, 5), (9, 4), (10, 3)]:
-        s = by_rank.get(rank)
-        if s:
-            order.append((pick_num, s.team_name))
-
-    # Pick 11: runner-up, Pick 12: champion
-    if runner_up:
-        order.append((11, runner_up.team_name))
-    if champion:
-        order.append((12, champion.team_name))
-
-    # Apply to all rounds
-    for pick_num, team_name in order:
+    for pick_num, team_name in _build_default_draft_order(standings):
         for rnd in PICK_ROUNDS:
             proj[(draft_season, rnd, team_name)] = {
                 "pick_number": pick_num,
@@ -310,10 +281,12 @@ def lottery_audit_verify(season):
     reproduced = _draw_weighted_lottery(pool, canonical.random_seed)
     reproduced_hash = _compute_result_hash(reproduced)
 
-    # Actual from DraftLotteryResult (picks 1-5 com source='lottery')
+    # Actual from DraftLotteryResult (picks do lottery). M15: a contagem deriva
+    # de len(pool) do snapshot salvo — audits de 5 ou 6 seeds verificam certo.
+    n_lottery = len(pool)
     actual_rows = (DraftLotteryResult.query
                    .filter(DraftLotteryResult.season == season,
-                           DraftLotteryResult.pick_number <= 5)
+                           DraftLotteryResult.pick_number <= n_lottery)
                    .order_by(DraftLotteryResult.pick_number)
                    .all())
     actual = [{"pick_number": r.pick_number, "team_name": r.team_name, "team_id": r.team_id}
