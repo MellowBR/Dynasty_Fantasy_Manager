@@ -10,21 +10,36 @@ picks_bp = Blueprint("picks", __name__)
 PICK_SEASONS = [2025, 2026, 2027, 2028]
 PICK_ROUNDS = [1, 2, 3]
 
-def _build_lottery_odds():
-    """M15: legenda de odds derivada da fonte única (offseason.DEFAULT_LOTTERY_WEIGHTS).
-    Elimina o LOTTERY_ODDS hardcoded (que estava divergente do pool real).
-    pct = peso/total — nunca hardcoded; reflete sempre a config vigente."""
-    from routes.offseason import DEFAULT_LOTTERY_WEIGHTS, _seed_rank
-    total = sum(DEFAULT_LOTTERY_WEIGHTS.values())
+def _build_lottery_odds(weights=None):
+    """M15: legenda de odds derivada de pesos (pct = peso/total — nunca hardcoded).
+    M15-FIX: audit-first — quando há audit canônica da draft_season, passa-se o
+    `weights_json` dela (pesos efetivamente usados no sorteio); sem audit, usa o
+    default canônico (`DEFAULT_LOTTERY_WEIGHTS`)."""
+    from routes.offseason import DEFAULT_LOTTERY_WEIGHTS, _seed_rank, _normalize_weights
+    w = _normalize_weights(weights) if weights else dict(DEFAULT_LOTTERY_WEIGHTS)
+    total = sum(w.values())
     odds = {}
-    for seed_idx in sorted(DEFAULT_LOTTERY_WEIGHTS):
-        w = DEFAULT_LOTTERY_WEIGHTS[seed_idx]
+    for seed_idx in sorted(w.keys()):
+        weight = w[seed_idx]
         odds[seed_idx] = {
             "label": f"{_seed_rank(seed_idx)}º lugar",
-            "weight": w,
-            "pct": round(w * 100.0 / total, 1),
+            "weight": weight,
+            "pct": round(weight * 100.0 / total, 1) if total else 0,
         }
     return odds
+
+
+def _canonical_lottery_weights(draft_season):
+    """M15-FIX: pesos efetivamente usados no sorteio canônico da draft_season,
+    lidos de LotteryAudit.weights_json. Retorna None se não houver audit canônica."""
+    canonical = LotteryAudit.query.filter_by(
+        season=draft_season, is_canonical=True).first()
+    if not canonical:
+        return None
+    try:
+        return _json.loads(canonical.weights_json)
+    except (ValueError, TypeError):
+        return None
 
 
 @picks_bp.route("/picks")
@@ -72,7 +87,8 @@ def picks_page():
                            seasons=PICK_SEASONS,
                            rounds=PICK_ROUNDS,
                            teams=[t.name for t in teams],
-                           lottery_odds=_build_lottery_odds(),
+                           lottery_odds=_build_lottery_odds(
+                               _canonical_lottery_weights(get_current_season() + 1)),
                            my_team_name=my_team_name)
 
 

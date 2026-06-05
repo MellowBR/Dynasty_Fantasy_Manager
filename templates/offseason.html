@@ -125,48 +125,24 @@
           <h3>Pool do Lottery — cada bolinha é uma chance</h3>
           <p class="text-dim">
             Times {{ 13 - (lottery_weights.keys()|max) }}º–12º do standings recebem bolinhas proporcionais ao peso.
-            Total: {{ lottery_weights.values()|sum }} bolinhas. O sorteio acontece no passo seguinte e é <strong>definitivo</strong>.
+            Total: <strong id="lottery-total-balls">—</strong> bolinhas. O sorteio acontece no passo seguinte e é <strong>definitivo</strong>.
           </p>
 
-          {% set pool_entries = [] %}
-          {% for seed, pct in lottery_weights.items() %}
-            {% set _ = pool_entries.append({
-              'seed': seed,
-              'team_name': lottery_seeds.get(seed, '?'),
-              'weight': pct,
-              'color_class': 'ball-color-' ~ seed,
-              'rank': 13 - seed,
-            }) %}
-          {% endfor %}
-          {% set total_weight = pool_entries|sum(attribute='weight') %}
-
-          <div class="lottery-pool" id="lottery-pool" data-total="{{ total_weight }}">
-            {% for entry in pool_entries %}
-              {% for _ in range(entry.weight|int) %}
-              <div class="lottery-ball {{ entry.color_class }}"
-                   data-team="{{ entry.team_name }}"
-                   data-seed="{{ entry.seed }}"
-                   title="{{ entry.team_name }} ({{ entry.rank }}º lugar)"></div>
-              {% endfor %}
-            {% endfor %}
-          </div>
+          {# M15-FIX: pool + legenda renderizados por renderLotteryPool() — fonte
+             ÚNICA de render (peso→bolinhas/%/total). O template fornece só os
+             dados, via os inputs .lottery-weight (data-seed/data-team + peso). #}
+          <div class="lottery-pool" id="lottery-pool" data-total="0"></div>
 
           <div class="lottery-legend">
             <h4 style="margin:.75rem 0 .4rem 0;font-size:.9rem">Legenda</h4>
             <table class="data-table">
               <thead><tr><th></th><th>Time</th><th>Rank</th><th>Bolinhas</th><th>% chance</th></tr></thead>
-              <tbody>
-              {% for entry in pool_entries %}
-              <tr>
-                <td><span class="lottery-legend-swatch {{ entry.color_class }}"></span></td>
-                <td>{{ entry.team_name }}</td>
-                <td class="text-dim">{{ entry.rank }}º</td>
-                <td>{{ entry.weight|int }}</td>
-                <td>{{ '%.1f' | format(entry.weight * 100.0 / total_weight) }}%</td>
-              </tr>
-              {% endfor %}
-              </tbody>
+              <tbody id="lottery-legend-body"></tbody>
             </table>
+          </div>
+
+          <div id="lottery-invalid-banner" style="display:none;margin-top:.75rem;padding:.5rem .85rem;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.35);border-radius:6px;color:#fca5a5;font-weight:600">
+            ⚠️ Pesos inválidos — cada seed precisa de no mínimo 1 bolinha. Corrija para liberar o sorteio.
           </div>
 
           {# Advanced: editar pesos (colapsado por padrão) #}
@@ -176,7 +152,10 @@
               {% for seed, pct in lottery_weights.items() %}
               <div class="weight-row">
                 <label>Seed {{ seed }} — {{ lottery_seeds.get(seed, '?') }} ({{ 13 - seed }}º):</label>
-                <input type="number" class="input-sm lottery-weight" data-seed="{{ seed }}" value="{{ pct }}" min="0" style="width:60px">
+                <input type="number" class="input-sm lottery-weight"
+                       data-seed="{{ seed }}" data-team="{{ lottery_seeds.get(seed, '?') }}"
+                       value="{{ pct }}" min="1" step="1" style="width:60px"
+                       oninput="renderLotteryPool()">
                 <span class="text-dim">bolinhas</span>
               </div>
               {% endfor %}
@@ -408,13 +387,81 @@ function saveManualStandings() {
 
 const REVEAL_DELAY_MS = 1500;
 
-function gatherLotteryWeights() {
-  const weights = {};
-  document.querySelectorAll('.lottery-weight').forEach(el => {
-    weights[el.dataset.seed] = parseFloat(el.value) || 0;
+// ── M15-FIX: fonte ÚNICA de render do pool/legenda (peso→bolinhas/%/total) ──
+function getSeedRows() {
+  return Array.from(document.querySelectorAll('.lottery-weight')).map(el => {
+    const seed = parseInt(el.dataset.seed, 10);
+    const n = Number(el.value);
+    const balls = Math.floor(n);
+    return {
+      seed,
+      team: el.dataset.team || '?',
+      rank: 13 - seed,
+      balls,
+      // inválido: vazio, zero, negativo ou não-numérico (mínimo 1 bolinha)
+      valid: el.value.trim() !== '' && Number.isFinite(n) && balls >= 1,
+    };
   });
+}
+
+function renderLotteryPool() {
+  const pool = document.getElementById('lottery-pool');
+  if (!pool) return null;
+  const rows = getSeedRows();
+  const allValid = rows.length > 0 && rows.every(r => r.valid);
+  const total = rows.reduce((a, r) => a + (r.valid ? r.balls : 0), 0);
+
+  // pool de bolinhas
+  pool.innerHTML = '';
+  rows.forEach(r => {
+    if (!r.valid) return;
+    for (let i = 0; i < r.balls; i++) {
+      const b = document.createElement('div');
+      b.className = `lottery-ball ball-color-${r.seed}`;
+      b.dataset.team = r.team;
+      b.dataset.seed = r.seed;
+      b.title = `${r.team} (${r.rank}º lugar)`;
+      pool.appendChild(b);
+    }
+  });
+  pool.dataset.total = total;
+
+  // legenda (bolinhas + % = peso/total dos valores vigentes)
+  const body = document.getElementById('lottery-legend-body');
+  if (body) {
+    body.innerHTML = rows.map(r => {
+      const balls = r.valid ? r.balls : '⚠️';
+      const pct = (r.valid && total) ? (r.balls * 100.0 / total).toFixed(1) + '%' : '—';
+      return `<tr><td><span class="lottery-legend-swatch ball-color-${r.seed}"></span></td>`
+           + `<td>${r.team}</td><td class="text-dim">${r.rank}º</td>`
+           + `<td>${balls}</td><td>${pct}</td></tr>`;
+    }).join('');
+  }
+
+  // total exibido + banner de pesos inválidos
+  const totalEl = document.getElementById('lottery-total-balls');
+  if (totalEl) totalEl.textContent = allValid ? total : '—';
+  const invBanner = document.getElementById('lottery-invalid-banner');
+  if (invBanner) invBanner.style.display = allValid ? 'none' : '';
+
+  return { valid: allValid, total, rows };
+}
+
+function gatherLotteryWeights() {
+  // mesma fonte do render (getSeedRows): o que é sorteado = o que é exibido = o que é gravado
+  const weights = {};
+  getSeedRows().forEach(r => { weights[r.seed] = r.balls; });
   return weights;
 }
+
+function lotteryWeightsValid() {
+  const rows = getSeedRows();
+  return rows.length > 0 && rows.every(r => r.valid);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (document.getElementById('lottery-pool')) renderLotteryPool();
+});
 
 function updateLotteryButtonLabel() {
   const chk = document.getElementById('lottery-is-official');
@@ -432,6 +479,11 @@ function updateLotteryButtonLabel() {
 }
 
 function runLottery() {
+  if (!lotteryWeightsValid()) {
+    renderLotteryPool();
+    showResult('step2-result', false, 'Pesos inválidos — cada seed precisa de no mínimo 1 bolinha. Corrija antes de sortear.');
+    return;
+  }
   const isOfficial = document.getElementById('lottery-is-official').checked;
   const weights = gatherLotteryWeights();
 
@@ -476,6 +528,7 @@ function closeReplaceModal() {
 function submitReplace() {
   const reason = document.getElementById('replace-reason').value.trim();
   if (!reason) { alert('Informe o motivo da re-execução.'); return; }
+  if (!lotteryWeightsValid()) { alert('Pesos inválidos — cada seed precisa de no mínimo 1 bolinha.'); return; }
 
   const weights = gatherLotteryWeights();
   fetch('/api/offseason/lottery/replace', {

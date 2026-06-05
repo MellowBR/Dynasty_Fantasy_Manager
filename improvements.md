@@ -33,6 +33,7 @@
 | M13 | Página de jogador + "Propor Trade" | Média | ✅ 23/04/2026 |
 | M14 | /trades aceitar query params team_a/team_b (pré-requisito M9 + M13) | Média | ✅ 23/04/2026 |
 | M15 | Lottery com 6 seeds (inclusão do 7º colocado com 1 bolinha; pool 96) — MAN-M15-REG | Média | ✅ 05/06/2026 |
+| M15-FIX | Editor de pesos do lottery: pool/legenda não re-renderizam ao editar + legenda /picks pós-sorteio lê canônico, não o audit | Média | ✅ 05/06/2026 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
@@ -616,6 +617,142 @@ cargo do admin via `/offseason` (a fronteira/pool agora suportam 6 seeds).
 - Depende de: M8 (base auditável — concluído).
 - Bloqueia: execução do lottery 2026 (sorteio oficial ainda não ocorreu; agora
   desbloqueado — a ferramenta suporta 6 seeds).
+
+---
+
+### M15-FIX — Editor de pesos do lottery desconectado do pool/legenda — MAN-M15-FIX-REG
+✅ **Concluído (05/06/2026)** — Prioridade **Média**
+
+**CONTEXTO**
+Pós-deploy do M15 (6 seeds, 96 bolinhas), owner editou os pesos via seção
+"Editar pesos (avançado)" do `/offseason` (valores 24/12/6/3/2/1) e o pool de
+bolinhas + legenda continuaram renderizando o canônico (50/25/12/5/3/1).
+
+**PROBLEMA / OPORTUNIDADE**
+Editor e visualização divergem, e não estava estabelecido quais pesos o sorteio
+oficial consome nem quais são gravados no audit. O owner quer pesos editáveis
+como capacidade permanente — o fluxo precisa ficar consistente ponta a ponta:
+o que a tela mostra = o que o sorteio usa = o que o audit grava.
+
+**DISCUSSAO**
+- Pesos canônicos do M15 (50/25/12/5/3/1) viram default; editor permite override
+  por execução.
+- Auditabilidade do M8 já snapshota `weights_json`/`pool_json` — se o sorteio usar
+  os pesos editados e o audit gravar exatamente esses, a auditoria se mantém íntegra.
+- Ponto de design derivado: a legenda de odds do `/picks` deriva hoje da config
+  canônica (M15). Com pesos editáveis, após o sorteio oficial ela deve refletir os
+  pesos efetivamente usados (`weights_json` do audit canônico), não o default.
+
+**DECISOES JA TOMADAS**
+- Editor permanece e deve ser funcional: edição re-renderiza pool e legenda em
+  tempo real, sorteio oficial usa os pesos editados, audit grava os pesos usados.
+- Canônicos 50/25/12/5/3/1 são o estado inicial dos inputs (default).
+
+**ALTERNATIVAS DESCARTADAS**
+- Remover o editor e fixar pesos só na fonte canônica: rejeitada — owner quer
+  flexibilidade de ajustar pesos por decisão de liga sem deploy.
+- Fix visual direto sem diagnose: rejeitado — pode mascarar divergência entre
+  sorteio e audit.
+
+#### Fase 1 Diagnose ✅ (05/06/2026) — MAN-M15-FIX-F1
+Read-only. Verificado contra `templates/offseason.html`, `routes/offseason.py`,
+`routes/picks.py` (pós-M15, commit 09f3b0a).
+
+- **O sorteio (oficial + simulação) consome pesos editados ou canônicos? O audit
+  grava o que foi usado? → Consome os EDITADOS; audit grava os USADOS (backend já
+  correto).** `gatherLotteryWeights()` (offseason.html:411) lê os inputs
+  `.lottery-weight` e `runLottery()`/`submitReplace()` enviam `{weights}` no body.
+  No backend, `run_lottery` (offseason.py:421), `lottery_simulate` (:460) e
+  `lottery_replace` (:511) fazem `weights = data.get("weights", DEFAULT_LOTTERY_WEIGHTS)`
+  → usam os editados. `_execute_lottery_and_persist` chama
+  `_build_lottery_pool(standings, weights)` (:537) e grava `weights_json` (:564-570)
+  + `pool_json` com exatamente esses pesos. **Auditabilidade íntegra.**
+- **O editor é resquício pré-M15 desconectado da fonte única? → NÃO do backend; SIM
+  da visualização.** Os inputs estão ligados ao backend (acima) e partem dos
+  canônicos (`value="{{ pct }}"`, :179). O que está desconectado é a render
+  **pré-sorteio**: o grid `#lottery-pool` (Jinja, :143-152) e a legenda (:159-169)
+  são gerados UMA vez no server a partir de `lottery_weights` (canônico, passado no
+  page load), e os inputs **não têm `oninput`/`onchange`** → editar não re-renderiza
+  pool/legenda/total. A divergência reportada é puramente client-side; o resultado
+  do sorteio sai correto (usa os editados), mas a tela "mente" antes do clique.
+- **A legenda do `/picks` pós-sorteio lê da config canônica ou do audit? → Sempre da
+  config canônica (gap).** `_build_lottery_odds()` (picks.py:13-27) lê sempre
+  `DEFAULT_LOTTERY_WEIGHTS`, nunca do audit. Após um sorteio oficial com pesos
+  editados, a legenda do `/picks` mostraria os % canônicos, divergindo do
+  `weights_json` do audit canônico.
+
+**Escopo do fix (fase seguinte) — 2 frentes:**
+- **A — re-render em tempo real (`/offseason`):** dar `oninput` aos `.lottery-weight`
+  → função JS que reconstrói `#lottery-pool` (bolinhas por peso, classes
+  `ball-color-{seed}`), a legenda (bolinhas + % = peso/total) e o "Total: N bolinhas"
+  a partir dos pesos atuais. Custo ~1.5-2h (lógica de render que hoje só existe em
+  Jinja precisa de equivalente JS — atenção à réplica: derivar do mesmo critério
+  peso/total, ver [[feedback_grep_replicas_before_scope]]).
+- **B — legenda `/picks` reflete os pesos usados:** `_build_lottery_odds()` passa a
+  aceitar/buscar o `weights_json` do audit canônico da `draft_season` quando existir;
+  senão usa o default canônico. `picks_page` injeta a season relevante. Custo ~45min.
+- **Validação alvo:** editar pesos → pool/legenda/total atualizam na hora; sorteio
+  oficial com pesos editados grava `weights_json` correto (já ok); `/picks` pós-sorteio
+  mostra % = `weights_json` do audit; `salary_engine_test` 48/48.
+
+**Item observado (não bloqueante):** confirmar com o owner se, com pesos editáveis,
+faz sentido a legenda do `/picks` **antes** de qualquer sorteio mostrar o default
+canônico (hoje mostra) — provável sim, pois é o estado inicial dos inputs.
+
+#### Fase 2 Implementação ✅ (05/06/2026) — MAN-M15-FIX
+
+**Frente A — editor reativo, fonte ÚNICA de render (`templates/offseason.html`):**
+- A render peso→bolinhas/%/total saiu do Jinja e passou a viver só em
+  `renderLotteryPool()` (JS). O template fornece **apenas dados**: os inputs
+  `.lottery-weight` com `data-seed` + `data-team` + valor default canônico; o pool
+  (`#lottery-pool`) e a legenda (`#lottery-legend-body`) vão vazios e o "Total" é
+  um `<span id="lottery-total-balls">`.
+- `getSeedRows()` é a única leitura dos pesos; `renderLotteryPool()` reconstrói
+  bolinhas, legenda (bolinhas + % = peso/total) e total. Estado inicial sai da
+  mesma fonte via `DOMContentLoaded`. `oninput` em cada input dispara o re-render.
+- `gatherLotteryWeights()` reescrito sobre `getSeedRows()` → o que é sorteado = o
+  que é exibido = o que o audit grava. Removida a leitura paralela antiga
+  (`parseFloat(el.value)`).
+- **Input inválido** (vazio/zero/negativo/não-numérico; mínimo 1 bolinha):
+  `lotteryWeightsValid()` + banner `#lottery-invalid-banner`; `runLottery()` e
+  `submitReplace()` bloqueiam antes de qualquer request. Inputs com `min="1" step="1"`.
+
+**Frente B — legenda `/picks` audit-first (`routes/picks.py`):**
+- `_build_lottery_odds(weights=None)` agora aceita pesos; `_canonical_lottery_weights(draft_season)`
+  lê `LotteryAudit.weights_json` da audit canônica. `picks_page` passa esses pesos
+  quando há audit; senão usa `DEFAULT_LOTTERY_WEIGHTS`. Pós-sorteio com pesos
+  editados, a legenda reflete os pesos efetivamente usados.
+
+**Backend/contrato inalterados:** endpoints seguem recebendo `{weights}` e gravando
+os pesos usados (já era o comportamento — confirmado na F1); schema do `LotteryAudit`,
+fluxo de 2 fases do M8 e retrocompat do verify (5 seeds) intocados.
+
+**Validação (05/06/2026) — 8 validações / 15 asserts, 15/15 PASS.** Client-render
+(V1/V2/V5) rodou o **JS real** extraído da página `/offseason` em Node com DOM shim;
+backend/audit via Flask `test_client` sobre cópia temporária do `dynasty.db` (DB real
+intocado):
+
+| # | Validação | Resultado |
+|---|-----------|-----------|
+| V1 | `/offseason` limpo (50/25/12/5/3/1) | 96 bolinhas, total 96, legenda 52.1/26.0/12.5/5.2/3.1/1.0% |
+| V2 | editar p/ 24/12/6/3/2/1 (sem reload) | 48 bolinhas, total 48, legenda 50.0/25.0/12.5/6.3/4.2/2.1%, gather envia editados |
+| V3 | sorteio oficial c/ pesos editados | audit `weights_json` = editados; verify `match=true` + `hash=true` |
+| V4 | legenda `/picks` audit-first | com audit → pesos do audit (24/50.0%); sem audit → canônico (52.1%) |
+| V5 | input inválido (0 / vazio) | `lotteryWeightsValid()=false`, sorteio/simulação bloqueados |
+| V6 | fonte única de render | sem render Jinja de bolinhas; 1 só impl JS (`createElement` único) |
+| V7 | retrocompat audit 5 seeds | reproduz 5 picks, `match=true` |
+| V8 | `salary_engine_test` | 48/48 |
+
+**Arquivos modificados:** `templates/offseason.html` (render single-source JS +
+validação + reatividade), `routes/picks.py` (odds audit-first), `CLAUDE.md`. Script
+de validação descartado pós-run.
+
+**Nenhum item novo pendente.** O sorteio oficial 2026 está desbloqueado: tela, sorteio
+e audit consistentes ponta a ponta, com pesos editáveis por execução.
+
+**DEPENDENCIAS**
+- Depende de: M15 (concluído).
+- Desbloqueia: sorteio oficial 2026 (tela = sorteio = audit, com pesos editáveis).
 
 ---
 
