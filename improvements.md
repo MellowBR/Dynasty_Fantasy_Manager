@@ -44,7 +44,7 @@
 | F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | 🔲 |
 | M17 | Personalização por usuário logado: home abre no time do admin + cap widget mostra cap do Cangaceiros p/ todos (default team + widget devem derivar de `current_user`) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | 🔲 |
 | M18 | Timestamps exibidos em UTC em vez do fuso do usuário (card Sleeper Sync +3h; conversão client-side pelo fuso do browser, armazenamento UTC mantido) — prompt MAN-M16-REG (ID remapeado: M16 ocupado) | Média | 🔲 |
-| E1 | Import ESPN robusto end-to-end no Render: upload manual do PDF + degradação graciosa (sem 500) + estado de review em FS gravável + parser 299→300 — MAN-E1-REG/F1/F2 | Alta | ✅ 07/06/2026 |
+| E1 | Import ESPN robusto end-to-end no Render: upload manual do PDF + degradação graciosa (sem 500) + estado de review em FS gravável + parser 299→300 — MAN-E1-REG/F1/F2/FIX | Alta | ⚠️ código pronto; aguarda smoke test em prod (E1-FIX 07/06: faltava `pdfminer.six` no requirements → 500 em prod) |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
@@ -971,7 +971,7 @@ pessoa, não GMT como padrão.
 ---
 
 ### E1 — Import ESPN robusto end-to-end (upload + degradação graciosa)
-✅ **Concluído (07/06/2026)** — Prioridade **Alta** — MAN-E1-REG / F1 / F2
+⚠️ **Código completo — aguarda validação em produção (07/06/2026)** — Prioridade **Alta** — MAN-E1-REG / F1 / F2 / FIX
 
 **CONTEXTO**
 A ESPN publicou a tabela PPR Top 300 de 2026 (`NFL26_CS_PPR300.pdf`, atualizada em
@@ -1082,6 +1082,22 @@ intocada; PDF real obtido read-only e usado como upload):
 **Arquivos:** `espn_pdf_parser.py` (`/` no `_NAME_RE`), `routes/admin.py` (upload +
 guarda + try/except + `_espn_review_path` + default URL 2026), `templates/espn_import.html`
 (upload field + textos). Script de validação descartado pós-run.
+
+#### FIX (07/06/2026) — MAN-E1-FIX: `pdfminer.six` faltava no requirements (500 em prod)
+**O ✅ do F2 foi prematuro:** validei tudo em localhost (onde `pdfminer.six` está
+instalado), mas o `requirements.txt` **não declarava o pacote** → o build limpo do
+Render não o instalava → `ModuleNotFoundError: No module named 'pdfminer'` em
+`espn_pdf_parser.py:16` (`from pdfminer.high_level import extract_text`), na **importação
+do módulo** — antes de qualquer lógica, afetando upload **e** URL. Ou seja: em prod o
+import ESPN nunca funcionou.
+- **Fix:** adicionado `pdfminer.six>=20231228` ao `requirements.txt` (pacote correto —
+  o legado `pdfminer` é Python 2, abandonado, e **não** fornece `pdfminer.high_level`).
+- **Validação em venv limpo** (simula o build do Render): `pip install -r requirements.txt`
+  instala `pdfminer.six-20260107`, `from pdfminer.high_level import extract_text` resolve,
+  e o legado `pdfminer` não entra. Demais imports do caminho ESPN já cobertos (requests,
+  pandas; resto é stdlib).
+- **Status revertido p/ ⚠️** até o smoke test em produção (upload do PDF → review 300,
+  sem 500). Só então ✅ — regra "marcar ✅ apenas quando validado em produção".
 
 ---
 

@@ -1190,3 +1190,9 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Preservado:** matching 3-tier, salary_engine, schema, sync, CSV (`espn_bulk`), semântica provisório/final; escrita só via `_save_espn_value` (upsert idempotente).
 - **Validação:** 13/13 (test_client, temp DB; PDF real como upload) — upload→300, spot checks ok, URL ruim→302, review em FS gravável, reimport não duplica, final persiste, sem réplica JS. `dynasty.db` real intocado.
 - **Arquivos:** `espn_pdf_parser.py`, `routes/admin.py`, `templates/espn_import.html`, `CLAUDE.md`. Commit agrupa também os docs pendentes (M17/M18 REG, OFF26 F9-F1B, E1 REG/F1).
+
+### 07/06/2026 — E1-FIX: `pdfminer.six` faltava no requirements (500 em prod) + aprendizado
+
+- **Bug:** o import ESPN 500ava em produção com `ModuleNotFoundError: No module named 'pdfminer'` — o `requirements.txt` não declarava `pdfminer.six`, então o build limpo do Render não o instalava. O erro ocorria na **importação do módulo** (`espn_pdf_parser.py:16`), antes de qualquer lógica → afetava upload **e** URL. **O ✅ do E1-F2 foi prematuro:** a validação passou só em localhost (pacote já instalado).
+- **Fix:** `pdfminer.six>=20231228` no requirements (NÃO o legado `pdfminer`, Python 2, que não fornece `pdfminer.high_level`). Validado em **venv limpo**: `pip install -r requirements.txt` resolve `extract_text`. Status do E1 revertido p/ ⚠️ até o smoke test em prod.
+- **Aprendizado (regra):** **validação em localhost não captura dependências ausentes no ambiente limpo de produção.** Toda dependência nova (import de terceiro) exige: (1) declarar no `requirements.txt` no mesmo commit do código que a usa; (2) validar em **venv limpo** (`pip install -r requirements.txt` + import) antes do deploy; (3) só marcar ✅ após smoke test em produção. Aplica-se retroativamente como item de checklist de "dependência nova".
