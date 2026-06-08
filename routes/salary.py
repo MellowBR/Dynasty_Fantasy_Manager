@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, jsonify
-from flask_login import login_required
+from flask_login import login_required, current_user
 from models import db, Player, Team, PlayerHistory, SALARY_CAP, MAX_ROSTER, sort_players_by_pos
 from salary_engine import (
     full_contract_table, project_next_salary, draft_budget
@@ -19,7 +19,9 @@ def salary_page():
 @login_required
 def cap_projector_page():
     teams = Team.query.order_by(Team.name).all()
-    my_team = Team.query.filter_by(is_my_team=True).first()
+    # M17: pré-seleção deriva do usuário logado (não mais da flag legada is_my_team).
+    # Usuário sem time vinculado → "" (nenhuma opção pré-selecionada).
+    my_team = current_user.team_rel
     return render_template("cap_projector.html",
                            teams=[t.name for t in teams],
                            my_team=my_team.name if my_team else "")

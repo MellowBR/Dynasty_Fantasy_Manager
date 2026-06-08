@@ -15,8 +15,10 @@ from routes.roster import _build_players_by_pos as build_players_by_pos, _ACQ_LA
 league_bp = Blueprint("league", __name__)
 
 
-def _build_team_card(team, standing, pick_count, players, dv_map):
-    """Monta dict do card de um time. Sem queries — tudo já carregado."""
+def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=None):
+    """Monta dict do card de um time. Sem queries — tudo já carregado.
+    M17: `is_my_team` deriva do usuário logado (my_team_id = current_user.team_rel.id),
+    não mais da flag legada Team.is_my_team."""
     cap_used = sum(p.salary for p in players if not p.is_on_ir)
     dynasty_total = sum(
         resolve_asset_value(dv_map, p.sleeper_player_id) or 0
@@ -27,7 +29,7 @@ def _build_team_card(team, standing, pick_count, players, dv_map):
         "name": team.name,
         "owner_name": team.owner_name or "",
         "owner_avatar": team.owner_avatar or "",
-        "is_my_team": team.is_my_team,
+        "is_my_team": team.id == my_team_id,
         "cap_used": cap_used,
         "cap_space": SALARY_CAP - cap_used,
         "pick_count": pick_count,
@@ -58,10 +60,11 @@ def league_hub():
             players_by_team[p.team_id].append(p)
     dv_map = get_dynasty_values().get("values", {})
 
+    my_team_id = current_user.team_rel.id if current_user.team_rel else None
     cards = [
         _build_team_card(
             t, standings.get(t.id), pick_counts.get(t.id, 0),
-            players_by_team.get(t.id, []), dv_map,
+            players_by_team.get(t.id, []), dv_map, my_team_id,
         )
         for t in teams
     ]

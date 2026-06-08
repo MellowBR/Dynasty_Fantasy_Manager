@@ -12,7 +12,7 @@
       {% endif %}
       <div>
         <h1 class="page-title">
-          {% if summary and summary.team.is_my_team %}🏆 {% endif %}
+          {% if summary and g_user_team and summary.team.id == g_user_team.id %}🏆 {% endif %}
           {{ summary.team.name if summary else "Sem dados" }}
         </h1>
         {% if summary and summary.team.owner_name %}

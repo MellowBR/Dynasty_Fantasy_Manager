@@ -42,7 +42,7 @@
 | OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG | Média | 🔲 (doc) |
 | F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | 🔲 |
 | F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | 🔲 |
-| M17 | Personalização por usuário logado: home abre no time do admin + cap widget mostra cap do Cangaceiros p/ todos (default team + widget devem derivar de `current_user`) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | 🔲 |
+| M17 | Personalização por usuário logado: home + cap widget + 8 surfaces derivam de `current_user.team_rel` (fonte única `inject_user_team`; réplica JS do chip removida) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | ⚠️ |
 | M18 | Timestamps exibidos em UTC em vez do fuso do usuário (card Sleeper Sync +3h; conversão client-side pelo fuso do browser, armazenamento UTC mantido) — prompt MAN-M16-REG (ID remapeado: M16 ocupado) | Média | 🔲 |
 | E1 | Import ESPN robusto end-to-end no Render: upload manual do PDF + degradação graciosa (sem 500) + estado de review em FS gravável + parser 299→300 — MAN-E1-REG/F1/F2/FIX | Alta | ✅ 08/06/2026 (validado em prod: upload → review 300, sem 500) |
 | E2 | Camada de dados: store de valores ESPN de rookie keyed por `sleeper_id` (resolve not_found+approx via pool global do Sleeper, nome+team) — consumido pelo salário do rookie draft (OFF26-3) + board DP1; rejeita Sleeper-sync e stub-$1 — MAN-E2 REG/F1/REFINE/F2 | Alta | ⚠️ store implementado + validado em localhost (12/12); store validável em prod via import; aplicação no draft só e2e no rookie draft real (~ago) |
@@ -879,7 +879,7 @@ docstring). Script de validação descartado pós-run.
 ---
 
 ### M17 — Personalização por usuário logado (default team + cap widget)
-🔲 **Pendente** — Prioridade **Alta** — prompt MAN-M15-REG (ID remapeado: M15 já era o Lottery)
+⚠️ **Implementado (F2) — pendente smoke em produção** — Prioridade **Alta** — prompt MAN-M15-REG (ID remapeado: M15 já era o Lottery)
 
 **CONTEXTO**
 Feedback de produção do Michel (owner do team_id=8, "Trust the Process") em
@@ -918,6 +918,91 @@ próprio owner.
 - Quais outras surfaces assumem "my team" fixo?
 - Qual o fallback para usuário sem time vinculado (team_id NULL) e para o admin?
 - O cap widget tem réplica de lógica em JS/template além do backend?
+
+**F1 — ACHADOS (diagnose read-only, concluída)**
+
+Confirmada a hipótese de causa raiz: nenhuma surface reportada deriva de
+`current_user.team_rel`; todas ancoram no conceito legado single-user
+(`MY_TEAM_NAME` em `models.py:12` / flag `Team.is_my_team`), que resolve sempre
+para o time do admin (Cangaceiros). O `$255` bate com `active_salary()` real do
+Cangaceiros → time errado renderizado, não valor stale.
+
+*Conjunto completo de surfaces com "my team" fixo:*
+
+- **Funcionais** (renderizam dados/estado do time errado):
+  1. Home — default do roster: `routes/roster.py:53` (`request.args.get("team", MY_TEAM_NAME)`).
+  2. Home — fallback do roster: `routes/roster.py:63` (`Team.query.filter_by(is_my_team=True)`).
+  3. Cap widget — chip JS: `templates/base.html:157-167` (`teams.find(t => t.is_my_team)` sobre `/api/teams`).
+  4. Cap widget — título: `templates/base.html:71` (string `"Cangaceiros da Colina"` hardcoded).
+  5. Cap Projector — pré-seleção: `routes/salary.py:22-25` (`Team.query.filter_by(is_my_team=True)`).
+- **Cosméticas** (enfeite visual no time do admin para qualquer usuário):
+  6. Tag "EU" no dropdown "Times ▾": `templates/base.html:51` e `:116` (mobile).
+  7. League Hub — destaque do card `league-card-mine` + tag "EU": `templates/league.html:12,25`.
+  8. Header do roster — prefixo 🏆: `templates/roster.html:15` (`summary.team.is_my_team`).
+
+*Réplica, não fonte única:* a resolução do "meu time" existe em quatro lugares no
+padrão legado — rota Python (home + cap projector), JS client-side (chip),
+literal hardcoded (título do chip). O cap widget **re-resolve no cliente** (não
+consome valor server-side); o server não envia "qual é o time do usuário" ao
+template.
+
+*Precedente canônico a replicar:* derivação por `current_user.team_rel` já
+coexiste em `/team/<id>` (`routes/league.py:103-110`), banner M1
+(`routes/roster.py:89-92`) e picks (`routes/picks.py:81`) — inclusive já tratam
+`team_rel is None` como estado neutro.
+
+*Fallback hoje:* as surfaces fixas não quebram com usuário sem time — mostram o
+time do admin **por acidente**, não um estado neutro. As surfaces canônicas já
+tratam `team_rel is None` (estado neutro / `my_team_name=None`).
+
+*Observação:* `MY_TEAM_NAME` é importado em `routes/trades.py:9` mas **não** usado
+para default (pré-seleção é só via query param M14) — import possivelmente morto.
+
+**DECISÕES DE ESCOPO F2 (owner, pós-F1)**
+1. **Fallback para usuário sem time vinculado (team_id NULL): estado neutro**
+   (sem time, sem cap) — alinhado ao padrão canônico já existente
+   (`team_rel is None` → neutro em `/team/<id>` e M1).
+2. **Surfaces cosméticas entram na F2 junto com as funcionais** — mesma
+   causa-raiz; corrigir num só passo (as 8 surfaces acima).
+3. **Cap widget passa a resolução server-side, eliminando a réplica JS** —
+   reaproveitar o padrão de context processor já usado na navbar
+   (`inject_nav_teams` em `app.py:90-99`).
+
+**F2 — IMPLEMENTAÇÃO (08/06/2026, ⚠️ validado em localhost)**
+
+*Fonte única server-side:* novo context processor `inject_user_team` (`app.py`)
+injeta `g_user_team` (= `current_user.team_rel` ou `None`) e `g_user_team_cap`
+(= `active_salary()`) em todos os templates. É a única resolução do "time do
+usuário" nas surfaces de exibição; replica o precedente canônico (`/team/<id>`,
+M1, picks). Usuário sem time → `None` → estado neutro.
+
+*8 surfaces unificadas:*
+1. Home default — `roster.py:index` deriva de `current_user.team_rel.name`;
+   `?team=` ainda permite ver outro time; fallback robusto cai no próprio time, não
+   num time fixo; sem time → neutro (`summary=None`).
+2. Home fallback — eliminado `filter_by(is_my_team=True) or teams[0]`.
+3. Cap chip valor — renderizado server-side em `base.html` a partir de
+   `g_user_team_cap` (réplica JS `loadCapChip` removida).
+4. Cap chip título — `title="Cap: {{ g_user_team.name }}"` (literal "Cangaceiros
+   da Colina" removido).
+5. Cap projector — `salary.py` pré-seleciona `current_user.team_rel`.
+6. Tag "EU" dropdown Times (desktop+mobile) — `t.id == g_user_team.id`.
+7. League Hub `league-card-mine`+EU — `_build_team_card` recebe `my_team_id` do
+   usuário logado; flag legada `team.is_my_team` não é mais lida.
+8. Header roster 🏆 — `summary.team.id == g_user_team.id`.
+
+*Limpezas:* import morto `MY_TEAM_NAME` removido de `routes/trades.py` e
+`routes/roster.py`; projeção `Team.is_my_team` removida de `inject_nav_teams`
+(`app.py`) — agora dado morto na navbar. A flag `is_my_team` permanece como
+**dado** escrito pelo sync (schema/`sync_sleeper.py`/`record_acquisition`/
+`/api/teams` to_dict) — apenas deixou de ser fonte de "time do usuário".
+
+*Validação localhost (test_client, DB copiado, login via sessão):* 8/8 critérios.
+Michel (team 8) → home + chip `$183/$200` "Trust The Process"; Erico (team 5) →
+Cangaceiros; usuário sem time → neutro (200, "Sem dados", sem chip); cap projector
+pré-seleciona o time certo; `league-card-mine`/🏆 no time do usuário; chip
+server-side sem `teams.find`/`loadCapChip`. `salary_engine_test.py` 48/48.
+**Pendente:** smoke em produção (login real dos owners).
 
 **DEPENDÊNCIAS**
 - Depende de: nenhum item aberto (X1 concluído). Bloqueia: nenhum.

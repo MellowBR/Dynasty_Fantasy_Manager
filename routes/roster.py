@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import login_required, current_user
-from models import db, Team, Player, SALARY_CAP, MAX_IR, MY_TEAM_NAME, POS_ORDER, sort_players_by_pos
+from models import db, Team, Player, SALARY_CAP, MAX_IR, POS_ORDER, sort_players_by_pos
 from routes.auth import admin_required
 
 roster_bp = Blueprint("roster", __name__)
@@ -50,17 +50,25 @@ def _build_players_by_pos(all_players):
 @roster_bp.route("/")
 @login_required
 def index():
-    team_query = request.args.get("team", MY_TEAM_NAME)
+    # M17: time padrão deriva do usuário logado (não mais da constante MY_TEAM_NAME).
+    # ?team= explícito ainda permite ver outro time. Usuário sem time vinculado e sem
+    # ?team= → estado neutro (selected=None), nenhum time forçado.
+    default_team = current_user.team_rel.name if current_user.team_rel else None
+    team_query = request.args.get("team", default_team)
     teams = Team.query.order_by(Team.name).all()
 
     # Match by team name first, then by owner_name
-    selected = Team.query.filter_by(name=team_query).first()
-    if not selected:
-        selected = Team.query.filter(
-            Team.owner_name.ilike(team_query)
-        ).first()
-    if not selected and teams:
-        selected = Team.query.filter_by(is_my_team=True).first() or teams[0]
+    selected = None
+    if team_query:
+        selected = Team.query.filter_by(name=team_query).first()
+        if not selected:
+            selected = Team.query.filter(
+                Team.owner_name.ilike(team_query)
+            ).first()
+    # Fallback robusto: ?team= inválido cai no próprio time do usuário (não num time
+    # fixo). Usuário sem time → permanece neutro.
+    if not selected and current_user.team_rel:
+        selected = current_user.team_rel
 
     if not selected:
         return render_template("roster.html", summary=None, teams=teams,

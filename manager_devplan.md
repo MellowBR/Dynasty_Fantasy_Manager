@@ -1182,6 +1182,25 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Colisão de IDs corrigida:** os prompts vinham rotulados como M15 e M16, mas ambos foram consumidos nesta sessão pelo trabalho de lottery (M15 = 6 seeds, M16 = R2/R3). O planejamento no Claude.ai estava com o backlog defasado. Remapeados para os próximos livres da série M: **M17** e **M18**. Refs originais preservadas nas seções (prompt MAN-M15-REG / MAN-M16-REG).
 - Registro apenas (REG); F1 de cada um ainda não rodado. Sem commit docs-only isolado — agrupa com o próximo código.
 
+### 08/06/2026 — M17-F1 diagnose (read-only) absorvida + decisões de escopo F2
+
+- **F1 confirmou a hipótese:** nenhuma surface deriva de `current_user.team_rel`; todas ancoram no legado `MY_TEAM_NAME`/`is_my_team` → sempre o time do admin. `$255` = `active_salary()` real do Cangaceiros → time errado renderizado, não valor stale.
+- **Conjunto completo mapeado (8 surfaces):** 5 funcionais (home default+fallback do roster, chip JS + título hardcoded do cap widget, pré-seleção do cap projector) + 3 cosméticas (tag "EU" no dropdown Times, card `league-card-mine`+EU no League Hub, prefixo 🏆 no header do roster). Lógica replicada em 4 lugares (rota Python, JS client-side, literal hardcoded) — o chip **re-resolve no cliente**, não consome valor server-side.
+- **Precedente canônico a replicar:** `current_user.team_rel` em `/team/<id>`, banner M1 e picks — já tratam `team_rel is None` como neutro.
+- **3 decisões de escopo do owner para a F2** (gravadas na subseção F1 do M17 em improvements.md): (1) fallback team NULL = estado neutro; (2) cosméticas entram junto com as funcionais (mesma causa-raiz); (3) cap widget migra para resolução server-side via context processor (padrão `inject_nav_teams`), eliminando a réplica JS.
+- M17 permanece 🔲 (F2 não executada). Absorção docs-only — sem commit isolado; agrupa com o código da F2.
+
+### 08/06/2026 — M17-F2 implementada (personalização por usuário logado) ⚠️ localhost
+
+- **Fonte única server-side:** novo context processor `inject_user_team` (`app.py`) injeta `g_user_team` (= `current_user.team_rel` ou None) + `g_user_team_cap` (= `active_salary()`). Substitui o conceito legado `MY_TEAM_NAME`/`is_my_team` em todas as surfaces de **exibição**. Precedente replicado: `/team/<id>`, M1, picks.
+- **8 surfaces unificadas:** home default + fallback (`roster.py`), chip de cap valor + título (`base.html`, render server-side — réplica JS `loadCapChip` removida), cap projector (`salary.py`), tag "EU" no dropdown Times desktop+mobile (`base.html`), `league-card-mine`+EU no League Hub (`_build_team_card` recebe `my_team_id`), 🏆 no header do roster (`roster.html`).
+- **Decisão — flag `is_my_team` vira só dado:** mantida no schema e escrita pelo sync/`record_acquisition`/`/api/teams` to_dict (restrição: não tocar sync/engine/schema), mas **deixou de ser fonte** de "time do usuário" em qualquer surface de exibição. Projeção `Team.is_my_team` removida de `inject_nav_teams` (dado morto na navbar).
+- **Decisão — fallback neutro:** usuário sem time vinculado (team_id NULL) → `g_user_team=None` → home "Sem dados", sem chip, sem time forçado, sem 500. `?team=` inválido cai no próprio time do usuário (não num time fixo).
+- **Limpeza:** import morto `MY_TEAM_NAME` removido de `routes/trades.py` e `routes/roster.py` (confirmado via grep: só aparecia no import).
+- **Validação localhost** (test_client, DB copiado, login via sessão `_user_id`): 8/8 critérios. Michel (team 8) vê o próprio time + chip `$183/$200` "Trust The Process" (não os $255 do Cangaceiros); Erico (team 5) vê Cangaceiros por derivação; usuário sem time → neutro; cap projector pré-seleciona o time certo; cosméticos no time do usuário; chip sem `teams.find`/`loadCapChip`. `salary_engine_test.py` 48/48.
+- **Status M17 = ⚠️** (pendente smoke em produção com login real dos owners). Sobe para ✅ após confirmação em prod.
+- **Arquivos:** `app.py`, `routes/roster.py`, `routes/salary.py`, `routes/league.py`, `routes/trades.py`, `templates/base.html`, `templates/roster.html` + docs (`improvements.md`, `manager_devplan.md`). Commit único agrupa código + docs (inclui a absorção F1 e este registro F2).
+
 ### 07/06/2026 — E1 (Import ESPN robusto) F1 + F2 ✅ (MAN-E1)
 
 - **F1 (diagnose do 500):** o 500 não era o download (que tem try/except → 302), e sim o **parse não guardado** estourando `PDFSyntaxError` quando a ESPN devolve um **200 não-PDF** (anti-bot) ao IP de datacenter do Render. O PDF e o parser estavam corretos (provado de IP residencial: download 200/PDF, parse 299). Caminho de parse/download/match é **único e server-side** (sem réplica). Secundário: estado de review escrito na raiz do app (read-only em prod).

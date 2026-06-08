@@ -34,6 +34,19 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
   resolve para o `sleeper_id` de um rookie (ou rebaixar/sinalizar esses candidatos no review).
   **Candidato a item próprio** (ver backlog).
 
+**M17 — Personalização por usuário logado** (8 surfaces) — ⚠️ localhost, pendente smoke em prod
+- **Causa-raiz (F1):** 8 surfaces assumiam "my team" fixo (`MY_TEAM_NAME`/flag `is_my_team`) → sempre o time
+  do admin. **Fix (F2):** context processor `inject_user_team` (`app.py`) vira **fonte única server-side**
+  (`g_user_team` = `current_user.team_rel`; `g_user_team_cap` = `active_salary()`). Réplica JS do chip
+  (`loadCapChip`) e literal "Cangaceiros da Colina" removidos; chip renderizado server-side.
+- **Surfaces:** home default+fallback, chip valor+título, cap projector, tag "EU" (dropdown desktop+mobile),
+  `league-card-mine`+EU (League Hub), 🏆 (header roster). Fallback team NULL → estado neutro.
+- **Flag `is_my_team` vira só dado** (escrita pelo sync/`record_acquisition`/`/api/teams` — não tocada);
+  deixou de ser fonte de "time do usuário". Import morto `MY_TEAM_NAME` removido de `trades.py`/`roster.py`.
+- **Validação localhost 8/8** (test_client): Michel(8)→chip `$183/$200`, Erico(5)→Cangaceiros, sem-time→neutro,
+  cap projector pré-seleciona certo, cosméticos no time do usuário, sem `teams.find`/`loadCapChip`. Tests 48/48.
+- **Próximo:** smoke em prod (login real dos owners) → ✅.
+
 ## Desbloqueado
 - **DP1** (board de planejamento de cap pré-draft) — o store do E2 existe → **F1/F2 podem seguir**
   (o board é justamente pré-draft).
@@ -47,7 +60,6 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
 | **OFF26-1 / -2 / -4 / -5** | Pacote offseason: janela selada de keepers/cuts → keeper sheet → auditoria pré-leilão → runbook Cowork |
 | **F9-F2** | Consolidar `bulk_register` no `record_acquisition` (F9-F1/F1B: 0 dano em prod → refatoração apenas) |
 | **F10** | `draft_budget` replicado em JS no cap_projector → cliente consome endpoint canônico (idealmente antes do OFF26-1) |
-| **M17** | Personalização por usuário logado (home + cap widget derivam de `current_user`) |
 | **M18** | Timestamps UTC → fuso do browser (conversão client-side; armazenamento UTC mantido) |
 | **F9-F1B obs (3)** | (a) `salary_history` legada/morta (lida por ninguém; `/salary_history` usa PlayerHistory); (b) aquisições feitas pelo Manager **não emitem PlayerHistory** (só sync/F8a forma a história) — relevante p/ OFF26-3; (c) **seed ≠ produção / sem backup automatizado** |
 

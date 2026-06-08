@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, render_template, request, jsonify, url_for
 from flask_login import login_required, current_user
 
-from models import db, Player, Pick, Trade, Team, TradeProposal, SALARY_CAP, MY_TEAM_NAME, get_current_season
+from models import db, Player, Pick, Trade, Team, TradeProposal, SALARY_CAP, get_current_season
 from routes.auth import admin_required
 from dynasty_values import (
     get_dynasty_values, pick_sleeper_id, resolve_asset_value,

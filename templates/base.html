@@ -48,7 +48,7 @@
               <span class="nav-team-name">{{ t.name }}</span>
               {% if t.owner_name %}<span class="nav-team-owner">{{ t.owner_name }}</span>{% endif %}
             </span>
-            {% if t.is_my_team %}<span class="tag tag-current">EU</span>{% endif %}
+            {% if g_user_team and t.id == g_user_team.id %}<span class="tag tag-current">EU</span>{% endif %}
           </a>
         </li>
         {% endfor %}
@@ -68,7 +68,10 @@
 
   <div class="nav-right">
     <label for="nav-mobile-state" class="nav-mobile-toggle" title="Menu">☰</label>
-    <span class="cap-chip" id="nav-cap-chip" title="Cap: Cangaceiros da Colina"></span>
+    {% if g_user_team %}
+    <span class="cap-chip {{ 'chip-danger' if g_user_team_cap > 190 else ('chip-warn' if g_user_team_cap > 160 else 'chip-ok') }}"
+          id="nav-cap-chip" title="Cap: {{ g_user_team.name }}">${{ g_user_team_cap | round | int }}/$200</span>
+    {% endif %}
     <button class="btn-sync" id="btn-sync-nav" onclick="triggerSync()" title="Sincronizar com Sleeper">
       🔄 <span class="sync-label">Sync</span>
     </button>
@@ -113,7 +116,7 @@
       {% if t.owner_avatar %}
       <img class="nav-team-avatar" src="https://sleepercdn.com/avatars/thumbs/{{ t.owner_avatar }}" onerror="this.style.display='none'" alt="">
       {% endif %}
-      <span>{{ t.name }}{% if t.is_my_team %} <span class="tag tag-current">EU</span>{% endif %}</span>
+      <span>{{ t.name }}{% if g_user_team and t.id == g_user_team.id %} <span class="tag tag-current">EU</span>{% endif %}</span>
     </a>
     {% endfor %}
     {% endif %}
@@ -154,17 +157,8 @@
 
 <script>
 // ── Global cap chip ─────────────────────────────────────────────────────────
-(function loadCapChip() {
-  fetch('/api/teams').then(r => r.json()).then(teams => {
-    const me = teams.find(t => t.is_my_team);
-    if (!me) return;
-    const chip = document.getElementById('nav-cap-chip');
-    const pct = (me.active_salary / 200 * 100).toFixed(0);
-    const cls = me.active_salary > 190 ? 'chip-danger' : (me.active_salary > 160 ? 'chip-warn' : 'chip-ok');
-    chip.className = 'cap-chip ' + cls;
-    chip.textContent = `$${me.active_salary}/$200`;
-  }).catch(()=>{});
-})();
+// M17: resolvido server-side (context processor inject_user_team → chip renderizado
+// em base.html). Sem réplica JS aqui — o chip consome o valor já resolvido.
 
 // ── Last sync time in footer ─────────────────────────────────────────────────
 (function loadSyncTime() {

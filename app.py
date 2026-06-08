@@ -93,10 +93,26 @@ def create_app():
         if not current_user.is_authenticated:
             return {"g_nav_teams": []}
         from models import Team
+        # M17: is_my_team removido da projeção — o destaque "EU" agora deriva de
+        # g_user_team (context processor inject_user_team), não desta flag legada.
         teams = Team.query.with_entities(
-            Team.id, Team.name, Team.owner_name, Team.owner_avatar, Team.is_my_team
+            Team.id, Team.name, Team.owner_name, Team.owner_avatar
         ).order_by(Team.name).all()
         return {"g_nav_teams": teams}
+
+    # Context processor — fonte ÚNICA server-side do "time do usuário logado".
+    # M17: substitui o conceito legado single-user (MY_TEAM_NAME / flag is_my_team)
+    # em todas as surfaces de exibição. Deriva de current_user.team_rel — precedente
+    # canônico já em uso em /team/<id>, banner M1 e picks. Usuário sem time vinculado
+    # (team_id NULL) → None, que os templates renderizam como estado neutro.
+    # g_user_team_cap evita a réplica JS do chip de cap (resolvido server-side aqui).
+    @app.context_processor
+    def inject_user_team():
+        from flask_login import current_user
+        if not (current_user.is_authenticated and current_user.team_rel):
+            return {"g_user_team": None, "g_user_team_cap": None}
+        team = current_user.team_rel
+        return {"g_user_team": team, "g_user_team_cap": team.active_salary()}
 
     # Context processor — exposes count of players needing review for the navbar
     # badge. Admin-only — non-admins and unauthenticated users get 0 without
