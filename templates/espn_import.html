@@ -17,12 +17,18 @@
 
 <div class="card">
   <h2 class="card-title">Configurar Importacao</h2>
-  <form method="POST" action="/admin/espn_import">
+  <form method="POST" action="/admin/espn_import" enctype="multipart/form-data">
     <div class="form-grid">
       <div class="form-group" style="grid-column: 1 / -1">
-        <label>URL do PDF ESPN PPR</label>
+        <label>📎 Upload do PDF (recomendado)</label>
+        <input type="file" name="pdf_file" accept="application/pdf,.pdf" class="input-full">
+        <span class="text-dim" style="font-size:.78rem">Baixe o PDF da ESPN no navegador e suba aqui. Mais confiável que a URL — a ESPN bloqueia o download automático a partir do servidor.</span>
+      </div>
+      <div class="form-group" style="grid-column: 1 / -1">
+        <label>…ou URL do PDF ESPN PPR (alternativa)</label>
         <input type="url" name="url" value="{{ default_url }}" class="input-full"
                placeholder="https://g.espncdn.com/...">
+        <span class="text-dim" style="font-size:.78rem">Usada só se nenhum arquivo for enviado. Se o download falhar/for bloqueado, você verá um aviso (sem erro 500).</span>
       </div>
       <div class="form-group">
         <label>Temporada (aplica para)</label>
@@ -38,8 +44,8 @@
       </div>
     </div>
     <button type="submit" class="btn btn-primary" style="margin-top:1rem"
-            data-tooltip="Baixa o PDF, extrai jogadores e valores,&#10;e mostra tela de revisao antes de salvar.">
-      📥 Baixar e Parsear PDF
+            data-tooltip="Usa o arquivo enviado (ou baixa da URL), extrai jogadores e&#10;valores, e mostra a tela de revisao antes de salvar.">
+      📥 Processar PDF (upload ou URL)
     </button>
   </form>
 </div>

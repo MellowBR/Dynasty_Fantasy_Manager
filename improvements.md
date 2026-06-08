@@ -42,6 +42,9 @@
 | OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG | Média | 🔲 (doc) |
 | F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | 🔲 |
 | F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | 🔲 |
+| M17 | Personalização por usuário logado: home abre no time do admin + cap widget mostra cap do Cangaceiros p/ todos (default team + widget devem derivar de `current_user`) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | 🔲 |
+| M18 | Timestamps exibidos em UTC em vez do fuso do usuário (card Sleeper Sync +3h; conversão client-side pelo fuso do browser, armazenamento UTC mantido) — prompt MAN-M16-REG (ID remapeado: M16 ocupado) | Média | 🔲 |
+| E1 | Import ESPN robusto end-to-end no Render: upload manual do PDF + degradação graciosa (sem 500) + estado de review em FS gravável + parser 299→300 — MAN-E1-REG/F1/F2 | Alta | ✅ 07/06/2026 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
@@ -873,6 +876,215 @@ docstring). Script de validação descartado pós-run.
 
 ---
 
+### M17 — Personalização por usuário logado (default team + cap widget)
+🔲 **Pendente** — Prioridade **Alta** — prompt MAN-M15-REG (ID remapeado: M15 já era o Lottery)
+
+**CONTEXTO**
+Feedback de produção do Michel (owner do team_id=8, "Trust the Process") em
+07/06/2026, via screenshots no WhatsApp. Com o multi-usuário (X1) ativo e os 12
+owners acessando o Manager, surfaces que assumem um único usuário ficaram expostas.
+
+**PROBLEMA / OPORTUNIDADE**
+Duas surfaces ignoram o usuário logado e mostram dados do time do admin (Cangaceiros
+da Colina): (1) ao abrir o site, o primeiro time exibido é o do Erico, não o do
+usuário logado; (2) o widget de cap no topo mostra "$255/$200" — valores do
+Cangaceiros — estático para todos os usuários, em vez de puxar o cap do time de quem
+logou. Para um app multi-usuário, o estado padrão deve ser centrado no time do
+próprio owner.
+
+**DISCUSSÃO**
+- O valor $255 do screenshot bate com o active_salary atual do Cangaceiros
+  (confirmado pós MAN-S1-FIX), indicando que o widget renderiza o time errado, não
+  um valor stale.
+- Hipótese de causa raiz comum: resquício do conceito single-user "my team" (flag
+  legada em vez de `current_user.team_rel`). M9/M13 já usam o padrão correto
+  (`my_team_name = current_user.team_rel.name`), então existe precedente canônico.
+- Possível que existam outras surfaces com o mesmo vício além das duas reportadas —
+  F1 deve mapear o conjunto completo antes de fechar escopo.
+
+**DECISÕES JÁ TOMADAS**
+- Um único item para as duas surfaces (mesma família de causa raiz).
+- Padrão alvo: derivar o time padrão de `current_user`, com fallback definido para
+  admin/usuário sem time vinculado (comportamento exato a decidir na F1).
+
+**ALTERNATIVAS DESCARTADAS**
+- Dois itens separados (um por surface): rejeitado — fix fragmentado arriscaria
+  corrigir uma surface e deixar a outra com a mesma raiz.
+
+**QUESTÕES EM ABERTO** (F1)
+- De onde vem hoje o "time padrão" da home e o time do cap widget? Mesma fonte?
+- Quais outras surfaces assumem "my team" fixo?
+- Qual o fallback para usuário sem time vinculado (team_id NULL) e para o admin?
+- O cap widget tem réplica de lógica em JS/template além do backend?
+
+**DEPENDÊNCIAS**
+- Depende de: nenhum item aberto (X1 concluído). Bloqueia: nenhum.
+
+---
+
+### M18 — Timestamps exibidos em UTC em vez do fuso do usuário
+🔲 **Pendente** — Prioridade **Média** — prompt MAN-M16-REG (ID remapeado: M16 já era o R2/R3 fix)
+
+**CONTEXTO**
+Feedback de produção do Michel (07/06/2026, via screenshot): o card "Sleeper Sync"
+mostra "Último sync: 08/06/2026 00:25" quando para ele eram ~21:25 de 07/06 (BRT).
+Diferença exata de +3h = UTC renderizado cru.
+
+**PROBLEMA / OPORTUNIDADE**
+Timestamps são exibidos no fuso do servidor (UTC) em vez do fuso local do usuário.
+Para owners no Brasil, datas "viram o dia" 3 horas antes, gerando confusão sobre
+quando o sync realmente rodou. Pedido do Michel: usar o timezone do computador da
+pessoa, não GMT como padrão.
+
+**DISCUSSÃO**
+- A causa quase certamente não é o armazenamento (UTC no banco é correto e deve
+  permanecer), mas a renderização sem conversão.
+- Conversão para o fuso do usuário sem pedir config manual aponta para renderização
+  client-side (JS lê o timestamp em formato não-ambíguo e formata com o timezone do
+  browser).
+- Risco clássico de fix pela metade: o formato provavelmente é renderizado em vários
+  pontos (card de sync, listagem de trades, salary history, expiração de proposta de
+  trade, telas admin). Corrigir só o card reportado deixaria o resto inconsistente.
+
+**DECISÕES JÁ TOMADAS**
+- Armazenamento permanece UTC — o item é exclusivamente sobre exibição.
+- Fuso deve vir do dispositivo do usuário automaticamente (sem campo de config).
+
+**ALTERNATIVAS DESCARTADAS**
+- Hardcode de America/Sao_Paulo no servidor: rejeitado — quebra o princípio (DST/
+  owners em outros fusos) e não atende o pedido literal.
+- Campo de timezone por usuário no perfil: rejeitado — fricção desnecessária quando
+  o browser já expõe o fuso.
+
+**QUESTÕES EM ABERTO** (F1)
+- Como os timestamps são armazenados hoje (naive UTC? aware? string)?
+- Quantos e quais pontos de renderização de timestamp existem (Jinja + JS)?
+- Há helper/filtro central de formatação de data ou cada template formata inline?
+- Qual o formato de transporte ideal para o JS converter sem ambiguidade (ISO 8601
+  com sufixo de fuso)?
+
+**DEPENDÊNCIAS**
+- Depende de: nenhum.
+- Bloqueia: **M4** (banner de sync desatualizada usará o mesmo timestamp — se M4 for
+  implementado antes do fix, herda o bug).
+
+---
+
+### E1 — Import ESPN robusto end-to-end (upload + degradação graciosa)
+✅ **Concluído (07/06/2026)** — Prioridade **Alta** — MAN-E1-REG / F1 / F2
+
+**CONTEXTO**
+A ESPN publicou a tabela PPR Top 300 de 2026 (`NFL26_CS_PPR300.pdf`, atualizada em
+02/06/2026), insumo do **passo 3 do offseason workflow** (Update ESPN Values). O
+parser (`espn_pdf_parser.py`) foi construído e validado contra o PDF de **2025**;
+mudança de layout ano a ano pode **quebrar o parsing silenciosamente** e contaminar os
+ESPN ref values — que alimentam a **VALORIZAÇÃO do rollover** (`Player.espn_ref_value`
+× 1.2 → salário ano 2+). Erro aqui propaga para os salários de toda a liga.
+
+**PROBLEMA / OPORTUNIDADE**
+Importar um PDF com layout divergente sem validação pode gravar valores errados/parciais
+sem alarme. O passo 3 deve ser destravado só após confirmar que o parser lê o PDF 2026
+corretamente.
+
+**PROPOSTA**
+- **F1 (read-only):** rodar o parser contra `NFL26_CS_PPR300.pdf` em localhost, **sem
+  importar**; conferir contagem total (300) + distribuição posicional esperada
+  (QB 32, RB 90, WR 104, TE 34, K 18, DST 22), amostragem de linhas e detecção de
+  divergência de layout vs o padrão `{rank}. ({POS}{posrank}) {Nome}, {TIME} ${valor}
+  {bye}`. Reportar se o parser precisa de ajuste antes de qualquer import.
+- **F2:** import validado em **localhost** (cópia do banco) antes de prod; só então
+  liberar o passo 3 em produção.
+
+**DADOS**
+- PDF: `NFL26_CS_PPR300.pdf` (owner fornece o arquivo localmente).
+- 300 entradas, 4 colunas, padrão `{rank}. ({POS}{posrank}) {Nome}, {TIME} ${valor} {bye}`.
+- Distribuição posicional esperada: QB 32, RB 90, WR 104, TE 34, K 18, DST 22.
+
+**DEPENDÊNCIAS**
+- Depende de: nenhum. Bloqueia: **passo 3 do offseason** (Update ESPN Values) e, por
+  consequência, o **Season Rollover** (passo 4, que usa os ESPN values atualizados).
+
+#### Fase 1 Diagnose ✅ (07/06/2026) — MAN-E1-F1 (diagnose do 500)
+Read-only (zero writes — a sonda não abriu o DB; ESPNImportLog/SalaryHistory intactos).
+
+- **(a) Estágio do 500 = parsing, exceção não tratada.** `espn_import_page` (admin.py)
+  envolve **só o download** em try/except (linhas 509-515 → falha de download vira
+  flash+redirect 302, **não** 500). Já `parse_pdf_bytes(pdf_bytes)` (linha 519) e
+  `match_players` (525) **não** têm guarda. Reproduzido: `parse_pdf_bytes(<bytes
+  não-PDF>)` lança **`PDFSyntaxError: No /Root object! - Is this really a PDF?`** →
+  sem try/except na rota → **HTTP 500**.
+- **(b) Resposta da ESPN ao fetch server-side (do meu IP, não-bloqueado):** HTTP **200**,
+  content-type **application/pdf**, 230.457 bytes, magic `%PDF-1.7` válido. **Não
+  bloqueado aqui.** Inferência: o IP de datacenter do **Render** recebe um corpo
+  **não-PDF com status 200** (anti-bot) que passa pelo `raise_for_status()` e quebra o
+  `extract_text`. Confirmação 100% exige o log do Render ou rodar do IP do Render —
+  não acessível nesta fase.
+- **(c) Parser × layout 2026: FUNCIONA** (não é o bloqueio). Do PDF real: **299**
+  entradas, spot checks corretos — rank 1 = Bijan Robinson/ATL/$57; rank 92 = KC
+  Concepcion/CLE/$3 (nome com 1ª palavra = código de time, tratado); rank 202 =
+  Tyreek Hill/**FA**/$0 (free agent, tratado). **Achado secundário:** 299 ≠ 300
+  esperado — 1 entrada some (dedup por rank / linha sem `$valor`); reconciliar no F2,
+  **não** é a causa do 500 (299 é não-vazio → fluxo segue).
+- **(d) Réplicas? NÃO.** Download/parse/match existe em **um único caminho
+  server-side**: `routes/admin.py` (download) + `espn_pdf_parser.py` (parse+match).
+  Sem parsing/download em JS/templates; `espn_review.html` só dá POST no endpoint de
+  confirmação e lê `total_parsed` server-rendered. `espn_bulk` (CSV) é caminho manual
+  separado (não usa PDF).
+
+**Causa raiz consolidada:** a rota confia no **código HTTP** (`raise_for_status`) mas
+não no **content-type/corpo** da resposta. Quando a ESPN devolve um 200 não-PDF
+(anti-bot, típico p/ IPs de datacenter como o do Render), `pdf_bytes` é HTML, o
+`parse_pdf_bytes`→`extract_text` lança `PDFSyntaxError`, e a ausência de try/except no
+parse vira 500. **O PDF e o parser estão corretos** (provado de IP não-bloqueado).
+Candidato secundário (só se o download passar no Render): a escrita de
+`.espn_review_pending.json` na raiz do app (admin.py:541) pode falhar em FS read-only
+do Render → OSError não tratado.
+
+**Direção sugerida p/ F2 (decisão do owner):** (1) validar content-type/magic-bytes
+após o download + envolver parse/match em try/except → flash gracioso no lugar de 500;
+(2) suportar **upload manual** do PDF (o owner já tem o arquivo) para não depender do
+fetch server-side de um IP bloqueado; (3) reconciliar 299 vs 300.
+
+#### Fase 2 Implementação ✅ (07/06/2026) — MAN-E1-F2
+Quatro frentes (causa raiz: a rota confiava no código HTTP, não no corpo; e gravava
+estado na raiz do app, read-only em prod):
+
+1. **Upload manual do PDF** (`templates/espn_import.html` + `routes/admin.py`): novo
+   `<input type="file" name="pdf_file">` (form `multipart/form-data`); o handler usa os
+   bytes do upload se presentes, senão cai para o download por URL. Caminho preferido —
+   não depende do IP do servidor (a ESPN bloqueia o datacenter do Render).
+2. **Degradação graciosa (anti-500):** guarda de magic-bytes (`pdf_bytes[:4] == b"%PDF"`)
+   após obter o conteúdo + `parse_pdf_bytes`/`match_players` agora em `try/except` →
+   **flash claro + redirect 302**, nunca HTTP 500. Cobre o 200-não-PDF (anti-bot), URL
+   inválida e PDF corrompido.
+3. **Estado de review em FS gravável:** `_espn_review_path()` grava
+   `.espn_review_pending.json` no **diretório do `dynasty.db`** (`os.path.dirname(DYNASTY_DB)`
+   = volume persistente `/data` no Render), nunca na raiz do app (read-only em prod).
+4. **Parser 299→300:** `_NAME_RE` ganhou `/` na classe de caracteres — o rank 170
+   (`Texans D/ST`, defesa cujo nome caiu em linha standalone) era descartado porque o `/`
+   não casava. Agora 300/300.
+
+**Preservado:** matching 3-tier, salary_engine, schema, sync, caminho CSV (`espn_bulk`)
+e a semântica provisório/final — todos intocados. Escrita só pelos caminhos canônicos
+(`_save_espn_value`, upsert por player+season). Default URL atualizado p/ o de 2026.
+
+**Validação (07/06/2026) — 13 asserts / 13 PASS** (test_client, temp DB, produção
+intocada; PDF real obtido read-only e usado como upload):
+
+| Caso | Resultado |
+|---|---|
+| Upload NFL26 PDF | parse **300**, review total_parsed=300, spot checks Bijan/ATL/$57, KC Concepcion/CLE/$3, Tyreek/FA/$0 |
+| URL não-PDF (example.com) / URL inválida | **302 gracioso, nunca 500**, zero escrita |
+| Estado de review | gravado no dir do DB (gravável), **não** na raiz do app |
+| Confirm provisório → reimport | ESPNValue **não duplica** (280→280); final persiste com `is_final=True` |
+| Réplica JS/template | **ausente** (parse/download/match só server-side) |
+
+**Arquivos:** `espn_pdf_parser.py` (`/` no `_NAME_RE`), `routes/admin.py` (upload +
+guarda + try/except + `_espn_review_path` + default URL 2026), `templates/espn_import.html`
+(upload field + textos). Script de validação descartado pós-run.
+
+---
+
 ## Offseason 2026 — pacote OFF26 (cuts selados + ligas fantasmas)
 🔲 **Registrado 05/06/2026** — MAN-OFF26-REG (registro apenas; nenhuma implementação)
 
@@ -1162,6 +1374,106 @@ atômico de aquisição dos demais (idealmente o helper canônico criado no F2 d
 OFF26-3) + remover o hack `_noop`; eventual backfill dos órfãos conforme o F1.
 
 **Ref. cruzada:** [[MAN-OFF26-3-F1]] (diagnose do importador OFF26-3, achado §3).
+
+#### Fase 1 Diagnose ✅ (05/06/2026) — MAN-F9-F1 (avaliação de dano)
+Read-only. Auditoria SQL direta do `dynasty.db` local (representante de produção;
+sem subir o app, p/ não acionar `import_csv` no boot). **Achado que reformula o F9.**
+
+**Estado do banco auditado:** `players`=280 (todos ativos), `player_history`=1132,
+mas **`salary_history`=0 linhas** e **`auction_log`=0 linhas** (ambas VAZIAS).
+
+- **§1 — Usado em produção? → NÃO há evidência.** `auction_log` está vazio → nenhum
+  caminho do fluxo de auction (bulk_register OU os demais) deixou rastro neste DB.
+  **Ressalva:** este é o *seed commitado*; o disco persistente do Render (não
+  acessível daqui) é a fonte autoritativa de uso ao vivo. Se houver dúvida, **puxar
+  o `dynasty.db` de produção** e re-rodar esta auditoria.
+- **§2 — Órfãos:** atribuíveis ao bulk_register (fingerprint = `AuctionLog` sem
+  `SalaryHistory` irmã por player+season) = **0** (auction_log vazio → lista nominal
+  vazia). **Baseline:** 280 players ativos sem nenhuma `SalaryHistory` — mas isso é
+  **condição global do DB** (tabela `salary_history` vazia), **não dano do
+  bulk_register**: os 280 vêm de `import_csv.py:98` (import do CSV) + sync de roster
+  (`sync_sleeper.py:262`), que setam `Player.salary` direto e **não escrevem
+  salary_history** (por design — salary_history é camada de aquisição/auditoria).
+  Lista completa reproduzível pela query de auditoria; origem = startup 2024 / draft
+  2025 / FA, todos via CSV+sync.
+- **§3 — Impacto a jusante: o rollover NÃO depende de salary_history.**
+  `apply_season_rollover` (salary_engine.py:190-213) lê **`player.salary`** (prev) +
+  **`player.espn_ref_value`** — não consulta `salary_history`. Logo os órfãos
+  **rolam corretamente** (VALORIZAÇÃO usa Player.salary). **A premissa do prompt
+  ("rollover calcula VALORIZAÇÃO a partir do histórico salarial") está refutada
+  empiricamente.** Impacto real dos órfãos = **display/auditoria**: `/salary_history`
+  mostra timeline vazia e a narrativa de contrato fica incompleta; cálculo de cap usa
+  Player.salary (ok).
+- **§4 — Réplicas (SIM):** criação de Player **sem** salary_history existe em mais
+  de um lugar — `import_csv.py:98` (bulk do CSV) e `sync_sleeper.py:262` (sync de
+  roster). Ambos **por design** (membership/seed; salary é Player.salary). O
+  `bulk_register` (`routes/auction.py:141`) é o único que cria via **fluxo de
+  aquisição** sem salary_history — inconsistente com os irmãos do `/auction`
+  (que via `record_acquisition` gravam Player+SalaryHistory+AuctionLog). `admin
+  espn_bulk` (admin.py:144) não cria player (atualiza ESPN). Fonte canônica de
+  aquisição = `models.record_acquisition` (OFF26-3-F2).
+- **§5 — Escopo recomendado do F2: REFATORAÇÃO APENAS** (no estado auditado).
+  Como o dano atribuível = 0, F2 do F9 = rotear `bulk_register` pelo
+  `record_acquisition` + remover o hack `_noop`/`test_request_context`. **Sem
+  backfill** necessário aqui. **Condicional:** confirmar o `dynasty.db` de produção
+  ao vivo; SE lá houver `auction_log` de bulk_register sem `SalaryHistory`, esses
+  casos são **100% reconstruíveis** a partir do próprio `AuctionLog` (player_id +
+  season + value_paid + espn_ref_value_at_time + entry_type → `year1_salary`
+  recompõe a SalaryHistory). Nada se perde irrecuperavelmente, pois o bulk_register
+  *grava* AuctionLog (só omite SalaryHistory).
+
+**Observação fora do escopo do F9 (candidata a item próprio):** o seed `dynasty.db`
+não tem **nenhuma** `salary_history` (0 linhas) — `/salary_history` ficaria vazio p/
+todos. Pode ser esperado (seed reconstruído via CSV+chain, sem a camada de aquisição)
+ou indicar que o backfill histórico de salary_history nunca foi semeado. Confirmar
+contra o disco de prod; se prod também estiver vazio, avaliar um item de **backfill
+de salary_history do roster** (separado do F9).
+
+**Não iniciar F2.** Status do F9 permanece 🔲.
+
+#### Fase 1B ✅ (07/06/2026) — MAN-F9-F1B (re-auditoria contra produção)
+Cópia do `dynasty.db` de produção fornecida pelo comissário (`integrity_check: ok`).
+**As conclusões condicionais da F1 viram definitivas:**
+
+| Contagem | seed (git) | **produção** |
+|---|---|---|
+| players (total) | 280 | 280 |
+| players ativos | 280 | **277** (3 dropados: Emari Demercado, Kareem Hunt, Nick Chubb) |
+| player_history | 1132 | **1132** |
+| salary_history | 0 | **0** |
+| auction_log | 0 | **0** |
+
+- **§1 — bulk_register usado em produção? → NÃO (definitivo).** `auction_log` de produção
+  está **vazio** e **0 players ativos** têm qualquer AuctionLog. O fluxo `/auction`
+  (bulk_register ou qualquer outro) **nunca foi usado em produção**. As sessões reais de
+  FA auction de 2025 **existem**, mas em `PlayerHistory` (fa_auction=54, auction_draft=181,
+  rookie_draft=34, trade=118, drop=258, rollover=220, …; 1132 eventos), reconstruídas pelo
+  F8a a partir da chain do Sleeper — **não** via a tela do Manager. (A premissa do prompt
+  "auction_log de produção deve refletir as FA auctions de 2025" está **refutada**: refletem-se
+  em PlayerHistory, não em auction_log.)
+- **§3 — Órfãos atribuíveis ao bulk_register: 0** (lista nominal: vazia). auction_log vazio
+  → nenhum AuctionLog-sem-SalaryHistory possível.
+- **§4 — salary_history em produção: VAZIA (0), confirmado — não era artefato do seed.** Mas
+  é **inofensivo**: nada lê `salary_history`. O `/api/salary_history` (`routes/salary.py:122`)
+  consome **PlayerHistory**; cap usa `Player.salary`; rollover usa `Player.salary`. A
+  `salary_history` é **tabela legada superseded pelo PlayerHistory (F8a)**. **Nenhum backfill
+  necessário.** (Se um dia se quisesse popular, PlayerHistory é a fonte — já tem season +
+  salary + contract_year por evento.)
+- **§5 — Veredito final do F9-F2: REFATORAÇÃO APENAS (sem condicional).** Dano = 0 em produção.
+  F2 do F9 = rotear `bulk_register` por `record_acquisition` + remover o hack `_noop`. Sem
+  backfill.
+
+**Observações para planejamento (fora do escopo do F9 — candidatas a item próprio):**
+1. **`salary_history` é tabela legada/morta** — superseded pelo PlayerHistory, escrita por
+   `record_acquisition`/`/auction` mas lida por ninguém. Avaliar deprecar a escrita ou
+   alinhar o helper canônico ao PlayerHistory (a tela de histórico lê PlayerHistory).
+2. **Acquisitions feitas pelo Manager não aparecem no PlayerHistory** — `record_acquisition`
+   grava SalaryHistory+AuctionLog, não PlayerHistory; em produção a história só se forma via
+   sync/F8a (chain do Sleeper). Como o fluxo OFF26 (importador) e o `/auction` escrevem no
+   Manager, vale avaliar se precisam emitir PlayerHistory para aparecer no `/salary_history`.
+3. **Risco seed ≠ produção / sem backup automatizado** — confirmado (seed de abril ≠ disco
+   vivo). A cópia recebida hoje serve de backup pontual; avaliar item de rotina de backup +
+   refresh do seed.
 
 ---
 

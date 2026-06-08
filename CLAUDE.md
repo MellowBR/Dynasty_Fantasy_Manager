@@ -104,7 +104,7 @@ python seed_users.py --list
 ### External Integrations
 
 - **Sleeper API** (`sync_sleeper.py`): rosters, team info, winners bracket, previous league, **trades via `/transactions/{leg}`** (S1 — `_sync_trades(league_id)`, idempotente via `sleeper_transaction_id`, trata N-way como placeholder row). Player DB cached weekly (~15MB `.sleeper_players_cache.json`). Startup sync wrapped in try/except for graceful degradation.
-- **ESPN PDF** (`espn_pdf_parser.py`): parse draft value sheets, match to DB players with 3-tier matching (exact → case-insensitive → normalized)
+- **ESPN PDF** (`espn_pdf_parser.py`): parse draft value sheets, match to DB players with 3-tier matching (exact → case-insensitive → normalized). Import (E1): **upload manual do PDF** (preferido) ou download por URL com **degradação graciosa** (guarda magic-bytes `%PDF` + try/except → flash, nunca 500; a ESPN bloqueia o download do IP do Render). Estado de review gravado em `dirname(DYNASTY_DB)` (FS gravável), não na raiz do app
 - **Google OAuth**: OpenID Connect via Google's well-known endpoint
 
 ### Player Name Matching (player_lookup.py)

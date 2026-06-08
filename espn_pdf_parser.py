@@ -33,7 +33,9 @@ def _norm(name: str) -> str:
 # ── PDF parsing ──────────────────────────────────────────────────────────────
 
 _RANK_RE = re.compile(r"^(\d+)\.\s+\(([A-Z]+\d+)\)(?:\s+(.+),\s+([A-Z]{2,4}))?\s*$")
-_NAME_RE = re.compile(r"^([A-Z][a-zA-Z'.  \-]+(?:\s(?:Jr\.|Sr\.|III|II|IV|V))?),\s+([A-Z]{2,4})\s*$")
+# `/` incluído na classe p/ nomes de defesa em linha standalone (ex.: "Texans D/ST, HOU").
+# Sem ele o rank de DST que cai em linha própria (não inline no rank) era perdido — E1: 299→300.
+_NAME_RE = re.compile(r"^([A-Z][a-zA-Z'.  \-/]+(?:\s(?:Jr\.|Sr\.|III|II|IV|V))?),\s+([A-Z]{2,4})\s*$")
 _VAL_RE = re.compile(r"^\$(\d+)(?:\s+(\d+))?\s*$")
 _POS_RE = re.compile(r"([A-Z]+)")
 

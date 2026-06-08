@@ -485,7 +485,18 @@ def player_history_restore():
 
 # ── ESPN PDF Import ──────────────────────────────────────────────────────────
 
-ESPN_DEFAULT_URL = "https://g.espncdn.com/s/ffldraftkit/25/NFL25_CS_PPR300.pdf?adddata=2025CS_PPR300"
+ESPN_DEFAULT_URL = "https://g.espncdn.com/s/ffldraftkit/26/NFL26_CS_PPR300.pdf?adddata=2026CS_PPR300"
+
+
+def _espn_review_path():
+    """Caminho do estado transitório de review em diretório GRAVÁVEL.
+    Usa o diretório do dynasty.db (volume persistente /data no Render), nunca a
+    raiz do app (read-only em produção — E1)."""
+    import os
+    app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    db_path = os.environ.get("DYNASTY_DB", os.path.join(app_root, "dynasty.db"))
+    review_dir = os.path.dirname(os.path.abspath(db_path))
+    return os.path.join(review_dir, ".espn_review_pending.json")
 
 
 @admin_bp.route("/admin/espn_import", methods=["GET", "POST"])
@@ -500,34 +511,63 @@ def espn_import_page():
                                default_season=get_current_season() + 1,
                                last_import=last_import)
 
-    # POST: fetch PDF, parse, store in session for review
-    url = request.form.get("url", ESPN_DEFAULT_URL).strip()
+    # POST: obter PDF (upload manual OU download por URL), parsear, guardar p/ review.
     season = int(request.form.get("season", get_current_season() + 1) or get_current_season() + 1)
     is_final = request.form.get("is_final") == "on"
 
-    import requests as req
-    try:
-        r = req.get(url, timeout=30)
-        r.raise_for_status()
-        pdf_bytes = r.content
-    except Exception as e:
-        flash(f"Erro ao baixar PDF: {e}", "error")
+    # Entrada 1 — upload manual (preferido: não depende do IP do servidor; a ESPN
+    # bloqueia o download a partir do datacenter do Render — E1).
+    uploaded = request.files.get("pdf_file")
+    if uploaded and uploaded.filename:
+        pdf_bytes = uploaded.read()
+        source = f"upload:{uploaded.filename}"
+    else:
+        # Entrada 2 — download por URL, com degradação graciosa.
+        url = request.form.get("url", ESPN_DEFAULT_URL).strip()
+        if not url:
+            flash("Forneça um arquivo PDF (upload) ou uma URL.", "error")
+            return redirect(url_for("admin.espn_import_page"))
+        import requests as req
+        try:
+            r = req.get(url, timeout=30)
+            r.raise_for_status()
+            pdf_bytes = r.content
+        except Exception as e:
+            flash(f"Erro ao baixar PDF: {e}", "error")
+            return redirect(url_for("admin.espn_import_page"))
+        source = url
+
+    # Guarda anti-500 (E1): exigir um PDF de verdade. A ESPN devolve um 200 NÃO-PDF
+    # (anti-bot) a IPs de datacenter — isso passava pelo raise_for_status e estourava
+    # PDFSyntaxError no parser não guardado. Agora falha gracioso.
+    if not pdf_bytes or pdf_bytes[:4] != b"%PDF":
+        flash("O conteúdo recebido não é um PDF válido. Se baixou por URL a partir do "
+              "servidor, a ESPN provavelmente bloqueou o acesso automatizado — baixe o "
+              "PDF no navegador e use o upload manual.", "error")
         return redirect(url_for("admin.espn_import_page"))
 
     from espn_pdf_parser import parse_pdf_bytes, match_players
-
-    parsed = parse_pdf_bytes(pdf_bytes)
+    try:
+        parsed = parse_pdf_bytes(pdf_bytes)
+    except Exception as e:
+        flash(f"Erro ao processar o PDF: {type(e).__name__}: {e}", "error")
+        return redirect(url_for("admin.espn_import_page"))
     if not parsed:
         flash("Nenhum jogador encontrado no PDF. Verifique o formato.", "error")
         return redirect(url_for("admin.espn_import_page"))
 
     db_players = Player.query.filter_by(is_dropped=False).all()
-    results = match_players(parsed, db_players)
+    try:
+        results = match_players(parsed, db_players)
+    except Exception as e:
+        flash(f"Erro no matching de jogadores: {type(e).__name__}: {e}", "error")
+        return redirect(url_for("admin.espn_import_page"))
 
-    # Store review data in a temp file (too large for session cookie)
-    import json, os, tempfile
+    # Persistir o estado de review em diretório GRAVÁVEL (dir do dynasty.db = volume
+    # persistente no Render), nunca na raiz do app (read-only em produção — E1).
+    import json
     review_data = {
-        "url": url,
+        "url": source,
         "season": season,
         "is_final": is_final,
         "matched": results["matched"],
@@ -536,8 +576,7 @@ def espn_import_page():
         "absent": [a for a in results["absent"]],
         "total_parsed": len(parsed),
     }
-    review_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                               ".espn_review_pending.json")
+    review_path = _espn_review_path()
     with open(review_path, "w", encoding="utf-8") as f:
         json.dump(review_data, f, ensure_ascii=False)
     session["espn_review_path"] = review_path
