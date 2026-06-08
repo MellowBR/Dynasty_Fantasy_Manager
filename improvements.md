@@ -1243,6 +1243,12 @@ um import e conferir o store); a **aplicação no draft** só tem e2e no **rooki
 regra 8.2.2)**. Regra "✅ só após prod". **DP1 desbloqueado** — o store existe; F1/F2 do DP1 podem
 seguir.
 
+**⚠️ Risco residual conhecido (candidato a item — classe "Brown"):** a mitigação cobre o
+approximate-**skipped**, mas se o admin **CONFIRMAR** um match falso de fuzzy (ex.: "Carnell Tate" →
+"Darnell Mooney" 0.665), o valor ESPN do rookie **contamina o `espn_ref_value` de um veterano real**.
+Fix limpo (próxima sessão): não oferecer como fuzzy-match contra veterano do DB uma entrada que já
+resolve para o `sleeper_id` de um rookie (rebaixar/sinalizar esses candidatos no review).
+
 **Arquivos:** `models.py` (modelo + helpers), `routes/admin.py` (resolver + confirm),
 `routes/draft_import.py` (consumo), `routes/offseason.py` (limpeza), `CLAUDE.md`.
 
