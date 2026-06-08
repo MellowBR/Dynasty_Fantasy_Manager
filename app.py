@@ -24,6 +24,12 @@ def create_app():
 
     db.init_app(app)
 
+    # M18: filtro Jinja `utc_iso` — fonte única do "marcar UTC" para templates.
+    # Emite ISO-8601 com 'Z'; a macro local_dt + JS formatLocalDT convertem ao fuso
+    # do cliente. Mesma função usada por to_dict()/rotas (timeutil.utc_iso).
+    from timeutil import utc_iso as _utc_iso
+    app.jinja_env.filters["utc_iso"] = _utc_iso
+
     with app.app_context():
         db.create_all()
         _run_migrations()

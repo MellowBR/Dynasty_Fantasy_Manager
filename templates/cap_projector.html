@@ -180,7 +180,7 @@ function renderEspnBanner(status) {
   if (!status) {
     el.innerHTML = '<div class="alert alert-dim" style="margin-bottom:1rem">ℹ️ Valores ESPN nao importados — projecoes baseadas em dados anteriores</div>';
   } else if (status.status === 'final') {
-    el.innerHTML = `<div class="alert alert-ok" style="margin-bottom:1rem">✅ Valores ESPN finais de ${status.date}</div>`;
+    el.innerHTML = `<div class="alert alert-ok" style="margin-bottom:1rem">✅ Valores ESPN finais de ${formatLocalDT(status.date, 'datetime')}</div>`;
   } else {
     el.innerHTML = `<div class="alert alert-warn" style="margin-bottom:1rem">⚠️ Valores ESPN provisorios — salarios 2026 sao estimativas</div>`;
   }

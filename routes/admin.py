@@ -354,12 +354,13 @@ def _snapshot_info():
     if not path:
         return {"exists": False}
     mtime = _os.path.getmtime(path)
-    dt = _datetime.fromtimestamp(mtime)
+    # M18: UTC não-ambíguo (utcfromtimestamp); template formata via macro local_dt
+    # no fuso do cliente. Era fromtimestamp (hora local do servidor) + strftime.
     return {
         "exists": True,
         "path": path,
         "filename": _os.path.basename(path),
-        "timestamp": dt.strftime("%d/%m/%Y %H:%M"),
+        "dt": _datetime.utcfromtimestamp(mtime),
     }
 
 

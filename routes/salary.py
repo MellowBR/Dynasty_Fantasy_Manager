@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
+from timeutil import utc_iso
 from models import db, Player, Team, PlayerHistory, SALARY_CAP, MAX_ROSTER, sort_players_by_pos
 from salary_engine import (
     full_contract_table, project_next_salary, draft_budget
@@ -96,7 +97,7 @@ def cap_projector_data(team_name):
     if last_import:
         espn_status = {
             "status": last_import.status,
-            "date": last_import.imported_at.strftime("%d/%m/%Y %H:%M") if last_import.imported_at else "",
+            "date": utc_iso(last_import.imported_at),  # M18: ISO 'Z' → formatLocalDT no cliente
             "season": last_import.season,
         }
 

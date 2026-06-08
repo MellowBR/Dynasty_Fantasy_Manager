@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import local_dt %}
 {% block title %}Trade Manager{% endblock %}
 
 {% block content %}
@@ -159,7 +160,7 @@
     <tbody>
       {% for t in recent_trades %}
       <tr>
-        <td class="text-dim recent-trades-date" data-label="Data">{{ t.trade_date.strftime('%d/%m/%Y') if t.trade_date else '—' }}</td>
+        <td class="text-dim recent-trades-date" data-label="Data">{{ local_dt(t.trade_date, 'date') }}</td>
         <td class="team-cell" data-label="Equipe A">
           {% if avatar_map.get(t.team_a) %}<img src="https://sleepercdn.com/avatars/{{ avatar_map[t.team_a] }}" class="owner-avatar-sm" onerror="this.style.display='none'">{% endif %}
           {{ t.team_a }}{% if owner_map.get(t.team_a) %} <span class="owner-hint">({{ owner_map[t.team_a] }})</span>{% endif %}
@@ -648,7 +649,7 @@ function generateLink() {
       document.getElementById('proposal-link').value = fullUrl;
       document.getElementById('proposal-open').href = d.url;
       document.getElementById('proposal-expires').textContent =
-        `Link válido por ${d.ttl_days} dias (expira em ${new Date(d.expires_at).toLocaleString('pt-BR')}).`;
+        `Link válido por ${d.ttl_days} dias (expira em ${formatLocalDT(d.expires_at, 'datetime')}).`;
       document.getElementById('modal-link-area').style.display = '';
       document.getElementById('trade-modal').style.display = 'flex';
     }).catch(e => alert('Erro ao gerar proposta: ' + e));

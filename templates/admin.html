@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import local_dt %}
 {% block title %}Admin{% endblock %}
 
 {% block content %}
@@ -42,7 +43,7 @@
   <div class="card">
     <h2 class="card-title">🔄 Sleeper Sync</h2>
     {% if last_sync %}
-    <p class="text-dim">Último sync: <strong>{{ last_sync.synced_at.strftime('%d/%m/%Y %H:%M') }}</strong></p>
+    <p class="text-dim">Último sync: <strong>{{ local_dt(last_sync.synced_at) }}</strong></p>
     <p class="text-dim" style="margin:.4rem 0 1rem">{{ last_sync.summary }}</p>
     {% if last_sync.had_errors %}
     <div class="alert alert-warn" style="margin-bottom:.75rem">⚠️ Último sync teve erros.</div>
@@ -168,13 +169,13 @@
         🔗 Backfill de Trades Órfãs
       </button>
       <button class="btn btn-danger" id="btn-f8-restore" onclick="f8Restore()"
-              {% if not f8_snapshot.exists %}disabled title="Nenhum snapshot disponível"{% else %}title="Restaura snapshot de {{ f8_snapshot.timestamp }}"{% endif %}>
+              {% if not f8_snapshot.exists %}disabled title="Nenhum snapshot disponível"{% else %}title="Restaura o snapshot {{ f8_snapshot.filename }}"{% endif %}>
         ↩ Restaurar Snapshot
       </button>
     </div>
     {% if f8_snapshot.exists %}
     <p class="text-dim small-text" style="margin-top:.5rem">
-      Último snapshot: <code>{{ f8_snapshot.filename }}</code> ({{ f8_snapshot.timestamp }})
+      Último snapshot: <code>{{ f8_snapshot.filename }}</code> ({{ local_dt(f8_snapshot.dt) }})
     </p>
     {% endif %}
     <div id="f8-result" class="result-box" style="display:none;margin-top:.75rem"></div>

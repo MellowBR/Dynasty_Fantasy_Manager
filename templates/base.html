@@ -156,6 +156,27 @@
 </footer>
 
 <script>
+// ── Fonte única de formatação de data (M18) ─────────────────────────────────
+// formatLocalDT é o ÚNICO ponto que escolhe o formato humano e aplica o fuso do
+// dispositivo. Recebe ISO-8601 com 'Z' (transporte não-ambíguo, marcado server-side
+// por timeutil.utc_iso). applyLocalTimes converte os <time class="js-localtime">
+// renderizados pela macro local_dt; conteúdo construído por JS chama formatLocalDT
+// direto (rodapé de sync, modal de trade, link de proposta).
+function formatLocalDT(iso, fmt) {
+  if (!iso) return '—';
+  const d = new Date(iso);            // 'Z' → parse não-ambíguo → fuso local do device
+  if (isNaN(d.getTime())) return iso;
+  const p = n => String(n).padStart(2, '0');
+  const date = `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+  return fmt === 'date' ? date : `${date} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function applyLocalTimes(root) {
+  (root || document).querySelectorAll('time.js-localtime').forEach(el => {
+    el.textContent = formatLocalDT(el.getAttribute('datetime'), el.dataset.fmt || 'datetime');
+  });
+}
+document.addEventListener('DOMContentLoaded', function() { applyLocalTimes(); });
+
 // ── Global cap chip ─────────────────────────────────────────────────────────
 // M17: resolvido server-side (context processor inject_user_team → chip renderizado
 // em base.html). Sem réplica JS aqui — o chip consome o valor já resolvido.
@@ -164,7 +185,7 @@
 (function loadSyncTime() {
   fetch('/api/admin/last_sync').then(r => r.json()).then(d => {
     const el = document.getElementById('footer-sync-time');
-    if (el && d.synced_at) el.textContent = 'Último sync: ' + d.synced_at;
+    if (el && d.synced_at) el.textContent = 'Último sync: ' + formatLocalDT(d.synced_at, 'datetime');
   }).catch(()=>{});
 })();
 

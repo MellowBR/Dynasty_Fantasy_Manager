@@ -7,6 +7,7 @@ from flask import Blueprint, render_template, request, jsonify, url_for
 from flask_login import login_required, current_user
 
 from models import db, Player, Pick, Trade, Team, TradeProposal, SALARY_CAP, get_current_season
+from timeutil import utc_iso
 from routes.auth import admin_required
 from dynasty_values import (
     get_dynasty_values, pick_sleeper_id, resolve_asset_value,
@@ -336,7 +337,7 @@ def create_trade_proposal():
     return jsonify({
         "proposal_id": proposal.id,
         "url": url_for("trades.view_trade_proposal", proposal_id=proposal.id),
-        "expires_at": proposal.expires_at.isoformat(),
+        "expires_at": utc_iso(proposal.expires_at),  # M18: ISO 'Z' (era naive sem fuso → bug)
         "ttl_days": PROPOSAL_TTL_DAYS,
     })
 
@@ -425,7 +426,7 @@ def trade_by_tx(tx_id):
         "team_a": trade.team_a,
         "team_b": trade.team_b,
         "description": trade.description,
-        "trade_date": trade.trade_date.strftime("%d/%m/%Y %H:%M") if trade.trade_date else None,
+        "trade_date": utc_iso(trade.trade_date) or None,  # M18: ISO 'Z' → formatLocalDT no cliente
         "source": trade.source,
         "assets_by_team": assets_by_team,  # dict team_name → [{asset, from}]
     })

@@ -1,5 +1,16 @@
 {# Macros reutilizáveis. Use {% from "_macros.html" import player_name_link, player_photo, player_roster_row, player_roster_colgroup, nav_link, nav_dropdown %}. #}
 
+{# local_dt(value, fmt='datetime')
+   M18 — render de timestamp no fuso do dispositivo do usuário. `value` é um datetime
+   naive-UTC; emite <time> com o instante UTC não-ambíguo (filtro utc_iso → 'Z') e o
+   JS formatLocalDT (base.html) converte ao fuso local no load (applyLocalTimes).
+   Fallback sem-JS: o próprio ISO (não-ambíguo). fmt: 'datetime' (dd/mm/aaaa HH:MM)
+   ou 'date' (dd/mm/aaaa). Fonte ÚNICA de exibição de data server-side. #}
+{% macro local_dt(value, fmt='datetime') -%}
+{%- set iso = value | utc_iso -%}
+{%- if iso %}<time class="js-localtime" datetime="{{ iso }}" data-fmt="{{ fmt }}">{{ iso }}</time>{% else %}—{% endif -%}
+{%- endmacro %}
+
 {# player_name_link(player, klass='', target=None, stop_propagation=False)
    player precisa ter .id e .name. #}
 {% macro player_name_link(player, klass='', target=None, stop_propagation=False) -%}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import player_name_link, player_photo %}
+{% from "_macros.html" import player_name_link, player_photo, local_dt %}
 {% block title %}Proposta de Trade{% endblock %}
 
 {% block content %}
@@ -13,7 +13,7 @@
   <div class="alert alert-warn" style="margin:0">
     ⚠️ {{ error }}
     {% if expired_at %}
-    <br><span class="text-dim small-text">Expirou em {{ expired_at.strftime('%d/%m/%Y %H:%M') }}</span>
+    <br><span class="text-dim small-text">Expirou em {{ local_dt(expired_at) }}</span>
     {% endif %}
   </div>
   <p style="margin-top:1rem">
@@ -36,7 +36,7 @@
     </div>
     <div class="text-dim small-text">
       {% if creator_name %}Criada por <strong>{{ creator_name }}</strong> · {% endif %}
-      {{ proposal.created_at.strftime('%d/%m/%Y %H:%M') }}
+      {{ local_dt(proposal.created_at) }}
       {% if days_left > 0 %}
         · expira em <strong>{{ days_left }} dia{{ 's' if days_left != 1 else '' }}</strong>
       {% else %}

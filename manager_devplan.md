@@ -1201,6 +1201,34 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Status M17 = ⚠️** (pendente smoke em produção com login real dos owners). Sobe para ✅ após confirmação em prod.
 - **Arquivos:** `app.py`, `routes/roster.py`, `routes/salary.py`, `routes/league.py`, `routes/trades.py`, `templates/base.html`, `templates/roster.html` + docs (`improvements.md`, `manager_devplan.md`). Commit único agrupa código + docs (inclui a absorção F1 e este registro F2).
 
+### 08/06/2026 — WV1 registrado (regra waiver-sem-drop → salário de FA) 🔲
+
+- **Item novo 🔲 (MAN-WV1-REG)** emergido em discussão durante o M18. Regra de liga: aquisição fora de draft é **waiver** quando o jogador **nunca foi dropado** por nenhum time, senão **FA**; o salário difere. Caso ilustrativo: rookie não-draftado pego no waiver após semana 1 — como nunca foi dropado, o contrato deve usar a **regra de salário de FA** apesar do mecanismo ser waiver.
+- **ID:** novo prefixo **WV** (waiver) — confirmado livre contra o backlog (nenhuma colisão; séries existentes: X/S/T/Q/M/MAN-/OFF26-/F/E/DP). 1º item da série.
+- **Decisões já tomadas:** waiver-sem-drop → salário-como-FA; implementação adiada (depende da lógica de aquisição / pacote offseason); **preservar** os timestamps hoje não exibidos (`AuctionLog.created_at`, salary history) — decisão do M18 reforçada aqui, pois podem virar consumidores desta regra.
+- **Toca:** `record_acquisition` (porta canônica de criação de contrato) + `salary_engine` + histórico (`PlayerHistory`/`AuctionLog`). **Relaciona-se** com OFF26-3, E2, F9. **F1 pendente:** confrontar regulamento (valores waiver vs FA) + mapear a fonte do sinal "foi dropado?" (Sleeper transactions / PlayerHistory / flag) + verificar se o tipo de aquisição chega confiável ao helper ou é inferido + checar réplica (cap projector JS, preview do draft import).
+- Registro apenas (REG); sem F1/F2 nesta etapa. **Sem commit docs-only isolado** — agrupa com o próximo commit de código (provável M18-F2).
+
+### 08/06/2026 — M18-F1 diagnose (read-only) absorvida + decisões de escopo F2
+
+- **Escopo mais estrutural que o registro supunha.** Armazenamento = **naive UTC** (`utcnow`) em todos os modelos; exceções (`Trade.trade_date`, snapshot F8 via `fromtimestamp`) também naive. Camada de storage **não muda** (UTC permanece).
+- **Sem ponto central de formatação:** string `%d/%m/%Y %H:%M` duplicada ~9× entre `to_dict()`, rotas e templates → **~10 sites independentes**.
+- **Conjunto completo mapeado por camada:** Jinja (card Sleeper Sync, snapshot F8, ESPN import, lottery audit, lista de trades [só data], proposta created/expired/days_left); pré-formatado→JS (rodapé global de último sync — o que o Michel viu, além do card admin; modal de detalhe de trade); client-side `Date` (criação de link de proposta — **único que converte, e está bugado**: ISO de naive sem `Z` → `new Date` lê como local).
+- **Reavaliação dos candidatos:** trades + proposta + telas admin confirmados; **salary history NÃO exibe timestamp** (`created_at` no payload mas não renderizado — campo morto); **bônus** `AuctionLog.created_at` também morto.
+- **Achado decisivo (transporte):** onde o servidor formata para string, o **fuso é destruído antes do browser** → conversão client-side impossível sem primeiro mudar o transporte para UTC não-ambíguo.
+- **4 decisões de escopo do owner para a F2** (gravadas na subseção F1 do M18 em improvements.md): (1) fonte única de formatação, migrar os ~10 sites — não corrigir site a site; (2) storage UTC mantido, servidor entrega UTC não-ambíguo (ISO `Z`/offset ou epoch), cliente converte pelo fuso do browser sem config; (3) campos mortos (salary history + `AuctionLog.created_at`) **preservados** — amarração com WV1; (4) ponto client-side bugado corrigido pela mesma fonte única.
+- M18 permanece 🔲 (F2 não executada). Absorção docs-only — **sem commit isolado**; agrupa com o código da F2 (junto com o WV1-REG já pendente no working tree).
+
+### 08/06/2026 — M18-F2 implementada (timestamps no fuso do usuário) ⚠️ localhost
+
+- **Fonte única (1 por modo de render):** novo `timeutil.utc_iso(dt)` marca naive-UTC → ISO-8601 com `Z` (transporte não-ambíguo); usado por `to_dict()`/rotas + registrado como filtro Jinja `utc_iso` (`app.py`) → macro `local_dt` (`_macros.html`, emite `<time class="js-localtime" datetime="…Z">`). **Formatação humana só no cliente:** `formatLocalDT(iso, fmt)` (`base.html`) é o único ponto que escolhe `dd/mm/aaaa [HH:MM]` e aplica o fuso do device; `applyLocalTimes()` no `DOMContentLoaded` converte os `<time>`; JS dinâmico chama `formatLocalDT` direto.
+- **~11 sites migrados:** card Sleeper Sync + rodapé global, snapshot F8 (agora `utcfromtimestamp`, era hora local do servidor), ESPN import, banner ESPN do cap projector, lottery audit (×2), lista de trades (`date`), modal de trade, proposta create/expired, e o **link de proposta antes bugado** (recebia ISO naive sem fuso → agora ISO `Z` + `formatLocalDT`).
+- **Transporte:** `SyncLog.synced_at`, `Trade.trade_date`, `ESPNImportLog.imported_at`, `LotteryAudit.executed_at` (to_dict) + `/api/trades/by_tx`, `expires_at`, `espn_status.date` (rotas) passam a emitir ISO `Z`.
+- **Decisão — campos mortos preservados (amarração WV1):** `created_at` de salary history (`PlayerHistory`/`routes/salary.py`) e `AuctionLog` **não** alterados nem exibidos. **Armazenamento intacto:** `utcnow` naive, sem migração de schema (restrição respeitada).
+- **Validação localhost:** `utc_iso(00:25 naive)`→`2026-06-08T00:25:00Z`; admin/rodapé emitem `<time …Z>`; banco mantém `00:25:00Z`; `/admin /trades /cap_projector /salary_history /picks`→200; `/api/trades/by_tx`→ISO `Z`; nenhum timestamp cru no `/admin`. `salary_engine_test.py` 48/48.
+- **Status M18 = ⚠️** (pendente smoke em prod com cliente em BRT: confirmar 00:25 UTC → 21:25 do dia anterior — não verificável sem browser real). Sobe para ✅ após confirmação.
+- **Arquivos:** `timeutil.py` (novo), `app.py`, `models.py`, `routes/trades.py`, `routes/admin.py`, `routes/salary.py`, `templates/_macros.html`, `base.html`, `admin.html`, `espn_import.html`, `lottery_audit.html`, `trades.html`, `trade_proposal.html`, `_trade_detail_modal.html`, `cap_projector.html` + docs. **Commit único agrupa:** código M18 + docs M18 (absorção F1 + F2) + **WV1-REG** (pendente no working tree).
+
 ### 07/06/2026 — E1 (Import ESPN robusto) F1 + F2 ✅ (MAN-E1)
 
 - **F1 (diagnose do 500):** o 500 não era o download (que tem try/except → 302), e sim o **parse não guardado** estourando `PDFSyntaxError` quando a ESPN devolve um **200 não-PDF** (anti-bot) ao IP de datacenter do Render. O PDF e o parser estavam corretos (provado de IP residencial: download 200/PDF, parse 299). Caminho de parse/download/match é **único e server-side** (sem réplica). Secundário: estado de review escrito na raiz do app (read-only em prod).

@@ -55,7 +55,7 @@ function openTradeDetail(txId) {
         return;
       }
       title.textContent = `${d.team_a} ⇄ ${d.team_b}`;
-      let html = `<p class="text-dim small-text">${escapeHtml(d.trade_date || '—')}</p>`;
+      let html = `<p class="text-dim small-text">${formatLocalDT(d.trade_date, 'datetime')}</p>`;
       const teams = Object.keys(d.assets_by_team || {});
       if (teams.length === 0) {
         html += '<p class="text-dim">Sem ativos rastreáveis nessa trade.</p>';

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import local_dt %}
 {% block title %}Auditoria Lottery {{ season }}{% endblock %}
 
 {% block content %}
@@ -25,7 +26,7 @@
     </div>
     <div class="stat-item">
       <span class="stat-label">Executado em</span>
-      <span class="stat-num" style="font-size:.95rem">{{ audit.executed_at.strftime('%d/%m/%Y %H:%M') }}</span>
+      <span class="stat-num" style="font-size:.95rem">{{ local_dt(audit.executed_at) }}</span>
     </div>
     <div class="stat-item">
       <span class="stat-label">Executado por</span>
@@ -83,7 +84,7 @@
     <tbody>
       {% for a in superseded %}
       <tr>
-        <td class="text-dim small-text">{{ a.executed_at.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td class="text-dim small-text">{{ local_dt(a.executed_at) }}</td>
         <td>{{ a.executor.name if a.executor else '—' }}</td>
         <td style="font-family:monospace;font-size:.72rem">{{ a.random_seed[:16] }}…</td>
         <td class="text-dim small-text">{{ a.reason or '—' }}</td>

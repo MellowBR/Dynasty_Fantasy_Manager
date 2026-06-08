@@ -47,6 +47,22 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
   cap projector pré-seleciona certo, cosméticos no time do usuário, sem `teams.find`/`loadCapChip`. Tests 48/48.
 - **Próximo:** smoke em prod (login real dos owners) → ✅.
 
+**M18 — Timestamps no fuso do usuário** (~11 sites) — ⚠️ localhost, pendente smoke em prod (cliente BRT)
+- **Causa-raiz (F1):** naive UTC armazenado, ~10 sites formatando inline, **sem fonte central**; servidor mandava
+  string pré-formatada → fuso destruído antes do browser. 1 ponto client-side tentava converter mas estava
+  bugado (ISO naive sem `Z` → `new Date` lia como local).
+- **Fix (F2) — fonte única (1 por modo de render):** `timeutil.utc_iso(dt)` (naive-UTC → ISO `Z`) usado por
+  `to_dict`/rotas + filtro Jinja → macro `local_dt` (emite `<time class="js-localtime" datetime="…Z">`);
+  **formatação humana só no cliente** via `formatLocalDT(iso,fmt)` (`base.html`), aplicada por `applyLocalTimes()`
+  no load e chamada direto pelo JS dinâmico.
+- **Sites:** card/rodapé de sync, snapshot F8 (`utcfromtimestamp`), ESPN import, banner ESPN do cap projector,
+  lottery audit, lista de trades, modal de trade, proposta create/expired, **link de proposta (antes bugado)**.
+- **Armazenamento intacto** (`utcnow` naive, sem migração). **Campos mortos preservados** (salary history +
+  `AuctionLog.created_at`) — amarração com WV1.
+- **Validação localhost:** `00:25 naive`→`2026-06-08T00:25:00Z`; `<time …Z>` no admin/rodapé; banco mantém UTC;
+  páginas 200; `/api/trades/by_tx`→ISO `Z`. Tests 48/48.
+- **Próximo:** smoke em prod com cliente BRT (00:25 UTC → 21:25 do dia anterior) → ✅.
+
 ## Desbloqueado
 - **DP1** (board de planejamento de cap pré-draft) — o store do E2 existe → **F1/F2 podem seguir**
   (o board é justamente pré-draft).
@@ -60,7 +76,7 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
 | **OFF26-1 / -2 / -4 / -5** | Pacote offseason: janela selada de keepers/cuts → keeper sheet → auditoria pré-leilão → runbook Cowork |
 | **F9-F2** | Consolidar `bulk_register` no `record_acquisition` (F9-F1/F1B: 0 dano em prod → refatoração apenas) |
 | **F10** | `draft_budget` replicado em JS no cap_projector → cliente consome endpoint canônico (idealmente antes do OFF26-1) |
-| **M18** | Timestamps UTC → fuso do browser (conversão client-side; armazenamento UTC mantido) |
+| **WV1** | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de FA); toca `record_acquisition` + histórico. REG feito, F1 pendente |
 | **F9-F1B obs (3)** | (a) `salary_history` legada/morta (lida por ninguém; `/salary_history` usa PlayerHistory); (b) aquisições feitas pelo Manager **não emitem PlayerHistory** (só sync/F8a forma a história) — relevante p/ OFF26-3; (c) **seed ≠ produção / sem backup automatizado** |
 
 ## Nota de produção / backup

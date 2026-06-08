@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
+from timeutil import utc_iso  # M18: transporte UTC não-ambíguo nos to_dict de display
 
 db = SQLAlchemy()
 
@@ -530,7 +531,7 @@ class ESPNImportLog(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
-            "imported_at": self.imported_at.strftime("%d/%m/%Y %H:%M") if self.imported_at else "",
+            "imported_at": utc_iso(self.imported_at),  # M18: ISO 'Z'; cliente formata via formatLocalDT
             "season": self.season,
             "url_used": self.url_used,
             "status": self.status,
@@ -555,7 +556,7 @@ class Trade(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
-            "trade_date": self.trade_date.strftime("%d/%m/%Y %H:%M") if self.trade_date else "",
+            "trade_date": utc_iso(self.trade_date),  # M18: ISO 'Z'; cliente formata via formatLocalDT
             "team_a": self.team_a,
             "team_b": self.team_b,
             "description": self.description,
@@ -579,7 +580,7 @@ class SyncLog(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
-            "synced_at": self.synced_at.strftime("%d/%m/%Y %H:%M") if self.synced_at else "",
+            "synced_at": utc_iso(self.synced_at),  # M18: ISO 'Z'; cliente formata via formatLocalDT
             "players_updated": self.players_updated,
             "players_added": self.players_added,
             "teams_updated": self.teams_updated,
@@ -734,7 +735,7 @@ class LotteryAudit(db.Model):
             "random_seed": self.random_seed,
             "weights": _json.loads(self.weights_json),
             "pool": _json.loads(self.pool_json),
-            "executed_at": self.executed_at.strftime("%d/%m/%Y %H:%M") if self.executed_at else None,
+            "executed_at": utc_iso(self.executed_at) or None,  # M18: ISO 'Z'; cliente formata via formatLocalDT
             "executed_by_name": self.executor.name if self.executor else None,
             "result_hash": self.result_hash,
             "previous_audit_id": self.previous_audit_id,
