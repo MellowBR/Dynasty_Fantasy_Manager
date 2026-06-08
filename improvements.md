@@ -44,7 +44,9 @@
 | F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | 🔲 |
 | M17 | Personalização por usuário logado: home abre no time do admin + cap widget mostra cap do Cangaceiros p/ todos (default team + widget devem derivar de `current_user`) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | 🔲 |
 | M18 | Timestamps exibidos em UTC em vez do fuso do usuário (card Sleeper Sync +3h; conversão client-side pelo fuso do browser, armazenamento UTC mantido) — prompt MAN-M16-REG (ID remapeado: M16 ocupado) | Média | 🔲 |
-| E1 | Import ESPN robusto end-to-end no Render: upload manual do PDF + degradação graciosa (sem 500) + estado de review em FS gravável + parser 299→300 — MAN-E1-REG/F1/F2/FIX | Alta | ⚠️ código pronto; aguarda smoke test em prod (E1-FIX 07/06: faltava `pdfminer.six` no requirements → 500 em prod) |
+| E1 | Import ESPN robusto end-to-end no Render: upload manual do PDF + degradação graciosa (sem 500) + estado de review em FS gravável + parser 299→300 — MAN-E1-REG/F1/F2/FIX | Alta | ✅ 08/06/2026 (validado em prod: upload → review 300, sem 500) |
+| E2 | Camada de dados: store de valores ESPN de rookie keyed por `sleeper_id` (resolve not_found via pool global do Sleeper, nome+team) — consumido pelo salário do rookie draft (OFF26-3) + board DP1; rejeita Sleeper-sync e stub-$1 — MAN-E2 REG/F1/REFINE | Alta | 🔲 |
+| DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — consome o store do E2 — MAN-DP1-REG | A definir | 🔲 (bloqueado por E2) |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
@@ -971,7 +973,7 @@ pessoa, não GMT como padrão.
 ---
 
 ### E1 — Import ESPN robusto end-to-end (upload + degradação graciosa)
-⚠️ **Código completo — aguarda validação em produção (07/06/2026)** — Prioridade **Alta** — MAN-E1-REG / F1 / F2 / FIX
+✅ **Concluído (08/06/2026 — validado em produção)** — Prioridade **Alta** — MAN-E1-REG / F1 / F2 / FIX
 
 **CONTEXTO**
 A ESPN publicou a tabela PPR Top 300 de 2026 (`NFL26_CS_PPR300.pdf`, atualizada em
@@ -1098,6 +1100,143 @@ import ESPN nunca funcionou.
   pandas; resto é stdlib).
 - **Status revertido p/ ⚠️** até o smoke test em produção (upload do PDF → review 300,
   sem 500). Só então ✅ — regra "marcar ✅ apenas quando validado em produção".
+- **Smoke test em produção (08/06/2026): PASSOU** — upload do `NFL26_CS_PPR300.pdf` no
+  Render retornou a tela de review com 300, sem 500. **E1 → ✅.**
+
+---
+
+### E2 — ESPN values de rookies/FA fora do DB são descartados (not_found)
+🔲 **Pendente** — Prioridade **Alta** — achado do smoke test do E1 (08/06/2026)
+
+**CONTEXTO**
+No smoke test do E1 em produção, o owner notou que rookies da tabela ESPN não foram
+"identificados" (ex.: **Carnell Tate** WR/TEN/$12 — citado como "Cornell Tate").
+
+**PROBLEMA / OPORTUNIDADE**
+**Não é bug de parse nem de matching** — o parser lê "Carnell Tate, TEN, $12"
+corretamente; ele simplesmente **não existe no DB** (rookie 2026; rookies entram só no
+rookie draft, passo 5, *depois* do import ESPN, passo 3). O ESPN PPR Top 300 inclui
+rookies + FA fora do elenco → caem em **not_found** → o valor ESPN é **descartado**
+(E1-VERIFY confirmou: not_found = skip puro). Quando o rookie é criado no rookie draft
+(via OFF26-3 ou `/auction`), `salary = floor(ESPN×1.2)` **não tem o valor** → default
+**$1** no importador (ou exige digitação manual no `/auction`). Resultado: salários de
+rookie errados se a fonte não for resgatada.
+
+**DIMENSIONAMENTO (contra o DB de produção, 08/06/2026):** dos 300 parseados, 71 são
+not_found (28 K/DST + **43 skill**). Os skill são majoritariamente **rookies 2026** de
+valor relevante — ex.: **Jeremiyah Love RB $46** (rank 12), **Carnell Tate WR $12**,
+Makai Lemon, KC Concepcion, Kenyon Sadiq TE, Omar Cooper Jr. Parte são veteranos/FA com
+**$0** (Rashod Bateman, Pat Freiermuth, Samaje Perine…) — esses são **inofensivos** (já
+virariam $1). O dano concentra-se nos **rookies de alto valor**.
+
+**PROPOSTA (F1 read-only decide a forma):**
+- Opções a avaliar: (a) permitir **criar player** a partir de entradas not_found no review
+  (stub + espn_ref_value antes do draft); (b) **persistir** os not_found num store de
+  valores ESPN pendentes, aplicados quando o player for criado; (c) o importador OFF26-3 /
+  `register_rookie` **buscar o valor** num snapshot ESPN ao criar o rookie; (d) manter
+  digitação manual como fallback (`register_rookie` já aceita `espn_ref_value`).
+- Não auto-criar players sem revisão; preservar os caminhos canônicos de escrita.
+
+**DEPENDÊNCIAS**
+- Relaciona-se a **OFF26-3** (importador de rookie precisa do `espn_ref_value` p/ o salário).
+- Workaround atual: admin digita o ESPN value no `/auction` ao registrar o rookie.
+- Bloqueia: salário correto no **rookie draft 2026** (passo 5).
+
+#### Fase 1 Diagnose ✅ (08/06/2026) — MAN-E2-F1 (read-only, zero writes)
+
+- **(a) Sync cria Player para roster novo? SIM.** `run_sync` (sync_sleeper.py:260-282)
+  cria com estado **stub**: `salary=$1, contract_year=1, contract_start_season=CURRENT_SEASON,
+  acquisition_type="unknown", espn_ref_value=0, needs_review=True`, linkado por
+  `sleeper_player_id`. Em players **existentes nunca toca** salary/contract/acquisition_type
+  (linha 242). Match: sleeper_id → nome normalizado (sem fallback de sobrenome — fix 3 Browns).
+- **(b) Rookies já rosterados na liga? NÃO — premissa do owner refutada.** Carnell Tate
+  (id 13279), Jeremiyah Love (13287), Makai Lemon (13294), KC Concepcion (13298) existem
+  no **pool global** do Sleeper (têm id) mas **0 de 4 estão rosterados** (273 rosterados na
+  liga, nenhum deles). Rookies só entram em roster **quando draftados** (passo 5). Logo um
+  sync agora **NÃO** criaria a row do Carnell Tate.
+- **(c) Rookie draft cria ou atribui? Idempotente por sleeper_id.** O importador OFF26-3
+  (`draft_import.py`) resolve por `find_player_by_sleeper_id` → **atualiza** se existir,
+  **cria** (`record_acquisition(player=None, sleeper_player_id=…)`) se não; idempotente por
+  `event_ref`. **Pré-popular um player (stub) com o sleeper_id é SEGURO** — o importador o
+  casa por id, sem colisão/duplicata. `register_rookie` (`/auction`) casa por **nome+team**
+  → risco pequeno de duplicata se o nome divergir (caminho manual).
+- **(d) `floor(ESPN×1.2)`: fonte única, sem réplica.** O **salário** rookie é só
+  `salary_engine.year1_salary("rookie_draft",0,espn_adj)` → `_floor(espn_adj)`, consumido por
+  `record_acquisition` (importador + `/auction`). O `×1.2` (raw→ajustado) é conversão de
+  **boundary** em cada entrada (auction/admin/salary/parser), por design (CLAUDE.md). **Sem
+  réplica do cálculo de salário em JS/templates** — só texto de display ("floor(ESPN×1.2)").
+- **(e) Ordem sync → ESPN Final → rookie draft fecha o gap? NÃO.** Dois motivos: (1) rookies
+  não estão rosterados pré-draft (b) → sync não os traz; (2) **o Sleeper não tem ESPN value**
+  (é roster-only) — o valor existe **só no PDF**. A via Sleeper-sync **não fornece** o
+  `espn_ref_value`. (Se os rookies estivessem rosterados, não haveria hazard de escrita: sync
+  casa por sleeper_id, ESPN import faz upsert por player+season, importador casa por id — tudo
+  idempotente. Mas é moot: eles não estão.)
+
+**RECOMENDAÇÃO → solução ESPN-side (via Sleeper-sync NÃO é viável).** Insight aproveitável:
+os rookies **existem no pool global do Sleeper com `sleeper_player_id`** (só não rosterados).
+Então dá para, no review do import, **mapear cada not_found (nome) → pool global do Sleeper →
+`sleeper_player_id`** e, por essa chave: (opção stub) criar um Player stub com `espn_ref_value`,
+ou (opção pending-store) persistir o valor ESPN keyed por `sleeper_id`. Em qualquer das duas,
+o **importador OFF26-3 casa por `sleeper_id` e aplica idempotentemente** ao criar o rookie no
+draft — sem inventar dados (PDF dá nome+valor, pool do Sleeper dá o id canônico). **Disparar
+REFINE do E2** para escolher entre *stub no review* × *pending-store* antes de qualquer F2.
+Status E2 permanece 🔲.
+
+#### REFINE ✅ (08/06/2026) — MAN-E2-REFINE: re-escopo como camada de dados
+A discussão de produto revelou um **segundo consumidor** do valor ESPN de rookie além do
+salário no draft: um **board de planejamento de cap pré-draft** ([[DP1]]). Com dois
+consumidores, o armazenamento fica decidido.
+
+**Escopo final (contratos fixados; mecânica fica p/ o F2):**
+- No import ESPN, cada `not_found` é resolvido para um **`sleeper_player_id`** via o **pool
+  global do Sleeper**, usando o **matcher canônico com nome+team** como desambiguador (sem
+  substring/sobrenome isolado — risco "Brown").
+- O `espn_ref_value` resolvido é persistido num **store de valores keyed por `sleeper_id`**
+  (camada de dados; formato exato no F2).
+- **Consumidor (a):** o caminho de criação de rookie (**OFF26-3**) lê o store ao materializar
+  o rookie no draft e aplica `floor(ESPN×1.2)` **idempotentemente** (casa por `sleeper_id`).
+- **Consumidor (b):** o **board de planejamento de cap** ([[DP1]]).
+- **Limpeza:** o store é transitório do ciclo de draft — limpar/expirar pós-draft (o contrato
+  vivo passa a ser a fonte). Entradas **$0** e **K/DST** são inócuas/fora do foco.
+
+**Rejeitadas:**
+- **Via Sleeper-sync** (E2-F1): inviável — rookies não rosterados pré-draft e o Sleeper é
+  roster-only (não tem ESPN value).
+- **Player stub de $1:** rejeitada — viola "rookie entra só pelo draft", polui roster/cap com
+  meio-contratos de $1, e serve mal o board de planejamento.
+
+Próximo: **MAN-E2-F2** (implementar o store + aplicação no draft). E2 permanece 🔲.
+
+---
+
+### DP1 — Board de planejamento de cap pré-draft (rookies)
+🔲 **Pendente** — Prioridade **a definir** — MAN-DP1-REG (08/06/2026) — **bloqueado por [[E2]]**
+
+**CONTEXTO**
+Owners precisam planejar o rookie draft contra o cap: avaliar drops, valorização de contratos
+e picks sabendo o valor de referência ESPN dos rookies e o salário que cada um custaria se
+draftado. Hoje isso não existe — exige planilha manual; é o gap que o Manager quer preencher.
+
+**DESCRIÇÃO**
+Um board que lista os **rookies entrantes** com `espn_ref_value` e o **salário projetado**
+(`floor(ESPN×1.2)`), e permite ao owner **simular** o impacto no cap de draftar um rookie numa
+pick. **Projeção, não pré-contrato** — o cap real só muda no draft (a simulação não cria
+contrato vivo).
+
+**DOMÍNIO / LOCALIZAÇÃO**
+Cap (não fantasy points) → mora no **Manager** (cap_projector), acessível a todos os owners —
+**não** no Optimizer (estatística, acesso restrito).
+
+**REUSO (sem réplica)**
+`floor(ESPN×1.2)` é fonte única no `salary_engine` (`year1_salary`) — reusar, **não** replicar
+em JS/template (mesmo princípio do T2-FIX-2 / F10).
+
+**Exemplo de uso:** owner da pick 1.1 avalia Jeremiyah Love (ESPN $46 → projeção ~$55) contra
+o próprio cap.
+
+**DEPENDÊNCIAS**
+- **Bloqueado por [[E2]]** — consome o store de valores ESPN de rookie (keyed por `sleeper_id`).
+  F1/F2 do DP1 só após o E2-F2 entregar o store.
 
 ---
 
