@@ -708,8 +708,16 @@ def toggle_rookie_draft():
     undo = data.get("undo", False)
     val = "false" if undo else "true"
     set_config("rookie_draft_done", val)
+    # E2: limpeza do store transitório de valores ESPN de rookie ao concluir o draft
+    # (o contrato vivo passa a ser a fonte). Reverter não repopula.
+    cleared = 0
+    if not undo:
+        from models import clear_rookie_espn_store
+        cleared = clear_rookie_espn_store()
+    db.session.commit()
     msg = "Rookie Draft revertido" if undo else "Rookie Draft marcado como concluido"
-    return jsonify({"ok": True, "key": "rookie_draft_done", "value": val, "message": msg})
+    return jsonify({"ok": True, "key": "rookie_draft_done", "value": val,
+                    "message": msg, "rookie_store_cleared": cleared})
 
 
 # ══════════════════════════════════════════════════════════════════════════════

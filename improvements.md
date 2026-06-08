@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 05/06/2026 (lottery: M15 — 6 seeds/pool 96; M15-FIX — editor de pesos reativo + legenda /picks audit-first; M16 — R2/R3 por standings invertido)
+> Atualizado em: 08/06/2026 (lottery M15/M15-FIX/M16; OFF26-3 importador; E1 import ESPN ✅ prod; E2 store de valores ESPN de rookie; DP1 board pré-draft; F9/F10/M17/M18 registrados)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
@@ -45,8 +45,8 @@
 | M17 | Personalização por usuário logado: home abre no time do admin + cap widget mostra cap do Cangaceiros p/ todos (default team + widget devem derivar de `current_user`) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | 🔲 |
 | M18 | Timestamps exibidos em UTC em vez do fuso do usuário (card Sleeper Sync +3h; conversão client-side pelo fuso do browser, armazenamento UTC mantido) — prompt MAN-M16-REG (ID remapeado: M16 ocupado) | Média | 🔲 |
 | E1 | Import ESPN robusto end-to-end no Render: upload manual do PDF + degradação graciosa (sem 500) + estado de review em FS gravável + parser 299→300 — MAN-E1-REG/F1/F2/FIX | Alta | ✅ 08/06/2026 (validado em prod: upload → review 300, sem 500) |
-| E2 | Camada de dados: store de valores ESPN de rookie keyed por `sleeper_id` (resolve not_found via pool global do Sleeper, nome+team) — consumido pelo salário do rookie draft (OFF26-3) + board DP1; rejeita Sleeper-sync e stub-$1 — MAN-E2 REG/F1/REFINE | Alta | 🔲 |
-| DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — consome o store do E2 — MAN-DP1-REG | A definir | 🔲 (bloqueado por E2) |
+| E2 | Camada de dados: store de valores ESPN de rookie keyed por `sleeper_id` (resolve not_found+approx via pool global do Sleeper, nome+team) — consumido pelo salário do rookie draft (OFF26-3) + board DP1; rejeita Sleeper-sync e stub-$1 — MAN-E2 REG/F1/REFINE/F2 | Alta | ⚠️ store implementado + validado em localhost (12/12); store validável em prod via import; aplicação no draft só e2e no rookie draft real (~ago) |
+| DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — consome o store do E2 — MAN-DP1-REG | A definir | 🔲 (desbloqueado: store do E2 existe — F1/F2 podem seguir) |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
@@ -1105,8 +1105,8 @@ import ESPN nunca funcionou.
 
 ---
 
-### E2 — ESPN values de rookies/FA fora do DB são descartados (not_found)
-🔲 **Pendente** — Prioridade **Alta** — achado do smoke test do E1 (08/06/2026)
+### E2 — Store de valores ESPN de rookie (camada de dados)
+⚠️ **Store implementado + validado em localhost (08/06/2026) — aplicação no draft aguarda o rookie draft real** — Prioridade **Alta** — MAN-E2 REG/F1/REFINE/F2
 
 **CONTEXTO**
 No smoke test do E1 em produção, o owner notou que rookies da tabela ESPN não foram
@@ -1206,6 +1206,45 @@ consumidores, o armazenamento fica decidido.
   meio-contratos de $1, e serve mal o board de planejamento.
 
 Próximo: **MAN-E2-F2** (implementar o store + aplicação no draft). E2 permanece 🔲.
+
+#### Fase 2 Implementação ⚠️ (08/06/2026) — MAN-E2-F2
+Regulamento **8.2.7**: salário de rookie = ESPN ref × 1,2 — encapsulado no `salary_engine`.
+
+**Camada de dados (`models.py`):** modelo **`RookieEspnValue`** (`uq(sleeper_id, season)`),
+criado por `db.create_all()` (sem migration). Helpers: `upsert_rookie_espn` (idempotente),
+`rookie_espn_adjusted(sid, season)`, `clear_rookie_espn_store(season=None)`. Guarda
+`espn_adjusted` (= raw×1.2, ref value — **não** salário); NÃO é Player (não polui roster/cap).
+
+**População (`routes/admin.py`, no confirm do import):** `_resolve_not_found_to_store`
+resolve cada candidato (`not_found` **+ approximate não resolvido a player do DB**) contra o
+**pool global do Sleeper** via `_norm_name` + **desambiguação por team** (nome único → ok;
+múltiplos → exige team único, senão `ambiguous` e não chuta — **Brown-safe**, sem
+substring/sobrenome). Exclui **$0** e **K/DST**. Upsert idempotente (provisório reimportável).
+Achado: rookies podem cair em **approximate** por falso-positivo de fuzzy (ex.: "Carnell Tate"
+~ "Darnell Mooney" 0.665) — por isso o approximate-skipped também entra no store.
+
+**Consumo no draft (`routes/draft_import.py` / OFF26-3):** ao materializar o rookie (criar
+por `sleeper_id`, ou matched sem espn), busca `rookie_espn_adjusted` e passa a
+`record_acquisition`, que deriva `floor(ESPN×1.2)` via `year1_salary` — **sem replicar o
+cálculo**. Idempotente por `event_ref`. O preview também exibe o salário projetado dos
+unmatched a partir do store.
+
+**Limpeza (`routes/offseason.py`):** `toggle_rookie_draft` (marcar concluído) chama
+`clear_rookie_espn_store()` — store é transitório do ciclo de draft.
+
+**Validação (08/06/2026) — 12/12** (test_client, temp DB; PDF real + pool read-only):
+store populado (Jeremiyah Love sid 13287 → adj **55**; **Carnell Tate 13279 → adj 14**);
+re-import upsert sem duplicar; $0/K-DST fora; **Brown-safe** (nome do store == nome do pool
+p/ o sid); matched (Bijan 68) intocado e fora do store; rookie criado → salário **floor(55)=55**
+via `record_acquisition` (SalaryHistory+AuctionLog); cleanup zera o store; `salary_engine` 48/48.
+
+**Status ⚠️ (não ✅):** o store + resolução + população são **validáveis em prod agora** (rodar
+um import e conferir o store); a **aplicação no draft** só tem e2e no **rookie draft real (~ago,
+regra 8.2.2)**. Regra "✅ só após prod". **DP1 desbloqueado** — o store existe; F1/F2 do DP1 podem
+seguir.
+
+**Arquivos:** `models.py` (modelo + helpers), `routes/admin.py` (resolver + confirm),
+`routes/draft_import.py` (consumo), `routes/offseason.py` (limpeza), `CLAUDE.md`.
 
 ---
 

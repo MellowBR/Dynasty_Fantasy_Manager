@@ -111,6 +111,16 @@ python seed_users.py --list
 
 Strict full-name matching to prevent the "3 Browns" bug. Never falls back to partial/substring matching. Three tiers: exact → case-insensitive → normalized (strips accents, suffixes, punctuation).
 
+### Rookie ESPN value store (E2)
+
+`RookieEspnValue` (models.py) é a **camada de dados** dos valores ESPN de rookies/entrantes
+que ainda **não existem como Player** (caem em not_found/approximate no import ESPN, pois
+entram só no rookie draft). Keyed por `sleeper_player_id` (resolvido contra o **pool global do
+Sleeper** por nome+team, Brown-safe). Populado no confirm do import ESPN; consumido pelo
+importador de draft (OFF26-3) — que aplica `floor(ESPN×1.2)` via `year1_salary` ao criar o
+rookie — e (futuro) pelo board DP1. Transitório: `clear_rookie_espn_store()` no fim do rookie
+draft. Helpers: `upsert_rookie_espn` / `rookie_espn_adjusted` / `clear_rookie_espn_store`.
+
 ### Acquisition (criação de contrato ano-1)
 
 `models.record_acquisition(...)` é a **única porta canônica** de criação de contrato

@@ -442,6 +442,79 @@ class ESPNValue(db.Model):
         }
 
 
+class RookieEspnValue(db.Model):
+    """E2 — store de valores ESPN de rookies/entrantes que ainda NÃO existem como
+    Player no DB (caem em not_found no import ESPN, pois entram só no rookie draft).
+    Keyed por sleeper_player_id (resolvido contra o pool global do Sleeper).
+    Camada de dados transitória do ciclo de draft — limpa pós-rookie-draft.
+    Consumido por: OFF26-3 (salário no draft) + DP1 (board de planejamento de cap).
+    NÃO é Player (não polui roster/cap); `espn_adjusted` = raw×1.2 (mesma semântica de
+    Player.espn_ref_value). O salário (floor) é derivado por salary_engine no draft."""
+    __tablename__ = "rookie_espn_value"
+
+    id = db.Column(db.Integer, primary_key=True)
+    season = db.Column(db.Integer, nullable=False)
+    sleeper_player_id = db.Column(db.String(50), nullable=False, index=True)
+    name = db.Column(db.String(120), default="")
+    position = db.Column(db.String(10), default="")
+    nfl_team = db.Column(db.String(10), default="")
+    espn_raw = db.Column(db.Float, default=0.0)
+    espn_adjusted = db.Column(db.Float, default=0.0)  # raw × 1.2 (ref value, não salário)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("sleeper_player_id", "season",
+                                          name="uq_rookie_espn_sid_season"),)
+
+    def to_dict(self):
+        return {
+            "season": self.season,
+            "sleeper_player_id": self.sleeper_player_id,
+            "name": self.name,
+            "position": self.position,
+            "nfl_team": self.nfl_team,
+            "espn_raw": self.espn_raw,
+            "espn_adjusted": self.espn_adjusted,
+        }
+
+
+def upsert_rookie_espn(season, sleeper_player_id, name, position, nfl_team,
+                       espn_raw, espn_adjusted):
+    """E2 — upsert idempotente no store por (sleeper_id, season). Adiciona à sessão;
+    o CHAMADOR faz commit. NÃO calcula salário (só guarda o ref value)."""
+    sid = str(sleeper_player_id)
+    row = RookieEspnValue.query.filter_by(
+        sleeper_player_id=sid, season=season).first()
+    if row:
+        row.name, row.position, row.nfl_team = name or row.name, position or row.position, nfl_team or row.nfl_team
+        row.espn_raw, row.espn_adjusted = espn_raw, espn_adjusted
+    else:
+        db.session.add(RookieEspnValue(
+            season=season, sleeper_player_id=sid, name=name or "",
+            position=position or "", nfl_team=nfl_team or "",
+            espn_raw=espn_raw, espn_adjusted=espn_adjusted))
+    return row
+
+
+def rookie_espn_adjusted(sleeper_player_id, season):
+    """E2 — ref value (raw×1.2) do store para um sleeper_id+season, ou None."""
+    if not sleeper_player_id:
+        return None
+    row = RookieEspnValue.query.filter_by(
+        sleeper_player_id=str(sleeper_player_id), season=season).first()
+    return row.espn_adjusted if row else None
+
+
+def clear_rookie_espn_store(season=None):
+    """E2 — limpeza do store transitório pós-rookie-draft. season=None limpa tudo.
+    Adiciona o delete à sessão; o CHAMADOR faz commit. Retorna nº removido."""
+    q = RookieEspnValue.query
+    if season is not None:
+        q = q.filter_by(season=season)
+    n = q.count()
+    q.delete()
+    return n
+
+
 class ESPNImportLog(db.Model):
     __tablename__ = "espn_import_log"
 

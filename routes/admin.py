@@ -499,6 +499,54 @@ def _espn_review_path():
     return os.path.join(review_dir, ".espn_review_pending.json")
 
 
+def _resolve_not_found_to_store(not_found_entries, season):
+    """
+    E2 — resolve cada entrada not_found (skill, valor>0) para um sleeper_player_id
+    contra o POOL GLOBAL do Sleeper (nome+team como desambiguador, SEM substring/
+    sobrenome isolado — risco "Brown") e faz upsert no store RookieEspnValue.
+    Idempotente (upsert por sleeper_id+season). NÃO cria Player; NÃO calcula salário.
+    Adiciona à sessão; o chamador faz commit. Retorna {resolved, ambiguous, skipped}.
+    """
+    from sync_sleeper import _load_players_db, _norm_name
+    from models import upsert_rookie_espn
+
+    pool = _load_players_db() or {}
+    # índice normalizado: norm_name -> [(sid, team, position), ...]
+    idx = {}
+    for sid, info in pool.items():
+        if not str(sid).isdigit():           # ignora DST/defesas (id não-numérico)
+            continue
+        fn = (info or {}).get("full_name") or \
+            f"{(info or {}).get('first_name','')} {(info or {}).get('last_name','')}".strip()
+        if not fn:
+            continue
+        idx.setdefault(_norm_name(fn), []).append(
+            (str(sid), ((info or {}).get("team") or "").upper(),
+             ((info or {}).get("position") or "").upper()))
+
+    resolved = ambiguous = skipped = 0
+    for e in not_found_entries:
+        pos = (e.get("position") or "").upper()
+        if pos in ("K", "DST"):              # fora do foco (REFINE)
+            skipped += 1; continue
+        if float(e.get("espn_raw") or 0) <= 0:   # $0 inócuo
+            skipped += 1; continue
+        cands = idx.get(_norm_name(e.get("name", "")), [])
+        team = (e.get("nfl_team") or "").upper()
+        exact = [c for c in cands if c[1] == team]   # desambigua por team
+        if len(exact) == 1:
+            pick = exact[0]
+        elif len(cands) == 1:                # nome único no pool → seguro (sem Brown)
+            pick = cands[0]
+        else:                                 # 0 ou >1 sem team único → não chuta
+            ambiguous += 1; continue
+        upsert_rookie_espn(season, pick[0], e.get("name", ""), e.get("position", ""),
+                           team, float(e.get("espn_raw") or 0),
+                           float(e.get("espn_adjusted") or 0))
+        resolved += 1
+    return {"resolved": resolved, "ambiguous": ambiguous, "skipped": skipped}
+
+
 @admin_bp.route("/admin/espn_import", methods=["GET", "POST"])
 @admin_required
 def espn_import_page():
@@ -645,6 +693,22 @@ def espn_import_confirm():
     # Not found + absent → $1
     total_notfound += len(review_data["not_found"])
 
+    # E2: store = not_found + approximate NÃO resolvidos a um player do DB. Um rookie
+    # pode cair em approximate por falso-positivo de fuzzy (ex.: "Carnell Tate" ~
+    # "Darnell Mooney" sim 0.665); se o admin não confirma esse match, o valor ESPN do
+    # rookie deve ir para o store (keyed por sleeper_id) em vez de se perder. Consumido
+    # pelo rookie draft (OFF26-3) + board DP1. Additive/idempotente — não derruba o
+    # confirm dos matched se falhar (ex.: pool indisponível).
+    store_candidates = list(review_data["not_found"])
+    for _a in review_data["approximate"]:
+        _rp = approx_resolved.get(_a["name"])
+        if not _rp or _rp == "skip":
+            store_candidates.append(_a)
+    try:
+        store_stats = _resolve_not_found_to_store(store_candidates, season)
+    except Exception:
+        store_stats = {"resolved": 0, "ambiguous": 0, "skipped": 0}
+
     # Absent DB players → set to $1 if they have no ESPN value for this season
     for absent in review_data["absent"]:
         pid = absent["player_id"]
@@ -674,6 +738,7 @@ def espn_import_confirm():
         "total_matched": total_matched,
         "total_approximate": total_approx,
         "total_notfound": total_notfound,
+        "rookie_store": store_stats,  # E2: resolvidos p/ o store de valores de rookie
     })
 
 

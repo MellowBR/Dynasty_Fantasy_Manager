@@ -20,7 +20,8 @@ from types import SimpleNamespace
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required
 from models import (db, Player, Team, get_current_season,
-                    record_acquisition, acquisition_already_recorded)
+                    record_acquisition, acquisition_already_recorded,
+                    rookie_espn_adjusted)
 from player_lookup import find_player_by_sleeper_id
 from salary_engine import year1_salary, draft_budget
 from routes.auth import admin_required
@@ -125,9 +126,19 @@ def build_preview(draft_id):
             continue
         player = find_player_by_sleeper_id(sid) if sid else None
         if player is None:
-            unmatched.append({**base, "cause": _classify_missing(sid, acquisition_type)})
+            # E2: rookie ainda não no DB — mostrar o salário projetado a partir do
+            # store de valores ESPN (resolvido no import), se houver, p/ a decisão.
+            entry = {**base, "cause": _classify_missing(sid, acquisition_type)}
+            store_espn = rookie_espn_adjusted(sid, season) if is_rookie else None
+            if store_espn:
+                entry["store_espn_adjusted"] = store_espn
+                entry["projected_salary"] = year1_salary("rookie_draft", 0, store_espn)
+            unmatched.append(entry)
             continue
+        # E2: rookie já no DB mas sem espn (ex.: stub de sync) → fallback ao store
         espn_adj = player.espn_ref_value or 0.0
+        if is_rookie and not espn_adj:
+            espn_adj = rookie_espn_adjusted(sid, season) or 0.0
         if is_rookie:
             salary = year1_salary("rookie_draft", 0, espn_adj)
         else:
@@ -240,7 +251,12 @@ def confirm():
             if player is None:
                 skipped.append({"sid": sid, "reason": f"resolução inválida: {res}"})
                 continue
+        # E2: salário do rookie vem do store de valores ESPN (keyed por sleeper_id)
+        # quando o player é criado agora ou está sem espn — o salary_engine deriva o
+        # floor(ESPN×1.2) em record_acquisition (sem replicar o cálculo aqui).
         espn_adj = (player.espn_ref_value or 0.0) if player else 0.0
+        if not espn_adj:
+            espn_adj = rookie_espn_adjusted(sid, prev["season"]) or 0.0
         record_acquisition(
             player=player, player_name=u["player_name"], team=team,
             acquisition_type=prev["acquisition_type"], season=prev["season"],

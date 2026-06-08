@@ -1213,3 +1213,12 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Exceção consciente à regra "docs agrupados com código".** A fila de docs uncommitted (E1→✅ validado em prod, E2 REG/F1/REFINE, DP1 REG) é **inteiramente documentação, sem nenhum código pendente**, e já estava grande. Commitada e pushada isoladamente para **preservar o trabalho e eliminar a divergência** entre git, estado local e project knowledge — em vez de esperar o próximo commit de código (E2-F2).
 - **Por que é seguro:** zero mudança de código → o rebuild do Render disparado pelo push é **no-op funcional**. (M17/M18, F9-F1/F1B e o aprendizado de "dependência nova" já tinham sido commitados em b36f6a8/3c1b93f; este commit fecha o delta restante.)
 - **A convenção segue válida** para o fluxo normal (REG/F1 agrupam com o F2); esta foi uma sincronização de fim-de-maratona, justificada pelo tamanho da fila.
+
+### 08/06/2026 — E2-F2 ✅ (store de valores ESPN de rookie) — ⚠️ aplicação aguarda draft real
+
+- **Camada de dados implementada:** modelo `RookieEspnValue` (keyed por `sleeper_id`+season, via `db.create_all`), + helpers `upsert_rookie_espn`/`rookie_espn_adjusted`/`clear_rookie_espn_store`. Guarda o ref value (raw×1.2), **não** salário; não é Player (não polui roster/cap) — stub-$1 rejeitado no REFINE.
+- **População:** no confirm do import ESPN, resolve `not_found` **+ approximate-skipped** → `sleeper_id` via pool global do Sleeper (nome+team, **Brown-safe**, sem substring/sobrenome); exclui $0/K-DST; upsert idempotente. **Achado:** rookies caem em *approximate* por falso-positivo de fuzzy (Carnell Tate ~ Darnell Mooney 0.665) — por isso o approximate-skipped também alimenta o store (senão o valor do rookie se perderia).
+- **Consumo:** OFF26-3 (`draft_import`) busca `rookie_espn_adjusted` ao criar o rookie e deriva `floor(ESPN×1.2)` via `year1_salary` (sem réplica). Limpeza no `toggle_rookie_draft`.
+- **Validação:** 12/12 (temp DB; PDF+pool read-only) — Love adj 55, Carnell Tate adj 14, idempotente, Brown-safe, matched intocado, rookie→salário 55, cleanup ok, salary_engine 48/48.
+- **Status ⚠️ (não ✅):** store validável em prod agora (import → conferir store); aplicação no draft só e2e no rookie draft real (~ago, 8.2.2). **DP1 desbloqueado** (store existe).
+- **Arquivos:** `models.py`, `routes/admin.py`, `routes/draft_import.py`, `routes/offseason.py`, `CLAUDE.md`.
