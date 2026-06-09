@@ -6,7 +6,7 @@ immediately after (Sleeper is the authoritative source for who is on each team).
 """
 import csv
 import os
-from models import db, Player, CURRENT_SEASON, get_config
+from models import db, Player, CURRENT_SEASON, get_config, set_espn_value
 
 CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "dynasty_rosters_clean.csv")
 
@@ -113,7 +113,8 @@ def run_import():
                 if not f8_rebuilt:
                     player.contract_start_season = start_season
                     player.acquisition_type = _norm_acq(acq_raw)
-                player.espn_ref_value = espn
+                # E4-c-1: valor ESPN via fonte única (store canônico + materializa coluna)
+                set_espn_value(player, CURRENT_SEASON + 1, espn)
                 player.orig_draft_season = orig_season
                 player.orig_draft_type = (row.get("orig_draft_type") or "").strip()
                 if not player.position:
@@ -130,7 +131,6 @@ def run_import():
                     contract_year=cyr,
                     contract_start_season=start_season,
                     acquisition_type=_norm_acq(acq_raw),
-                    espn_ref_value=espn,
                     orig_draft_season=orig_season,
                     orig_draft_type=(row.get("orig_draft_type") or "").strip(),
                     # E4-b: sid resolvido limpo → nasce com sid; senão → needs_review p/
@@ -140,6 +140,8 @@ def run_import():
                     needs_review=(resolved_sid is None),
                 )
                 db.session.add(player)
+                # E4-c-1: valor ESPN via fonte única (store + materializa coluna)
+                set_espn_value(player, CURRENT_SEASON + 1, espn)
                 created += 1
 
     db.session.commit()

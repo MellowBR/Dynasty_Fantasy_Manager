@@ -167,9 +167,10 @@ def espn_bulk_upload():
         if not name:
             continue
         from player_lookup import find_player_by_name
+        from models import set_espn_value, get_current_season
         player = find_player_by_name(name)
         if player:
-            player.espn_ref_value = espn_raw * 1.2
+            set_espn_value(player, get_current_season() + 1, espn_raw * 1.2, raw=espn_raw)
             updated += 1
         else:
             not_found.append(name)
@@ -811,7 +812,10 @@ def espn_import_confirm():
 
 
 def _save_espn_value(player_id: int, season: int, espn_raw: float, espn_adjusted: float, is_final: bool):
-    """Save ESPN value for a player and update Player.espn_ref_value."""
+    """Save ESPN value for a player. E4-c-1: valor via fonte única set_espn_value
+    (store canônico + materializa a coluna). Mantém o upsert legado em ESPNValue por ora
+    (sem leitor após o repontamento da badge; removido no E4-c-2)."""
+    from models import set_espn_value
     ev = ESPNValue.query.filter_by(player_id=player_id, season=season).first()
     if ev:
         ev.espn_raw = espn_raw
@@ -824,7 +828,7 @@ def _save_espn_value(player_id: int, season: int, espn_raw: float, espn_adjusted
 
     player = Player.query.get(player_id)
     if player:
-        player.espn_ref_value = espn_adjusted
+        set_espn_value(player, season, espn_adjusted, raw=espn_raw, is_final=is_final)
 
 
 @admin_bp.route("/api/admin/espn_import/status")

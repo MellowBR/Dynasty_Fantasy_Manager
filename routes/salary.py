@@ -64,7 +64,7 @@ def calculate():
 @salary_bp.route("/api/cap_projector/<path:team_name>")
 @login_required
 def cap_projector_data(team_name):
-    from models import ESPNValue, ESPNImportLog, get_current_season
+    from models import ESPNImportLog, get_current_season, EspnValueStore
     team = Team.query.filter_by(name=team_name).first()
     if not team:
         return jsonify({"error": "Team not found"}), 404
@@ -73,19 +73,20 @@ def cap_projector_data(team_name):
         Player.query.filter_by(team_id=team.id, is_dropped=False).all()
     )
 
-    # Build ESPN value index for this season+1
+    # E4-c-1: badge PROV lê a marca provisório/definitivo do STORE canônico (por
+    # sleeper_id), não mais do ESPNValue (por player_id). Mesma season-alvo (atual+1).
     target_season = get_current_season() + 1
-    espn_vals = {ev.player_id: ev for ev in
-                 ESPNValue.query.filter_by(season=target_season).all()}
+    store_vals = {r.sleeper_player_id: r for r in
+                  EspnValueStore.query.filter_by(season=target_season).all()}
 
     player_data = []
     for p in players:
-        ev = espn_vals.get(p.id)
+        sv = store_vals.get(p.sleeper_player_id)
         player_data.append({
             **p.to_dict(),
             "next_salary": project_next_salary(p),
-            "espn_is_final": ev.is_final if ev else None,
-            "espn_season": ev.season if ev else None,
+            "espn_is_final": sv.is_final if sv else None,
+            "espn_season": sv.season if sv else None,
         })
 
     budget = draft_budget(players)
@@ -166,7 +167,7 @@ def update_espn_values():
     Bulk update ESPN ref values.
     Body: {players: [{player_id or name, espn_value}, ...]}
     """
-    from models import ESPNValue, get_current_season
+    from models import ESPNValue, get_current_season, set_espn_value
     data = request.get_json() or {}
     updates = data.get("players", [])
     updated = 0
@@ -189,8 +190,9 @@ def update_espn_values():
             errors.append(f"Player not found: {name or pid}")
             continue
 
-        player.espn_ref_value = espn_raw * 1.2  # store adjusted
-        # Log in ESPNValue table
+        # E4-c-1: valor via fonte única (store canônico season+1 + materializa a coluna).
+        set_espn_value(player, get_current_season() + 1, espn_raw * 1.2, raw=espn_raw)
+        # Log legado em ESPNValue (sem leitor após o repontamento da badge; removido no E4-c-2)
         ev = ESPNValue.query.filter_by(player_id=player.id, season=get_current_season()).first()
         if ev:
             ev.espn_raw = espn_raw

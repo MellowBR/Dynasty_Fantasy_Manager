@@ -1209,6 +1209,30 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Toca:** `record_acquisition` (porta canônica de criação de contrato) + `salary_engine` + histórico (`PlayerHistory`/`AuctionLog`). **Relaciona-se** com OFF26-3, E2, F9. **F1 pendente:** confrontar regulamento (valores waiver vs FA) + mapear a fonte do sinal "foi dropado?" (Sleeper transactions / PlayerHistory / flag) + verificar se o tipo de aquisição chega confiável ao helper ou é inferido + checar réplica (cap projector JS, preview do draft import).
 - Registro apenas (REG); sem F1/F2 nesta etapa. **Sem commit docs-only isolado** — agrupa com o próximo commit de código (provável M18-F2).
 
+### 09/06/2026 — E4-c-1 F2 (fundação do store canônico) ⚠️ localhost; backfill PROD pendente
+
+- **(1) Tabela `EspnValueStore`/`espn_value_store`** `(sleeper_id, season)[raw,adjusted,is_final]` via `db.create_all()` (aditivo, sem ALTER; aceita sid de texto p/ DST).
+- **(2) Backfill = Migration 7** (`app.py`): `INSERT...SELECT` de `Player.espn_ref_value>0 + sid + não-dropado` → store em `season=current_season+1` (2026 prelim), `raw=NULL`, `is_final=0`; idempotente (guard `COUNT==0`); roda no boot.
+- **(3) Helper único `set_espn_value`** (`models.py`): upsert store (só `adjusted>0`) + materializa a coluna. **8 escritores roteados** (`_save_espn_value`, admin bulk, salary bulk, `bulk_register`, `record_acquisition`, `import_csv`, roster PATCH); `sync` segue com stub 0 (não-valor, não roteado). Grep confirma 0 escrita de `espn_ref_value` fora do helper nos caminhos roteados.
+- **(4) Badge PROV** repontada p/ ler `is_final` do store por `sleeper_id`; demais leitores inalterados (coluna materializada); **engine nunca vira lookup** (pureza preservada sem tocar a engine).
+- **Aditivo:** `ESPNValue`/`RookieEspnValue` intactos (DROP/generalização = E4-c-2).
+- **Validação localhost (10/10):** backfill 248 == value-bearing com sid; store==coluna (Marquise Brown 60.0); DST `'IND'` ok; badge lê `is_final=True` do store; re-migrate não duplica (248→248); helper sincroniza; páginas 200. `salary_engine_test` 48/48.
+- **Passo operacional PROD:** backfill roda **automático no boot pós-deploy** (Migration 7). Backup `/data` antes do deploy; conferir log `[migrate] E4-c-1: backfilled N rows` + `SELECT COUNT(*) FROM espn_value_store` ≈ 248 + spot-check. **E4-c-1 → ✅ só após isso**; até lá ⚠️.
+- **Arquivos:** `models.py`, `app.py`, `import_csv.py`, `routes/admin.py`, `routes/salary.py`, `routes/auction.py`, `routes/roster.py` + docs. Commit agrupa absorção E4-c-F1 + sub-fatiamento + MAN-DOC-DBPATH (CLAUDE.md) + esta F2.
+
+### 09/06/2026 — E4-c F1 de migração absorvida + sub-fatiado em E4-c-1/E4-c-2 🔲
+
+- **Diagnose de migração (MAN-E4-c-F1)** confirmou contra prod pós-E4b: **248 value-bearing, 100% com sid** (os 2 sem-sid eram os órfãos deletados), **0 sids duplicados** → chave `(sid, season)` segura; `ESPNValue` vazio (aposentar não migra linhas); pureza do `salary_engine` preservada de graça (a coluna materializada continua sendo o que a engine lê).
+- **Achado estrutural:** o **único passo irreversível** (DROP `ESPNValue` + generalizar `RookieEspnValue`) está **isolado no fim**; passos 1-4 (criar tabela / backfill / helper nos escritores / repontar badge) são **aditivos, reversíveis, sem downtime**.
+- **Estado-alvo:** **tabela canônica NOVA** via `db.create_all()` (sem ALTER, mais reversível que generalizar in-place); `Player.espn_ref_value` = cache materializado; backfill da coluna **a partir de si mesma** → coluna==store; refactor dos **8 escritores → helper único `set_espn_value`**; **só a badge PROV** é repontada (resto lê a coluna, inalterado).
+- **Sub-fatiamento (E4-c vira guarda-chuva):** **E4-c-1** (passos 1-4; aditivo/reversível; **entrega o store ao DP1**; Alta/agora) · **E4-c-2** (passo 5; destrutivo/isolado; higiene; Baixa).
+- **Decisões de escopo (owner):** (1) season do backfill = **2026 preliminar** (re-materializado pelo import definitivo); (2) linhas: `adjusted` autoritativo, `raw` vazio, `is_final=False`; (3) **DST incluídas** (não filtrar) — F2 valida a chave com sid de texto (`"IND"` etc.); (4) sequência E4-c-1 agora → DP1 perto do draft → E4-c-2 quando convier.
+- **DP1 repontado:** **bloqueado por E4-c-1** (não E4-c inteiro; E4-c-2 não bloqueia). Nada virou ✅. Absorção docs-only — agrupa com o código da F2 do E4-c-1.
+
+### 09/06/2026 — Doc: localização do banco vivo de prod no CLAUDE.md (MAN-DOC-DBPATH)
+
+- Registrado no **CLAUDE.md** (Deployment → Render) o caminho do **banco VIVO de prod = `/data/dynasty.db`** (via env `DYNASTY_DB`) vs. **seed = `/opt/render/project/src/dynasty.db`** (git, sem efeito em prod), como o app resolve o path, acesso via Render Shell e o comando de backup seguro (`sqlite3 ... ".backup"`). Concretiza a nota "seed ≠ prod" descoberta ao vivo na operação do E4-b. Docs-only.
+
 ### 09/06/2026 — E4-b fechado ✅ (limpeza executada e verificada em produção)
 
 - **Limpeza executada em prod** via a rota admin ("🧹 Limpar Órfãos Duplicados") contra o banco vivo (`/data/dynasty.db`). **Backup pré-op:** `/data/dynasty_prod_backup_2026-06-09_pre-E4b.db`.

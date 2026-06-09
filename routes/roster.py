@@ -167,8 +167,13 @@ def update_player(player_id):
     data = request.get_json() or {}
     allowed = {"salary", "contract_year", "espn_ref_value", "nfl_team",
                "acquisition_type", "notes", "needs_review", "via_trade"}
+    # E4-c-1: edição de espn_ref_value passa pela fonte única (store + materializa a
+    # coluna), não por setattr direto.
+    if "espn_ref_value" in data:
+        from models import set_espn_value, get_current_season
+        set_espn_value(player, get_current_season() + 1, float(data["espn_ref_value"]))
     for key, val in data.items():
-        if key in allowed:
+        if key in allowed and key != "espn_ref_value":
             setattr(player, key, val)
     db.session.commit()
     return jsonify(player.to_dict())

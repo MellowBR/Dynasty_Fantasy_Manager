@@ -183,6 +183,27 @@ dynasty.db is the source of truth consumed by fantasy_optimizer and predictor.
 - **User seed:** `data/users.csv` is in git. Auto-seed on startup inserts new emails into `users` table
 - `ProxyFix` enabled only when `APP_ENV=production`
 
+#### Banco vivo de produção vs. seed — onde operar (confirmado 09/06/2026)
+
+Há **dois** `dynasty.db` no servidor Render; operações em dados de prod (delete, backup,
+auditoria) devem mirar o **vivo**, não o seed. A distinção é pela **env `DYNASTY_DB`**, não
+pelo tamanho (as contagens podem coincidir por momento).
+
+- **VIVO (produção):** `/data/dynasty.db` — disco persistente do Render. É o que o app usa
+  em runtime: `render.yaml` define `DYNASTY_DB=/data/dynasty.db` e `app.py` lê
+  `os.environ.get("DYNASTY_DB", ...)`. **Toda operação em dados de prod opera aqui.**
+- **SEED (NÃO é produção):** `/opt/render/project/src/dynasty.db` — vem do git a cada deploy
+  junto com o código. Não reflete o estado vivo; **editá-lo não tem efeito em produção**
+  (`init_data.py` copia o seed p/ `/data/` só no 1º deploy, nunca sobrescreve).
+- **Acesso:** Render Dashboard → serviço → **Shell**.
+- **Backup seguro (com o app rodando):**
+  `sqlite3 /data/dynasty.db ".backup '/data/<nome>.db'"` — usa a backup API do SQLite
+  (consistente sob escrita concorrente). `/data` é persistente (sobrevive a restart),
+  diferente do `/tmp`. Convenção de nome: `dynasty_prod_backup_<YYYY-MM-DD>_<motivo>.db`.
+
+(Concretiza a regra "seed (git) ≠ produção (disco persistente)": o caminho vivo é
+`/data/dynasty.db`.)
+
 ### PythonAnywhere (legacy)
 - **URL:** https://mellowbr.pythonanywhere.com
 - Same `wsgi.py` entry point

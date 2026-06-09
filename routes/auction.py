@@ -134,6 +134,7 @@ def bulk_register():
                 season = int(entry.get("season", get_current_season()) or get_current_season())
                 salary = max(1, int(value_paid))
                 espn_adj = espn_raw * 1.2
+                from models import set_espn_value
                 player = Player.query.filter(
                     Player.name.ilike(player_name), Player.team_id == team.id
                 ).first()
@@ -141,15 +142,15 @@ def bulk_register():
                     player = Player(name=player_name, team_id=team.id, salary=salary,
                                     contract_year=1, contract_start_season=season,
                                     acquisition_type="auction_draft",
-                                    espn_ref_value=espn_adj, is_my_team=team.is_my_team,
-                                    needs_review=True)
+                                    is_my_team=team.is_my_team, needs_review=True)
                     db.session.add(player)
                     db.session.flush()
                 else:
                     player.salary = salary
                     player.contract_year = 1
                     player.acquisition_type = "auction_draft"
-                    player.espn_ref_value = espn_adj
+                # E4-c-1: valor ESPN via fonte única (store + materializa a coluna).
+                set_espn_value(player, season, espn_adj)
                 db.session.add(AuctionLog(season=season, player_id=player.id, team_id=team.id,
                     player_name=player_name, team_name=team_name, entry_type="fa_auction",
                     value_paid=value_paid, espn_ref_value_at_time=espn_adj))

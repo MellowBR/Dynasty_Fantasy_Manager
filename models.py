@@ -376,12 +376,14 @@ def record_acquisition(*, team, acquisition_type, season, player=None,
     player.contract_year = 1
     player.contract_start_season = season
     player.acquisition_type = acquisition_type
-    player.espn_ref_value = espn_adjusted
     player.team_id = team.id
     player.is_my_team = team.is_my_team
     player.is_dropped = False
     if sleeper_player_id and not player.sleeper_player_id:
         player.sleeper_player_id = str(sleeper_player_id)
+    # E4-c-1: valor ESPN via fonte única (store canônico + materializa a coluna). Após o
+    # sid estar finalizado, para o upsert do store usar a chave correta.
+    set_espn_value(player, season, espn_adjusted)
 
     if is_rookie:
         rd = f" Rd{round_num}" if round_num else ""
@@ -514,6 +516,79 @@ def clear_rookie_espn_store(season=None):
     n = q.count()
     q.delete()
     return n
+
+
+class EspnValueStore(db.Model):
+    """E4-c — store CANÔNICO de valor ESPN, keyed por (sleeper_player_id, season).
+    Fonte de verdade do valor ESPN; `Player.espn_ref_value` é cache materializado a partir
+    daqui (a engine lê a COLUNA no objeto, nunca faz lookup — pureza preservada).
+    Aceita sid de TEXTO (DST: 'IND','BUF'…). Criada aditivamente via db.create_all().
+    E4-c-2 (depois) generaliza o RookieEspnValue p/ cá e aposenta o ESPNValue."""
+    __tablename__ = "espn_value_store"
+
+    id = db.Column(db.Integer, primary_key=True)
+    sleeper_player_id = db.Column(db.String(50), nullable=False, index=True)
+    season = db.Column(db.Integer, nullable=False)
+    espn_raw = db.Column(db.Float, nullable=True)        # vazio em linhas backfilladas
+    espn_adjusted = db.Column(db.Float, default=0.0)     # autoritativo (raw×1.2)
+    is_final = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("sleeper_player_id", "season",
+                                          name="uq_espn_value_store_sid_season"),)
+
+    def to_dict(self):
+        return {
+            "sleeper_player_id": self.sleeper_player_id,
+            "season": self.season,
+            "espn_raw": self.espn_raw,
+            "espn_adjusted": self.espn_adjusted,
+            "is_final": self.is_final,
+        }
+
+
+def set_espn_value(player, season, adjusted, raw=None, is_final=False):
+    """E4-c-1 — FONTE ÚNICA de escrita de valor ESPN: upsert no store canônico
+    (sleeper_id, season) + materializa `player.espn_ref_value` (cache que a engine lê do
+    objeto). Adiciona à sessão; o CHAMADOR faz commit. Idempotente (upsert por chave).
+    Player sem sleeper_id → materializa só a coluna (store não gravado — degrada como hoje,
+    ver E4-b). Nenhum caminho roteado deve escrever `espn_ref_value` por fora deste helper."""
+    player.espn_ref_value = adjusted
+    sid = getattr(player, "sleeper_player_id", None)
+    # Store guarda só linhas com valor (>0), igual ao backfill; 0 = "sem valor ESPN"
+    # materializa só a coluna. (Player sem sid também só materializa a coluna.)
+    if not sid or not adjusted or adjusted <= 0:
+        return player
+    row = EspnValueStore.query.filter_by(sleeper_player_id=str(sid), season=season).first()
+    if row:
+        row.espn_adjusted = adjusted
+        if raw is not None:
+            row.espn_raw = raw
+        row.is_final = is_final
+    else:
+        db.session.add(EspnValueStore(
+            sleeper_player_id=str(sid), season=season,
+            espn_raw=raw, espn_adjusted=adjusted, is_final=is_final))
+    return player
+
+
+def espn_store_adjusted(sleeper_player_id, season):
+    """E4-c — leitura por id do store canônico (pré-roster/DP1). adjusted ou None."""
+    if not sleeper_player_id:
+        return None
+    row = EspnValueStore.query.filter_by(
+        sleeper_player_id=str(sleeper_player_id), season=season).first()
+    return row.espn_adjusted if row else None
+
+
+def espn_store_is_final(sleeper_player_id, season):
+    """E4-c — marca provisório/definitivo do store (badge PROV do cap_projector)."""
+    if not sleeper_player_id:
+        return None
+    row = EspnValueStore.query.filter_by(
+        sleeper_player_id=str(sleeper_player_id), season=season).first()
+    return row.is_final if row else None
 
 
 class ESPNImportLog(db.Model):

@@ -67,17 +67,29 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
   sobrenome isolado não resolve; idempotente; confirm grava 60.0. Tests 48/48.
 - **Próximo:** smoke prod com import real → ✅. Em seguida E4-b (saneamento dos 2 sleeper_id nulos).
 
+**E4-c-1 — Fundação do store canônico de valor ESPN** — ⚠️ localhost; **backfill PROD pendente (boot pós-deploy)**
+- **Aditivo/reversível** (o destrutivo é E4-c-2). Tabela `espn_value_store (sleeper_id,season)[raw,adjusted,is_final]`
+  via `db.create_all()`; backfill da coluna por **Migration 7** (season 2026 prelim, idempotente); **helper único
+  `set_espn_value`** (store + materializa coluna) nos 8 escritores; badge PROV repontada ao store. Engine intocada
+  (lê a coluna; nunca lookup). `ESPNValue`/`RookieEspnValue` intactos.
+- **Validação localhost 10/10:** backfill 248 == value-bearing c/ sid; store==coluna (Marquise Brown 60); DST `'IND'`
+  ok; badge lê do store; idempotente; páginas 200. Tests 48/48.
+- **⚠️ PASSO PROD:** backup `/data` antes do deploy → push → boot roda Migration 7 (log `backfilled N rows`) →
+  conferir `SELECT COUNT(*) FROM espn_value_store` ≈ 248 + spot-check. **E4-c-1 → ✅ só após isso.**
+- **Próximo:** DP1 (lê o store) perto do draft; E4-c-2 (DROP ESPNValue + generalizar RookieEspnValue) quando convier.
+
 ## Desbloqueado
-- **DP1** (board de planejamento de cap pré-draft) — o store do E2 existe → **F1/F2 podem seguir**
-  (o board é justamente pré-draft).
+- **DP1** (board de planejamento de cap pré-draft) — **store canônico chega no E4-c-1** → F1/F2 do DP1 seguem
+  após o backfill em prod (lê o store por `(sleeper_id, season)`).
 
 ## Backlog 🔲 (próxima sessão)
 | Item | Nota |
 |------|------|
-| **DP1** | Board pré-draft (rookies: `espn_ref_value` + salário projetado + simulação de cap; projeção≠contrato). Desbloqueado. Prioridade a definir |
+| **DP1** | Board pré-draft (rookies: `espn_ref_value` + salário projetado + simulação de cap; projeção≠contrato). **Bloqueado por E4-c-1** (lê o store canônico). Prioridade a definir |
 | **E2 (fechar ✅)** | Após validar o store em prod (import) e a aplicação no rookie draft real (~ago) |
-| **E4-c** | Store canônico `(sleeper_id, season)[raw,adjusted,is_final]` (generaliza RookieEspnValue, persistente) + materializa Player.espn_ref_value + aposenta ESPNValue (vazia em prod). Único passo c/ migração; **atrelado a DP1** (habilita leitura pré-roster) |
-| **E4** (guarda-chuva) | Fatiado em E4-a (⚠️ smoke import) / E4-b (✅ prod) / E4-c (🔲, atrelado a DP1). F1 de design concluída (MAN-E4-F1) |
+| **E4-c-1** | ⚠️ implementado (localhost 10/10); **pendente backfill no boot de PROD** — ver "Em andamento" acima |
+| **E4-c-2** | Limpeza (destrutivo/isolado): DROP ESPNValue + generalizar RookieEspnValue. Higiene após E4-c-1; não bloqueia DP1 |
+| **E4** (guarda-chuva) | E4-a (⚠️ smoke) / E4-b (✅ prod) / E4-c → sub-fatiado em E4-c-1 (agora) + E4-c-2 (higiene). F1 design + F1 migração concluídas |
 | **OFF26-1 / -2 / -4 / -5** | Pacote offseason: janela selada de keepers/cuts → keeper sheet → auditoria pré-leilão → runbook Cowork |
 | **F9-F2** | Consolidar `bulk_register` no `record_acquisition` (F9-F1/F1B: 0 dano em prod → refatoração apenas) |
 | **F10** | `draft_budget` replicado em JS no cap_projector → cliente consome endpoint canônico (idealmente antes do OFF26-1) |

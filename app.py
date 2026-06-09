@@ -376,6 +376,29 @@ def _run_migrations():
             db.session.commit()
             print(f"[migrate] F6: migrated {keeper_count} players from acquisition_type='keeper' to 'auction_draft'")
 
+    # Migration 7: E4-c-1 — backfill do store canônico (espn_value_store) a partir de
+    # Player.espn_ref_value. A tabela já foi criada por db.create_all() (aditivo, sem ALTER).
+    # Idempotente: só popula quando o store está vazio (guard por COUNT). Season = atual+1
+    # (2026, preliminar — o import definitivo re-materializa). raw vazio (não recuperável
+    # sem perda pelo floor), is_final=0. DST entram (sid de texto). Aditivo e reversível
+    # (truncar o store reverte; a coluna Player.espn_ref_value permanece intocada).
+    if "espn_value_store" in insp.get_table_names():
+        store_count = db.session.execute(text("SELECT COUNT(*) FROM espn_value_store")).scalar()
+        if store_count == 0:
+            from models import get_config, CURRENT_SEASON
+            bf_season = int(get_config("current_season", CURRENT_SEASON)) + 1
+            n = db.session.execute(text("""
+                INSERT INTO espn_value_store
+                    (sleeper_player_id, season, espn_raw, espn_adjusted, is_final, created_at)
+                SELECT sleeper_player_id, :season, NULL, espn_ref_value, 0, CURRENT_TIMESTAMP
+                FROM players
+                WHERE espn_ref_value > 0
+                  AND sleeper_player_id IS NOT NULL AND sleeper_player_id != ''
+                  AND is_dropped = 0
+            """), {"season": bf_season}).rowcount
+            db.session.commit()
+            print(f"[migrate] E4-c-1: backfilled {n} rows into espn_value_store (season {bf_season})")
+
 
 def _seed_app_config():
     """Seed default app_config values if missing."""
