@@ -64,6 +64,21 @@ def run_import():
     created = 0
     updated = 0
 
+    # E4-b — guard contra órfãos-duplicata. Resolve nome+team → sid (Brown-safe, reusa
+    # o resolver do E4-a) só no 1º create (lazy: steady-state sem creates não carrega o
+    # pool de ~15MB). Falha do pool → degrada p/ needs_review.
+    _resolver_cache = {}
+    def _resolve_sid(name, team):
+        if "fn" not in _resolver_cache:
+            try:
+                from routes.admin import _build_pool_index, _resolve_entry_sid
+                _idx = _build_pool_index()
+                _resolver_cache["fn"] = (
+                    lambda nm, tm: _resolve_entry_sid({"name": nm, "nfl_team": tm}, _idx))
+            except Exception:
+                _resolver_cache["fn"] = lambda nm, tm: None
+        return _resolver_cache["fn"](name, team)
+
     with open(CSV_PATH, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -78,7 +93,19 @@ def run_import():
             orig_season = _safe_int(row.get("orig_draft_season"), None)
             start_season = orig_season or CURRENT_SEASON - cyr + 1
 
+            nfl_team = (row.get("nfl_team") or "").strip()
             player = Player.query.filter_by(name=player_name).first()
+
+            # E4-b dedup: nome não casou, mas o nome+team resolve por sid p/ um Player
+            # que JÁ existe (apelido/grafia divergente do Sleeper) → atualiza o canônico
+            # em vez de inserir um órfão-duplicata. resolved_sid também semeia o sid de
+            # um Player genuinamente novo.
+            resolved_sid = None
+            if player is None:
+                resolved_sid = _resolve_sid(player_name, nfl_team)
+                if resolved_sid:
+                    from player_lookup import find_player_by_sleeper_id
+                    player = find_player_by_sleeper_id(resolved_sid)
 
             if player:
                 player.salary = salary
@@ -92,13 +119,13 @@ def run_import():
                 if not player.position:
                     player.position = (row.get("position") or "").strip()
                 if not player.nfl_team:
-                    player.nfl_team = (row.get("nfl_team") or "").strip()
+                    player.nfl_team = nfl_team
                 updated += 1
             else:
                 player = Player(
                     name=player_name,
                     position=(row.get("position") or "").strip(),
-                    nfl_team=(row.get("nfl_team") or "").strip(),
+                    nfl_team=nfl_team,
                     salary=salary,
                     contract_year=cyr,
                     contract_start_season=start_season,
@@ -106,6 +133,11 @@ def run_import():
                     espn_ref_value=espn,
                     orig_draft_season=orig_season,
                     orig_draft_type=(row.get("orig_draft_type") or "").strip(),
+                    # E4-b: sid resolvido limpo → nasce com sid; senão → needs_review p/
+                    # surgir no review M2 (fecha o gap: import_csv não marcava review,
+                    # gerando órfão invisível quando o nome diverge do Sleeper).
+                    sleeper_player_id=resolved_sid,
+                    needs_review=(resolved_sid is None),
                 )
                 db.session.add(player)
                 created += 1

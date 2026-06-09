@@ -50,7 +50,7 @@
 | E2-RISK | Review do import ESPN oferece rookie como match fuzzy de veterano (falso-positivo "Carnell Tate"~"Darnell Mooney" 0.665) → confirm errado contamina `espn_ref_value` do veterano (classe "Brown"). **F2: default neutro no select + confirm gated (sem confirm-por-inércia); raiz do matcher → E4-a** — MAN-E2RISK-REG/F1/F1B/F2 | Média | ⚠️ (validado localhost; pendente smoke prod com import ESPN) |
 | E4 | **Guarda-chuva** — redesenho da camada de valor ESPN (`espn_ref_value` por `sleeper_id`); F1 de design concluída → fatiado em E4-a/b/c — MAN-E4-F1 | — | 🔲 (fatiado) |
 | E4-a | Matcher do import ESPN resolve entrada → `sleeper_id` (pool global, nome+team Brown-safe), não fuzzy contra roster; escreve via id; sem schema. Elimina o "Brown" na raiz + troca corrupção→miss. **Absorve o conserto do matcher ex-E2-RISK** — MAN-E4-F1/F2 | Alta | ⚠️ (validado localhost; pendente smoke prod com import real) |
-| E4-b | Saneamento de `sleeper_id`: backfill dos 2 nulos (Hollywood Brown via apelido, Cameron Ward) + guard p/ Players novos; sem schema. Chave de junção confiável — MAN-E4-F1 | Média (em seguida) | 🔲 |
+| E4-b | Saneamento de `sleeper_id`: F1 refutou backfill — os 2 nulos (Hollywood Brown=dup de Marquise Brown; Cameron Ward=dup de Cam Ward) são **duplicatas órfãs → DELETE** (+ 1 PlayerHistory stray) via rota admin auditável em PROD; **guard** (dedup-por-sid + `needs_review` no import_csv) p/ a causa-raiz. Sem schema — MAN-E4-F1/E4-b-F1/F2 | Média | ⚠️ (código validado localhost; **pendente rodar a limpeza em PROD** via botão admin) |
 | E4-c | Store canônico de valor ESPN `(sleeper_id, season)[raw,adjusted,is_final]` (generaliza RookieEspnValue, persistente) + materializa Player.espn_ref_value + aposenta ESPNValue (vazia em prod). Único passo c/ migração; habilita leitura pré-roster — MAN-E4-F1 | A definir (atrelado a DP1) | 🔲 |
 | DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — consome o store do E2 — MAN-DP1-REG | A definir | 🔲 (desbloqueado: store do E2 existe — F1/F2 podem seguir) |
 | WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG | Média | 🔲 |
@@ -1829,9 +1829,41 @@ só o mínimo de tela).
 ---
 
 ### E4-b — Saneamento de `sleeper_id` (chave de junção confiável)
-🔲 **Pendente** — Prioridade **Média (em seguida)** — fatia de **[[E4]]** (MAN-E4-F1)
+⚠️ **Implementado (F2) — código validado em localhost; pendente rodar a limpeza em PROD** — Prioridade **Média** — fatia de **[[E4]]** (MAN-E4-F1/E4-b-F1/F2) — **PREMISSA CORRIGIDA: os 2 nulos são duplicatas órfãs → DELETE, não backfill (ver F1 abaixo)**
 
-**ESCOPO**
+**F2 — IMPLEMENTAÇÃO (09/06/2026, ⚠️ código localhost; limpeza de PROD pendente)**
+- **(a) Limpeza — rota admin auditável** `POST /api/admin/cleanup_orphan_players`
+  (`routes/admin.py`) + botão **"🧹 Limpar Órfãos Duplicados"** no painel admin. Remove
+  Players **sem `sleeper_id`, não-rosterados (`team_id` NULL), não-dropados e SEM
+  `SalaryHistory`/`AuctionLog`** (assinatura do órfão sem valor); remove junto
+  `PlayerHistory`/`ESPNValue` stray. **Idempotente** (re-rodar acha 0); **auditável**
+  (retorna lista de removidos + os preservados-por-terem-histórico); **canônicos (com
+  sid) nunca entram no filtro**. Não usa script one-shot.
+- **(b) Guard — `import_csv`** (`run_import`): no create, resolve nome+team → `sid` via o
+  resolver Brown-safe do [[E4-a]] (`_build_pool_index`/`_resolve_entry_sid`, lazy: só
+  carrega o pool no 1º create). Se resolve p/ um Player existente → **atualiza o canônico
+  (dedup), não insere**; se resolve p/ sid livre → nasce **com sid**; se não resolve →
+  **`needs_review=True`** (fecha o gap: `import_csv` não marcava review → órfão invisível).
+  **Sem hard-block** — criação legítima segue.
+- **Não toca** schema, `salary_engine`, `sync`, nem o matcher do E4-a (só consome o
+  resolver). `run_import` já pula quando não há CSV (prod não tem CSV → guard não
+  regenera; os órfãos de prod vieram do seed via `init_data`).
+- **Validação localhost (test_client, DB copiado):** a rota removeu os 2 órfãos reais do
+  seed (id 279 "Hollywood Brown" +1 PlayerHistory stray; id 280 "Cameron Ward") + 2
+  sintéticos; **canônico intacto** (salário/contrato/espn/team_id/sid + SalaryHistory);
+  um órfão-com-SalaryHistory foi **preservado** (skipped); **idempotente** (2ª chamada
+  removeu 0). Guard: nome→sid de canônico existente resolve p/ dedup; nome irresolúvel →
+  `needs_review`. `salary_engine_test.py` 48/48.
+
+**PASSO OPERACIONAL EM PRODUÇÃO (fecha o item)**
+Após o deploy: logar como admin → **Admin → "🧹 Limpar Órfãos Duplicados"** → confirmar.
+- **Antes:** conferir que existem os 2 órfãos (Hollywood Brown / Cameron Ward) sem time.
+- **Depois:** o resultado deve listar **2 removidos** (Hollywood Brown +1 hist, Cameron
+  Ward); re-clicar deve dar **0 removidos** (idempotência). Verificar que **Marquise
+  Brown** e **Cam Ward** (canônicos) seguem nos seus times com salário/contrato/sid
+  intactos. Só então E4-b → ✅.
+
+**ESCOPO** *(premissa original — corrigida pela F1; ver subseção abaixo)*
 Backfill dos Players sem `sleeper_player_id` (prod: **2** — "Hollywood Brown" via apelido,
 "Cameron Ward") resolvendo contra o pool (com tratamento de apelido) + **guard** para que
 Players novos nasçam com `sleeper_id` (ou sejam sinalizados). Sem schema.
@@ -1840,9 +1872,54 @@ Players novos nasçam com `sleeper_id` (ou sejam sinalizados). Sem schema.
 Torna `sleeper_id` chave de junção confiável para [[E4-a]]/[[E4-c]]. **Incremental, não
 pré-requisito atômico** — a 99,3% de cobertura, os nulos degradam graciosamente.
 
+**F1 — ACHADOS (diagnose read-only; prod 07/06) — REFUTA O BACKFILL**
+
+Os 2 nulos **não são jogadores a backfillar — são duplicatas órfãs de canônicos já
+rosterados:**
+
+| id | nome | sid | team_id | salary/ano | histórico |
+|----|------|-----|---------|-----------|-----------|
+| **279** | Hollywood Brown | **NULL** | None | 3.0 / 2 | 1 PlayerHistory stray (`rollover` 2025, `team_name=''`) |
+| 58 | Marquise Brown **(canônico)** | 5848 | 4 | 3.0 / 2 | 5 eventos completos |
+| **280** | Cameron Ward | **NULL** | None | 1.0 / 1 | **nenhum** |
+| 255 | Cam Ward **(canônico)** | 12522 | 8 | 1.0 / 1 | 3 eventos |
+
+- **279 "Hollywood Brown" = duplicata de 58 "Marquise Brown"** (apelido↔nome real; salary
+  3.0/ano 2 idênticos; canônico rosterado com história completa; `sid 5848` já existe).
+- **280 "Cameron Ward" = duplicata de 255 "Cam Ward"** (mesmo QB rookie; 1.0/ano 1 idêntico;
+  canônico rosterado; `sid 12522` já existe). Órfão **puro** — 0 registros associados
+  (`SalaryHistory`/`AuctionLog`/`PlayerHistory`/`espn_values`/`f8_player_backup` = 0).
+- **Backfill duplicaria sids existentes** → viola a unicidade que o E4 assume. **Ação
+  ERRADA.** Nenhum merge necessário (canônicos completos).
+
+**Causa-raiz:** `import_csv` cria Player **sem sid e sem `needs_review`**; quando o nome do
+CSV/ESPN diverge do Sleeper (Hollywood≠Marquise, Cameron≠Cam), o sync nunca casa por nome
+→ **órfão permanente e invisível** (sem `needs_review`, não aparece no review M2).
+
+**RE-PREMISSA + AÇÃO (F1)**
+- **279 → DELETE** (+ remover a 1 row `PlayerHistory` stray com `team_name=''`).
+- **280 → DELETE** (órfão puro, nada a preservar).
+- **Nem backfill nem merge** para nenhum dos dois.
+
+**GUARD recomendado (reusa o existente; sem mecanismo novo; sem hard-block):**
+1. **Dedup-por-sid na criação:** resolver nome→sid via o resolver Brown-safe do [[E4-a]]
+   (`_resolve_entry_sid`/`_build_pool_index`) e, se resolver, **`find_player_by_sleeper_id`
+   → atualizar o canônico** em vez de inserir (teria evitado os 2 órfãos).
+2. **`needs_review=True` quando não resolve:** fechar o gap do `import_csv` (que hoje **não**
+   marca; `record_acquisition` já marca) → o órfão **surge no review M2** para reconciliação.
+- **Rejeitado:** hard-block de criação sem sid — quebra `import_csv` (seed) e `/auction`
+  manual, fluxos legítimos onde o sync reconcilia depois.
+
+**DECISÕES DE ESCOPO F2 (owner, pós-F1)**
+1. **Delete dos 2 órfãos + guard na MESMA F2.**
+2. **Delete reusa infra existente se possível, senão rota admin auditável** — **não**
+   script one-shot (preferência: reusar infra sobre criar one-shot).
+3. **O delete atinge o banco de PRODUÇÃO** (disco do Render), não o seed versionado
+   (seed ≠ prod) — daí a rota admin auditável rodando contra o estado vivo.
+
 **DEPENDÊNCIAS**
-- Fatia de **[[E4]]**. Complementa [[E4-a]] (remove o ponto cego dos 2 nulos). Pode rodar
-  antes ou depois de E4-a.
+- Fatia de **[[E4]]**. Complementa [[E4-a]] (remove o ponto cego dos 2 nulos; reusa o
+  resolver do E4-a no guard). Pode rodar antes ou depois de E4-a.
 
 ---
 

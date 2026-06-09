@@ -172,6 +172,10 @@
               {% if not f8_snapshot.exists %}disabled title="Nenhum snapshot disponível"{% else %}title="Restaura o snapshot {{ f8_snapshot.filename }}"{% endif %}>
         ↩ Restaurar Snapshot
       </button>
+      <button class="btn btn-secondary" id="btn-cleanup-orphans" onclick="cleanupOrphans()"
+              title="E4-b: remove Players órfãos-duplicata (sem sleeper_id, sem time, sem contrato/histórico). Preserva os canônicos. Idempotente.">
+        🧹 Limpar Órfãos Duplicados
+      </button>
     </div>
     {% if f8_snapshot.exists %}
     <p class="text-dim small-text" style="margin-top:.5rem">
@@ -422,6 +426,46 @@ function f8Rebuild() {
     .finally(() => {
       btn.disabled = false;
       btn.textContent = '⚡ Executar Rebuild';
+    });
+}
+
+function cleanupOrphans() {
+  if (!confirm(
+    '🧹 Limpar Players órfãos-duplicata?\n\n' +
+    'Remove Players SEM sleeper_id, SEM time e SEM contrato/histórico ' +
+    '(SalaryHistory/AuctionLog) — duplicatas órfãs de jogadores canônicos.\n\n' +
+    'Os canônicos (com sleeper_id) são preservados intactos. Idempotente — ' +
+    're-rodar é seguro.\n\nCaso conhecido: Hollywood Brown, Cameron Ward.')) return;
+
+  const btn = document.getElementById('btn-cleanup-orphans');
+  const res = document.getElementById('f8-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Limpando...';
+  res.style.display = 'block';
+  res.className = 'result-box';
+  res.textContent = '⏳ Procurando órfãos-duplicata...';
+
+  fetch('/api/admin/cleanup_orphan_players', {method:'POST'})
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) {
+        res.className = 'result-box result-error';
+        res.textContent = '❌ ' + d.error;
+        return;
+      }
+      res.className = 'result-box result-ok';
+      const names = (d.removed || []).map(x => `${x.name} (id ${x.id}, +${x.player_history_removed} hist)`).join(', ');
+      res.textContent = `✅ ${d.removed_count} órfão(s) removido(s)` +
+        (names ? `: ${names}.` : '.') +
+        ((d.skipped_with_history||[]).length ? ` ${d.skipped_with_history.length} preservado(s) por terem histórico.` : '');
+    })
+    .catch(e => {
+      res.className = 'result-box result-error';
+      res.textContent = '❌ Falha: ' + e.message;
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = '🧹 Limpar Órfãos Duplicados';
     });
 }
 

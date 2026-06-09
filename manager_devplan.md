@@ -1209,6 +1209,24 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Toca:** `record_acquisition` (porta canônica de criação de contrato) + `salary_engine` + histórico (`PlayerHistory`/`AuctionLog`). **Relaciona-se** com OFF26-3, E2, F9. **F1 pendente:** confrontar regulamento (valores waiver vs FA) + mapear a fonte do sinal "foi dropado?" (Sleeper transactions / PlayerHistory / flag) + verificar se o tipo de aquisição chega confiável ao helper ou é inferido + checar réplica (cap projector JS, preview do draft import).
 - Registro apenas (REG); sem F1/F2 nesta etapa. **Sem commit docs-only isolado** — agrupa com o próximo commit de código (provável M18-F2).
 
+### 09/06/2026 — E4-b F2 (delete dos órfãos + guard) ⚠️ código localhost; limpeza PROD pendente
+
+- **(a) Rota admin auditável** `POST /api/admin/cleanup_orphan_players` + botão "🧹 Limpar Órfãos Duplicados". Remove Players sem `sleeper_id` + não-rosterados + sem `SalaryHistory`/`AuctionLog` (assinatura do órfão sem valor), + `PlayerHistory`/`ESPNValue` stray. Idempotente, auditável (lista removidos + skipped-com-histórico), canônicos (com sid) fora do filtro. **Não** é script one-shot.
+- **(b) Guard no `import_csv`:** no create, resolve nome+team→sid (resolver Brown-safe do E4-a, lazy). Resolve p/ player existente → dedup (update, sem insert); resolve p/ sid livre → nasce com sid; não resolve → `needs_review=True` (fecha o gap do import_csv). Sem hard-block.
+- **Escopo respeitado:** não toca schema/`salary_engine`/`sync`/matcher (só consome o resolver). `run_import` já pula sem CSV → prod (sem CSV) não regenera; órfãos de prod vieram do seed via `init_data`.
+- **Validação localhost:** a rota removeu os 2 órfãos reais do seed (279 Hollywood Brown +1 stray, 280 Cameron Ward) + 2 sintéticos; canônico intacto + SalaryHistory; órfão-com-history preservado (skipped); idempotente (2ª = 0). Guard: dedup resolve, irresolúvel → needs_review. `salary_engine_test` 48/48.
+- **Passo operacional PROD (fecha o item):** após deploy, Admin → "🧹 Limpar Órfãos Duplicados" → confirmar; esperado 2 removidos, re-clicar 0; conferir Marquise Brown/Cam Ward intactos. **E4-b → ✅ só após isso**; até lá ⚠️.
+- **Arquivos:** `routes/admin.py`, `import_csv.py`, `templates/admin.html` + docs. Commit agrupa absorção E4-b-F1 + esta F2.
+
+### 09/06/2026 — E4-b F1 absorvida: órfãos são duplicatas → DELETE (não backfill) 🔲
+
+- **Premissa do E4-b refutada pela F1.** Os 2 Players sem sleeper_id **não são jogadores a backfillar — são duplicatas órfãs de canônicos rosterados:** id 279 "Hollywood Brown" = dup do id 58 "Marquise Brown" (sid 5848, apelido↔nome real, salary 3.0/ano2 idênticos, história completa no canônico); id 280 "Cameron Ward" = dup do id 255 "Cam Ward" (sid 12522, mesmo QB rookie, 1.0/ano1, órfão **puro** sem registros). **Backfill duplicaria sids existentes** → ação errada.
+- **Ação (F1):** 279 → DELETE (+ 1 PlayerHistory stray `team_name=''`); 280 → DELETE (puro). Nem backfill nem merge (canônicos completos).
+- **Causa-raiz:** `import_csv` cria sem sid e **sem `needs_review`**; quando o nome diverge do Sleeper (Hollywood≠Marquise, Cameron≠Cam) o sync nunca casa → órfão invisível.
+- **Guard (reusa o existente):** (1) dedup-por-sid na criação — resolver nome→sid via o resolver Brown-safe do E4-a → `find_player_by_sleeper_id` → atualizar canônico em vez de inserir; (2) `needs_review=True` quando não resolve (fechar o gap do import_csv). **Rejeitado:** hard-block (quebra import_csv seed + /auction manual).
+- **Decisões de escopo F2 (owner):** (1) delete dos 2 + guard na MESMA F2; (2) delete reusa infra existente, senão **rota admin auditável** — não script one-shot; (3) delete atinge **PROD** (disco do Render), não o seed (seed ≠ prod) → daí a rota auditável contra o estado vivo.
+- E4-b permanece 🔲. Absorção docs-only — **sem commit isolado**; agrupa com o código da F2.
+
 ### 09/06/2026 — E4-a F2 (matcher do import ESPN resolve por sleeper_id) ⚠️ localhost
 
 - **Identidade por `sleeper_id` (Brown-safe), não fuzzy contra roster.** `match_players` ganhou `sid_resolver` injetável: sid→Player rosterado = matched por id (sem review); sid→não-rosterado = not_found (store no confirm, **nunca match de veterano**); sem sid limpo = fallback igualdade exata (matched) ou review. **Sem auto-match silencioso por similaridade** no modo resolver; modo legado (`sid_resolver=None`) preservado byte-a-byte.

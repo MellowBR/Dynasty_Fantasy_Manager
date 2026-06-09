@@ -398,6 +398,48 @@ def player_history_backfill_trades():
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
 
 
+@admin_bp.route("/api/admin/cleanup_orphan_players", methods=["POST"])
+@admin_required
+def cleanup_orphan_players():
+    """
+    E4-b — Remove Players órfãos-duplicata do estado VIVO (prod): sem sleeper_id,
+    não-rosterados (team_id NULL), não-dropados e SEM SalaryHistory/AuctionLog (sem
+    valor a preservar). Remove também PlayerHistory/ESPNValue stray do órfão. Os
+    canônicos (que têm sid) NUNCA entram no filtro — preservados intactos.
+    Idempotente (re-rodar não acha mais candidatos). Auditável: reporta cada remoção.
+    Caso conhecido (E4-b-F1): id 279 'Hollywood Brown' (dup de Marquise Brown) +
+    id 280 'Cameron Ward' (dup de Cam Ward).
+    """
+    from models import Player, SalaryHistory, AuctionLog, PlayerHistory, ESPNValue
+    candidates = Player.query.filter(
+        ((Player.sleeper_player_id == None) | (Player.sleeper_player_id == "")),  # noqa: E711
+        Player.team_id == None,  # noqa: E711
+        Player.is_dropped == False,  # noqa: E712
+    ).all()
+
+    removed = []
+    skipped = []
+    for p in candidates:
+        sh = SalaryHistory.query.filter_by(player_id=p.id).count()
+        al = AuctionLog.query.filter_by(player_id=p.id).count()
+        if sh > 0 or al > 0:
+            # tem valor/histórico de contrato → NÃO é órfão descartável; não toca.
+            skipped.append({"id": p.id, "name": p.name,
+                            "salary_history": sh, "auction_log": al})
+            continue
+        ph = PlayerHistory.query.filter_by(player_id=p.id).count()
+        ev = ESPNValue.query.filter_by(player_id=p.id).count()
+        removed.append({"id": p.id, "name": p.name, "position": p.position,
+                        "player_history_removed": ph, "espn_value_removed": ev})
+        PlayerHistory.query.filter_by(player_id=p.id).delete()
+        ESPNValue.query.filter_by(player_id=p.id).delete()
+        db.session.delete(p)   # salary_history (vazio) cai por cascade
+
+    db.session.commit()
+    return jsonify({"removed_count": len(removed), "removed": removed,
+                    "skipped_with_history": skipped})
+
+
 @admin_bp.route("/api/admin/player_history/restore", methods=["POST"])
 @admin_required
 def player_history_restore():
