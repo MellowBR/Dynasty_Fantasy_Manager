@@ -12,6 +12,7 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
 | **M16** | Lottery só define R1; R2/R3 = standings invertido (corrige ordem + valores dynasty) |
 | **OFF26-3** | Importador de drafts de liga fantasma (rookie linear / FA auction) + **helper canônico `record_acquisition`** (única porta de criação de contrato; `/auction` refatorado, exceto `bulk_register`=F9) |
 | **E1** | Import ESPN robusto end-to-end — **validado em produção** (upload → review 300, sem 500). Upload manual + degradação graciosa + estado de review em FS gravável + parser 299→300 + `pdfminer.six` no requirements (E1-FIX) |
+| **M18** | Timestamps no fuso do usuário — **validado em produção** (sync 11:47 BRT → "11:47", não 14:47 UTC). Fonte única `timeutil.utc_iso` (ISO `Z`) + macro `local_dt` + JS `formatLocalDT`; ~11 sites; armazenamento UTC mantido |
 
 ## Em andamento ⚠️
 **E2 — store de valores ESPN de rookie** (`rookie_espn_value`, keyed por `sleeper_id`)
@@ -46,22 +47,6 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
 - **Validação localhost 8/8** (test_client): Michel(8)→chip `$183/$200`, Erico(5)→Cangaceiros, sem-time→neutro,
   cap projector pré-seleciona certo, cosméticos no time do usuário, sem `teams.find`/`loadCapChip`. Tests 48/48.
 - **Próximo:** smoke em prod (login real dos owners) → ✅.
-
-**M18 — Timestamps no fuso do usuário** (~11 sites) — ⚠️ localhost, pendente smoke em prod (cliente BRT)
-- **Causa-raiz (F1):** naive UTC armazenado, ~10 sites formatando inline, **sem fonte central**; servidor mandava
-  string pré-formatada → fuso destruído antes do browser. 1 ponto client-side tentava converter mas estava
-  bugado (ISO naive sem `Z` → `new Date` lia como local).
-- **Fix (F2) — fonte única (1 por modo de render):** `timeutil.utc_iso(dt)` (naive-UTC → ISO `Z`) usado por
-  `to_dict`/rotas + filtro Jinja → macro `local_dt` (emite `<time class="js-localtime" datetime="…Z">`);
-  **formatação humana só no cliente** via `formatLocalDT(iso,fmt)` (`base.html`), aplicada por `applyLocalTimes()`
-  no load e chamada direto pelo JS dinâmico.
-- **Sites:** card/rodapé de sync, snapshot F8 (`utcfromtimestamp`), ESPN import, banner ESPN do cap projector,
-  lottery audit, lista de trades, modal de trade, proposta create/expired, **link de proposta (antes bugado)**.
-- **Armazenamento intacto** (`utcnow` naive, sem migração). **Campos mortos preservados** (salary history +
-  `AuctionLog.created_at`) — amarração com WV1.
-- **Validação localhost:** `00:25 naive`→`2026-06-08T00:25:00Z`; `<time …Z>` no admin/rodapé; banco mantém UTC;
-  páginas 200; `/api/trades/by_tx`→ISO `Z`. Tests 48/48.
-- **Próximo:** smoke em prod com cliente BRT (00:25 UTC → 21:25 do dia anterior) → ✅.
 
 ## Desbloqueado
 - **DP1** (board de planejamento de cap pré-draft) — o store do E2 existe → **F1/F2 podem seguir**

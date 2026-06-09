@@ -43,9 +43,10 @@
 | F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | 🔲 |
 | F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | 🔲 |
 | M17 | Personalização por usuário logado: home + cap widget + 8 surfaces derivam de `current_user.team_rel` (fonte única `inject_user_team`; réplica JS do chip removida) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | ⚠️ |
-| M18 | Timestamps no fuso do usuário: fonte única (`timeutil.utc_iso` + macro `local_dt` + JS `formatLocalDT`); ~11 sites migrados; armazenamento UTC mantido — prompt MAN-M16-REG (ID remapeado: M16 ocupado) | Média | ⚠️ |
+| M18 | Timestamps no fuso do usuário: fonte única (`timeutil.utc_iso` + macro `local_dt` + JS `formatLocalDT`); ~11 sites migrados; armazenamento UTC mantido — prompt MAN-M16-REG (ID remapeado: M16 ocupado) | Média | ✅ 09/06/2026 (validado em prod: sync 11:47 BRT → "11:47", não 14:47 UTC) |
 | E1 | Import ESPN robusto end-to-end no Render: upload manual do PDF + degradação graciosa (sem 500) + estado de review em FS gravável + parser 299→300 — MAN-E1-REG/F1/F2/FIX | Alta | ✅ 08/06/2026 (validado em prod: upload → review 300, sem 500) |
 | E2 | Camada de dados: store de valores ESPN de rookie keyed por `sleeper_id` (resolve not_found+approx via pool global do Sleeper, nome+team) — consumido pelo salário do rookie draft (OFF26-3) + board DP1; rejeita Sleeper-sync e stub-$1 — MAN-E2 REG/F1/REFINE/F2 | Alta | ⚠️ store implementado + validado em localhost (12/12); store validável em prod via import; aplicação no draft só e2e no rookie draft real (~ago) |
+| E3 | Import ESPN upload-only: remover a opção de URL (download inviável em prod — ESPN bloqueia IP do Render); remoção completa UI + fetch server-side + degradação graciosa associada — MAN-E3-REG (vai REG → F2 direto, sem F1) | Baixa/Média | 🔲 |
 | DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — consome o store do E2 — MAN-DP1-REG | A definir | 🔲 (desbloqueado: store do E2 existe — F1/F2 podem seguir) |
 | WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG | Média | 🔲 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
@@ -1011,7 +1012,13 @@ server-side sem `teams.find`/`loadCapChip`. `salary_engine_test.py` 48/48.
 ---
 
 ### M18 — Timestamps exibidos em UTC em vez do fuso do usuário
-⚠️ **Implementado (F2) — pendente smoke em prod com cliente em BRT** — Prioridade **Média** — prompt MAN-M16-REG (ID remapeado: M16 já era o R2/R3 fix)
+✅ **Concluído (09/06/2026 — validado em produção)** — Prioridade **Média** — prompt MAN-M16-REG (ID remapeado: M16 já era o R2/R3 fix)
+
+**VALIDAÇÃO EM PRODUÇÃO (09/06/2026 — smoke BRT)**
+Sync disparado às **11:47 BRT** (= 14:47 UTC) exibido como **"09/06/2026 11:47"** no
+rodapé global — bate com o relógio local, descartando o bug de UTC cru (que mostraria
+14:47). Conversão para o fuso do dispositivo confirmada ao vivo. Os 8 critérios
+estruturais já haviam passado em localhost no commit `462e3bc`.
 
 **CONTEXTO**
 Feedback de produção do Michel (07/06/2026, via screenshot): o card "Sleeper Sync"
@@ -1492,6 +1499,48 @@ resolve para o `sleeper_id` de um rookie (rebaixar/sinalizar esses candidatos no
 
 **Arquivos:** `models.py` (modelo + helpers), `routes/admin.py` (resolver + confirm),
 `routes/draft_import.py` (consumo), `routes/offseason.py` (limpeza), `CLAUDE.md`.
+
+---
+
+### E3 — Import ESPN upload-only: remover a opção de URL
+🔲 **Pendente** — Prioridade **Baixa/Média** — MAN-E3-REG (08/06/2026) — **vai REG → F2 direto (sem F1)**
+
+**CONTEXTO**
+O import ESPN (passo 3 do offseason workflow) oferece hoje dois caminhos de entrada:
+**upload do PDF** (recomendado) e **download por URL** (alternativa, com degradação
+graciosa). O **E1** estabeleceu que o download por URL é **estruturalmente inviável em
+produção** — a ESPN bloqueia o IP de datacenter do Render (anti-bot). Como o import é
+operação de **prod** (único contexto real de uso pelo admin), a URL nunca funciona lá
+e só gera ruído/confusão na UI.
+
+**PROBLEMA / OPORTUNIDADE**
+A opção de URL é uma falsa escolha em produção: o owner pode tentá-la, ela falha (cai
+na degradação graciosa → flash), e o caminho real continua sendo o upload. Remover a
+URL simplifica a UI e elimina código (fetch server-side + a degradação graciosa que
+existia **só** para cobrir esse fetch).
+
+**DISCUSSÃO**
+- **E1-F1 já isolou** download/parse/match num **único caminho server-side**
+  (`routes/admin.py` + `espn_pdf_parser.py`), **sem réplica** em JS/templates. A
+  isolação já está diagnosticada → o item pode ir **REG → F2 direto, sem F1**.
+- **Nuance:** a URL **funciona em dev/localhost** (E1-F1), mas o import é operação de
+  prod — o ganho de manter a URL para dev é **marginal** e não justifica o ruído em
+  prod.
+- UI atual: "UPLOAD DO PDF (RECOMENDADO)" + "...OU URL DO PDF ESPN PPR (ALTERNATIVA)".
+
+**DECISÃO DE ESCOPO (a confirmar pelo owner na F2)**
+- **(a) Remoção completa — RECOMENDADA:** input de URL na UI **+** caminho de download
+  server-side **+** a degradação graciosa associada (que existia só para cobrir esse
+  fetch). Resultado: import **upload-only**, menos código e superfície de erro.
+- **(b) Esconder só a UI**, mantendo o backend de download: descarta menos código e
+  preserva a URL para dev, mas deixa caminho morto em prod. Menos limpo.
+
+**ALTERNATIVAS DESCARTADAS**
+- Manter ambos como está: rejeitado — a URL é falsa escolha em prod (origem do item).
+
+**DEPENDÊNCIAS**
+- Depende de: **[[E1]]** (✅ — upload é o caminho funcional comprovado em prod).
+- Relaciona-se com: nada aberto. Bloqueia: nenhum.
 
 ---
 

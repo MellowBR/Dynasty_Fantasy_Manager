@@ -1209,6 +1209,19 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Toca:** `record_acquisition` (porta canônica de criação de contrato) + `salary_engine` + histórico (`PlayerHistory`/`AuctionLog`). **Relaciona-se** com OFF26-3, E2, F9. **F1 pendente:** confrontar regulamento (valores waiver vs FA) + mapear a fonte do sinal "foi dropado?" (Sleeper transactions / PlayerHistory / flag) + verificar se o tipo de aquisição chega confiável ao helper ou é inferido + checar réplica (cap projector JS, preview do draft import).
 - Registro apenas (REG); sem F1/F2 nesta etapa. **Sem commit docs-only isolado** — agrupa com o próximo commit de código (provável M18-F2).
 
+### 09/06/2026 — M18 fechado ✅ (validado em produção, smoke BRT)
+
+- **Smoke em prod (cliente BRT):** sync disparado às **11:47 BRT** (= 14:47 UTC) renderizado como **"09/06/2026 11:47"** no rodapé global — bate com o relógio local, descartando o bug de UTC cru (mostraria 14:47). Offset de fuso aplicado corretamente ao vivo → a fonte única (`utc_iso` ISO `Z` → `formatLocalDT` no device) funciona em prod.
+- **Status M18: ⚠️ → ✅** (09/06/2026). Os 8 critérios estruturais já tinham passado em localhost no commit `462e3bc` (já em prod). Armazenamento UTC intacto.
+- **Commit docs-only justificado:** código já em produção e validado — exceção legítima à regra de não-commit-isolado (mesma lógica do fechamento do E1). Fecha o delta de status nos docs (improvements.md, manager_devplan.md, handoff).
+
+### 08/06/2026 — E3 registrado (import ESPN upload-only: remover URL) 🔲
+
+- **Item novo 🔲 (MAN-E3-REG):** remover a opção de **download por URL** do import ESPN, deixando-o **upload-only**. O E1 provou que o fetch da ESPN é **inviável em prod** (bloqueio anti-bot por IP de datacenter do Render) → em prod, único contexto real do import, a URL nunca funciona e só gera ruído.
+- **Decisão de escopo a confirmar na F2:** (a) **remoção completa** — RECOMENDADA — input de URL na UI + caminho de download server-side + a **degradação graciosa** associada (existia só para cobrir esse fetch); (b) esconder só a UI mantendo o backend (menos limpo, deixa caminho morto). Nuance: a URL **funciona em dev** (E1-F1), mas o ganho é marginal.
+- **Vai REG → F2 direto, sem F1:** o E1-F1 já isolou download/parse/match num **único caminho server-side** (`routes/admin.py` + `espn_pdf_parser.py`), sem réplica em JS/templates — isolação já diagnosticada.
+- **ID:** E3, próximo livre da série E (E1 ✅, E2 ⚠️). Registro apenas; **sem commit docs-only isolado** — agrupa com o código do MAN-E3-F2.
+
 ### 08/06/2026 — M18-F1 diagnose (read-only) absorvida + decisões de escopo F2
 
 - **Escopo mais estrutural que o registro supunha.** Armazenamento = **naive UTC** (`utcnow`) em todos os modelos; exceções (`Trade.trade_date`, snapshot F8 via `fromtimestamp`) também naive. Camada de storage **não muda** (UTC permanece).
