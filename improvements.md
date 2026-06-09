@@ -52,9 +52,9 @@
 | E4-a | Matcher do import ESPN resolve entrada → `sleeper_id` (pool global, nome+team Brown-safe), não fuzzy contra roster; escreve via id; sem schema. Elimina o "Brown" na raiz + troca corrupção→miss. **Absorve o conserto do matcher ex-E2-RISK** — MAN-E4-F1/F2 | Alta | ⚠️ (validado localhost; pendente smoke prod com import real) |
 | E4-b | Saneamento de `sleeper_id`: F1 refutou backfill — os 2 nulos (Hollywood Brown=dup de Marquise Brown; Cameron Ward=dup de Cam Ward) são **duplicatas órfãs → DELETE** (+ 1 PlayerHistory stray) via rota admin auditável em PROD; **guard** (dedup-por-sid + `needs_review` no import_csv) p/ a causa-raiz. Sem schema — MAN-E4-F1/E4-b-F1/F2 | Média | ✅ 09/06/2026 (limpeza executada em prod: 2 removidos, 278 players, 0 sid nulo, canônicos intactos) |
 | E4-c | **Guarda-chuva** — store canônico de valor ESPN `(sleeper_id, season)`; F1 de migração concluída → sub-fatiado em E4-c-1/E4-c-2 — MAN-E4-c-F1 | — | 🔲 (sub-fatiado) |
-| E4-c-1 | Fundação do store (aditivo/reversível): tabela `espn_value_store (sleeper_id,season)[raw,adjusted,is_final]` via `db.create_all()` + backfill da coluna (Migration 7, season 2026 prelim) + helper único `set_espn_value` nos 8 escritores + badge PROV repontada ao store. **Entrega o store ao DP1.** — MAN-E4-c-F1/F2 | Alta | ⚠️ (validado localhost 10/10; **pendente backfill rodar no boot de PROD** + verificação) |
+| E4-c-1 | Fundação do store (aditivo/reversível): tabela `espn_value_store (sleeper_id,season)[raw,adjusted,is_final]` via `db.create_all()` + backfill da coluna (Migration 7, season 2026 prelim) + helper único `set_espn_value` nos 8 escritores + badge PROV repontada ao store. **Entrega o store ao DP1.** — MAN-E4-c-F1/F2 | Alta | ✅ 09/06/2026 (backfill em prod: 273 linhas, schema ok, store==coluna, coluna intocada) |
 | E4-c-2 | Limpeza do store (destrutivo/isolado): DROP ESPNValue (vazio) + generalizar/migrar RookieEspnValue. Único passo irreversível-sem-backup; higiene após E4-c-1; **não bloqueia DP1** — MAN-E4-c-F1 | Baixa (higiene) | 🔲 |
-| DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — lê o **store canônico** — MAN-DP1-REG | A definir | 🔲 (bloqueado por E4-c-1) |
+| DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — lê o **store canônico** — MAN-DP1-REG | A definir | 🔲 (desbloqueado: E4-c-1 ✅ em prod) |
 | WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG | Média | 🔲 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
@@ -2004,7 +2004,27 @@ junto.
 ---
 
 ### E4-c-1 — Store canônico: fundação (criar + backfill + helper + repontar badge)
-⚠️ **Implementado (F2) — validado localhost (10/10); pendente backfill no boot de PROD + verificação** — Prioridade **Alta** — fatia de **[[E4-c]]** (MAN-E4-c-F1/F2) — **aditivo, reversível, sem downtime; entrega o store ao [[DP1]]**
+✅ **Concluído (09/06/2026 — store backfillado e verificado em produção)** — Prioridade **Alta** — fatia de **[[E4-c]]** (MAN-E4-c-F1/F2) — **aditivo, reversível, sem downtime; entrega o store ao [[DP1]]**
+
+**VALIDAÇÃO EM PRODUÇÃO (09/06/2026)**
+Migration 7 rodou no boot pós-deploy contra o banco vivo (`/data/dynasty.db`). **Backup
+pré-op:** `/data/dynasty_prod_backup_2026-06-09_pre-E4c1.db`.
+- Log do boot: `[migrate] E4-c-1: backfilled 273 rows into espn_value_store (season 2026)`.
+- **Store: 273 linhas** (bate com os Players value-bearing com sid, não-dropados).
+- **Schema (PRAGMA):** `sleeper_player_id VARCHAR` (aceita chave de texto das DEF), `season`,
+  `espn_raw` (nullable, vazio nas linhas backfilladas), `espn_adjusted`, `is_final`.
+- **Consistência coluna↔store:** `espn_adjusted` no store == `espn_ref_value` na coluna —
+  Marquise Brown (sid 5848) = **1.0** em ambos; **Indianapolis Colts (sid `'IND'`) = 1.0**
+  em ambos (chave de texto das DEF funciona no banco vivo).
+- **Valores reais preservados:** store MIN 1.0, MAX 68.0, média 8.7; distribuição coerente
+  (160 stubs em 1.0 + cauda de valores reais) — backfill fiel, não uniformizado.
+- **Coluna intocada:** 278 Players com `espn_ref_value>0` (inalterado — backfill puramente
+  aditivo).
+- Backfill **idempotente** (guard `COUNT==0` no boot).
+- **Correção de registro (F1 do E4-c):** o exemplo de spot-check citava "Marquise Brown
+  `espn_ref_value=60`" — **valor real é 1.0**; o `60` era de outro jogador (confusão da
+  classe "Brown" no próprio exemplo da doc). O backfill está correto; a **expectativa
+  documentada estava errada** — registrado aqui para não propagar o exemplo equivocado.
 
 **F2 — IMPLEMENTAÇÃO (09/06/2026, ⚠️ localhost)**
 - **(1) Tabela** `EspnValueStore`/`espn_value_store` `(sleeper_player_id, season)[raw,
@@ -2083,7 +2103,7 @@ O backfill é a **Migration 7**, que roda **automaticamente no boot pós-deploy*
 ---
 
 ### DP1 — Board de planejamento de cap pré-draft (rookies)
-🔲 **Pendente** — Prioridade **a definir** — MAN-DP1-REG (08/06/2026) — **bloqueado por [[E4-c-1]]** (lê o store canônico por `(sleeper_id, season)`; E4-c-2 não bloqueia)
+🔲 **Pendente** — Prioridade **a definir** — MAN-DP1-REG (08/06/2026) — **DESBLOQUEADO** ([[E4-c-1]] ✅ em prod 09/06/2026 — store canônico `(sleeper_id, season)` existe e backfillado; F1/F2 podem seguir)
 
 **CONTEXTO**
 Owners precisam planejar o rookie draft contra o cap: avaliar drops, valorização de contratos
@@ -2108,10 +2128,10 @@ em JS/template (mesmo princípio do T2-FIX-2 / F10).
 o próprio cap.
 
 **DEPENDÊNCIAS**
-- **Bloqueado por [[E4-c-1]]** — consome o **store canônico** de valor ESPN por
-  `(sleeper_id, season)` (a leitura pré-roster que o E4-c-1 entrega). O store transitório do
-  [[E2]] já existe e cobre o caso rookie-draft; o DP1 (board pré-roster) lê o canônico do
-  E4-c-1. **[[E4-c-2]]** (higiene) **não** bloqueia o DP1.
+- **Desbloqueado** — [[E4-c-1]] ✅ em prod (09/06/2026): o **store canônico** de valor ESPN
+  por `(sleeper_id, season)` (leitura pré-roster) existe e está backfillado (273 linhas). O
+  DP1 lê o canônico (`espn_store_adjusted`). **[[E4-c-2]]** (higiene) **não** bloqueia o DP1.
+  F1/F2 do DP1 podem seguir.
 
 ---
 

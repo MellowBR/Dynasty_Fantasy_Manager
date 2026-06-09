@@ -1209,6 +1209,14 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Toca:** `record_acquisition` (porta canônica de criação de contrato) + `salary_engine` + histórico (`PlayerHistory`/`AuctionLog`). **Relaciona-se** com OFF26-3, E2, F9. **F1 pendente:** confrontar regulamento (valores waiver vs FA) + mapear a fonte do sinal "foi dropado?" (Sleeper transactions / PlayerHistory / flag) + verificar se o tipo de aquisição chega confiável ao helper ou é inferido + checar réplica (cap projector JS, preview do draft import).
 - Registro apenas (REG); sem F1/F2 nesta etapa. **Sem commit docs-only isolado** — agrupa com o próximo commit de código (provável M18-F2).
 
+### 09/06/2026 — E4-c-1 fechado ✅ (store canônico backfillado e verificado em produção)
+
+- **Migration 7 rodou no boot pós-deploy** contra o banco vivo (`/data/dynasty.db`). **Backup pré-op:** `/data/dynasty_prod_backup_2026-06-09_pre-E4c1.db`.
+- **Evidência:** log `[migrate] E4-c-1: backfilled 273 rows into espn_value_store (season 2026)`; store **273 linhas** (= value-bearing com sid, não-dropados); schema (PRAGMA) ok — `sleeper_player_id VARCHAR` aceita chave de texto das DEF; `espn_raw` nullable vazio; consistência **store==coluna** (Marquise Brown sid 5848 = 1.0; Indianapolis Colts sid `'IND'` = 1.0 → chave de texto das DEF funciona no vivo); valores reais preservados (MIN 1.0 / MAX 68.0 / média 8.7; 160 stubs + cauda real, não uniformizado); **coluna intocada** (278 com `espn_ref_value>0`); idempotente (guard COUNT==0).
+- **Correção de registro:** o exemplo da F1 do E4-c citava "Marquise Brown `espn_ref_value=60`" — **valor real 1.0** (o 60 era de outro jogador; confusão da classe "Brown" no próprio exemplo da doc). Backfill correto; expectativa documentada errada — registrado p/ não propagar.
+- **Status E4-c-1: ⚠️ → ✅** (09/06/2026). **DP1 DESBLOQUEADO** — o store canônico que ele consome existe e está backfillado em prod.
+- **Commit docs-only justificado** (código já em prod + operação verificada — exceção de E1/M17/M18/E4-b).
+
 ### 09/06/2026 — E4-c-1 F2 (fundação do store canônico) ⚠️ localhost; backfill PROD pendente
 
 - **(1) Tabela `EspnValueStore`/`espn_value_store`** `(sleeper_id, season)[raw,adjusted,is_final]` via `db.create_all()` (aditivo, sem ALTER; aceita sid de texto p/ DST).
