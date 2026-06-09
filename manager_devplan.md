@@ -1209,6 +1209,14 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Toca:** `record_acquisition` (porta canônica de criação de contrato) + `salary_engine` + histórico (`PlayerHistory`/`AuctionLog`). **Relaciona-se** com OFF26-3, E2, F9. **F1 pendente:** confrontar regulamento (valores waiver vs FA) + mapear a fonte do sinal "foi dropado?" (Sleeper transactions / PlayerHistory / flag) + verificar se o tipo de aquisição chega confiável ao helper ou é inferido + checar réplica (cap projector JS, preview do draft import).
 - Registro apenas (REG); sem F1/F2 nesta etapa. **Sem commit docs-only isolado** — agrupa com o próximo commit de código (provável M18-F2).
 
+### 09/06/2026 — Encerramento da sessão 08–09/06 (checklist de fim de sessão)
+
+- **Entregue ✅ em prod:** M17 (personalização por usuário — ⚠️ aguarda só smoke de login), M18 (timestamps no fuso, validado), E4-b (delete de 2 órfãos-duplicata, validado), E4-c-1 (store canônico ESPN por `(sleeper_id, season)`, backfill 273 validado). **⚠️ localhost, smoke prod pendente:** E2-RISK (tela) + E4-a (matcher) — um import ESPN real fecha os dois. **Registros 🔲:** WV1, E3, E4 (guarda-chuva), E4-c-2.
+- **Diagnoses → itens (auditado):** E2RISK-F1/F1B→E2-RISK+E4; E4-F1→E4-a/b/c; E4-c-F1→E4-c-1/c-2; E4-b-F1 corrigiu a premissa (dup→delete). Todas absorvidas no improvements.md.
+- **Meta-mudanças com motivação:** MAN-DOC-DBPATH (caminho do banco vivo `/data/dynasty.db` no CLAUDE.md, descoberto na operação do E4-b); helper único `set_espn_value` como fonte de escrita; flag `is_my_team`/`MY_TEAM_NAME` rebaixados a dado (M17).
+- **Pendências registradas (próxima sessão):** smoke prod de M17/E2-RISK/E4-a; **DP1 desbloqueado** (lê o store canônico); E4-c-2 (higiene: DROP ESPNValue + generalizar RookieEspnValue); E2 e2e (~ago); seed versionado ainda contém os 2 órfãos (latente; rota re-rodável).
+- **git = prod = knowledge** após o push do commit de fechamento (docs-only). `salary_engine_test` 48/48 ao longo da sessão.
+
 ### 09/06/2026 — E4-c-1 fechado ✅ (store canônico backfillado e verificado em produção)
 
 - **Migration 7 rodou no boot pós-deploy** contra o banco vivo (`/data/dynasty.db`). **Backup pré-op:** `/data/dynasty_prod_backup_2026-06-09_pre-E4c1.db`.

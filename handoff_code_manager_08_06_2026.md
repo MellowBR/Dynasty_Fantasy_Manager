@@ -1,6 +1,7 @@
-# Handoff — Fantasy Manager — 08/06/2026
+# Handoff — Fantasy Manager — 08–09/06/2026
 
-Estado pós-trabalho de 05–08/06. **git = local = project knowledge** (tudo commitado e pushado em `main`).
+Estado pós-trabalho de 05–09/06. **git = local = project knowledge** (tudo em `main`; após o push do
+commit de fechamento desta sessão, prod e git sincronizados).
 Este handoff é o input de início da próxima sessão; o `improvements.md` (Status Rápido + seções) e o
 `manager_devplan.md` (Log de Decisões) têm o detalhe completo.
 
@@ -26,16 +27,10 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
   Regra "✅ só após prod".
 - **Escopo cheio foi possível** porque o OFF26-3 já estava ✅ (criação de rookie idempotente por `sleeper_id`).
 
-### Achado do E2-F2 + RISCO RESIDUAL CONHECIDO (registrar)
-- **Achado:** rookies podem cair em **`approximate`** por falso-positivo de fuzzy — ex.: **"Carnell Tate"
-  ~ "Darnell Mooney" (sim 0.665)**. **Mitigação aplicada:** o store captura também o approximate-skipped
-  (13 rookies de valor vs 9 só de not_found).
-- **⚠️ RISCO RESIDUAL (classe do incidente "Brown"):** se o admin **CONFIRMAR** um desses matches falsos
-  no review, o valor ESPN do rookie **contamina o `espn_ref_value` de um veterano real** (ex.: Mooney
-  receberia o valor do Carnell Tate). A mitigação só cobre o caso *skip*, não o *confirm errado*.
-- **Fix limpo (próxima sessão):** não oferecer como fuzzy-match contra veterano do DB uma entrada que já
-  resolve para o `sleeper_id` de um rookie (ou rebaixar/sinalizar esses candidatos no review).
-  **Candidato a item próprio** (ver backlog).
+### Risco residual "Brown" do E2-F2 → ENDEREÇADO nesta sessão
+- O risco (confirm de match fuzzy falso contamina veterano) virou **item próprio E2-RISK** e foi
+  resolvido em duas camadas: **E2-RISK F2** (tela — default neutro + gate; ⚠️ smoke prod) e **E4-a**
+  (raiz — matcher resolve por `sleeper_id`, Brown-safe; ⚠️ smoke prod). Ver blocos abaixo.
 
 **M17 — Personalização por usuário logado** (8 surfaces) — ⚠️ localhost, pendente smoke em prod
 - **Causa-raiz (F1):** 8 surfaces assumiam "my team" fixo (`MY_TEAM_NAME`/flag `is_my_team`) → sempre o time
@@ -94,5 +89,13 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
   prod; história vive em PlayerHistory/F8a). `salary_history` vazia em prod é inócua (legada).
 
 ## Deploys da sessão (todos em `main`/Render)
-M15 `09f3b0a` · M15-FIX `43636d4` · M16 `51795d9` · docs `c81662d` · OFF26-3 `378b842` · E1 `b36f6a8` ·
-E1-FIX `3c1b93f` · docs-sync `15dac5f` · E2-F2 `28217a0`.
+**Sessão 05–08/06:** M15 `09f3b0a` · M15-FIX `43636d4` · M16 `51795d9` · docs `c81662d` · OFF26-3
+`378b842` · E1 `b36f6a8` · E1-FIX `3c1b93f` · docs-sync `15dac5f` · E2-F2 `28217a0`.
+
+**Sessão 08–09/06:** M17 `02988e3` · M18 (+WV1-REG) `462e3bc` · M18→✅ (+E3-REG) `d9c1019` · E2-RISK F2
+`9830ac0` · E4-a `d7bafe8` · E4-b `d26d32a` · E4-b→✅ `9b7c6e6` · E4-c-1 (+MAN-DOC-DBPATH) `1ad612c` ·
+E4-c-1→✅ `182bfb4` (este último docs-only; pushar p/ fechar a sessão).
+
+**Verificados em PROD nesta sessão:** M18 (sync BRT), E4-b (limpeza 2 órfãos), E4-c-1 (backfill 273).
+**⚠️ pendente smoke/verificação em PROD:** M17 (login owners), E2-RISK + E4-a (um import ESPN real fecha
+os dois), E2 (e2e no rookie draft ~ago).

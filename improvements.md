@@ -1,7 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 08/06/2026 (lottery M15/M15-FIX/M16; OFF26-3 importador; E1 import ESPN ✅ prod; E2 store de valores ESPN de rookie; DP1 board pré-draft; F9/F10/M17/M18 registrados)
+> Atualizado em: 09/06/2026 (sessão 08–09/06: M17 + M18 ✅ prod; E2-RISK + E4-a ⚠️ matcher/tela do "Brown"; E4-b ✅ prod (órfãos); E4-c-1 ✅ prod (store canônico ESPN por sleeper_id); WV1/E3/E4-c-2 registrados; DP1 desbloqueado)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
 ---
