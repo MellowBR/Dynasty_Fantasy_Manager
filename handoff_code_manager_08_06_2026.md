@@ -13,6 +13,7 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
 | **OFF26-3** | Importador de drafts de liga fantasma (rookie linear / FA auction) + **helper canônico `record_acquisition`** (única porta de criação de contrato; `/auction` refatorado, exceto `bulk_register`=F9) |
 | **E1** | Import ESPN robusto end-to-end — **validado em produção** (upload → review 300, sem 500). Upload manual + degradação graciosa + estado de review em FS gravável + parser 299→300 + `pdfminer.six` no requirements (E1-FIX) |
 | **M18** | Timestamps no fuso do usuário — **validado em produção** (sync 11:47 BRT → "11:47", não 14:47 UTC). Fonte única `timeutil.utc_iso` (ISO `Z`) + macro `local_dt` + JS `formatLocalDT`; ~11 sites; armazenamento UTC mantido |
+| **E4-b** | Saneamento de `sleeper_id` — **executado e verificado em produção** (rota admin "🧹 Limpar Órfãos Duplicados": 2 órfãos-duplicata removidos, 278 players, 0 sid nulo, canônicos intactos; backup `dynasty_prod_backup_2026-06-09_pre-E4b.db`). Guard (dedup-por-sid + `needs_review` no import_csv) fecha a causa-raiz. Seed ainda tem os 2 (latente) |
 
 ## Em andamento ⚠️
 **E2 — store de valores ESPN de rookie** (`rookie_espn_value`, keyed por `sleeper_id`)
@@ -66,20 +67,6 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
   sobrenome isolado não resolve; idempotente; confirm grava 60.0. Tests 48/48.
 - **Próximo:** smoke prod com import real → ✅. Em seguida E4-b (saneamento dos 2 sleeper_id nulos).
 
-**E4-b — Delete dos 2 órfãos duplicados + guard** — ⚠️ código localhost; **limpeza PROD pendente (passo manual)**
-- **F1 refutou o backfill:** os 2 nulos são duplicatas órfãs (Hollywood Brown=dup de Marquise Brown sid 5848;
-  Cameron Ward=dup de Cam Ward sid 12522) → backfill duplicaria sid. Ação: **DELETE**.
-- **(a)** Rota admin auditável `POST /api/admin/cleanup_orphan_players` + botão "🧹 Limpar Órfãos Duplicados":
-  remove Players sem sid + não-rosterados + sem SalaryHistory/AuctionLog (+ PlayerHistory/ESPNValue stray).
-  Idempotente, auditável, canônicos fora do filtro.
-- **(b)** Guard no `import_csv`: dedup-por-sid na criação (resolver do E4-a) + `needs_review=True` quando não
-  resolve (fecha o gap que gerou os órfãos). Sem hard-block.
-- **Validação localhost:** removeu 279/280 (do seed) + sintéticos; canônico intacto; idempotente; guard ok.
-  Tests 48/48.
-- **⚠️ PASSO MANUAL EM PROD:** após deploy, Admin → "🧹 Limpar Órfãos Duplicados" → confirmar (esperado 2
-  removidos; re-clicar 0; Marquise Brown/Cam Ward intactos). **E4-b → ✅ só após isso.** Obs: o seed versionado
-  ainda contém os 2 órfãos (latente; a rota é re-rodável se um re-seed ocorrer).
-
 ## Desbloqueado
 - **DP1** (board de planejamento de cap pré-draft) — o store do E2 existe → **F1/F2 podem seguir**
   (o board é justamente pré-draft).
@@ -90,7 +77,7 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
 | **DP1** | Board pré-draft (rookies: `espn_ref_value` + salário projetado + simulação de cap; projeção≠contrato). Desbloqueado. Prioridade a definir |
 | **E2 (fechar ✅)** | Após validar o store em prod (import) e a aplicação no rookie draft real (~ago) |
 | **E4-c** | Store canônico `(sleeper_id, season)[raw,adjusted,is_final]` (generaliza RookieEspnValue, persistente) + materializa Player.espn_ref_value + aposenta ESPNValue (vazia em prod). Único passo c/ migração; **atrelado a DP1** (habilita leitura pré-roster) |
-| **E4** (guarda-chuva) | Fatiado em E4-a (⚠️) / E4-b (⚠️ — falta limpeza PROD) / E4-c. F1 de design concluída (MAN-E4-F1) |
+| **E4** (guarda-chuva) | Fatiado em E4-a (⚠️ smoke import) / E4-b (✅ prod) / E4-c (🔲, atrelado a DP1). F1 de design concluída (MAN-E4-F1) |
 | **OFF26-1 / -2 / -4 / -5** | Pacote offseason: janela selada de keepers/cuts → keeper sheet → auditoria pré-leilão → runbook Cowork |
 | **F9-F2** | Consolidar `bulk_register` no `record_acquisition` (F9-F1/F1B: 0 dano em prod → refatoração apenas) |
 | **F10** | `draft_budget` replicado em JS no cap_projector → cliente consome endpoint canônico (idealmente antes do OFF26-1) |

@@ -50,7 +50,7 @@
 | E2-RISK | Review do import ESPN oferece rookie como match fuzzy de veterano (falso-positivo "Carnell Tate"~"Darnell Mooney" 0.665) → confirm errado contamina `espn_ref_value` do veterano (classe "Brown"). **F2: default neutro no select + confirm gated (sem confirm-por-inércia); raiz do matcher → E4-a** — MAN-E2RISK-REG/F1/F1B/F2 | Média | ⚠️ (validado localhost; pendente smoke prod com import ESPN) |
 | E4 | **Guarda-chuva** — redesenho da camada de valor ESPN (`espn_ref_value` por `sleeper_id`); F1 de design concluída → fatiado em E4-a/b/c — MAN-E4-F1 | — | 🔲 (fatiado) |
 | E4-a | Matcher do import ESPN resolve entrada → `sleeper_id` (pool global, nome+team Brown-safe), não fuzzy contra roster; escreve via id; sem schema. Elimina o "Brown" na raiz + troca corrupção→miss. **Absorve o conserto do matcher ex-E2-RISK** — MAN-E4-F1/F2 | Alta | ⚠️ (validado localhost; pendente smoke prod com import real) |
-| E4-b | Saneamento de `sleeper_id`: F1 refutou backfill — os 2 nulos (Hollywood Brown=dup de Marquise Brown; Cameron Ward=dup de Cam Ward) são **duplicatas órfãs → DELETE** (+ 1 PlayerHistory stray) via rota admin auditável em PROD; **guard** (dedup-por-sid + `needs_review` no import_csv) p/ a causa-raiz. Sem schema — MAN-E4-F1/E4-b-F1/F2 | Média | ⚠️ (código validado localhost; **pendente rodar a limpeza em PROD** via botão admin) |
+| E4-b | Saneamento de `sleeper_id`: F1 refutou backfill — os 2 nulos (Hollywood Brown=dup de Marquise Brown; Cameron Ward=dup de Cam Ward) são **duplicatas órfãs → DELETE** (+ 1 PlayerHistory stray) via rota admin auditável em PROD; **guard** (dedup-por-sid + `needs_review` no import_csv) p/ a causa-raiz. Sem schema — MAN-E4-F1/E4-b-F1/F2 | Média | ✅ 09/06/2026 (limpeza executada em prod: 2 removidos, 278 players, 0 sid nulo, canônicos intactos) |
 | E4-c | Store canônico de valor ESPN `(sleeper_id, season)[raw,adjusted,is_final]` (generaliza RookieEspnValue, persistente) + materializa Player.espn_ref_value + aposenta ESPNValue (vazia em prod). Único passo c/ migração; habilita leitura pré-roster — MAN-E4-F1 | A definir (atrelado a DP1) | 🔲 |
 | DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — consome o store do E2 — MAN-DP1-REG | A definir | 🔲 (desbloqueado: store do E2 existe — F1/F2 podem seguir) |
 | WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG | Média | 🔲 |
@@ -1829,7 +1829,20 @@ só o mínimo de tela).
 ---
 
 ### E4-b — Saneamento de `sleeper_id` (chave de junção confiável)
-⚠️ **Implementado (F2) — código validado em localhost; pendente rodar a limpeza em PROD** — Prioridade **Média** — fatia de **[[E4]]** (MAN-E4-F1/E4-b-F1/F2) — **PREMISSA CORRIGIDA: os 2 nulos são duplicatas órfãs → DELETE, não backfill (ver F1 abaixo)**
+✅ **Concluído (09/06/2026 — limpeza executada e verificada em produção)** — Prioridade **Média** — fatia de **[[E4]]** (MAN-E4-F1/E4-b-F1/F2) — **PREMISSA CORRIGIDA: os 2 nulos eram duplicatas órfãs → DELETE, não backfill (ver F1 abaixo)**
+
+**VALIDAÇÃO EM PRODUÇÃO (09/06/2026)**
+Limpeza executada via a rota admin ("🧹 Limpar Órfãos Duplicados") contra o banco vivo
+(`/data/dynasty.db` no Render). **Backup pré-operação:**
+`/data/dynasty_prod_backup_2026-06-09_pre-E4b.db`.
+- Resultado da rota: **2 órfãos removidos** — "Hollywood Brown" (id 279, +1 PlayerHistory
+  stray) e "Cameron Ward" (id 280, +0 hist).
+- Estado pós-limpeza: `COUNT(players)=278` (era 280); **players com `sleeper_id` NULL = 0**;
+  canônicos intactos (id 58 Marquise Brown sid 5848; id 255 Cam Ward sid 12522).
+- **Idempotência confirmada:** segundo acionamento removeu 0.
+- Causa-raiz fechada pelo guard (dedup-por-sid + `needs_review` no `import_csv`) na mesma F2.
+- Nota: o **seed versionado** (não o banco de prod) ainda contém os 2 órfãos — intencional;
+  a rota é re-rodável se um re-seed ocorrer. O **estado vivo está limpo**.
 
 **F2 — IMPLEMENTAÇÃO (09/06/2026, ⚠️ código localhost; limpeza de PROD pendente)**
 - **(a) Limpeza — rota admin auditável** `POST /api/admin/cleanup_orphan_players`

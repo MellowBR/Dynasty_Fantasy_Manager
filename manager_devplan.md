@@ -1209,6 +1209,14 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Toca:** `record_acquisition` (porta canônica de criação de contrato) + `salary_engine` + histórico (`PlayerHistory`/`AuctionLog`). **Relaciona-se** com OFF26-3, E2, F9. **F1 pendente:** confrontar regulamento (valores waiver vs FA) + mapear a fonte do sinal "foi dropado?" (Sleeper transactions / PlayerHistory / flag) + verificar se o tipo de aquisição chega confiável ao helper ou é inferido + checar réplica (cap projector JS, preview do draft import).
 - Registro apenas (REG); sem F1/F2 nesta etapa. **Sem commit docs-only isolado** — agrupa com o próximo commit de código (provável M18-F2).
 
+### 09/06/2026 — E4-b fechado ✅ (limpeza executada e verificada em produção)
+
+- **Limpeza executada em prod** via a rota admin ("🧹 Limpar Órfãos Duplicados") contra o banco vivo (`/data/dynasty.db`). **Backup pré-op:** `/data/dynasty_prod_backup_2026-06-09_pre-E4b.db`.
+- **Evidência:** 2 órfãos removidos — Hollywood Brown (id 279, +1 PlayerHistory stray) e Cameron Ward (id 280, +0). Pós-limpeza: `COUNT(players)=278` (era 280); **`sleeper_id` NULL = 0**; canônicos intactos (58 Marquise Brown sid 5848; 255 Cam Ward sid 12522). **Idempotência confirmada** (2º acionamento = 0).
+- **Causa-raiz fechada** na mesma F2 pelo guard (dedup-por-sid + `needs_review` no `import_csv`). `sleeper_id` agora é chave de junção confiável (cobertura útil completa) no estado vivo.
+- **Status E4-b: ⚠️ → ✅** (09/06/2026). Nota: o seed versionado ainda contém os 2 órfãos (latente, intencional; rota re-rodável em re-seed) — não impede o fechamento (estado vivo limpo).
+- **Commit docs-only justificado** (código já em prod + operação executada/verificada — mesma exceção de E1/M17/M18).
+
 ### 09/06/2026 — E4-b F2 (delete dos órfãos + guard) ⚠️ código localhost; limpeza PROD pendente
 
 - **(a) Rota admin auditável** `POST /api/admin/cleanup_orphan_players` + botão "🧹 Limpar Órfãos Duplicados". Remove Players sem `sleeper_id` + não-rosterados + sem `SalaryHistory`/`AuctionLog` (assinatura do órfão sem valor), + `PlayerHistory`/`ESPNValue` stray. Idempotente, auditável (lista removidos + skipped-com-histórico), canônicos (com sid) fora do filtro. **Não** é script one-shot.
