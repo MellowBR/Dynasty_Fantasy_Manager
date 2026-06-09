@@ -56,10 +56,14 @@
         <span class="text-dim" style="font-size:.75rem">Similaridade: {{ (a.similarity * 100) | round(1) }}%</span>
       </div>
       <div class="approx-right">
+        {# E2-RISK F2: default NEUTRO (sem pré-select do best_player). O confirm fica
+           gated (updateStatus → btn.disabled) até o admin escolher explicitamente cada
+           approximate — impede confirm-por-inércia gravar valor de rookie em veterano
+           (classe "Brown"). O conserto do matcher (resolver por sleeper_id) é o E4. #}
         <select class="approx-select" data-espn-name="{{ a.name }}">
-          <option value="">— selecionar —</option>
+          <option value="" selected>— selecionar —</option>
           {% for c in a.candidates %}
-          <option value="{{ c.player_id }}" {{ 'selected' if c.player_id == a.player_id }}>
+          <option value="{{ c.player_id }}">
             {{ c.name }} ({{ c.position }}) — {{ (c.similarity * 100) | round(1) }}%
           </option>
           {% endfor %}

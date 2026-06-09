@@ -48,6 +48,12 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
   cap projector pré-seleciona certo, cosméticos no time do usuário, sem `teams.find`/`loadCapChip`. Tests 48/48.
 - **Próximo:** smoke em prod (login real dos owners) → ✅.
 
+**E2-RISK — Fuzzy oferece rookie como match de veterano (classe "Brown")** — ⚠️ localhost, pendente smoke prod
+- **Re-escopo (F1+F1B):** hazard nasce no `match_players` (fuzzy contra roster local); agravante = review **pré-seleciona o veterano** + JS trata valor truthy como resolvido → **confirm sem interação** grava valor do rookie no `espn_ref_value` do veterano. F1B descartou a unificação `espn_ref_value` por `sleeper_id` como fix (é redesenho → virou **[[E4]]**). Owner optou pelo **híbrido**: mínimo de tela agora, matcher no E4.
+- **Fix (F2) — só camada de tela:** `espn_review.html` — `<select>` inicia **NEUTRO** (sem pré-select do best_player); o gate existente (`updateStatus`→`btn.disabled`) já bloqueia confirm até toda approximate ter escolha explícita. Não toca matcher/engine/ESPNValue/schema.
+- **Validação localhost:** sem pré-select; confirm sem ação não altera veterano (32.4→32.4); resolução explícita grava (32.4→48.0). Tests 48/48.
+- **Próximo:** smoke em prod com import ESPN real → ✅.
+
 ## Desbloqueado
 - **DP1** (board de planejamento de cap pré-draft) — o store do E2 existe → **F1/F2 podem seguir**
   (o board é justamente pré-draft).
@@ -57,7 +63,7 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
 |------|------|
 | **DP1** | Board pré-draft (rookies: `espn_ref_value` + salário projetado + simulação de cap; projeção≠contrato). Desbloqueado. Prioridade a definir |
 | **E2 (fechar ✅)** | Após validar o store em prod (import) e a aplicação no rookie draft real (~ago) |
-| **E2-risk (approximate-confirm)** | Risco residual acima — fix do fuzzy oferecendo rookie como match de veterano. Candidato a item |
+| **E4** | Redesenho da camada de valor ESPN: matcher resolve entrada→`sleeper_id` (nome+team Brown-safe, não fuzzy contra roster) + reconciliar Player.espn_ref_value / ESPNValue / RookieEspnValue sob `sleeper_id+season`; recebe o conserto do matcher do E2-RISK. REG feito (origem E2RISK-F1B), prioridade a definir |
 | **OFF26-1 / -2 / -4 / -5** | Pacote offseason: janela selada de keepers/cuts → keeper sheet → auditoria pré-leilão → runbook Cowork |
 | **F9-F2** | Consolidar `bulk_register` no `record_acquisition` (F9-F1/F1B: 0 dano em prod → refatoração apenas) |
 | **F10** | `draft_budget` replicado em JS no cap_projector → cliente consome endpoint canônico (idealmente antes do OFF26-1) |

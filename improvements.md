@@ -47,6 +47,8 @@
 | E1 | Import ESPN robusto end-to-end no Render: upload manual do PDF + degradação graciosa (sem 500) + estado de review em FS gravável + parser 299→300 — MAN-E1-REG/F1/F2/FIX | Alta | ✅ 08/06/2026 (validado em prod: upload → review 300, sem 500) |
 | E2 | Camada de dados: store de valores ESPN de rookie keyed por `sleeper_id` (resolve not_found+approx via pool global do Sleeper, nome+team) — consumido pelo salário do rookie draft (OFF26-3) + board DP1; rejeita Sleeper-sync e stub-$1 — MAN-E2 REG/F1/REFINE/F2 | Alta | ⚠️ store implementado + validado em localhost (12/12); store validável em prod via import; aplicação no draft só e2e no rookie draft real (~ago) |
 | E3 | Import ESPN upload-only: remover a opção de URL (download inviável em prod — ESPN bloqueia IP do Render); remoção completa UI + fetch server-side + degradação graciosa associada — MAN-E3-REG (vai REG → F2 direto, sem F1) | Baixa/Média | 🔲 |
+| E2-RISK | Review do import ESPN oferece rookie como match fuzzy de veterano (falso-positivo "Carnell Tate"~"Darnell Mooney" 0.665) → confirm errado contamina `espn_ref_value` do veterano (classe "Brown"). **F2: default neutro no select + confirm gated (sem confirm-por-inércia); matcher → E4** — MAN-E2RISK-REG/F1/F1B/F2 | Média | ⚠️ (validado localhost; pendente smoke prod com import ESPN) |
+| E4 | Redesenho da camada de valor ESPN: matcher resolve entrada ESPN → `sleeper_id` (nome+team Brown-safe, não fuzzy contra roster) + reconciliar as 3 tabelas de valor (Player.espn_ref_value / ESPNValue / RookieEspnValue) sob chave `sleeper_id+season`; recebe o conserto do matcher do E2-RISK — MAN-E2RISK-F1B (origem) | A definir | 🔲 |
 | DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — consome o store do E2 — MAN-DP1-REG | A definir | 🔲 (desbloqueado: store do E2 existe — F1/F2 podem seguir) |
 | WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG | Média | 🔲 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
@@ -1541,6 +1543,181 @@ existia **só** para cobrir esse fetch).
 **DEPENDÊNCIAS**
 - Depende de: **[[E1]]** (✅ — upload é o caminho funcional comprovado em prod).
 - Relaciona-se com: nada aberto. Bloqueia: nenhum.
+
+---
+
+### E2-RISK — Fuzzy oferece rookie como match de veterano no review (classe "Brown")
+⚠️ **Implementado (F2) — validado em localhost; pendente smoke em prod com import ESPN real** — Prioridade **Média** — MAN-E2RISK-REG/F1/F1B/F2 — **RE-ESCOPADO (híbrido): E2-RISK = só o mínimo de tela; conserto do matcher → item de design [[E4]]**
+
+**F2 — IMPLEMENTAÇÃO (09/06/2026, ⚠️ validado em localhost)**
+- **Mudança única (camada de tela):** `templates/espn_review.html` — o `<select>` de cada
+  approximate passa a iniciar **NEUTRO** (`<option value="" selected>— selecionar —`);
+  removido o `selected` que pré-escolhia o `best_player` (veterano). **Não toca** matcher,
+  `salary_engine`, `ESPNValue`, `RookieEspnValue`, sync nem schema.
+- **Gate de confirmação (já existente, agora ativado pelo default neutro):**
+  `getApproxResolutions` conta select vazio como não-resolvido e `updateStatus()` (no load
+  + a cada `change`) desabilita `#btn-confirm` enquanto houver pendência. Confirm só
+  habilita quando **toda** approximate tem escolha explícita (match ou "Nenhum (aplicar
+  $1)").
+- **Caminho de escrita inalterado:** resolução explícita a um veterano ainda grava via
+  `_save_espn_value` (a F2 só impede confirm-por-inércia, não muda o que a escrita faz).
+- **Validação localhost (test_client, DB copiado):** review renderiza sem pré-select
+  (option neutra `selected`, nenhum candidato `selected`); confirm **sem ação** NÃO altera
+  o `espn_ref_value` do veterano (32.4→32.4 — Mooney não recebe o valor de Tate); confirm
+  com resolução explícita grava normal (32.4→48.0); auto-matched/not_found intactos.
+  `salary_engine_test.py` 48/48. **Pendente:** smoke em prod com import ESPN real.
+
+**CONTEXTO**
+Achado durante o **[[E2]]**-F2 (08/06/2026), registrado como risco residual no E2 e no
+handoff, agora item próprio. No **review do import ESPN**, o matching fuzzy pode
+oferecer um **rookie** como candidato de match a um **veterano real do DB** por
+falso-positivo de similaridade. Caso observado: **"Carnell Tate"** (rookie) ~
+**"Darnell Mooney"** (veterano), similaridade **0.665**. A mitigação do E2 cobre apenas
+o caso em que o approximate é **pulado** (skip — o valor do rookie é capturado no store
+mesmo assim); **não** cobre o caso em que o admin **confirma** o match falso.
+
+**PROBLEMA / OPORTUNIDADE**
+Se o admin confirmar um match falso no review (aceitar "Carnell Tate" → "Darnell
+Mooney"), o valor ESPN do rookie **contamina o `espn_ref_value` de um veterano real**
+(Mooney receberia o valor de referência do Carnell Tate). É a **classe do incidente
+"Brown"** (Marquise / A.J. / Amon-Ra St. Brown com salários trocados por match
+parcial). Risco latente de corrupção de dado em prod, dependente de erro humano no
+review.
+
+**DISCUSSÃO**
+- O hazard é específico do **fluxo de confirmação do review** do import ESPN.
+- A entrada problemática é justamente uma que **já resolve para o `sleeper_id` de um
+  rookie** (via pool global do Sleeper) — o sistema tem como saber que aquele candidato
+  "é rookie" e mesmo assim o oferece como match contra um veterano.
+- Fix delineado no E2 (a confirmar/refinar na F1): **não oferecer** como fuzzy-match
+  contra veterano do DB uma entrada que já resolve para o `sleeper_id` de um rookie; ou
+  **rebaixar/sinalizar** esses candidatos no review para o admin não confirmar por
+  engano.
+
+**DECISÕES JÁ TOMADAS**
+- Item **próprio** (separado do E2), focado no caminho de **confirm errado** (o *skip*
+  já está mitigado).
+- O **matching canônico** (exato → case-insensitive → normalizado, sem substring/
+  sobrenome isolado) **não muda** — o foco é o que o review *oferece* como candidato
+  fuzzy.
+
+**QUESTÕES EM ABERTO** (F1)
+- Onde exatamente o review monta a lista de candidatos fuzzy de match contra o DB, e em
+  que ponto uma entrada rookie (resolvível a `sleeper_id` no pool) poderia ser
+  excluída/sinalizada?
+- Essa lógica de "oferecer candidato fuzzy" existe em mais de um lugar (rota, template,
+  JS do review)? (réplica)
+- O sinal "esta entrada é rookie" (resolve a `sleeper_id` de não-rosterado) está
+  disponível no momento em que os candidatos são montados, ou exigiria resolução
+  adicional?
+- Há outros consumidores do mesmo mecanismo de candidatos fuzzy além do confirm de
+  `espn_ref_value`?
+
+**F1 — ACHADOS (diagnose read-only)**
+- **Hazard nasce em `match_players`** (`espn_pdf_parser.py`): fuzzy via
+  `difflib.SequenceMatcher` **contra o roster local apenas**. Faixa `0.65 ≤ r < 0.82`
+  → `approximate` com `candidates[:5]` (qualquer DB player com `r ≥ 0.5`). Tate~Mooney
+  cruza 0.665 por **falta de candidato melhor local**.
+- **Sem réplica:** a lógica fuzzy é **fonte única server-side** (`match_players`); o
+  template `espn_review.html` só renderiza os candidatos no `<select>` e o JS
+  (`getApproxResolutions`) lê `sel.value` — **não recomputa nada no cliente**.
+- **Sem outros consumidores:** `match_players` tem um único caller
+  (`admin.py:610`); `/admin/review` (M2) é código distinto (`needs_review` do sync),
+  não candidatos fuzzy.
+- **Agravante:** o `<select>` **pré-seleciona o `best_player`** (veterano —
+  `espn_review.html:62` `selected if c.player_id == a.player_id`) e o JS trata
+  **qualquer `sel.value` truthy como resolvido** → **confirm sem interação** grava o
+  valor do rookie no `espn_ref_value` do veterano via `_save_espn_value`
+  (`admin.py:746-760`) — **escrita direta no confirm, NÃO passa por
+  `record_acquisition`**.
+
+**F1B — ACHADOS (diagnose complementar: `espn_ref_value` por `sleeper_id`?)**
+- `espn_ref_value` é lido como **atributo de Player** por `salary_engine`
+  (rollover/projeção — **puro, sem DB**), `models`, e templates. Virar "resolvido por
+  `sleeper_id`" **violaria a pureza da engine** ou exigiria **materializar no Player de
+  qualquer forma** (a coluna não sumiria).
+- **Três tabelas de valor ESPN** sob chaves distintas: `Player.espn_ref_value`
+  (player), `ESPNValue` (player_id+season, exige Player), `RookieEspnValue`
+  (**sleeper_id**+season, hoje transitório). Unificar exige **chave nova
+  `sleeper_id+season`** e **inverter o store de transitório→canônico**.
+- **`sleeper_id` não é confiável em todo Player** (`import_csv` cria Player sem ele;
+  preenchido só quando o sync casa) → **chave de junção furada hoje**.
+- **Ganho de segurança lateral:** resolver por id contra o pool (nome+team Brown-safe)
+  troca a classe de falha de **"corrupção/escrita errada"** por **"miss/não escreve"**
+  (ambíguo → não chuta) — estritamente mais seguro. Ressalva: pode **sub-resolver**
+  (miss) onde o roster acertava se o team da entrada estiver stale.
+- **Conclusão F1B:** a unificação é correta e elegante, mas é **redesenho de camada de
+  dados**, não fix de segurança → F2 no escopo menor; unificação como item à parte.
+
+**RE-ESCOPO + DECISÃO HÍBRIDA (owner, pós-F1B)**
+- **E2-RISK passa a ser SOMENTE o mínimo de tela:** remover o **pré-select do veterano**
+  no review do import ESPN, de modo que um **confirm sem interação não grave valor em
+  veterano** (default seguro). **Não toca** matcher, `salary_engine`, `ESPNValue` nem
+  schema. Risco quase nulo, para a corrupção **agora**.
+- **O conserto do matcher (resolução por `sleeper_id`) sai do escopo do E2-RISK** e passa
+  a fazer parte do **item de design da estrutura ESPN → [[E4]]**, onde matcher
+  (resolução por id) e armazenamento **convergem para a chave certa de uma vez**, em vez
+  de mexer no matcher sobre fundação ainda não decidida.
+
+**DEPENDÊNCIAS**
+- Relaciona-se com: **[[E2]]** (mesma área de resolução de import ESPN), **[[E3]]**
+  (limpeza da UI de import ESPN) e **[[E4]]** (redesenho ESPN — recebe o conserto do
+  matcher).
+- Não bloqueia itens abertos.
+
+---
+
+### E4 — Redesenho da camada de valor ESPN (`espn_ref_value` por `sleeper_id`)
+🔲 **Pendente** — Prioridade **a definir** — origem **MAN-E2RISK-F1B** (09/06/2026) — **item de design**
+
+**CONTEXTO**
+Surgiu da diagnose **[[E2-RISK]]**-F1B. A proposta do owner: tratar `espn_ref_value`
+como **atributo do jogador resolvido por `sleeper_id`** (chave canônica, à prova de
+homônimo), com o **uso** variando por status de roster (veterano → referência de
+contrato; rookie/FA fora da liga → projeção de salário de draft). Sob esse desenho, o
+matcher do import ESPN teria **uma única tarefa — resolver entrada ESPN → `sleeper_id`**
+— e os consumidores leriam por id, eliminando o falso-positivo "Brown" **na raiz** (o
+valor pousa no jogador certo por id, não por similaridade de nome).
+
+**PROBLEMA / OPORTUNIDADE**
+Hoje há **três tabelas de valor ESPN** sob chaves distintas — `Player.espn_ref_value`
+(por player), `ESPNValue` (player_id+season, exige Player), `RookieEspnValue`
+(sleeper_id+season, transitório). O matcher resolve por **fuzzy contra o roster local**
+(origem do hazard E2-RISK). Convergir matcher + armazenamento para a chave certa
+(`sleeper_id`) de uma vez é mais limpo do que mexer no matcher sobre fundação ainda não
+decidida.
+
+**DISCUSSÃO / RESTRIÇÕES TÉCNICAS (da F1B)**
+- **`salary_engine` é puro** (lê `.espn_ref_value` de um objeto, sem DB) → o valor
+  precisa continuar **materializado no Player** de qualquer forma; "resolver por
+  `sleeper_id`" não elimina a coluna, no máximo a torna um cache/derivado.
+- **Unificar exige chave nova `sleeper_id+season`** e **inverter o store** de
+  transitório → canônico (persistente), reconciliando com `ESPNValue` (que já é o
+  registro por-season com `is_final`).
+- **`sleeper_id` tem buracos** (ex.: `import_csv` cria Player sem ele) → a chave de
+  junção precisa ser **saneada/garantida** antes de virar canônica.
+- **Ganho de segurança:** resolução por id + nome+team Brown-safe troca "corrupção"
+  por "miss" (ambíguo → não chuta); ressalva: pode sub-resolver se o team da entrada
+  estiver stale.
+
+**DECISÕES JÁ TOMADAS**
+- É **item de design próprio** (não o fix de segurança — esse é o mínimo de tela do
+  E2-RISK).
+- **Recebe o conserto do matcher** (resolução por `sleeper_id`) que saiu do escopo do
+  E2-RISK.
+- O `salary_engine` **permanece puro** — qualquer desenho preserva o valor materializado
+  no Player.
+
+**QUESTÕES EM ABERTO** (F1 deste item)
+- Qual a chave/tabela canônica final e como reconciliar as três existentes sem perder
+  `is_final`/histórico por season?
+- Como sanear `sleeper_id` em Players legados/CSV antes de virar chave de junção?
+- O store deixa de ser transitório (persistente) ou continua transitório alimentando um
+  Player materializado?
+
+**DEPENDÊNCIAS**
+- Origem: **[[E2-RISK]]**-F1B. Relaciona-se com **[[E2]]** (store), **[[E3]]** (UI de
+  import), **[[DP1]]** (lê valor pré-roster). Não bloqueia itens abertos hoje.
 
 ---
 

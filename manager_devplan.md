@@ -1209,6 +1209,31 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Toca:** `record_acquisition` (porta canônica de criação de contrato) + `salary_engine` + histórico (`PlayerHistory`/`AuctionLog`). **Relaciona-se** com OFF26-3, E2, F9. **F1 pendente:** confrontar regulamento (valores waiver vs FA) + mapear a fonte do sinal "foi dropado?" (Sleeper transactions / PlayerHistory / flag) + verificar se o tipo de aquisição chega confiável ao helper ou é inferido + checar réplica (cap projector JS, preview do draft import).
 - Registro apenas (REG); sem F1/F2 nesta etapa. **Sem commit docs-only isolado** — agrupa com o próximo commit de código (provável M18-F2).
 
+### 09/06/2026 — E2-RISK F2 (mínimo de tela: default neutro + gate) ⚠️ localhost
+
+- **Mudança única (camada de tela):** `templates/espn_review.html` — o `<select>` de cada approximate inicia **NEUTRO** (`<option value="" selected>— selecionar —`); removido o `selected` que pré-escolhia o `best_player` (veterano). Risco quase nulo; **não toca** matcher/`salary_engine`/`ESPNValue`/`RookieEspnValue`/sync/schema (re-escopo respeitado — conserto do matcher é o E4).
+- **Gate já existente, ativado pelo default neutro:** `getApproxResolutions` conta select vazio como pendente; `updateStatus()` (load + `change`) desabilita `#btn-confirm` até toda approximate ter escolha explícita. Sem réplica nova de lógica de resolução — só a habilitação do botão (que já existia).
+- **Caminho de escrita inalterado:** resolução explícita ainda grava via `_save_espn_value`; a F2 só impede confirm-por-inércia.
+- **Validação localhost (test_client, DB copiado):** render sem pré-select (option neutra `selected`, nenhum candidato `selected`); confirm **sem ação** não altera `espn_ref_value` do veterano (32.4→32.4 — Mooney não recebe valor de Tate); confirm com resolução explícita grava (32.4→48.0); auto-matched/not_found intactos. `salary_engine_test.py` 48/48.
+- **Status E2-RISK = ⚠️** (pendente smoke em prod com import ESPN real). Critérios 2/3 (botão disabled/enabled) são JS client-side, confirmados por leitura de código (não executáveis em test_client).
+- **Arquivos:** `templates/espn_review.html` + docs. **Commit único agrupa:** código F2 + absorção E2-RISK F1/F1B + re-escopo + E4-REG (docs pendentes no working tree).
+
+### 09/06/2026 — E2-RISK F1+F1B absorvidas + re-escopo híbrido + E4 registrado 🔲
+
+- **F1 (hazard):** nasce em `match_players` (fuzzy contra **roster local apenas**); Tate~Mooney 0.665 por falta de candidato melhor local. **Fonte única** (sem réplica JS), **sem outros consumidores**. **Agravante:** o review **pré-seleciona o veterano** no `<select>` e o JS trata qualquer valor truthy como resolvido → **confirm sem interação** grava o valor do rookie no `espn_ref_value` do veterano via `_save_espn_value` (escrita direta no confirm, **não** passa por `record_acquisition`).
+- **F1B (`espn_ref_value` por `sleeper_id`?):** correta e elegante, mas **redesenho de camada de dados**, não fix de segurança — `salary_engine` é puro (a coluna não some); **3 tabelas** de valor ESPN a reconciliar sob chave nova `sleeper_id+season`; `sleeper_id` **furado** (import_csv cria Player sem ele). Ganho lateral: resolver por id troca "corrupção" por "miss" (ambíguo→não chuta), mais seguro.
+- **Decisão do owner (híbrido):** parar a corrupção **agora** com o **mínimo de tela** (remover o pré-select do veterano), risco quase nulo; tratar o **redesenho da estrutura ESPN** como item de design próprio onde matcher (resolução por `sleeper_id`) e armazenamento convergem para a chave certa de uma vez.
+- **Re-escopo do E2-RISK:** passa a ser **SOMENTE** o mínimo de tela (default seguro no review; não toca matcher/engine/ESPNValue/schema). **E2-RISK permanece 🔲.**
+- **Novo item [[E4]] 🔲** (origem MAN-E2RISK-F1B): redesenho da camada de valor ESPN — matcher resolve entrada→`sleeper_id` (nome+team Brown-safe) + reconciliar as 3 tabelas sob `sleeper_id+season`; **recebe o conserto do matcher** que saiu do E2-RISK. ID E4 (próximo livre da série E; E1✅/E2⚠️/E3🔲).
+- Absorção docs-only — **sem commit isolado**; agrupa com o código da F2 do E2-RISK (o mínimo de tela).
+
+### 09/06/2026 — E2-RISK registrado (fuzzy oferece rookie como match de veterano) 🔲
+
+- **Item novo 🔲 (MAN-E2RISK-REG)** formaliza o risco residual achado no E2-F2 (08/06). No **review do import ESPN**, o fuzzy pode oferecer um **rookie** como candidato de match contra um **veterano do DB** (falso-positivo: "Carnell Tate"~"Darnell Mooney", sim 0.665). Se o admin **confirma** o match falso, o valor ESPN do rookie **contamina o `espn_ref_value` do veterano** — **classe do incidente "Brown"**.
+- **Escopo:** só o caminho de **confirm errado**; o *skip* já foi mitigado no E2 (store captura o valor do rookie mesmo no skip). O **matching canônico não muda** — o foco é o que o review *oferece* como candidato fuzzy.
+- **Fix delineado (a refinar na F1):** não oferecer como fuzzy-match contra veterano uma entrada que já resolve para o `sleeper_id` de um rookie (pool global do Sleeper); ou rebaixar/sinalizar esses candidatos no review.
+- **ID:** **E2-RISK** (sub-item do E2, convenção de nomeação tipo M15-FIX/F8-RESTORE-GAP) — confirmado livre. **F1 (diagnose read-only) em prompt separado.** Registro apenas; **sem commit docs-only isolado** — agrupa com o próximo commit de código.
+
 ### 09/06/2026 — M18 fechado ✅ (validado em produção, smoke BRT)
 
 - **Smoke em prod (cliente BRT):** sync disparado às **11:47 BRT** (= 14:47 UTC) renderizado como **"09/06/2026 11:47"** no rodapé global — bate com o relógio local, descartando o bug de UTC cru (mostraria 14:47). Offset de fuso aplicado corretamente ao vivo → a fonte única (`utc_iso` ISO `Z` → `formatLocalDT` no device) funciona em prod.
