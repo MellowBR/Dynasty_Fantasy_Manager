@@ -47,8 +47,11 @@
 | E1 | Import ESPN robusto end-to-end no Render: upload manual do PDF + degradação graciosa (sem 500) + estado de review em FS gravável + parser 299→300 — MAN-E1-REG/F1/F2/FIX | Alta | ✅ 08/06/2026 (validado em prod: upload → review 300, sem 500) |
 | E2 | Camada de dados: store de valores ESPN de rookie keyed por `sleeper_id` (resolve not_found+approx via pool global do Sleeper, nome+team) — consumido pelo salário do rookie draft (OFF26-3) + board DP1; rejeita Sleeper-sync e stub-$1 — MAN-E2 REG/F1/REFINE/F2 | Alta | ⚠️ store implementado + validado em localhost (12/12); store validável em prod via import; aplicação no draft só e2e no rookie draft real (~ago) |
 | E3 | Import ESPN upload-only: remover a opção de URL (download inviável em prod — ESPN bloqueia IP do Render); remoção completa UI + fetch server-side + degradação graciosa associada — MAN-E3-REG (vai REG → F2 direto, sem F1) | Baixa/Média | 🔲 |
-| E2-RISK | Review do import ESPN oferece rookie como match fuzzy de veterano (falso-positivo "Carnell Tate"~"Darnell Mooney" 0.665) → confirm errado contamina `espn_ref_value` do veterano (classe "Brown"). **F2: default neutro no select + confirm gated (sem confirm-por-inércia); matcher → E4** — MAN-E2RISK-REG/F1/F1B/F2 | Média | ⚠️ (validado localhost; pendente smoke prod com import ESPN) |
-| E4 | Redesenho da camada de valor ESPN: matcher resolve entrada ESPN → `sleeper_id` (nome+team Brown-safe, não fuzzy contra roster) + reconciliar as 3 tabelas de valor (Player.espn_ref_value / ESPNValue / RookieEspnValue) sob chave `sleeper_id+season`; recebe o conserto do matcher do E2-RISK — MAN-E2RISK-F1B (origem) | A definir | 🔲 |
+| E2-RISK | Review do import ESPN oferece rookie como match fuzzy de veterano (falso-positivo "Carnell Tate"~"Darnell Mooney" 0.665) → confirm errado contamina `espn_ref_value` do veterano (classe "Brown"). **F2: default neutro no select + confirm gated (sem confirm-por-inércia); raiz do matcher → E4-a** — MAN-E2RISK-REG/F1/F1B/F2 | Média | ⚠️ (validado localhost; pendente smoke prod com import ESPN) |
+| E4 | **Guarda-chuva** — redesenho da camada de valor ESPN (`espn_ref_value` por `sleeper_id`); F1 de design concluída → fatiado em E4-a/b/c — MAN-E4-F1 | — | 🔲 (fatiado) |
+| E4-a | Matcher do import ESPN resolve entrada → `sleeper_id` (pool global, nome+team Brown-safe), não fuzzy contra roster; escreve via id; sem schema. Elimina o "Brown" na raiz + troca corrupção→miss. **Absorve o conserto do matcher ex-E2-RISK** — MAN-E4-F1/F2 | Alta | ⚠️ (validado localhost; pendente smoke prod com import real) |
+| E4-b | Saneamento de `sleeper_id`: backfill dos 2 nulos (Hollywood Brown via apelido, Cameron Ward) + guard p/ Players novos; sem schema. Chave de junção confiável — MAN-E4-F1 | Média (em seguida) | 🔲 |
+| E4-c | Store canônico de valor ESPN `(sleeper_id, season)[raw,adjusted,is_final]` (generaliza RookieEspnValue, persistente) + materializa Player.espn_ref_value + aposenta ESPNValue (vazia em prod). Único passo c/ migração; habilita leitura pré-roster — MAN-E4-F1 | A definir (atrelado a DP1) | 🔲 |
 | DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — consome o store do E2 — MAN-DP1-REG | A definir | 🔲 (desbloqueado: store do E2 existe — F1/F2 podem seguir) |
 | WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG | Média | 🔲 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
@@ -1547,7 +1550,7 @@ existia **só** para cobrir esse fetch).
 ---
 
 ### E2-RISK — Fuzzy oferece rookie como match de veterano no review (classe "Brown")
-⚠️ **Implementado (F2) — validado em localhost; pendente smoke em prod com import ESPN real** — Prioridade **Média** — MAN-E2RISK-REG/F1/F1B/F2 — **RE-ESCOPADO (híbrido): E2-RISK = só o mínimo de tela; conserto do matcher → item de design [[E4]]**
+⚠️ **Implementado (F2) — validado em localhost; pendente smoke em prod com import ESPN real** — Prioridade **Média** — MAN-E2RISK-REG/F1/F1B/F2 — **RE-ESCOPADO (híbrido): E2-RISK = só o mínimo de tela; conserto do matcher (raiz) → [[E4-a]]**
 
 **F2 — IMPLEMENTAÇÃO (09/06/2026, ⚠️ validado em localhost)**
 - **Mudança única (camada de tela):** `templates/espn_review.html` — o `<select>` de cada
@@ -1655,20 +1658,21 @@ review.
   veterano** (default seguro). **Não toca** matcher, `salary_engine`, `ESPNValue` nem
   schema. Risco quase nulo, para a corrupção **agora**.
 - **O conserto do matcher (resolução por `sleeper_id`) sai do escopo do E2-RISK** e passa
-  a fazer parte do **item de design da estrutura ESPN → [[E4]]**, onde matcher
-  (resolução por id) e armazenamento **convergem para a chave certa de uma vez**, em vez
-  de mexer no matcher sobre fundação ainda não decidida.
+  a fazer parte do item de design da estrutura ESPN — agora a fatia **[[E4-a]]** (o E4
+  foi fatiado na F1 de design), onde matcher (resolução por id) e armazenamento
+  **convergem para a chave certa**, em vez de mexer no matcher sobre fundação ainda não
+  decidida.
 
 **DEPENDÊNCIAS**
 - Relaciona-se com: **[[E2]]** (mesma área de resolução de import ESPN), **[[E3]]**
-  (limpeza da UI de import ESPN) e **[[E4]]** (redesenho ESPN — recebe o conserto do
-  matcher).
+  (limpeza da UI de import ESPN) e **[[E4-a]]** (recebe o conserto do matcher — fecha a
+  raiz que o F2 do E2-RISK só paliou).
 - Não bloqueia itens abertos.
 
 ---
 
 ### E4 — Redesenho da camada de valor ESPN (`espn_ref_value` por `sleeper_id`)
-🔲 **Pendente** — Prioridade **a definir** — origem **MAN-E2RISK-F1B** (09/06/2026) — **item de design**
+🔲 **Pendente (guarda-chuva)** — origem **MAN-E2RISK-F1B**; F1 de design concluída (MAN-E4-F1, 09/06/2026) — **FATIADO em [[E4-a]] (agora) / [[E4-b]] (em seguida) / [[E4-c]] (atrelado a [[DP1]])**
 
 **CONTEXTO**
 Surgiu da diagnose **[[E2-RISK]]**-F1B. A proposta do owner: tratar `espn_ref_value`
@@ -1715,9 +1719,156 @@ decidida.
 - O store deixa de ser transitório (persistente) ou continua transitório alimentando um
   Player materializado?
 
+**F1 — ACHADOS (diagnose de design, read-only; snapshot prod 07/06, 280 players)**
+
+Os três receios da F1B foram **desmontados pelos dados**:
+- **Não há três fontes vivas disputando.** Só `Player.espn_ref_value` é viva (250/280
+  `>0`). **`ESPNValue` está VAZIA em prod** (0 linhas; único leitor = badge PROV do
+  cap_projector, que com 0 linhas nunca acende). `RookieEspnValue` é transitória e
+  **complementar** (cobre o vão pré-roster que as outras não cobrem — ambas exigem
+  `player_id`). Sobreposição ativa: só Player↔ESPNValue (mesmo `adjusted`, escritos
+  juntos por `_save_espn_value`), latente porque ESPNValue está vazia.
+- **`sleeper_id` já cobre 99,3%** (278/280; **0 duplicatas**). Só **2 nulos**
+  ("Hollywood Brown" = apelido de Marquise Brown; "Cameron Ward"), ambos não-rosterados
+  e com `nfl_team` vazio. Saneamento é mínimo, **incremental, não pré-requisito atômico**
+  (nulos degradam graciosamente = sem valor, como hoje).
+- **Pureza do `salary_engine` preservada SEM tocar a engine:** a materialização do valor
+  no Player **já existe** (`_save_espn_value` seta `player.espn_ref_value`); muda só a
+  **fonte** (store canônico) e o **join** (por `sleeper_id`, não por fuzzy). A engine
+  continua lendo `.espn_ref_value` do objeto, nunca faz lookup.
+
+*Modelo-alvo:* chave canônica **`(sleeper_id, season)`**; base = **`RookieEspnValue`
+generalizado** (persistente, com `is_final`) que **subsume `ESPNValue`**;
+`Player.espn_ref_value` vira **cache materializado**; **`ESPNValue` aposentada** (vazia
+→ sem migração de linhas).
+
+*Achado estrutural decisivo:* o **conserto do matcher** (resolver entrada ESPN →
+`sleeper_id`) é **independente** da reconciliação e entrega **quase todo o ganho de
+segurança sem tocar schema**. A fundação de dados (store canônico) só precisa vir quando
+a **leitura pré-roster (DP1)** for priorizada.
+
+*Regressão roster→pool:* a falha vira **miss** (seguro e visível em not_found/review),
+**não corrupção**; concentra-se nos 2 nulos e em `team` stale raro.
+
+**FATIAMENTO (priorização da F1)**
+- **[[E4-a]] — matcher por id** *(agora; sem schema, reversível, maior retorno/risco)*:
+  resolve entrada ESPN → `sleeper_id` contra o pool global, Brown-safe (reusa
+  `_load_players_db`/`_norm_name`/desambiguação nome+team); escreve via
+  `find_player_by_sleeper_id`; `approximate`/review só para ambiguidade genuína. Entrega
+  a eliminação do "Brown" **na raiz** + troca corrupção→miss. **Absorve/substitui o
+  conserto do matcher que saíra do [[E2-RISK]].**
+- **[[E4-b]] — saneamento de `sleeper_id`** *(em seguida; incremental, sem schema)*:
+  backfill dos 2 nulos (com tratamento de apelido) + guard para Players novos.
+- **[[E4-c]] — store canônico** *(atrelado a [[DP1]]; único passo com migração,
+  data-light)*: generalizar `RookieEspnValue` → store persistente
+  `(sleeper_id, season)[raw, adjusted, is_final]`; confirm + rollover escrevem nele;
+  materializar `Player.espn_ref_value` a partir dele; badge PROV passa a ler o store;
+  **aposentar `ESPNValue`**. Habilita leitura pré-roster (DP1).
+
 **DEPENDÊNCIAS**
-- Origem: **[[E2-RISK]]**-F1B. Relaciona-se com **[[E2]]** (store), **[[E3]]** (UI de
-  import), **[[DP1]]** (lê valor pré-roster). Não bloqueia itens abertos hoje.
+- Origem: **[[E2-RISK]]**-F1B. Guarda-chuva dos sub-itens **[[E4-a]]/[[E4-b]]/[[E4-c]]**.
+  Relaciona-se com **[[E2]]** (store), **[[E3]]** (UI de import), **[[DP1]]** (E4-c
+  habilita a leitura pré-roster). Não bloqueia itens abertos hoje.
+
+---
+
+### E4-a — Matcher do import ESPN resolve por `sleeper_id` (Brown-safe)
+⚠️ **Implementado (F2) — validado em localhost; pendente smoke em prod com import real** — Prioridade **Alta** — fatia de **[[E4]]** (MAN-E4-F1/F2) — **absorve o conserto do matcher ex-[[E2-RISK]]; fecha a raiz que o F2 do E2-RISK só paliou**
+
+**F2 — IMPLEMENTAÇÃO (09/06/2026, ⚠️ validado em localhost)**
+- **`espn_pdf_parser.match_players(parsed, db_players, sid_resolver=None)`** ganhou o
+  parâmetro injetável `sid_resolver`. Em modo resolver, a identidade é por **`sleeper_id`**:
+  sid → Player rosterado = **matched por id** (sem review); sid → não-rosterado =
+  **not_found** (vai p/ o store no confirm — **nunca oferecido como match de veterano**);
+  sem sid limpo = fallback **igualdade exata** de nome (matched) ou **review**
+  (approximate). **Sem auto-match silencioso por similaridade** no modo resolver. Modo
+  legado (`sid_resolver=None`) **preservado byte-a-byte** (testes/retrocompat).
+- **`routes/admin.py`:** extraídos `_build_pool_index()` + `_resolve_entry_sid(entry, idx)`
+  (fonte única Brown-safe nome+team, reusada pelo store E2 — `_resolve_not_found_to_store`
+  refatorado p/ usá-los). `espn_import_page` constrói o índice do pool e passa
+  `sid_resolver` ao matcher; pool indisponível → `None` → fallback gracioso (sem 500).
+- **Não toca** `salary_engine` (puro), camada de armazenamento (escrita segue em
+  `Player.espn_ref_value` via id — store canônico é [[E4-c]]), nem `SalaryHistory`/
+  `PlayerHistory`. **Sem schema.** Reversível (remover o resolver volta ao legado).
+- **Validação localhost (test_client + pool real, 11.810 nomes):** caso Tate/Mooney —
+  "Carnell Tate" resolve ao sid 13279, vai p/ **not_found**, **não** entra em matched nem
+  como candidato de approximate; **Mooney não recebe o valor**. Veterano (Jayden Daniels)
+  **matched por sleeper_id**. Typo ("Jayden Daneils") → **review**. Sobrenome isolado
+  ("Brown") **não resolve**. 2 nulos (Hollywood Brown, Cameron Ward) degradam sem match
+  espúrio. Reimport **idempotente**. Confirm de matched-by-id grava `espn_ref_value`
+  (=60.0); review renderiza 200. `salary_engine_test.py` 48/48.
+- **Relação com [[E2-RISK]]:** o E2-RISK (default neutro + gate) permanece como a **camada
+  de tela**; **E4-a é a raiz** (resolução por id) — juntos, o "Brown" não acontece nem por
+  inércia (tela) nem por similaridade contra lista pobre (matcher).
+- **Pendente:** smoke em prod com import ESPN real (medir split resolvidos-limpos vs.
+  review).
+
+**ESCOPO**
+Trocar a resolução de identidade do import ESPN de **fuzzy contra o roster local** (origem
+do hazard "Brown", `match_players`) por **resolução da entrada ESPN → `sleeper_id` contra
+o pool global do Sleeper**, reusando `_load_players_db` / `_norm_name` / desambiguação
+nome+team **Brown-safe** (sem substring/sobrenome) já existente em
+`_resolve_not_found_to_store`. Escrita continua em `Player.espn_ref_value` via
+`find_player_by_sleeper_id` (sem mudança de schema). `approximate`/review fica só para
+**ambiguidade genuína**.
+
+**POR QUÊ AGORA**
+Independente da reconciliação de tabelas; entrega a **eliminação do "Brown" na raiz** + a
+troca **corrupção→miss** (falha segura/visível). Reversível, sem schema, maior
+retorno/risco. Substitui o "conserto do matcher" que saíra do E2-RISK (cujo F2 entregou
+só o mínimo de tela).
+
+**INVARIANTES A PRESERVAR**
+- `salary_engine` puro (não tocar); idempotência do import/confirm; Brown-safety
+  (nome+team, nada de substring); `SalaryHistory`/`PlayerHistory` intactos.
+
+**DEPENDÊNCIAS**
+- Fatia de **[[E4]]**. Fecha a raiz do **[[E2-RISK]]** (cujo F2 foi paliativo de tela).
+  Não depende de [[E4-b]]/[[E4-c]].
+
+---
+
+### E4-b — Saneamento de `sleeper_id` (chave de junção confiável)
+🔲 **Pendente** — Prioridade **Média (em seguida)** — fatia de **[[E4]]** (MAN-E4-F1)
+
+**ESCOPO**
+Backfill dos Players sem `sleeper_player_id` (prod: **2** — "Hollywood Brown" via apelido,
+"Cameron Ward") resolvendo contra o pool (com tratamento de apelido) + **guard** para que
+Players novos nasçam com `sleeper_id` (ou sejam sinalizados). Sem schema.
+
+**POR QUÊ**
+Torna `sleeper_id` chave de junção confiável para [[E4-a]]/[[E4-c]]. **Incremental, não
+pré-requisito atômico** — a 99,3% de cobertura, os nulos degradam graciosamente.
+
+**DEPENDÊNCIAS**
+- Fatia de **[[E4]]**. Complementa [[E4-a]] (remove o ponto cego dos 2 nulos). Pode rodar
+  antes ou depois de E4-a.
+
+---
+
+### E4-c — Store canônico de valor ESPN por `(sleeper_id, season)`
+🔲 **Pendente** — Prioridade **a definir (atrelado a [[DP1]])** — fatia de **[[E4]]** (MAN-E4-F1) — **único passo com migração**
+
+**ESCOPO**
+Generalizar `RookieEspnValue` → **store persistente** keyed `(sleeper_id, season)` com
+`raw + adjusted + is_final` (deixa de ser transitório). Confirm do import + rollover
+escrevem nele; **materializar** `Player.espn_ref_value` a partir dele (engine intocada —
+lê do objeto); badge PROV (cap_projector) passa a ler o store; **aposentar `ESPNValue`**
+(vazia em prod → sem migração de linhas).
+
+**POR QUÊ / QUANDO**
+Realiza a visão "valor ESPN como atributo único por `sleeper_id`" e **habilita leitura
+pré-roster** ([[DP1]]). É o **único passo com migração** (atômico), mas **data-light**
+pelo estado vazio do `ESPNValue`. Só compensa atrelado a um consumidor (DP1) — priorizar
+junto.
+
+**INVARIANTES A PRESERVAR**
+- `salary_engine` puro (valor materializado no Player, nunca lookup na engine);
+  idempotência; `is_final`/semântica provisório-final preservada no store; sem perda de
+  histórico por season.
+
+**DEPENDÊNCIAS**
+- Fatia de **[[E4]]**. Habilita **[[DP1]]**. Beneficia-se de [[E4-b]] (chave saneada).
 
 ---
 

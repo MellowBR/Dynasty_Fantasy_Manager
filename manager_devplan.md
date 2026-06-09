@@ -1209,6 +1209,24 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Toca:** `record_acquisition` (porta canônica de criação de contrato) + `salary_engine` + histórico (`PlayerHistory`/`AuctionLog`). **Relaciona-se** com OFF26-3, E2, F9. **F1 pendente:** confrontar regulamento (valores waiver vs FA) + mapear a fonte do sinal "foi dropado?" (Sleeper transactions / PlayerHistory / flag) + verificar se o tipo de aquisição chega confiável ao helper ou é inferido + checar réplica (cap projector JS, preview do draft import).
 - Registro apenas (REG); sem F1/F2 nesta etapa. **Sem commit docs-only isolado** — agrupa com o próximo commit de código (provável M18-F2).
 
+### 09/06/2026 — E4-a F2 (matcher do import ESPN resolve por sleeper_id) ⚠️ localhost
+
+- **Identidade por `sleeper_id` (Brown-safe), não fuzzy contra roster.** `match_players` ganhou `sid_resolver` injetável: sid→Player rosterado = matched por id (sem review); sid→não-rosterado = not_found (store no confirm, **nunca match de veterano**); sem sid limpo = fallback igualdade exata (matched) ou review. **Sem auto-match silencioso por similaridade** no modo resolver; modo legado (`sid_resolver=None`) preservado byte-a-byte.
+- **`routes/admin.py`:** extraídos `_build_pool_index()` + `_resolve_entry_sid()` (fonte única Brown-safe nome+team; `_resolve_not_found_to_store` do E2 refatorado p/ usá-los — DRY). `espn_import_page` passa o resolver ao matcher; pool indisponível → fallback gracioso.
+- **Invariantes preservadas:** `salary_engine` intocado; escrita segue em `Player.espn_ref_value` via id (store canônico é E4-c); `SalaryHistory`/`PlayerHistory` intactos; sem schema; reversível.
+- **Validação localhost (test_client + pool real 11.810):** Tate→not_found (sid 13279), não vira candidato de Mooney, Mooney não recebe valor; vet (Jayden Daniels)→matched por sleeper_id; typo→review; sobrenome isolado não resolve; 2 nulos degradam sem match espúrio; reimport idempotente; confirm de matched-by-id grava espn_ref_value=60.0; review 200. `salary_engine_test` 48/48.
+- **Relação E2-RISK:** E2-RISK = camada de tela (default neutro + gate); **E4-a = raiz** (resolução por id). O F2 do E2-RISK paliou; E4-a fecha a raiz. E2-RISK segue ⚠️ (smoke de tela próprio).
+- **Status E4-a = ⚠️** (pendente smoke prod com import real). **Arquivos:** `espn_pdf_parser.py`, `routes/admin.py` + docs. **Commit agrupa:** código F2 + absorção E4-F1 + fatiamento E4-a/b/c (docs pendentes no working tree).
+
+### 09/06/2026 — E4 F1 de design absorvida + fatiado em E4-a/b/c 🔲
+
+- **Diagnose de design (MAN-E4-F1) contra snapshot prod (07/06, 280 players)** desmontou os 3 receios da F1B: (1) **não há 3 fontes vivas** — só `Player.espn_ref_value` é viva (250/280); **`ESPNValue` vazia em prod** (0 linhas, único leitor = badge PROV); `RookieEspnValue` transitória e complementar (vão pré-roster); (2) **`sleeper_id` cobre 99,3%** (278/280, 0 dups; só 2 nulos não-rosterados: Hollywood Brown apelido + Cameron Ward) → saneamento mínimo, incremental; (3) **pureza do `salary_engine` preservada sem tocar a engine** — a materialização no Player já existe (`_save_espn_value`); muda só fonte + join (por `sleeper_id`).
+- **Achado estrutural decisivo:** o conserto do matcher (entrada ESPN → `sleeper_id`) é **independente** da reconciliação e entrega quase todo o ganho de segurança **sem schema**; o store canônico só precisa vir com a leitura pré-roster (DP1).
+- **Modelo-alvo:** chave `(sleeper_id, season)`; base = `RookieEspnValue` generalizado (persistente, com `is_final`) que subsume `ESPNValue`; `Player.espn_ref_value` vira cache materializado; `ESPNValue` aposentada (vazia → sem migração de linhas).
+- **Fatiamento (E4 vira guarda-chuva):** **E4-a** matcher por id (Alta/agora; sem schema; absorve o conserto do matcher ex-E2-RISK; elimina "Brown" na raiz + corrupção→miss) · **E4-b** saneamento de `sleeper_id` (Média/em seguida; 2 nulos + guard) · **E4-c** store canônico (atrelado a DP1; único passo com migração, data-light; aposenta ESPNValue; habilita pré-roster).
+- **Referência do E2-RISK atualizada:** o conserto do matcher aponta agora para **E4-a** (não E4 genérico). Nada virou ✅.
+- Absorção docs-only — **sem commit isolado**; agrupa com o código da F2 do E4-a.
+
 ### 09/06/2026 — E2-RISK F2 (mínimo de tela: default neutro + gate) ⚠️ localhost
 
 - **Mudança única (camada de tela):** `templates/espn_review.html` — o `<select>` de cada approximate inicia **NEUTRO** (`<option value="" selected>— selecionar —`); removido o `selected` que pré-escolhia o `best_player` (veterano). Risco quase nulo; **não toca** matcher/`salary_engine`/`ESPNValue`/`RookieEspnValue`/sync/schema (re-escopo respeitado — conserto do matcher é o E4).

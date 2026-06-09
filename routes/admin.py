@@ -500,22 +500,15 @@ def _espn_review_path():
     return os.path.join(review_dir, ".espn_review_pending.json")
 
 
-def _resolve_not_found_to_store(not_found_entries, season):
-    """
-    E2 — resolve cada entrada not_found (skill, valor>0) para um sleeper_player_id
-    contra o POOL GLOBAL do Sleeper (nome+team como desambiguador, SEM substring/
-    sobrenome isolado — risco "Brown") e faz upsert no store RookieEspnValue.
-    Idempotente (upsert por sleeper_id+season). NÃO cria Player; NÃO calcula salário.
-    Adiciona à sessão; o chamador faz commit. Retorna {resolved, ambiguous, skipped}.
-    """
+def _build_pool_index():
+    """Índice normalizado do POOL GLOBAL do Sleeper: norm_name -> [(sid, team, pos), ...].
+    Fonte única da resolução por id (E2 store + E4-a matcher). Ignora DST/defesas
+    (id não-numérico)."""
     from sync_sleeper import _load_players_db, _norm_name
-    from models import upsert_rookie_espn
-
     pool = _load_players_db() or {}
-    # índice normalizado: norm_name -> [(sid, team, position), ...]
     idx = {}
     for sid, info in pool.items():
-        if not str(sid).isdigit():           # ignora DST/defesas (id não-numérico)
+        if not str(sid).isdigit():
             continue
         fn = (info or {}).get("full_name") or \
             f"{(info or {}).get('first_name','')} {(info or {}).get('last_name','')}".strip()
@@ -524,7 +517,36 @@ def _resolve_not_found_to_store(not_found_entries, season):
         idx.setdefault(_norm_name(fn), []).append(
             (str(sid), ((info or {}).get("team") or "").upper(),
              ((info or {}).get("position") or "").upper()))
+    return idx
 
+
+def _resolve_entry_sid(entry, idx):
+    """Resolve uma entrada ESPN → sleeper_id contra o índice do pool, Brown-safe:
+    nome+team como desambiguador, SEM substring/sobrenome isolado. Retorna o sid (str)
+    ou None quando ambíguo (0 ou >1 candidatos sem team único). Fonte única usada pelo
+    matcher (E4-a) e pelo store de rookie (E2)."""
+    from sync_sleeper import _norm_name
+    cands = idx.get(_norm_name(entry.get("name", "")), [])
+    team = (entry.get("nfl_team") or "").upper()
+    exact = [c for c in cands if c[1] == team]   # desambigua por team
+    if len(exact) == 1:
+        return exact[0][0]
+    if len(cands) == 1:                          # nome único no pool → seguro (sem Brown)
+        return cands[0][0]
+    return None                                  # ambíguo → não chuta
+
+
+def _resolve_not_found_to_store(not_found_entries, season):
+    """
+    E2 — resolve cada entrada not_found (skill, valor>0) para um sleeper_player_id
+    contra o POOL GLOBAL do Sleeper (nome+team Brown-safe) e faz upsert no store
+    RookieEspnValue. Idempotente (upsert por sleeper_id+season). NÃO cria Player; NÃO
+    calcula salário. Adiciona à sessão; o chamador faz commit.
+    Retorna {resolved, ambiguous, skipped}.
+    """
+    from models import upsert_rookie_espn
+
+    idx = _build_pool_index()
     resolved = ambiguous = skipped = 0
     for e in not_found_entries:
         pos = (e.get("position") or "").upper()
@@ -532,16 +554,11 @@ def _resolve_not_found_to_store(not_found_entries, season):
             skipped += 1; continue
         if float(e.get("espn_raw") or 0) <= 0:   # $0 inócuo
             skipped += 1; continue
-        cands = idx.get(_norm_name(e.get("name", "")), [])
-        team = (e.get("nfl_team") or "").upper()
-        exact = [c for c in cands if c[1] == team]   # desambigua por team
-        if len(exact) == 1:
-            pick = exact[0]
-        elif len(cands) == 1:                # nome único no pool → seguro (sem Brown)
-            pick = cands[0]
-        else:                                 # 0 ou >1 sem team único → não chuta
+        sid = _resolve_entry_sid(e, idx)
+        if not sid:
             ambiguous += 1; continue
-        upsert_rookie_espn(season, pick[0], e.get("name", ""), e.get("position", ""),
+        team = (e.get("nfl_team") or "").upper()
+        upsert_rookie_espn(season, sid, e.get("name", ""), e.get("position", ""),
                            team, float(e.get("espn_raw") or 0),
                            float(e.get("espn_adjusted") or 0))
         resolved += 1
@@ -606,8 +623,16 @@ def espn_import_page():
         return redirect(url_for("admin.espn_import_page"))
 
     db_players = Player.query.filter_by(is_dropped=False).all()
+    # E4-a: identidade resolvida por sleeper_id contra o pool global (Brown-safe), em vez
+    # de fuzzy contra o roster local. Pool indisponível → idx vazio → resolver retorna
+    # None p/ tudo → fallback (igualdade exata / review), degradação graciosa sem 500.
     try:
-        results = match_players(parsed, db_players)
+        _pool_idx = _build_pool_index()
+    except Exception:
+        _pool_idx = {}
+    _sid_resolver = (lambda e: _resolve_entry_sid(e, _pool_idx)) if _pool_idx else None
+    try:
+        results = match_players(parsed, db_players, sid_resolver=_sid_resolver)
     except Exception as e:
         flash(f"Erro no matching de jogadores: {type(e).__name__}: {e}", "error")
         return redirect(url_for("admin.espn_import_page"))

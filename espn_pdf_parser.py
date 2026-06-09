@@ -144,20 +144,41 @@ MATCH_APPROX = "APPROXIMATE"
 MATCH_NONE = "NOT_FOUND"
 
 
-def match_players(parsed: list[dict], db_players: list) -> dict:
+def match_players(parsed: list[dict], db_players: list, sid_resolver=None) -> dict:
     """
-    Match parsed ESPN entries to DB players using 3-layer matching.
+    Match parsed ESPN entries to DB players.
     Returns {matched: [...], approximate: [...], not_found: [...], absent: [...]}.
+
+    E4-a — resolução de identidade por `sleeper_id` (Brown-safe):
+    Se `sid_resolver` for injetado (callable entry → sleeper_id|None, resolvido contra o
+    pool global por nome+team — fornecido por routes/admin.py), a identidade é resolvida
+    POR ID, não por similaridade de nome:
+      - sid → Player rosterado  → matched (escrita por id; sem review).
+      - sid → não-rosterado     → not_found (vai p/ o store no confirm; NUNCA é oferecido
+                                   como match de veterano — mata a classe "Brown" na raiz).
+      - sem sid limpo (ambíguo) → fallback: igualdade exata de nome normalizado (matched,
+                                   determinística) ou, senão, review (approximate). Em
+                                   modo resolver NÃO há auto-match silencioso por
+                                   similaridade — fuzzy só alimenta os candidatos do
+                                   review (sob o gate do E2-RISK).
+    Sem `sid_resolver` (sid_resolver=None) o comportamento legado (3-layer fuzzy) é
+    preservado byte-a-byte — mantém os testes e a retrocompat.
+    `salary_engine` permanece intocado; a escrita continua em Player.espn_ref_value (E4-c
+    trata a camada de armazenamento).
     """
     by_norm = {}
     all_norms = []
     unmatched_db = {}
+    player_by_sid = {}
 
     for p in db_players:
         nn = _norm(p.name)
         by_norm[nn] = p
         all_norms.append((nn, p))
         unmatched_db[p.id] = p
+        sid = getattr(p, "sleeper_player_id", None)
+        if sid:
+            player_by_sid[str(sid)] = p
 
     matched = []
     approximate = []
@@ -165,9 +186,29 @@ def match_players(parsed: list[dict], db_players: list) -> dict:
     used_player_ids = set()
 
     for entry in parsed:
+        # ── E4-a: identidade por sleeper_id (Brown-safe) ─────────────────────────
+        if sid_resolver is not None:
+            sid = sid_resolver(entry)
+            if sid:
+                p = player_by_sid.get(str(sid))
+                if p is not None and p.id not in used_player_ids:
+                    matched.append({**entry, "player_id": p.id, "db_name": p.name,
+                                    "match_type": MATCH_EXACT, "similarity": 1.0,
+                                    "resolved_by": "sleeper_id"})
+                    used_player_ids.add(p.id)
+                    unmatched_db.pop(p.id, None)
+                    continue
+                if p is None:
+                    # sid resolvido mas jogador NÃO rosterado (rookie/FA): vai p/ o store
+                    # no confirm via _resolve_not_found_to_store. Nunca vira match de vet.
+                    not_found.append({**entry, "match_type": MATCH_NONE,
+                                      "resolved_sid": str(sid)})
+                    continue
+                # sid → player já usado: cai no fallback abaixo.
+
         espn_norm = _norm(entry["name"])
 
-        # Layer 1: exact normalized match
+        # Layer 1: exact normalized match (igualdade, não similaridade — Brown-safe)
         player = by_norm.get(espn_norm)
         if player and player.id not in used_player_ids:
             matched.append({**entry, "player_id": player.id, "db_name": player.name,
@@ -192,6 +233,27 @@ def match_players(parsed: list[dict], db_players: list) -> dict:
                 best_ratio = ratio
                 best_player = p
 
+        if sid_resolver is not None:
+            # E4-a: sem auto-match silencioso por similaridade. Fuzzy só monta candidatos
+            # para o review (sob o gate do E2-RISK); sem candidato → not_found (store).
+            if best_player and best_ratio >= 0.5:
+                candidates = []
+                for nn, p in all_norms:
+                    if p.id in used_player_ids:
+                        continue
+                    r = difflib.SequenceMatcher(None, espn_norm, nn).ratio()
+                    if r >= 0.5:
+                        candidates.append({"player_id": p.id, "name": p.name,
+                                           "position": p.position, "similarity": round(r, 3)})
+                candidates.sort(key=lambda x: -x["similarity"])
+                approximate.append({**entry, "player_id": best_player.id, "db_name": best_player.name,
+                                    "match_type": MATCH_APPROX, "similarity": round(best_ratio, 3),
+                                    "candidates": candidates[:5]})
+            else:
+                not_found.append({**entry, "match_type": MATCH_NONE})
+            continue
+
+        # ── Modo legado (sid_resolver=None): comportamento original preservado ────
         if best_ratio >= 0.82 and best_player and best_player.id not in used_player_ids:
             matched.append({**entry, "player_id": best_player.id, "db_name": best_player.name,
                             "match_type": MATCH_EXACT, "similarity": round(best_ratio, 3)})

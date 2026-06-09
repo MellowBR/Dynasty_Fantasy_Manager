@@ -54,6 +54,18 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
 - **Validação localhost:** sem pré-select; confirm sem ação não altera veterano (32.4→32.4); resolução explícita grava (32.4→48.0). Tests 48/48.
 - **Próximo:** smoke em prod com import ESPN real → ✅.
 
+**E4-a — Matcher do import ESPN resolve por `sleeper_id` (raiz do "Brown")** — ⚠️ localhost, pendente smoke prod
+- **Raiz que o F2 do E2-RISK só paliou na tela.** `match_players` ganhou `sid_resolver` injetável: identidade por
+  **sleeper_id** contra o pool global (Brown-safe nome+team, reusa `_build_pool_index`/`_resolve_entry_sid` —
+  extraídos do `_resolve_not_found_to_store` do E2). sid→Player = matched por id; sid→não-rosterado = not_found
+  (store, **nunca match de vet**); sem sid limpo = igualdade exata ou review. Sem auto-match por similaridade no
+  modo resolver; modo legado preservado.
+- **Não toca** `salary_engine`/schema/armazenamento (escrita segue `Player.espn_ref_value` via id; store canônico
+  é E4-c). Reversível.
+- **Validação localhost (pool real):** Tate→not_found (sid 13279), Mooney intacto; vet→matched por id; typo→review;
+  sobrenome isolado não resolve; idempotente; confirm grava 60.0. Tests 48/48.
+- **Próximo:** smoke prod com import real → ✅. Em seguida E4-b (saneamento dos 2 sleeper_id nulos).
+
 ## Desbloqueado
 - **DP1** (board de planejamento de cap pré-draft) — o store do E2 existe → **F1/F2 podem seguir**
   (o board é justamente pré-draft).
@@ -63,7 +75,9 @@ Este handoff é o input de início da próxima sessão; o `improvements.md` (Sta
 |------|------|
 | **DP1** | Board pré-draft (rookies: `espn_ref_value` + salário projetado + simulação de cap; projeção≠contrato). Desbloqueado. Prioridade a definir |
 | **E2 (fechar ✅)** | Após validar o store em prod (import) e a aplicação no rookie draft real (~ago) |
-| **E4** | Redesenho da camada de valor ESPN: matcher resolve entrada→`sleeper_id` (nome+team Brown-safe, não fuzzy contra roster) + reconciliar Player.espn_ref_value / ESPNValue / RookieEspnValue sob `sleeper_id+season`; recebe o conserto do matcher do E2-RISK. REG feito (origem E2RISK-F1B), prioridade a definir |
+| **E4-b** | Saneamento de `sleeper_id`: backfill dos 2 nulos (Hollywood Brown via apelido, Cameron Ward) + guard p/ Players novos; sem schema. Em seguida ao E4-a |
+| **E4-c** | Store canônico `(sleeper_id, season)[raw,adjusted,is_final]` (generaliza RookieEspnValue, persistente) + materializa Player.espn_ref_value + aposenta ESPNValue (vazia em prod). Único passo c/ migração; **atrelado a DP1** (habilita leitura pré-roster) |
+| **E4** (guarda-chuva) | Fatiado em E4-a (⚠️ em andamento) / E4-b / E4-c. F1 de design concluída (MAN-E4-F1) |
 | **OFF26-1 / -2 / -4 / -5** | Pacote offseason: janela selada de keepers/cuts → keeper sheet → auditoria pré-leilão → runbook Cowork |
 | **F9-F2** | Consolidar `bulk_register` no `record_acquisition` (F9-F1/F1B: 0 dano em prod → refatoração apenas) |
 | **F10** | `draft_budget` replicado em JS no cap_projector → cliente consome endpoint canônico (idealmente antes do OFF26-1) |
