@@ -59,7 +59,7 @@ python seed_users.py --list
 |-----------|-----|---------|
 | auth | `/login`, `/logout`, `/auth/callback` | Google OAuth authentication |
 | roster | `/`, `/player/<id>` | Team rosters, IR management, cap bar, página dedicada por jogador (M13), banner de cap estourado em offseason (M1) |
-| salary | `/salary`, `/salary_history` | Salary calculator, cap projector, salary history com timeline clicável |
+| salary | `/salary`, `/salary_history`, `/cap_projector` | Salary calculator, cap projector, salary history com timeline clicável. **DP1:** board de planejamento de rookie draft no cap_projector — lista entrantes de `RookieEspnValue` (não o store canônico, que só tem rosterados) + simulação de cenário multi-pick calculada no backend (`/api/cap_projector/rookies` + `/api/cap_projector/simulate`), projeção pura sem escrever contrato |
 | trades | `/trades`, `/trades/proposta/<uuid>` | Trade simulador puro (T1), preview com dynasty + redraft delta-pointing bars (T2/T3), descrição "de/para" 2-colunas, query params pré-seleção (M14), propostas compartilháveis |
 | picks | `/picks`, `/picks/lottery/<season>` | Grid navegável de picks (M9), auditoria pública do lottery (M8), legenda de odds audit-first — pesos do audit canônico, senão config (M15/M15-FIX), projeção do draft: R1 = lottery, R2/R3 = standings invertido (M16) |
 | auction | `/auction` | FA auction & rookie draft registration |
@@ -118,7 +118,8 @@ que ainda **não existem como Player** (caem em not_found/approximate no import 
 entram só no rookie draft). Keyed por `sleeper_player_id` (resolvido contra o **pool global do
 Sleeper** por nome+team, Brown-safe). Populado no confirm do import ESPN; consumido pelo
 importador de draft (OFF26-3) — que aplica `floor(ESPN×1.2)` via `year1_salary` ao criar o
-rookie — e (futuro) pelo board DP1. Transitório: `clear_rookie_espn_store()` no fim do rookie
+rookie — e pelo **board DP1** (cap_projector, F2 10/06/2026: lista entrantes + simulação
+multi-pick no backend; lê esta tabela, não o store canônico). Transitório: `clear_rookie_espn_store()` no fim do rookie
 draft. Helpers: `upsert_rookie_espn` / `rookie_espn_adjusted` / `clear_rookie_espn_store`.
 
 ### Acquisition (criação de contrato ano-1)

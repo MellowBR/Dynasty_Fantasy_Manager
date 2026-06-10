@@ -1217,6 +1217,31 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Pendências registradas (próxima sessão):** smoke prod de M17/E2-RISK/E4-a; **DP1 desbloqueado** (lê o store canônico); E4-c-2 (higiene: DROP ESPNValue + generalizar RookieEspnValue); E2 e2e (~ago); seed versionado ainda contém os 2 órfãos (latente; rota re-rodável).
 - **git = prod = knowledge** após o push do commit de fechamento (docs-only). `salary_engine_test` 48/48 ao longo da sessão.
 
+### 10/06/2026 — Encerramento da sessão DP1 (checklist de fim de sessão)
+
+- **Entregue nesta sessão:** **DP1-F1** (diagnose read-only — verificada independentemente contra o código e absorvida no improvements.md) + **DP1-F2** (board de planejamento de cap pré-draft + simulação multi-pick no backend) — ⚠️ localhost, smoke prod pendente. **Registro 🔲:** MAN-METH-REG (candidato a baseline do DEV_METHODOLOGY). **Commits em prod (`main`):** DP1-F2 `dc47bd4`, MAN-METH-REG `452231b` (push `7ffde04..452231b`).
+- **Status reflete realidade:** DP1 = ⚠️ (localhost; ✅ só após smoke em prod, que depende de um import ESPN da season popular `RookieEspnValue`). improvements.md (item DP1 + Status Rápido + header) e handoff 10/06 atualizados.
+- **Diagnoses → itens (auditado):** DP1-F1 absorvida no item DP1 (bloco F1 — ACHADOS) + o achado de premissa-falsa virou item próprio **MAN-METH-REG** (não ficou só no parecer). UX4-b: nota metodológica pré-existente **absorvida/referenciada** (não duplicada).
+- **Correção de premissa (registrada):** a premissa "DP1 lê o store canônico via `espn_store_adjusted`" (repetida no REG, no improvements.md e no handoff 08–09/06) estava **empiricamente errada** — o canônico só tem rosterados (backfill `SELECT FROM players`, `app.py:390`); os entrantes vivem em `RookieEspnValue`. Seguir a premissa entregaria board vazio. Fonte corrigida em todos os docs; **E4-c-2 não bloqueia nem é pré-requisito do DP1**. (A nota 09/06 acima — "DP1 desbloqueado (lê o store canônico)" — fica como registro histórico da crença da época; esta entrada a corrige.)
+- **Meta-mudança com motivação:** MAN-METH-REG eleva a lição "F1 de consumo/refatoração deve refutar premissas do prompt contra o código + listar campos existentes ausentes na proposta" a candidato a baseline, consolidando DP1-F1 (premissa falsa) + UX4-b (campo omitido). Não é regra vigente; consolidação no `DEV_METHODOLOGY.md` fica para sessão de revisão de metodologia dedicada.
+- **Pendências registradas (próxima sessão):** smoke prod do DP1 (junto com E2-RISK/E4-a/M17 — um import ESPN real fecha vários); E4-c-2 (higiene); E2 e2e (~ago); **F10** (`draft_budget` replicado em JS no cap_projector — o DP1 **não** ampliou o débito: simulação no backend). Persistência de cenário do DP1 ficou **fora de escopo** (item próprio se priorizado).
+- **git = prod = knowledge** após o push do commit de fechamento desta sessão (docs-only). `salary_engine_test` 48/48.
+
+### 10/06/2026 — DP1-F2 implementada (board pré-draft + simulação multi-pick) ⚠️ localhost
+
+- **Fonte da lista = `RookieEspnValue` por season** (`get_current_season()+1`), **não** o store canônico — decisão derivada da F1 (canônico só rosterados). Endpoint `GET /api/cap_projector/rookies` ordena por valor e devolve ESPN ref (raw) + `projected_salary` via fonte única `year1_salary("rookie_draft", 0, espn_adjusted)` — sem row de Player, sem réplica (mesma invocação do `draft_import.py`).
+- **Simulação no backend** (`POST /api/cap_projector/simulate`): `draft_budget()` canônico sobre o roster ativo do `current_user.team_rel` (M17, cap atual via `p.salary`) + os rookies do cenário como "+salário" via `SimpleNamespace` transitório em memória (**não materializa Player** — stub-$1 segue rejeitado, E2-REFINE). Cenário vazio → budget atual, idêntico ao `/api/cap_projector`. **Decisão:** base = salário atual (literal "cap atual"/"budget atual sem alteração" do prompt), não projetado.
+- **Não amplia o F10:** a réplica JS de budget (`updateSummary`) ficou **intocada**; a nova seção lê `keeper_salaries`/`usable_draft_budget` direto do backend — 0 agregação de cap em JS, 0 `×1.2` novo no template (grep confirmado).
+- **Fora de escopo (explícito):** persistência de cenário e modelagem de picks (regra 8.2.7 independe do slot).
+- **Validação localhost:** `salary_engine_test` 48/48; smoke via test client (usuário **não-admin**): `GET /cap_projector` 200; lista de `RookieEspnValue` (canônico vazio no DB → confirma fonte); `$46→$55` e `$3→$3`; cenário 2 picks → soma `+$58` no backend; cenário vazio inalterado; **nada escrito** (store + cap intactos).
+- **Arquivos:** `routes/salary.py`, `templates/cap_projector.html` + docs (`improvements.md`, handoff 10/06). Commit único `dc47bd4`.
+
+### 10/06/2026 — MAN-METH-REG registrado (F1 refuta premissas do prompt contra o código) 🔲
+
+- **Lição transversal** emergida 2× (DP1-F1 = premissa de fonte falsa; UX4-b = campo existente omitido): especificação positiva **omite por silêncio**. Regra candidata: F1 de consumo/refatoração lista, com evidência do código, as premissas do prompt contradizidas + os campos/comportamentos existentes ausentes na proposta, com parecer por item (premissa falsa / remoção intencional / perda não-intencional / deslocamento).
+- **Candidato a baseline, NÃO regra vigente.** Destino: consolidação no `DEV_METHODOLOGY.md` em revisão de metodologia dedicada (transversal manager/optimizer/predictor). Absorve a nota metodológica do UX4-b (referência, não duplicata). Registro apenas — sem código. Commit docs-only `452231b`.
+- **Relaciona-se** a "validar premissas empiricamente" (pré-IMPL) e à fonte única (T2-FIX-2 / F10): a F1 é o momento barato de pegar o gap antes do IMPL nascer sobre base falsa.
+
 ### 09/06/2026 — E4-c-1 fechado ✅ (store canônico backfillado e verificado em produção)
 
 - **Migration 7 rodou no boot pós-deploy** contra o banco vivo (`/data/dynasty.db`). **Backup pré-op:** `/data/dynasty_prod_backup_2026-06-09_pre-E4c1.db`.
