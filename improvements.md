@@ -2257,6 +2257,46 @@ smoke em prod (depende de import ESPN da season popular `RookieEspnValue`) → m
 
 ---
 
+### MAN-METH-REG — Candidato a baseline do DEV_METHODOLOGY: F1 refuta premissas do prompt contra o código
+🔲 **Registrado 10/06/2026** — MAN-METH-REG (**registro apenas** — não altera código nem o
+`DEV_METHODOLOGY.md`) — **candidato a baseline, NÃO regra vigente** — destino: **consolidação no
+`DEV_METHODOLOGY.md` em sessão de revisão de metodologia dedicada** (transversal manager / optimizer
+/ predictor).
+
+**Lição transversal de processo** que emergiu duas vezes: a **especificação positiva** de um prompt
+(descrever só o que se quer que apareça/aconteça) **omite por silêncio** o que está errado ou vai se
+perder. O gap "o que o prompt assume × o que o código diz" e "o que existe hoje × o que a proposta
+descreve" só aparece se a F1 for **obrigada a olhá-lo** — não cai das perguntas da diagnose.
+
+**REGRA CANDIDATA (forma a refinar na consolidação):**
+> Toda **F1 de consumo/refatoração** (item que **lê** ou **reusa** infra existente) deve listar
+> explicitamente, **com evidência do código atual**: (a) as **premissas embutidas no prompt que o
+> código contradiz**, e (b) os **campos/comportamentos existentes hoje ausentes na especificação
+> proposta** — cada item com **parecer**: `premissa falsa` / `remoção intencional` /
+> `perda não-intencional` / `deslocamento`. Não basta responder às perguntas da diagnose; o gap
+> assumido×real e existe×proposto é entregável próprio da F1.
+
+**OCORRÊNCIAS QUE SUSTENTAM (mesma família — omissão por silêncio):**
+- **[[DP1]]-F1 (09–10/06/2026) — premissa de fonte falsa.** O prompt partiu de "o board lê o store
+  canônico via `espn_store_adjusted`", repetida em `improvements.md` e no handoff como fato
+  assentado. A F1 **refutou contra o código**: o canônico só contém rosterados (backfill de
+  `SELECT FROM players`, `app.py:390`); os entrantes vivem em `RookieEspnValue`. **Seguir a premissa
+  teria entregue board vazio em produção.** Foi a refutação da premissa — não a resposta às
+  perguntas — que salvou o item.
+- **[[UX4-b]] (24/04/2026) — campo existente omitido.** Refatoração de UI especificou o design
+  positivo (o que deveria aparecer) mas não listou os campos presentes hoje que **sumiriam** no
+  design proposto (ESPN + Projeção no roster). Registrado na época como candidato a baseline; **esta
+  entrada absorve e generaliza** aquela nota metodológica (origem em UX4-b, ver seção UX4-b).
+
+DP1 = premissa de leitura falsa; UX4-b = campo existente omitido. Ambos só visíveis ao olhar o gap
+(assumido × real, existe × proposto) — daí a regra única.
+
+**Relaciona-se a** [[validate_prompt_premises_empirically]] (checar empiricamente premissas críticas
+do prompt antes do IMPL) e ao princípio de fonte única (T2-FIX-2 / [[F10]]): a refutação da premissa
+na F1 é o momento barato de pegar o gap, antes de o IMPL nascer sobre uma base falsa.
+
+---
+
 ## Offseason 2026 — pacote OFF26 (cuts selados + ligas fantasmas)
 🔲 **Registrado 05/06/2026** — MAN-OFF26-REG (registro apenas; nenhuma implementação)
 
@@ -3625,7 +3665,7 @@ Signature ganhou parâmetro opcional `values_map=None` para evitar I/O extra qua
 - Grep de hex pos-color em classes prefixed novas UX4-b: 0 matches (strip e col usam apenas CSS vars canonizadas em UX4).
 - Outras telas consumidoras de `.stat-num`/`.stat-label` (league, offseason, lottery_audit, espn_import, salary) renderizam sem mudança visual — override scoped não afeta.
 
-**Observação metodológica (para futuros F1 de refatoração de UI):** a dinâmica que gerou UX4-b sugere regra nova potencial no DEV_METHODOLOGY — F1 de refatoração de UI deveria listar explicitamente "campos presentes hoje que não estão no design proposto", com parecer por item (remoção intencional / perda não-intencional / deslocamento). Especificação positiva por si só omite silenciosamente. Item para próximo baseline do DEV_METHODOLOGY se priorizar.
+**Observação metodológica (para futuros F1 de refatoração de UI):** a dinâmica que gerou UX4-b sugere regra nova potencial no DEV_METHODOLOGY — F1 de refatoração de UI deveria listar explicitamente "campos presentes hoje que não estão no design proposto", com parecer por item (remoção intencional / perda não-intencional / deslocamento). Especificação positiva por si só omite silenciosamente. → **Absorvida e generalizada em [[MAN-METH-REG]]** (10/06/2026), que consolida esta ocorrência com a premissa-de-fonte-falsa do DP1-F1 sob uma regra única, candidata a baseline do `DEV_METHODOLOGY.md`.
 
 ---
 
