@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 10/06/2026 (sessão DP1: F1 diagnose ✅ + **F2 board + simulação multi-pick no backend ⚠️ localhost** — lê `RookieEspnValue` por season, NÃO o canônico; premissa "DP1 lê o store canônico" corrigida; smoke em prod pendente)
 > Atualizado em: 09/06/2026 (sessão 08–09/06: M17 + M18 ✅ prod; E2-RISK + E4-a ⚠️ matcher/tela do "Brown"; E4-b ✅ prod (órfãos); E4-c-1 ✅ prod (store canônico ESPN por sleeper_id); WV1/E3/E4-c-2 registrados; DP1 desbloqueado)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
@@ -2103,7 +2104,7 @@ O backfill é a **Migration 7**, que roda **automaticamente no boot pós-deploy*
 ---
 
 ### DP1 — Board de planejamento de cap pré-draft (rookies)
-🔲 **Pendente** — Prioridade **a definir** — MAN-DP1-REG (08/06/2026) — **DESBLOQUEADO** ([[E4-c-1]] ✅ em prod 09/06/2026 — store canônico `(sleeper_id, season)` existe e backfillado; F1/F2 podem seguir)
+⚠️ **Implementado (F2) — validado em localhost; smoke em prod pendente** — Prioridade **a definir** — MAN-DP1-REG (08/06/2026) / F1 / F2 (10/06/2026) — **F1 ✅ diagnose read-only concluída** (achados absorvidos abaixo); **F2 ✅ board + simulação multi-pick no backend** (validado localhost: `salary_engine_test` 48/48 verde, smoke das rotas OK; ⚠️ → ✅ só após smoke em prod)
 
 **CONTEXTO**
 Owners precisam planejar o rookie draft contra o cap: avaliar drops, valorização de contratos
@@ -2127,11 +2128,132 @@ em JS/template (mesmo princípio do T2-FIX-2 / F10).
 **Exemplo de uso:** owner da pick 1.1 avalia Jeremiyah Love (ESPN $46 → projeção ~$55) contra
 o próprio cap.
 
-**DEPENDÊNCIAS**
-- **Desbloqueado** — [[E4-c-1]] ✅ em prod (09/06/2026): o **store canônico** de valor ESPN
-  por `(sleeper_id, season)` (leitura pré-roster) existe e está backfillado (273 linhas). O
-  DP1 lê o canônico (`espn_store_adjusted`). **[[E4-c-2]]** (higiene) **não** bloqueia o DP1.
-  F1/F2 do DP1 podem seguir.
+**DEPENDÊNCIAS / FONTE DE DADOS (corrigida na F1/F2 — premissa do REG estava errada)**
+- O DP1 **lê `RookieEspnValue` filtrada pela season entrante** (`get_current_season()+1`),
+  **não** o store canônico via `espn_store_adjusted`. Motivo empírico: o backfill do
+  `EspnValueStore` veio de `SELECT FROM players` (`app.py:390`), ou seja **só rosterados** —
+  os rookies não-rosterados nunca entram no canônico hoje; ler o canônico devolveria board
+  **vazio** de entrantes. **[[E4-c-2]]** (que subsumiria `RookieEspnValue` no canônico) **não
+  bloqueia nem é pré-requisito do DP1** — quando rodar, o read vira troca de 1 linha
+  (`rookie_espn_adjusted` → `espn_store_adjusted`). A premissa do REG ("DP1 lê o canônico")
+  ficou **corrigida** aqui e na F1 (CORREÇÃO DE PREMISSA, abaixo).
+
+**F1 — ACHADOS (diagnose read-only, MAN-DP1-F1, 09/06/2026; sem alteração de código/schema/DB)**
+
+*Snapshot:* seed local `dynasty.db` está defasado — **não tem** as tabelas `rookie_espn_value`
+nem `espn_value_store` (criadas aditivamente no boot via `db.create_all()`; o backfill de 273
+linhas vive em **prod**). Logo a validação de **conteúdo** de linha é por código (caminhos de
+escrita), não por contagem local; a análise estrutural independe disso.
+
+**VEREDITO Q1 — cabe no modelo atual? → SIM.** Nenhuma nova representação de jogador
+não-rosterado é necessária. `RookieEspnValue` (`models.py:448`) **já é** essa representação:
+keyed por `(sleeper_id, season)`, deliberadamente **não-Player** (não polui roster/cap), e o
+próprio docstring nomeia o DP1 como consumidor. O **stub-$1 segue rejeitado** pelos mesmos
+motivos do E2-REFINE — `RookieEspnValue` existe precisamente como a alternativa não-stub; a
+conclusão se mantém, não há motivo novo para revisá-la. O board, a simulação e o salário
+projetado operam **sem nenhuma row de `player`** (ver Q3/Q4).
+
+**CORREÇÃO DE PREMISSA (decisiva).** A premissa do prompt e a linha de DEPENDÊNCIAS acima
+("DP1 lê o store canônico `espn_store_adjusted`") está **empiricamente incorreta para listar
+entrantes no estado de hoje (E4-c-2 pendente)**. Evidência de caminho de escrita:
+- O **único** escritor de `EspnValueStore` é `set_espn_value` (`models.py:551`), que **exige um
+  objeto `player`** (materializa `player.espn_ref_value`). Todos os 8 chamadores passam um
+  `Player` existente → o store canônico (273 linhas) contém **só rosterados**.
+- Os **entrantes não-rosterados** entram por `_resolve_not_found_to_store` (`admin.py:582`) →
+  `upsert_rookie_espn` → **`RookieEspnValue`**, nunca em `EspnValueStore` (não há Player).
+- Confirma o achado E4-F1 (linha ~1729): "`RookieEspnValue` é transitória e **complementar** —
+  cobre o vão pré-roster que as outras não cobrem".
+→ **DP1-F2 deve ler `RookieEspnValue` (`rookie_espn_adjusted` + query por season), NÃO
+`espn_store_adjusted`.** Ler só o canônico hoje renderiza board **vazio** de entrantes. A frase
+"lê o canônico" é **aspiracional (pós-E4-c-2)**, quando o `RookieEspnValue` for subsumido no
+store. Isto é o que faz "E4-c-2 não bloqueia DP1" ser verdadeiro: o DP1 lê a fonte transitória
+direto; quando E4-c-2 migrar as linhas, o read vira troca de 1 linha (`rookie_espn_adjusted` →
+`espn_store_adjusted`, ambos `adjusted` por sid+season).
+
+**Q2 — fonte da lista de entrantes.** Autoritativa = **`RookieEspnValue` filtrada por `season`**
+(alvo = `get_current_season()+1`). O **critério que separa entrante de veterano/FA já está
+embutido na construção da tabela**: ela só recebe entradas ESPN `not_found` (sem Player),
+skill (K/DST excluídos), valor>0, resolvidas a um `sid` **único** (Brown-safe,
+`_resolve_entry_sid` `admin.py:566`). O filtro de season é confiável (coluna + `uq(sid,season)`).
+*Janela de dados:* import ESPN → **limpa no fim do rookie draft** (`clear_rookie_espn_store`,
+`offseason.py:716`) — exatamente a janela de planejamento pré-draft que o DP1 serve; fora dela o
+board é vazio por design. *Nuance:* semanticamente é "entrante ESPN-valorado não-rosterado" (a
+classe de rookies + eventual FA não-rosterado no sheet), não estritamente "rookie".
+*Gap menor (read-only, sem schema):* não há helper "listar todos os rookies da season" — só o
+single `rookie_espn_adjusted`; F2 adiciona uma query `RookieEspnValue.query.filter_by(season=…)`
+(leitura, não modelo).
+
+**Q3 — salário projetado `floor(ESPN×1.2)`: fonte única confirmada, SEM réplica.** Canônico =
+`salary_engine.year1_salary("rookie_draft", 0, espn_adj)` (`salary_engine.py:63`; rookie →
+`_floor(espn_adj)`). O `×1.2` é aplicado na **escrita** do store (`espn_adjusted = raw×1.2`); o
+`floor` no `year1_salary`. O board invoca **exatamente como o `draft_import.py:135` já faz**:
+`year1_salary("rookie_draft", 0, rookie_espn_adjusted(sid, season))` — `rookie_espn_adjusted` lê
+por sid, **sem row de Player**. Consumidores de `year1_salary`/`floor(ESPN×1.2)`: `draft_import`
+(135/143/149/259), `record_acquisition` (`models.py:386`), `/api/salary/calculate`
+(`full_contract_table`). **Nenhuma réplica JS/template do cálculo de salário** — as strings
+`floor(ESPN×1.2)` em `salary.html`/`auction.html` são **texto de ajuda**, não cálculo; o `×1.2`
+em `salary.py:46`/`admin.py:173` é a conversão raw→adjusted na entrada (padrão canônico), não
+réplica do floor.
+
+**Q4 — simulação de cap: infra reaproveitável + RÉPLICA JS confirmada (débito F10).** Canônico =
+`salary_engine.draft_budget(team_players)` (puro: lista de players → dict de budget). O endpoint
+`/api/cap_projector/<team>` (`salary.py:64`) já devolve `budget` + `next_salary` por jogador.
+**Réplica JS confirmada:** `cap_projector.html` `updateSummary()` (linhas 142-176) **reimplementa
+em JS** a agregação de budget (total, remaining, usable, spots, min $1/spot, avisos over-cap) —
+duplica `draft_budget()`. É o débito que o F10/T2-FIX-2 sinaliza ("`draft_budget` já replicado em
+JS no cap_projector"). A simulação "draftar este rookie → cap fica assim" = somar o
+`projected_salary` do rookie ao total dos mantidos e recalcular budget; **se feita em JS encosta
+nessa réplica**. Caminho limpo: estender o **backend** a aceitar um salário hipotético e
+devolver `draft_budget` (evita ampliar a réplica) — decisão de F2. `draft_budget` lê só
+`p.salary`/`p.is_dropped`; o rookie hipotético entra como "+salário", **sem precisar de Player**.
+
+**Q5 — encaixe de tela + acesso.** Mora em **`cap_projector`** (`salary_bp`, rota `/cap_projector`
+`salary.py:19`, template `cap_projector.html`) — nova seção/aba na página existente. Acesso:
+`@login_required` **apenas**, **sem `@admin_required`** → todos os owners. Time do owner =
+`current_user.team_rel` (precedente M17), **já cabeado** em `salary.py:25-27` (pré-seleciona
+`my_team`). A simulação reusa o `teamData` já carregado (mantidos do owner) + salário do rookie.
+*Pick é só contexto de UX:* a regra 8.2.7 (`year1_salary` rookie) **não depende da pick** — o cap
+delta é o salário projetado independentemente do slot; mostrar "suas picks" (modelo `Pick`) é
+enriquecimento opcional, não requisito do cálculo.
+
+**ESCOPO PROPOSTO PARA O F2 (a confirmar antes de gerar prompt de IMPL):**
+1. Read source = **`RookieEspnValue` por season** (NÃO `espn_store_adjusted`) — +1 query de lista.
+2. Salário = `year1_salary("rookie_draft", 0, rookie_espn_adjusted(...))` — fonte única, reuso.
+3. Simulação = estender backend p/ budget com salário hipotético (não ampliar a réplica JS).
+4. Tela = nova seção em `cap_projector.html`; acesso `@login_required`; time via `current_user`.
+5. Réplicas encontradas: **1** — agregação de budget em JS (`updateSummary`, débito F10).
+   Salário: **0** réplicas. Decisão de modelo: **cabe no atual, sem nova representação**.
+
+**F2 — IMPLEMENTADO (MAN-DP1-F2, 10/06/2026)** — ⚠️ validado em localhost; smoke em prod pendente.
+
+Board entregue como **nova seção em `cap_projector.html`** ("🏈 Planejamento de Rookie Draft"),
+abaixo do projetor existente. Dois endpoints novos em `routes/salary.py` (ambos `@login_required`,
+sem admin gate):
+- `GET /api/cap_projector/rookies` — lista os entrantes da season-alvo de **`RookieEspnValue`**
+  (ordenado por valor), cada um com ESPN ref (raw) e `projected_salary` via
+  `year1_salary("rookie_draft", 0, espn_adjusted)` — **fonte única, sem row de Player, sem réplica**
+  (mesma invocação do `draft_import.py`).
+- `POST /api/cap_projector/simulate` — recebe `{rookie_sids: [...]}`, calcula o budget do cenário
+  **no backend** via `draft_budget()` canônico: roster ativo do `current_user.team_rel` (M17, cap
+  atual) + os rookies do cenário como "+salário" (objeto transitório em memória — **sem
+  materializar Player**, stub-$1 segue rejeitado). Cenário vazio → budget atual, idêntico ao
+  `/api/cap_projector`.
+
+**Simulação no backend (não amplia o F10):** a réplica JS de budget (`updateSummary`) ficou
+**intocada**; a nova seção lê `keeper_salaries`/`usable_draft_budget` direto da resposta do
+backend — **nenhuma agregação de cap em JS** e **0 réplica nova de `×1.2`** no template (grep
+confirmado). O F10 (deduplicar `updateSummary`) segue sendo trabalho próprio, fora deste escopo.
+
+**Fora de escopo (explícito):** **persistência de cenário** ("salvar meu plano de draft") — o
+cenário vive só no cliente durante a sessão; nada é escrito (validado: `RookieEspnValue` e o cap
+do time inalterados após simular). Seria item próprio se priorizado. **Pick é só contexto de UX**:
+a regra 8.2.7 não depende do slot, então o board não modela picks (enriquecimento opcional futuro).
+
+**Validação localhost (10/06/2026):** `salary_engine_test.py` 48/48 verde; smoke via test client
+(usuário não-admin logado): `GET /cap_projector` 200; rookies de `RookieEspnValue` (canônico vazio
+no DB — confirma fonte correta); spot-check `$46→$55` e `$3→$3`; cenário 2 picks → soma `+$58` no
+backend; cenário vazio → budget atual sem alteração; nada escrito (store + cap intactos). **Falta:**
+smoke em prod (depende de import ESPN da season popular `RookieEspnValue`) → manter ⚠️ até lá.
 
 ---
 

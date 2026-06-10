@@ -111,6 +111,92 @@ def cap_projector_data(team_name):
     })
 
 
+# ── DP1: board de planejamento de cap pré-draft (rookies) ─────────────────────
+
+@salary_bp.route("/api/cap_projector/rookies")
+@login_required
+def cap_projector_rookies():
+    """
+    DP1 — lista os rookies entrantes da season-alvo (get_current_season()+1) com o
+    valor ESPN de referência (raw) e o salário projetado (floor(ESPN×1.2)).
+
+    Fonte = RookieEspnValue (store dos NÃO-rosterados), NÃO o store canônico
+    (espn_value_store): o backfill do canônico veio de `SELECT FROM players`, logo só
+    contém rosterados — ler o canônico aqui devolveria board vazio de entrantes
+    (F1/MAN-DP1; E4-c-2 não é pré-requisito). O salário vem da fonte única
+    `salary_engine.year1_salary` (modo rookie), sem row de Player e sem réplica do
+    cálculo (mesma invocação que o import de draft em draft_import.py).
+    """
+    from models import get_current_season, RookieEspnValue
+    from salary_engine import year1_salary
+    season = get_current_season() + 1
+    rows = (RookieEspnValue.query
+            .filter_by(season=season)
+            .order_by(RookieEspnValue.espn_adjusted.desc(), RookieEspnValue.name.asc())
+            .all())
+    rookies = [{
+        "sleeper_player_id": r.sleeper_player_id,
+        "name": r.name,
+        "position": r.position,
+        "nfl_team": r.nfl_team or "—",
+        "espn_ref_value": r.espn_raw,                 # raw (ex.: $46) — referência exibida
+        "espn_adjusted": r.espn_adjusted,             # raw×1.2 (base do floor)
+        "projected_salary": year1_salary("rookie_draft", 0, r.espn_adjusted),
+    } for r in rows]
+    return jsonify({"season": season, "rookies": rookies})
+
+
+@salary_bp.route("/api/cap_projector/simulate", methods=["POST"])
+@login_required
+def cap_projector_simulate():
+    """
+    DP1 — simulação de cenário multi-pick calculada PURAMENTE no backend (não consome
+    nem amplia a réplica JS de budget do `updateSummary` — débito F10).
+
+    Projeção, não contrato: nada é escrito (nem Player, nem SalaryHistory, nem cenário).
+    Budget = `draft_budget()` canônico sobre o cap ATUAL do time do `current_user` (M17)
+    somado aos salários projetados (`year1_salary` modo rookie) dos rookies do cenário.
+    Os rookies entram como "+salário" via objeto transitório em memória (NÃO materializa
+    Player — stub-$1 segue rejeitado, E2-REFINE). Cenário vazio → budget atual do time,
+    idêntico ao `/api/cap_projector` (sem alteração).
+    """
+    from types import SimpleNamespace
+    from models import get_current_season, rookie_espn_adjusted
+    from salary_engine import year1_salary
+    data = request.get_json() or {}
+    sids = [str(s) for s in (data.get("rookie_sids") or [])]
+    season = get_current_season() + 1
+
+    team = current_user.team_rel
+    if not team:
+        return jsonify({"error": "Usuário sem time vinculado — vincule um time para simular."}), 400
+
+    # Base = roster ativo do owner com o salário ATUAL (mesma base do /api/cap_projector).
+    roster = list(Player.query.filter_by(team_id=team.id, is_dropped=False).all())
+
+    scenario = []
+    seen = set()
+    for sid in sids:
+        if sid in seen:
+            continue                       # dedup defensivo do cenário
+        seen.add(sid)
+        adj = rookie_espn_adjusted(sid, season)
+        if adj is None:
+            continue                       # sid fora do store da season → ignora
+        sal = year1_salary("rookie_draft", 0, adj)
+        roster.append(SimpleNamespace(salary=sal, is_dropped=False))
+        scenario.append({"sleeper_player_id": sid, "projected_salary": sal})
+
+    budget = draft_budget(roster)
+    return jsonify({
+        "team": team.name,
+        "scenario": scenario,
+        "scenario_count": len(scenario),
+        "scenario_salary_total": sum(r["projected_salary"] for r in scenario),
+        "budget": budget,
+    })
+
+
 @salary_bp.route("/api/salary_history")
 @login_required
 def salary_history_data():

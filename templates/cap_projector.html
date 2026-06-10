@@ -52,6 +52,45 @@
 <div id="proj-table-wrap">
   <div class="loading-msg">Carregando...</div>
 </div>
+
+<!-- DP1: planejamento de rookie draft (cenário multi-pick, simulado no backend) -->
+<div class="rookie-board" id="rookie-board" style="margin-top:2.5rem">
+  <div class="page-header" style="margin-bottom:.6rem">
+    <h2 class="page-title" style="font-size:1.25rem">🏈 Planejamento de Rookie Draft</h2>
+    <p class="page-subtitle">
+      Monte um cenário de picks e veja o impacto agregado no <strong>seu</strong> cap.
+      Projeção — não cria contrato nem altera o cap real. Time: <strong id="rookie-team">—</strong>
+    </p>
+  </div>
+
+  <div id="rookie-sim" class="cap-summary-card" style="display:none">
+    <div class="cap-summary-grid">
+      <div class="cap-summary-item">
+        <span class="cap-label">Rookies no cenário</span>
+        <span class="cap-value" id="rk-count">0</span>
+      </div>
+      <div class="cap-summary-item">
+        <span class="cap-label">Custo dos rookies</span>
+        <span class="cap-value" id="rk-cost">$0</span>
+      </div>
+      <div class="cap-summary-item">
+        <span class="cap-label">Cap Projetado</span>
+        <span class="cap-value" id="rk-total">—</span>
+      </div>
+      <div class="cap-summary-item">
+        <span class="cap-label">Budget Usável</span>
+        <span class="cap-value" id="rk-usable">—</span>
+      </div>
+      <div class="cap-summary-item">
+        <span class="cap-label">Spots vazios</span>
+        <span class="cap-value" id="rk-spots">—</span>
+      </div>
+    </div>
+    <div id="rk-warnings"></div>
+  </div>
+
+  <div id="rookie-list-wrap"><div class="loading-msg">Carregando rookies...</div></div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -187,5 +226,92 @@ function renderEspnBanner(status) {
 }
 
 loadTeam(document.getElementById('proj-team').value);
+
+// ── DP1: planejamento de rookie draft ──────────────────────────────────────
+// Cenário multi-pick; o budget resultante é SEMPRE calculado no backend
+// (/api/cap_projector/simulate). Nenhuma agregação de cap em JS aqui — não
+// duplicamos draft_budget (débito F10 fica restrito ao updateSummary acima).
+let rookieList = [];
+const scenario = new Set();
+
+function loadRookies() {
+  fetch('/api/cap_projector/rookies')
+    .then(r => r.json())
+    .then(data => {
+      rookieList = data.rookies || [];
+      renderRookies();
+      simulateScenario();   // estado inicial: cenário vazio → budget atual do time
+    });
+}
+
+function renderRookies() {
+  const wrap = document.getElementById('rookie-list-wrap');
+  if (!rookieList.length) {
+    wrap.innerHTML = '<div class="alert alert-dim">Nenhum rookie da próxima classe no store ESPN ainda. Importe os valores ESPN da season para planejar.</div>';
+    return;
+  }
+  let html = `<table class="data-table"><thead><tr>
+    <th>Pos</th><th>Rookie</th><th>NFL</th><th>ESPN Ref</th><th>Sal. projetado</th><th style="width:130px">Cenário</th>
+    </tr></thead><tbody>`;
+  rookieList.forEach(r => {
+    const inSc = scenario.has(r.sleeper_player_id);
+    html += `<tr style="${inSc ? 'background:rgba(34,197,94,.08)' : ''}">
+      <td><span class="pos-badge pos-${(r.position || '').replace('/','')}">${r.position || '—'}</span></td>
+      <td>${r.name || '—'}</td>
+      <td class="text-dim">${r.nfl_team || '—'}</td>
+      <td class="text-dim">${r.espn_ref_value ? '$' + Math.round(r.espn_ref_value) : '—'}</td>
+      <td class="salary-cell">$${r.projected_salary}</td>
+      <td>${inSc
+        ? `<button class="btn-sm btn-danger-outline" onclick="toggleRookie('${r.sleeper_player_id}')">− Remover</button>`
+        : `<button class="btn-sm btn-secondary" onclick="toggleRookie('${r.sleeper_player_id}')">+ Adicionar</button>`}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function toggleRookie(sid) {
+  if (scenario.has(sid)) scenario.delete(sid); else scenario.add(sid);
+  renderRookies();
+  simulateScenario();
+}
+
+function simulateScenario() {
+  fetch('/api/cap_projector/simulate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({rookie_sids: [...scenario]}),
+  })
+    .then(r => r.json())
+    .then(data => {
+      const panel = document.getElementById('rookie-sim');
+      panel.style.display = 'block';
+      if (data.error) {
+        document.getElementById('rookie-team').textContent = '—';
+        document.getElementById('rk-warnings').innerHTML =
+          `<div class="alert alert-warn" style="margin-top:.5rem">${data.error}</div>`;
+        return;
+      }
+      document.getElementById('rookie-team').textContent = data.team;
+      const b = data.budget;
+      document.getElementById('rk-count').textContent = data.scenario_count;
+      document.getElementById('rk-cost').textContent = '$' + data.scenario_salary_total;
+      document.getElementById('rk-total').textContent = '$' + b.keeper_salaries;
+      document.getElementById('rk-usable').textContent = '$' + b.usable_draft_budget;
+      document.getElementById('rk-spots').textContent = b.empty_spots + ' (min $' + b.min_required_for_spots + ')';
+      ['rk-total', 'rk-usable'].forEach(id => {
+        const el = document.getElementById(id);
+        const val = parseInt(el.textContent.replace('$', ''));
+        el.className = 'cap-value ' + (val < 0 ? 'text-danger' : (val < 10 ? 'text-warn' : ''));
+      });
+      const warns = [];
+      if (b.over_cap) warns.push('⚠️ Cenário acima do cap de $200!');
+      if (b.insufficient_budget) warns.push('⚠️ Budget insuficiente para preencher os spots restantes.');
+      document.getElementById('rk-warnings').innerHTML =
+        warns.map(w => `<div class="alert alert-warn" style="margin-top:.5rem">${w}</div>`).join('');
+    });
+}
+
+loadRookies();
 </script>
 {% endblock %}
