@@ -165,8 +165,18 @@ fantasy_manager/
     *.csv                           # Stats brutos (not in git)
   manager_devplan.md                # Plano vivo + log de decisões
   manager_vision.md                 # Motivação e casos de uso
-  improvements.md                   # Backlog vivo
+  improvements.md                   # Backlog ATIVO (🔲/⚠️) + Status Rápido completo
+  improvements_archive.md           # Histórico de itens ✅ (detalhe movido verbatim — O3)
 ```
+
+**Esquema de dois arquivos do backlog (item O3, 11/06/2026 — Manager-only):**
+`improvements.md` é o backlog **ativo** — cabeçalho + **Status Rápido completo** (todos os IDs,
+inclusive ✅; é o namespace e a baseline de dedupe) + seções detalhadas **só de itens 🔲/⚠️**.
+`improvements_archive.md` guarda as seções detalhadas dos itens **✅**, movidas **verbatim** (registro
+de evidência para diagnoses futuras: incidente Brown, post-mortem T2-FIX, decisões M15…). **Diagnose
+que precise do histórico de um item fechado deve ler o archive.** **Regra de migração (entra no
+checklist de fim de sessão):** ao marcar um item ✅ (validado em prod), mover sua seção detalhada para
+o archive no fechamento da sessão; **⚠️ nunca migra** (fica no ativo até ✅).
 
 ## Version Control
 

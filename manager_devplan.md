@@ -1280,6 +1280,34 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Commit docs-only de fechamento** (improvements.md + devplan) — exceção justificada: sessão de
   diagnose pura, sem código pendente (precedente 08/06).
 
+### 11/06/2026 — O3 ✅ (split do improvements.md: ativo 🔲/⚠️ + archive ✅ verbatim)
+
+- **Executado (MAN-O3-REG + MAN-O3, mesma sessão, Opus):** `improvements.md` (2.300+ linhas) dividido
+  em **ativo** (cabeçalho + **Status Rápido completo e intocado** + seções detalhadas só de 🔲/⚠️) +
+  **`improvements_archive.md`** novo (seções ✅ movidas **verbatim**). Ambos no Project Knowledge.
+- **Operação verificada por máquina, não por leitura:** classificação autoritativa cruzando
+  emoji-da-seção × Status Rápido (regra "primeiro emoji da célula vence" — pegou DP1 e UX2, que
+  contêm ✅ no texto mas são 🔲/⚠️). **51 seções migradas, 37 retidas, 88 conservadas** (asserts:
+  contagem de linhas + cada bloco migrado presente **verbatim** no archive e **ausente** do ativo).
+  Diff do Status Rápido vs HEAD = **exatamente 1 linha** (row O3, flipada p/ ✅) — zero rows
+  perdidas/alteradas. `salary_engine_test` 48/48 (zero código).
+- **Regra de desempate aplicada (retidos apesar de cheiro de ✅):** **F8** (umbrella ⚠️ — F8a ✅ mas
+  F8b/F8c no item; seção lidera com ✅, Status Rápido manda ⚠️ → fica); **DP1/M17/E2/E2-RISK/E4-a**
+  (⚠️/🔲, smoke prod pendente → ficam); **E4/E4-c** (umbrellas fatiados 🔲 → ficam);
+  **MAN-METH-REG/MAN-ESPN12** (sem row no Status Rápido, registros 🔲 → ficam). **AUD1 migrou** por
+  instrução explícita do prompt (✅, sem exceção por recência) — suas seções F11/F12/E4-d/M19/M20/DOC1
+  permanecem no ativo (itens próprios) e cross-refam o archive (pesquisável no Project Knowledge).
+- **Desvio de sequenciamento (registrado, não contradiz o log AUD1):** o plano AUD1 punha O3 por
+  último numa sessão Opus com DOC1+F12; **owner antecipou O3 sozinho**. A ressalva "por último" só
+  valia intra-sessão (DOC1/F12 escreveriam antes da reorg); executado sozinho, cai. **DOC1+F12 seguem
+  na fila** Opus; **F11+F10 (Fable)** antes de 22/06.
+- **CLAUDE.md** ganhou nota do esquema de dois arquivos + a regra de migração contínua (Project
+  Structure). Promoção a padrão **transversal** fica para a sessão de revisão de metodologia.
+- **Self-aplicação:** O3 marcado ✅ no Status Rápido e a própria seção O3 movida para o archive
+  (critério de done = a reorg íntegra, sem validação de prod).
+- **Commit docs-only** cobrindo REG + execução (improvements.md, improvements_archive.md, CLAUDE.md,
+  devplan). **Lembrete ao owner:** re-upload dos 3 docs no Project Knowledge.
+
 ### 09/06/2026 — E4-c-1 fechado ✅ (store canônico backfillado e verificado em produção)
 
 - **Migration 7 rodou no boot pós-deploy** contra o banco vivo (`/data/dynasty.db`). **Backup pré-op:** `/data/dynasty_prod_backup_2026-06-09_pre-E4c1.db`.
