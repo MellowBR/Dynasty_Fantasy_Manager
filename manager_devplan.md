@@ -1242,6 +1242,44 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Candidato a baseline, NÃO regra vigente.** Destino: consolidação no `DEV_METHODOLOGY.md` em revisão de metodologia dedicada (transversal manager/optimizer/predictor). Absorve a nota metodológica do UX4-b (referência, não duplicata). Registro apenas — sem código. Commit docs-only `452231b`.
 - **Relaciona-se** a "validar premissas empiricamente" (pré-IMPL) e à fonte única (T2-FIX-2 / F10): a F1 é o momento barato de pegar o gap antes do IMPL nascer sobre base falsa.
 
+### 11/06/2026 — Encerramento da sessão AUD1 (REG + F1 + priorização do lote)
+
+- **Entregue:** AUD1 registrada (série **AUD** nova — auditorias, F1-only, sem F2 própria) e **F1
+  executada ✅** — varredura read-only do codebase inteiro pelas 6 lentes de incidentes históricos,
+  rodada no **Fable 5** (caso cirúrgico da política de modelos; janela até 22/06; foi também o
+  test drive da Lente 6 = regra candidata MAN-METH-REG). Zero código tocado; `salary_engine_test`
+  48/48; todos os achados absorvidos no improvements.md (vereditos por lente na entrada AUD1, com
+  evidência de busca; cada achado com evidência + severidade + parecer).
+- **Achados → itens novos 🔲:** **F11** (Alta — rollover duplicado admin×offseason com guards
+  divergentes; dupla execução incrementa contratos 2×), **F12** (Média — `run_import` sobrescreve
+  salary/cyr a cada boot local sem SalaryHistory), **DOC1** (Média — CLAUDE.md App Startup Sequence
+  ≠ código: ordem do `init_auth` + condicionalidade `fresh_import`), **E4-d** (Baixa/Média —
+  matching frouxo nas portas do /auction), **M19** (Baixa — validação de pesos do lottery só
+  client-side), **M20** (Baixa — descomissionar write-side da flag single-user; **bloqueado por
+  M17 ⚠️**). **Cross-refs (não re-reportados):** F10 (updateSummary integral), F9 (bulk_register +
+  bloco vestigial), E4-a/E2-RISK (fuzzy do parser), OFF26-1 (gap de enforcement do cap na entrada
+  da FA auction — promessa do banner M1 hoje sem lastro em código).
+- **Varreduras limpas (com evidência):** sync (sid-first, fallback nome-completo, lição 3-Browns
+  in-code), dynasty_values (100% sid + DP_), cap soft (nenhum bloqueio indevido — tudo informativo),
+  barras de trade (agregação client de valores server-resolved, sem contraparte backend).
+- **Priorização do lote (decisão do owner, 11/06):**
+  1. **F11 (Fable)** — próxima sessão; o prompt F2 virá com **passo obrigatório de verificação
+     retroativa em prod** (a dupla execução já corrompeu contratos?) antes do fix; eventual repair
+     é escopo separado, com backup.
+  2. **F10 (Fable)** — mesma sessão Fable do F11.
+  3. **DOC1 + F12 + O3 (Opus)** — sessão única; **O3 = split do improvements.md** (a registrar via
+     MAN-O3-REG), executado por último dentro da sessão.
+  4. **E4-d (Opus)** — prazo: antes da FA auction.
+  5. **M19 (Opus)** — carona em sessão Opus futura.
+  6. **M20 (Opus)** — bloqueado até M17 marcar ✅ (smoke prod com import ESPN real).
+- **Meta (3ª ocorrência do MAN-METH-REG):** a análise pré-execução do próprio F1 refutou duas
+  premissas do prompt contra código/docs **antes de aceitar o escopo** ("JS estático" — inexistente,
+  todo JS é inline nos templates; "regra MAN-O2" — referência imprecisa, a regra de absorção é do
+  DEV_METHODOLOGY). Registrada na entrada MAN-METH-REG; a sessão de consolidação de metodologia
+  terá **3 casos** (DP1-F1, UX4-b, AUD1-F1).
+- **Commit docs-only de fechamento** (improvements.md + devplan) — exceção justificada: sessão de
+  diagnose pura, sem código pendente (precedente 08/06).
+
 ### 09/06/2026 — E4-c-1 fechado ✅ (store canônico backfillado e verificado em produção)
 
 - **Migration 7 rodou no boot pós-deploy** contra o banco vivo (`/data/dynasty.db`). **Backup pré-op:** `/data/dynasty_prod_backup_2026-06-09_pre-E4c1.db`.

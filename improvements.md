@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 11/06/2026 (sessão AUD1: REG + **F1 executada ✅** — 6 lentes varridas; 6 itens novos: F11 rollover duplicado, F12 import-overwrite local, E4-d matching /auction, M19 validação lottery client-only, M20 descomissionar flag single-user, DOC1 CLAUDE.md startup; 3ª ocorrência do MAN-METH-REG registrada)
 > Atualizado em: 10/06/2026 (sessão DP1: F1 diagnose ✅ + **F2 board + simulação multi-pick no backend ⚠️ localhost** — lê `RookieEspnValue` por season, NÃO o canônico; premissa "DP1 lê o store canônico" corrigida; smoke em prod pendente)
 > Atualizado em: 09/06/2026 (sessão 08–09/06: M17 + M18 ✅ prod; E2-RISK + E4-a ⚠️ matcher/tela do "Brown"; E4-b ✅ prod (órfãos); E4-c-1 ✅ prod (store canônico ESPN por sleeper_id); WV1/E3/E4-c-2 registrados; DP1 desbloqueado)
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
@@ -97,6 +98,13 @@
 | DATA-1 | Badges TRADE e REVISÃO removidos da macro de listagem (info pertence à timeline/admin, não à listagem) | Média | ✅ 24/04/2026 |
 | T3 | Valores redraft do FantasyCalc no Trade Manager (modelo 3 — duas barras independentes dynasty + redraft) | Média | ✅ 27/04/2026 |
 | T3-FIX-UX | Migrar barras dynasty + redraft de dual-fill (T2 pattern) para delta-pointing + corrigir overflow mobile + redraft no modal preview + descrição de trade em formato "de/para" 2-colunas + alinhamento vertical entre colunas (5 sub-iterações, owner-driven via screenshot mobile) | Média | ✅ 27-28/04/2026 |
+| AUD1 | Auditoria estrutural read-only do codebase: 6 lentes de incidentes históricos (F1-only — achados viram itens próprios; Lente 6 = test drive do MAN-METH-REG) — MAN-AUD1-REG/F1 | Alta | ✅ 11/06/2026 (achados absorvidos: F11, F12, E4-d, M19, M20, DOC1) |
+| F11 | Rollover de season duplicado e divergente: `/api/admin/rollover/apply` (sem gate de etapas, sem check `rollover_done`, NÃO avança `current_season`) × `/api/offseason/rollover` (gated) — ambos vivos na UI; dupla execução incrementa contratos 2× — achado AUD1 Lente 2 | Alta | 🔲 |
+| F12 | `run_import` sobrescreve salary/contract_year a cada boot com CSV presente (dev local), sem SalaryHistory — reverte silenciosamente rollover/correções locais; coluna `salary_2025` hardcoded — achado AUD1 Lente 2 | Média | 🔲 |
+| E4-d | Matching frouxo nas portas do /auction: single-entry FA/rookie matcha player por nome exato sem resolver sid (guard E4-b ausente — classe órfão) + upload Excel matcha Team por substring `%name%` — achado AUD1 Lente 4 | Baixa/Média | 🔲 |
+| M19 | Validação de pesos do lottery só existe no client (JS floor/mín-1); `_normalize_weights` aceita float/zero/negativo — POST direto exclui time do pool silenciosamente — achado AUD1 Lente 1 | Baixa | 🔲 |
+| M20 | Descomissionar write-side da flag single-user: sync escreve `is_my_team` via `MY_OWNER_ID`; record_acquisition/bulk_register propagam; colunas + to_dict + check_team.py + mapeamento standings (offseason.py:312) — fora do escopo M17 (só consumidores); **bloqueado: depende de M17, hoje ⚠️ (aguardando smoke prod)** — achado AUD1 Lente 3 | Baixa | 🔲 (bloqueado) |
+| DOC1 | CLAUDE.md "App Startup Sequence" desatualizada: `init_auth` listado antes de sync/backfill (código: depois, app.py:138) + sync/backfill são condicionais a `fresh_import` (app.py:61), não passos de todo boot — docs-only fix — achado AUD1 Lente 6 | Média (blast radius: doc carregada em toda sessão) | 🔲 |
 
 ---
 
@@ -2287,6 +2295,13 @@ descreve" só aparece se a F1 for **obrigada a olhá-lo** — não cai das pergu
   positivo (o que deveria aparecer) mas não listou os campos presentes hoje que **sumiriam** no
   design proposto (ESPN + Projeção no roster). Registrado na época como candidato a baseline; **esta
   entrada absorve e generaliza** aquela nota metodológica (origem em UX4-b, ver seção UX4-b).
+- **AUD1-F1 pré-execução (11/06/2026) — premissas do próprio prompt refutadas antes do escopo.**
+  O prompt MAN-AUD1-F1 afirmou "JS estático" (falso — `static/` só tem CSS; todo JS é inline nos
+  templates) e citou "regra MAN-O2" (inexistente — a regra de absorção imediata é do
+  DEV_METHODOLOGY; MAN-O2-REFINE é precedente de refinamento documental, outra coisa). Ambas
+  refutadas contra código/docs na análise pré-implementação, **antes de aceitar o escopo** — o
+  comportamento que esta regra quer tornar obrigatório, demonstrado espontaneamente e confirmado
+  como barato (2 greps). Terceira ocorrência da família.
 
 DP1 = premissa de leitura falsa; UX4-b = campo existente omitido. Ambos só visíveis ao olhar o gap
 (assumido × real, existe × proposto) — daí a regra única.
@@ -2294,6 +2309,255 @@ DP1 = premissa de leitura falsa; UX4-b = campo existente omitido. Ambos só vis�
 **Relaciona-se a** [[validate_prompt_premises_empirically]] (checar empiricamente premissas críticas
 do prompt antes do IMPL) e ao princípio de fonte única (T2-FIX-2 / [[F10]]): a refutação da premissa
 na F1 é o momento barato de pegar o gap, antes de o IMPL nascer sobre uma base falsa.
+
+---
+
+### MAN-AUD1-REG — Série AUD: auditoria estrutural read-only por lentes de incidentes
+🔲 **Registrado 11/06/2026** — MAN-AUD1-REG (registro apenas; a execução é MAN-AUD1-F1, mesma
+sessão). **Série nova `AUD` — auditorias**: varreduras sistemáticas do codebase guiadas por
+classes de bug do histórico do projeto, sem fase de implementação própria.
+
+**Objetivo:** diagnose read-only do codebase inteiro (rotas, módulos de domínio, templates com JS
+inline, scripts) através de **6 lentes derivadas do histórico de incidentes**, cada uma com
+veredito explícito (ocorrências OU varredura limpa, sempre com evidência de busca):
+1. **Réplicas Python↔JS/templates** (classe T2-FIX / [[F10]]) — busca pelo padrão de saída, não só
+   por nome de função.
+2. **Escritas de salary fora do helper canônico** `record_acquisition` (classe [[F9]]).
+3. **Resíduos do anti-pattern single-user** — `is_my_team` e equivalentes vs o padrão canônico
+   `current_user.team_rel` (precedente M17).
+4. **Matching por nome sem `sleeper_id`** (classe "Brown"), fora dos pontos já consertados
+   (E4-a, E2-RISK) — inclui scripts utilitários e imports secundários.
+5. **Violações do contrato de cap soft** — hard block só na entrada da FA auction (regulamento,
+   regra 8.2.7 e contrato de cap; `data/Regulamento - Dynasty - SB FANTASY FOOTBALL LEAGUE -
+   12-08-2025.pdf`).
+6. **Divergência docs×código** (classe DP1-F1) — premissas afirmadas em CLAUDE.md / devplan /
+   improvements.md que o código contradiz; parecer por divergência: premissa falsa / doc
+   desatualizado / código errado. **Test drive da regra candidata [[MAN-METH-REG]]**.
+
+**Natureza (sem F2):** AUD1 tem **apenas F1** (diagnose). Não existe AUD1-F2 — cada achado vira
+item individual no backlog (série existente adequada: M/E/OFF26/UX/T/S/WV, ou docs-only fix) com
+ciclo REG/F1/F2 próprio. Critério de "done" da auditoria: **absorção dos achados nos docs
+canônicos** (não há código alterado, logo não há validação em prod).
+
+**Formato de saída exigido:** todo achado entra como entrada candidata no improvements.md com
+**evidência** (módulo/área + comportamento observado no código real), **severidade**
+(alta/média/baixa) e **parecer** (novo / já catalogado com cross-ref / falso-positivo descartado
+com justificativa) — nunca relatório solto fora dos docs canônicos. Conforme a regra do
+DEV_METHODOLOGY de absorção imediata de achados de diagnose ("diagnose que aponta novo bug → novo
+item 🔲 imediatamente"; precedente de refinamento documental: MAN-O2-REFINE 27/04/2026).
+
+**Baseline de dedupe (já catalogados — cross-ref, não achado novo):** [[F10]] (réplica JS
+`draft_budget` no cap_projector), [[F9]] (`bulk_register` sem SalaryHistory), E4-c-2 (higiene do
+store), achados secundários do MAN-ESPN12 (×1.2 espalhado em 5 sítios Python; "adjusted"
+floorado×não-floorado).
+
+**Origem das lentes:** devplan 23/04/2026 (META: 4 regras pós-T2-FIX) e 10/06/2026 (MAN-METH-REG +
+correção de premissa DP1). **Timing:** janela de acesso ao Fable 5 no Claude Code (até 22/06)
+motivou rodar a varredura agora — caso cirúrgico da política de modelos (diagnose de causa-raiz
+não-óbvia em codebase inteiro).
+
+**F1 EXECUTADA 11/06/2026 — ✅ — VEREDITOS POR LENTE** (MAN-AUD1-F1; evidência de busca por lente;
+sanity: `salary_engine_test.py` 48/48 OK, git diff docs-only):
+
+- **Lente 1 (réplicas Python↔JS) — 1 cross-ref + 1 achado novo + 1 descarte.** Varrido: grep
+  `Math.*/.toFixed/.reduce` + multiplicações (×1.2/×0.5/×0.8) em todos os 27 templates; hits só em
+  cap_projector, offseason, salary, salary_history, trades. (a) `updateSummary` do cap_projector
+  (linhas 181-214: total/remaining/spots/usable/pct) = **cross-ref [[F10]]** (escopo integral).
+  (b) Editor de pesos do lottery (offseason.html:390-439): réplica da fórmula bolinhas/% entre
+  modos de render é **decisão consciente M15-FIX** (comentário "fonte ÚNICA de render" in-code) —
+  descartado; mas a assimetria de **validação** virou [[M19]]. (c) Barras de trade
+  (trades.html:430-475): agregação client de valores pré-resolvidos pelo server (T2-FIX-2 /
+  dynasty_values 100% sid), sem contraparte backend — **limpo**. Labels "×1.2" em templates são
+  texto de ajuda com valores do server (já evidenciado no MAN-ESPN12).
+- **Lente 2 (escritas de salary) — 2 achados novos + 1 cross-ref.** Varrido: grep
+  `.salary =`/`.contract_years =` em todos os .py (8 sítios). Legítimos: `record_acquisition`
+  (models.py:375, porta canônica), `correct_player_salary` (models.py:201 — atualiza Player +
+  SalaryHistory + PlayerHistory), rollover com history (admin.py:103, offseason.py:674), fixture de
+  teste. Achados: **[[F11]]** (rollover DUPLICADO admin×offseason, guards divergentes),
+  **[[F12]]** (`import_csv.py:111` sobrescreve sem history a cada boot local). `bulk_register`
+  (auction.py:149) = **cross-ref [[F9]]** (confirmado: sem SalaryHistory, sem `record_acquisition`,
+  sem token `[ref:]`; + bloco vestigial no-op nas linhas 121-124, fold no F9).
+- **Lente 3 (single-user) — consumidores limpos; write-side virou [[M20]].** As 8 surfaces do
+  M17-F1 conferidas migradas (roster.html sem flag; league.py/team_detail derivam de
+  `current_user`; fonte única `inject_user_team` app.py:115-121). Resíduo genuinamente fora do
+  escopo M17 (que só mapeou consumidores): manutenção write-side da flag + constantes
+  `MY_OWNER_ID`/`MY_TEAM_NAME` → **[[M20]]** (dep: M17 ✅).
+- **Lente 4 (matching por nome) — 2 limpos + 2 cross-refs + 1 achado novo.** Varrido: grep
+  `SequenceMatcher/difflib/fuzz/ratio/ilike/contains` em todos os .py. **Limpos:** sync
+  (sid-first + fallback nome-completo-normalizado, last-name fallback removido com comentário
+  3-Browns, sync_sleeper.py:222-239) e dynasty_values (100% sid + formato DP_). **Cross-refs:**
+  espn_pdf_parser fuzzy → [[E4-a]]/E2-RISK; buscas substring user-facing (roster.py:333,
+  salary.py:219) são display-only, legítimas. **Achado:** portas do /auction → **[[E4-d]]**.
+- **Lente 5 (cap soft) — varredura LIMPA de violações.** Varrido: grep `SALARY_CAP/over_cap/
+  cap_remaining/>200` em routes/. Todos os pontos são informativos: preview de trade
+  (trades.py:203-204, flag `over_cap`), banner M1 (roster.py:99-100), draft_import
+  (`_budget_alerts` — docstring explícita "soft — não bloqueia"). **Gap inverso anotado:** o hard
+  block PERMITIDO na entrada da FA auction não existe (auction.py: zero menções a cap/budget) —
+  promessa do banner M1 ("cap será aplicado na entrada do FA auction") sem lastro em código;
+  enforcement pertence ao escopo planejado do [[OFF26-1]] (budget ao vivo na janela selada) —
+  cross-ref, não item novo.
+- **Lente 6 (docs×código) — 1 achado novo (CLAUDE.md) + claims confirmadas.** Refutadas contra o
+  código as claims do CLAUDE.md (maior blast radius): `salary_engine` zero-DB ✅ (zero imports no
+  módulo); "sync nunca sobrescreve salary/contract" ✅ (grep + comentário sync_sleeper.py:242);
+  exceção `@login_required` no `/api/admin/sync` ✅ (admin.py:33-34); `clear_rookie_espn_store` no
+  Step 5 ✅ (offseason.py:715); `record_acquisition` porta única com exceção F9 ✅. **Divergência:**
+  App Startup Sequence → **[[DOC1]]**. Comentário stale em admin.py:122-123 ("CURRENT_SEASON is a
+  constant" — contradito por `AppConfig.current_season` + `set_config`) fold no [[F11]].
+
+---
+
+### F11 — Rollover de season duplicado e divergente (admin × offseason)
+🔲 **Registrado 11/06/2026** — achado AUD1 Lente 2 — Prioridade **Alta**
+
+**Evidência:** dois endpoints aplicam o rollover, ambos vivos na UI: (1) `/api/admin/rollover/apply`
+(routes/admin.py:89-130; botão "⚡ Aplicar Rollover" em admin.html:285) e (2) `/api/offseason/rollover`
+(routes/offseason.py:653-697; Step 4 do workflow, offseason.html:724). Divergências do lado admin:
+**sem gate de etapas** (offseason exige steps 2+3), **sem check `rollover_done`** (re-execução livre),
+**não avança `current_season`** nem seta flags — grava SalaryHistory com `season=next_season` deixando
+a config da season para trás (estado inconsistente). Comentário stale em admin.py:122-123 afirma
+"CURRENT_SEASON in models is a constant — in production you'd persist this in a Settings table",
+contradito pelo código atual (`AppConfig.current_season` + `set_config`, usados pelo fluxo offseason).
+**Risco:** rodar o rollover do admin após o do offseason (ou 2× o do admin) **incrementa contratos e
+salários duas vezes** — corrupção em massa de dados calculados, sem reversão fácil.
+**Parecer:** item novo. Proposta: matar a réplica (admin delega ao endpoint canônico do offseason, ou
+remove o botão), à la T2-FIX-2/"1 fonte por caminho de escrita". F1 dispensável — diagnose acima já
+cobre causa e evidência; F2 direto.
+
+---
+
+### F12 — `run_import` sobrescreve salary/contract a cada boot local, sem history
+🔲 **Registrado 11/06/2026** — achado AUD1 Lente 2 — Prioridade **Média** (dev local; prod safe)
+
+**Evidência:** import_csv.py:110-112 — para player existente, `player.salary = salary` +
+`player.contract_year = cyr` **incondicionalmente** a cada `run_import()` (todo boot com CSV
+presente, app.py:60), **sem criar SalaryHistory**. O guard `f8_rebuilt` (import_csv.py:61-63)
+protege só `acquisition_type`/`contract_start_season`. A coluna lida é `salary_2025` (hardcoded,
+import_csv.py:90) — snapshot estático de 2025. Em prod o CSV não existe (não está no git) → skip
+(WARNING, import_csv.py:54-56). **Risco:** em dev local, rollover/correções feitos in-app são
+silenciosamente revertidos ao snapshot 2025 no próximo boot, sem trilha — explica/agrava o
+"dynasty.db local diverge do repo" e cria falsos negativos em testes locais de rollover.
+**Parecer:** item novo. Candidatos de fix (decidir em F2): guard tipo `csv_imported` one-shot,
+ou skip de salary/cyr quando `f8_rebuilt`/flag equivalente — manter CSV como bootstrap, não como
+autoridade contínua. Atualizar CLAUDE.md junto ("first run auto-imports" hoje não descreve o código).
+
+---
+
+### E4-d — Matching frouxo nas portas do /auction (single-entry + Excel)
+🔲 **Registrado 11/06/2026** — achado AUD1 Lente 4 — Prioridade **Baixa/Média** — família [[E4]]
+
+**Evidência:** (1) single-entry FA/rookie: `Player.name.ilike(player_name)` sem wildcard
+(auction.py:50 e 91) — exato case-insensitive, sem resolução nome+team→sid (resolver E4-a/E4-b
+existe e não é usado aqui); grafia divergente do Sleeper cria **órfão-duplicata** (classe E4-b, cujo
+guard cobriu só import_csv). (2) upload Excel: `Team.name.ilike(f"%{team_name}%")` (auction.py:219) —
+**substring** em nome de time; colisão entre times que compartilham palavra atribui contrato ao time
+errado. **Parecer:** item novo na família E4 (identidade na porta de aquisição): aplicar o resolver
+sid na entrada manual (mesma régua do import) + match exato/escolha explícita para times no Excel.
+
+---
+
+### M19 — Validação de pesos do lottery existe só no client
+🔲 **Registrado 11/06/2026** — achado AUD1 Lente 1 — Prioridade **Baixa**
+
+**Evidência:** JS valida peso (inteiro ≥1 via floor, offseason.html:391-405, M15-FIX); o backend
+`_normalize_weights` (offseason.py:39-43) só faz `{int(k): float(v)}` — aceita 0, negativo e float
+— e `_draw_weighted_lottery` faz `int(weight)` (offseason.py:72): peso ≤0 ou <1 → time
+**silenciosamente excluído do pool**. POST direto em `/api/offseason/run_lottery` bypassa o JS.
+Mitigantes: `@admin_required` + audit M8 grava weights/pool (detectável a posteriori).
+**Parecer:** item novo — espelhar a validação no server (rejeitar peso inválido com 400), mantendo a
+fórmula de render no client (decisão M15-FIX preservada).
+
+---
+
+### M20 — Descomissionar write-side da flag single-user (`is_my_team` + constantes)
+🔲 **Registrado 11/06/2026** — achado AUD1 Lente 3 — Prioridade **Baixa** — **BLOQUEADO: depende de
+[[M17]], que segue ⚠️ aguardando smoke em prod (import ESPN real). Só destrava quando M17 marcar ✅.**
+
+**Evidência:** consumidores user-facing migrados pelo M17 (verificado: roster.html sem flag;
+league/team_detail derivam de `current_user`; fonte única `inject_user_team` app.py:115-121), mas o
+ciclo de vida da flag segue inteiro: sync **escreve** `team.is_my_team` via `MY_OWNER_ID`
+(sync_sleeper.py:161,170) e propaga em moves/trades (254, 275, 593); `record_acquisition` propaga
+(models.py:368,380); `bulk_register` propaga (auction.py:145); colunas Team/Player + `to_dict`
+(models.py:89,115,137,191); `check_team.py:6` consulta a flag; mapeamento de standings usa
+`MY_OWNER_ID`/`MY_TEAM_NAME` (offseason.py:312-313). **Risco:** superfície futura consumir a flag
+"viva e correta" por engano, reintroduzindo a classe M17. Fora do escopo original do M17 (F1 mapeou
+só consumidores) → ID próprio. **Parecer:** item novo — após M17 ✅ em prod: remover escrita/propagação,
+deprecar colunas (manter no schema por compat até migração), migrar check_team.py e o mapeamento de
+standings.
+
+---
+
+### DOC1 — CLAUDE.md "App Startup Sequence" desatualizada (docs-only)
+🔲 **Registrado 11/06/2026** — achado AUD1 Lente 6 — Prioridade **Média** (blast radius: doc carregada em toda sessão do Code)
+
+**Evidência:** CLAUDE.md lista 10 passos com `init_auth` (8) antes de `run_sync` (9) e
+`_backfill_player_history` (10) incondicionais. Código real (app.py): `run_import` (60) →
+**`run_sync` e backfill SÓ se `fresh_import`** (app.py:61-82; backfill ainda atrás do guard
+`f8_rebuilt`) → context processors → `init_auth` **por último** (app.py:138). **Risco:** sessão
+futura assume "sync roda em todo boot" e mis-diagnostica dados stale (premissa falsa classe DP1-F1
+no doc de maior propagação). **Parecer:** doc desatualizado → docs-only fix no CLAUDE.md (reescrever
+a sequência refletindo condicionalidade e ordem reais). Sem F1 — evidência acima é a diagnose.
+
+---
+
+### MAN-ESPN12 — Onde o fator ×1.2 do ESPN é aplicado (diagnose read-only)
+🔲 **F1 registrada 10/06/2026** — MAN-ESPN12-F1 (**diagnose read-only; nada alterado**) —
+nenhum item marcado resolvido. Veredito da suspeita central (réplica ×1.2 no client): **negativo**.
+
+**Pergunta-mãe:** o fator ×1.2 (reg. 8.2.7, `floor(ESPN_raw×1.2)`) está replicado fora do backend
+(JS/template), violando "single source per render mode"?
+
+**ACHADOS (evidência concreta):**
+
+1. **Onde o ×1.2 é aplicado (backend).** É a conversão de fronteira **raw→adjusted**, aplicada no
+   **momento da escrita/entrada**, sempre em Python. **5 sítios** fazem a multiplicação:
+   - `espn_pdf_parser.py:129` — `max(1.0, float(int(espn_raw*1.2)))` (import PDF; **com floor**).
+   - `routes/admin.py:173` — `set_espn_value(..., espn_raw*1.2, raw=...)` (CSV bulk `/api/admin/espn_bulk`).
+   - `routes/auction.py:46,88,136` — `espn_adjusted = espn_raw*1.2` (registro FA/rookie no `/auction`).
+   - `routes/salary.py:46` — `espn_adj = espn_raw*1.2` (calculadora `/api/salary/calculate`).
+   - `routes/salary.py:280,285,288` — `espn_raw*1.2` (`/api/espn_values/update`, store + log legado).
+   O **floor** (adjusted→salário) é separado e **fonte única** em `salary_engine.year1_salary`,
+   invocado pela porta canônica `record_acquisition`.
+
+2. **Réplica em JS/template? → NÃO (achado central).** O grep de multiplicação real (`* 1.2` /
+   `1.2 *`) retorna **9 hits, todos Python; 0 em template/JS** (não há `.js` separado — todo JS é
+   inline nos templates; `static/` só tem CSS). Os `×1.2`/`x1.2` em templates são **texto de ajuda**
+   (`auction.html:92`, `salary.html:66/72/78/84`, `admin.html:117`, `espn_import.html:92`) ou
+   **rótulo de exibição** (`salary.html:112`: `"$<raw> × 1.2 = $<adjusted>"`, onde **ambos** os
+   números vêm do servidor — `espn_adjusted` é computado em `salary.py:46` e a tabela de contrato em
+   `full_contract_table`). **Nenhum cálculo no client.**
+
+3. **Origem do valor exibido.** Sempre o valor **computado em Python e servido**. Telas que mostram
+   ESPN exibem colunas/campos já gravados (`Player.espn_ref_value`, `espn_raw`/`espn_adjusted` do
+   parser/store) ou o retorno da API — **nunca recalculam** a partir do raw. Invariante **preservada**.
+
+4. **Dupla aplicação / omissão.** **Nenhuma dupla aplicação** numa mesma cadeia: cada caminho de
+   escrita aplica ×1.2 **uma vez**; o confirm do PDF (`admin.py` → `_save_espn_value`) grava o
+   `espn_adjusted` **já produzido pelo parser** (não re-multiplica); a engine **espera adjusted e não
+   re-multiplica** (regressão guardada por `salary_engine_test.py:275` — bug histórico de "double
+   ×1.2" → $39, hoje $35). **Sem omissão** no caminho de salário (floor via `year1_salary`).
+
+**ACHADOS SECUNDÁRIOS (não são a violação suspeitada, mas reais):**
+- **(a) ×1.2 duplicado entre 5 sítios Python** — é débito de **fonte única _no backend_** (constante
+  mágica `1.2` + conversão raw→adjusted espalhada por parser + 4 rotas; não há helper único tipo
+  `adjust_espn(raw)`). **Distinto** da invariante de render-mode (essa está OK) — é o mesmo espírito
+  do [[F10]] aplicado dentro do Python. Risco baixo hoje, mas qualquer mudança no fator toca 5 lugares.
+- **(b) Definição divergente de "adjusted" entre caminhos de escrita.** O parser PDF **floora**
+  (`int(raw×1.2)` → 55) enquanto os outros 4 sítios gravam o **produto não-floorado** (`raw×1.2` →
+  55.2). Mesmo raw → `espn_adjusted`/`espn_ref_value` gravado **55 vs 55.2**. O **salário é idêntico**
+  (year1 floora de novo), mas a **valorização** (`0.5×`, `0.8×`) pode divergir **$1** em borda, e a
+  **exibição** do adjusted difere. Inconsistência de definição do canônico.
+- **(c) Rótulo "ESPN" mistura raw e adjusted na mesma tela.** No `cap_projector`, a coluna "ESPN Ref"
+  mostra `espn_ref_value` = **adjusted** para rosterados (`cap_projector.html:158`) e, no board DP1,
+  `espn_raw` = **raw** para rookies (`:262`) — **mesmo rótulo, bases diferentes**. Mais amplo:
+  formulários de input e o board tratam "ESPN" como raw; telas de roster mostram adjusted. Divergência
+  de **exibição** (não de cálculo).
+
+**JUSTIFICA F2?** A suspeita original (réplica no client) **não se confirma** → não há correção
+urgente de invariante. Há **débito real** (a/b/c) que pode virar F2 **opcional, baixa prioridade**:
+- Escopo mínimo: **centralizar a conversão** num helper único (ex.: `salary_engine.adjust_espn(raw)` —
+  com decisão explícita floor× não-floor, fechando (a)+(b)) e **reponteirar os 5 sítios** para ele.
+- Escopo opcional: **uniformizar o rótulo "ESPN"** (raw vs adjusted) nas telas (c) — decisão de UX.
+Decisão aguarda o owner; **nada implementado nesta fase**.
 
 ---
 
