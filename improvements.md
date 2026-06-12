@@ -103,7 +103,7 @@
 | AUD1 | Auditoria estrutural read-only do codebase: 6 lentes de incidentes históricos (F1-only — achados viram itens próprios; Lente 6 = test drive do MAN-METH-REG) — MAN-AUD1-REG/F1 | Alta | ✅ 11/06/2026 (achados absorvidos: F11, F12, E4-d, M19, M20, DOC1) |
 | F11 | Rollover de season duplicado e divergente: `/api/admin/rollover/apply` (sem gate de etapas, sem check `rollover_done`, NÃO avança `current_season`) × `/api/offseason/rollover` (gated) — ambos vivos na UI; dupla execução incrementa contratos 2× — achado AUD1 Lente 2 | Alta | ✅ 12/06/2026 (prod LIMPO + fix Opção A + smoke prod OK) |
 | F11-FIX-UX | Microcopy do card "Season Rollover (preview)" e do passo 2 do fluxo pré-temporada no /admin: linguagem de owner (prévia × aplicação real na Intertemporada), link p/ /offseason, sem nº de step e sem season hardcoded — carona da sessão F10 (padrão N1-FIX/T3-FIX-UX) | Baixa | ⚠️ 12/06/2026 (localhost; ✅ com o smoke do F10) |
-| F12 | `run_import` sobrescreve salary/contract_year a cada boot com CSV presente (dev local), sem SalaryHistory — reverte silenciosamente rollover/correções locais; coluna `salary_2025` hardcoded — achado AUD1 Lente 2 | Média | 🔲 |
+| F12 | `run_import` sobrescreve salary/contract_year a cada boot com CSV presente (dev local), sem SalaryHistory — reverte silenciosamente rollover/correções locais; coluna `salary_2025` hardcoded — achado AUD1 Lente 2 | Média | ⚠️ 12/06/2026 (bootstrap one-shot via flag `csv_bootstrap_done`; validado localhost — dev-local, sem smoke de prod) |
 | E4-d | Matching frouxo nas portas do /auction: single-entry FA/rookie matcha player por nome exato sem resolver sid (guard E4-b ausente — classe órfão) + upload Excel matcha Team por substring `%name%` — achado AUD1 Lente 4 | Baixa/Média | 🔲 |
 | M19 | Validação de pesos do lottery só existe no client (JS floor/mín-1); `_normalize_weights` aceita float/zero/negativo — POST direto exclui time do pool silenciosamente — achado AUD1 Lente 1 | Baixa | 🔲 |
 | M20 | Descomissionar write-side da flag single-user: sync escreve `is_my_team` via `MY_OWNER_ID`; record_acquisition/bulk_register propagam; colunas + to_dict + check_team.py + mapeamento standings (offseason.py:312) — fora do escopo M17 (só consumidores); **bloqueado: depende de M17, hoje ⚠️ (aguardando smoke prod)** — achado AUD1 Lente 3 | Baixa | 🔲 (bloqueado) |
@@ -1148,6 +1148,40 @@ silenciosamente revertidos ao snapshot 2025 no próximo boot, sem trilha — exp
 **Parecer:** item novo. Candidatos de fix (decidir em F2): guard tipo `csv_imported` one-shot,
 ou skip de salary/cyr quando `f8_rebuilt`/flag equivalente — manter CSV como bootstrap, não como
 autoridade contínua. Atualizar CLAUDE.md junto ("first run auto-imports" hoje não descreve o código).
+
+#### F2 ⚠️ (12/06/2026) — bootstrap one-shot via flag própria (validado localhost)
+
+**Decisão de design — Opção B (flag one-shot `csv_bootstrap_done`), NÃO o guard `f8_rebuilt`.**
+Justificativa: `f8_rebuilt` é semanticamente o marcador do rebuild de PlayerHistory via chain do
+Sleeper (estado tipicamente só atingido em prod). Num DB de **dev fresco** `f8_rebuilt=false`, então
+reusá-lo **não fecharia o caso dev-local** (salary/cyr seguiriam sobrescritos todo boot). Uma flag
+própria casa exatamente com o critério "CSV é bootstrap, não autoridade contínua" e segue o
+**precedente do próprio `f8_rebuilt`** (flag de guard de import, lazy, lida com fallback `"false"` e
+fora do `_seed_app_config`) — `csv_bootstrap_done` é **chave nova em AppConfig**, não mudança de
+schema (restrição respeitada: AppConfig existente, sem coluna nova).
+
+**Implementação (import_csv.py, contida em 1 arquivo):** lê `csv_bootstrap_done`; no branch de player
+**existente**, `salary`/`contract_year` só são escritos `if not csv_bootstrap_done` (a 1ª semeadura);
+após o commit, seta a flag. Branch de player **novo** intocado (o create segue semeando salary/cyr do
+CSV — primeiro contrato legítimo). Em prod (CSV ausente) o `run_import` retorna cedo no WARNING e
+**nunca seta a flag** — inofensiva (sem CSV não há o que reescrever). **Escopo estrito a salary/cyr:**
+`set_espn_value`, `position`, `nfl_team` etc. seguem como estavam (fora do escopo do F12).
+
+**Observação fora de escopo (candidata a item próprio):** o `set_espn_value` também re-aplica o
+snapshot ESPN do CSV todo boot local — mesma classe de "snapshot estático reescreve estado in-app",
+mas para ESPN values, não salary/contract. Não tocado aqui (escopo F12 = salary/cyr); registrar se
+virar incômodo real em dev (após import ESPN local seria revertido no boot seguinte).
+
+**CLAUDE.md atualizado:** a linha "first run auto-imports …" (Commands) agora descreve o bootstrap
+one-shot de salary/contract + a flag `csv_bootstrap_done`.
+
+**Validação localhost (DB de teste = cópia do seed + `db.create_all`):** (1) **boot duplo** — boot 1
+semeia (Mahomes salary 9.0) e seta a flag; edição in-app (→26.0/cyr 3); boot 2 com guard ativo
+**preserva** (26.0/cyr 3, não reverteu); (2) **player novo** com a flag já `true` entra normalmente
+via CSV temporário (salary 7.0/cyr 1, `created=1`); (3) **caminho prod** (CSV ausente) → skip com
+WARNING, `return False`, flag intacta. `salary_engine_test.py` **48/48**. **Critério de ✅
+(dev-local, sem smoke de prod):** a validação dupla acima — registrada como done; F12 pode flipar ✅
+direto. (Mantido ⚠️ no Status Rápido até o owner confirmar; comportamento é puramente dev-local.)
 
 ---
 

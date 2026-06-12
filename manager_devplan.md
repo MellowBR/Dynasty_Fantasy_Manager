@@ -1259,8 +1259,18 @@ Sessão multi-item (commits separados por item; abertura no 1º commit). Início
   `f8_rebuilt`) + 4 omissões achadas na mesma passada (URI via env `DYNASTY_DB`; filtro `utc_iso`/M18;
   4 context processors + 9 blueprints + error handlers; `app.run` só sob `__main__`). Nenhuma virou
   item novo. **Done sem smoke** (docs): cada passo com âncora apontável. Seção migrada ao archive (O3).
-- **Commit 1** (abertura + DOC1): docs + `templates/admin.html` (passo 2). _F12 e DP2 nos commits
-  seguintes — entradas abaixo conforme executados._
+- **Commit 1** (abertura + DOC1): docs + `templates/admin.html` (passo 2).
+- **F12 ⚠️ localhost (commit 2):** CSV vira bootstrap one-shot para salary/contract. **Decisão:
+  Opção B (flag própria `csv_bootstrap_done`), não o guard `f8_rebuilt`** — num DB de dev fresco
+  `f8_rebuilt=false`, reusá-lo não fecharia o caso dev-local; flag própria segue o precedente do
+  próprio `f8_rebuilt` (lazy, fallback "false", fora do `_seed_app_config`) e é chave nova em
+  AppConfig (sem mudança de schema). No branch de player existente, salary/cyr só na 1ª semeadura;
+  branch de create intocado (player novo entra normal); prod (CSV ausente) retorna cedo, flag nunca
+  setada. Escopo estrito a salary/cyr (set_espn_value/position/nfl_team fora — registrada observação
+  ESPN como candidata a item próprio). CLAUDE.md (Commands) atualizado. **Validação:** boot duplo
+  (semeia→edita→preserva 26.0/cyr 3), player novo entra com flag=true (created=1), prod skip com flag
+  intacta; `salary_engine_test` 48/48. Done dev-local registrado; mantido ⚠️ até o owner confirmar.
+- _DP2 no commit seguinte._
 
 ### 12/06/2026 (pt2) — F11 ✅ (smoke prod) + F11-FIX-UX + evidência no F9 + F10 ⚠️ localhost (Fable)
 

@@ -14,7 +14,8 @@ Dynasty SB is a Flask web app for managing a 12-team dynasty fantasy football le
 # Install dependencies
 pip install -r requirements.txt
 
-# Run app (port 5000) — first run auto-imports data/dynasty_rosters_clean.csv
+# Run app (port 5000) — 1º boot semeia salary/contract de data/dynasty_rosters_clean.csv
+# (bootstrap one-shot, F12: boots seguintes preservam edições in-app; flag csv_bootstrap_done)
 python app.py
 
 # Run salary engine unit tests

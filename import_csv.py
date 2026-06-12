@@ -6,7 +6,7 @@ immediately after (Sleeper is the authoritative source for who is on each team).
 """
 import csv
 import os
-from models import db, Player, CURRENT_SEASON, get_config, set_espn_value
+from models import db, Player, CURRENT_SEASON, get_config, set_config, set_espn_value
 
 CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "dynasty_rosters_clean.csv")
 
@@ -61,6 +61,17 @@ def run_import():
     f8_rebuilt = get_config("f8_rebuilt", "false") == "true"
     if f8_rebuilt:
         print("[import_csv] F8b guard active — skipping acquisition_type and contract_start_season on existing players")
+    # F12 — o CSV é um SNAPSHOT estático de 2025 (coluna salary_2025), bootstrap único,
+    # não autoridade contínua. Após a 1ª semeadura (flag csv_bootstrap_done), boots
+    # seguintes NÃO reescrevem salary/contract_year de player EXISTENTE — caso contrário,
+    # rollovers/correções feitos in-app em dev local seriam revertidos todo boot, sem
+    # trilha. Player NOVO segue entrando normalmente (o branch de create semeia salary/cyr
+    # do CSV — primeiro contrato legítimo). Flag própria (não o f8_rebuilt): num DB de dev
+    # fresco f8_rebuilt=false, então reusá-lo não fecharia o caso dev-local; e os conceitos
+    # são distintos (rebuild de PlayerHistory × snapshot de salário do CSV).
+    csv_bootstrap_done = get_config("csv_bootstrap_done", "false") == "true"
+    if csv_bootstrap_done:
+        print("[import_csv] F12 guard active — skipping salary/contract_year on existing players (CSV já semeado)")
     created = 0
     updated = 0
 
@@ -108,8 +119,10 @@ def run_import():
                     player = find_player_by_sleeper_id(resolved_sid)
 
             if player:
-                player.salary = salary
-                player.contract_year = cyr
+                # F12: salary/contract_year só na 1ª semeadura (bootstrap one-shot)
+                if not csv_bootstrap_done:
+                    player.salary = salary
+                    player.contract_year = cyr
                 if not f8_rebuilt:
                     player.contract_start_season = start_season
                     player.acquisition_type = _norm_acq(acq_raw)
@@ -145,5 +158,12 @@ def run_import():
                 created += 1
 
     db.session.commit()
+    # F12: marca o bootstrap de salary/contract como concluído após a 1ª aplicação.
+    # Boots futuros caem no guard acima e preservam edições in-app. Em prod (CSV ausente)
+    # o run_import retorna cedo (linha do WARNING) e nunca chega aqui — a flag fica false,
+    # inofensiva (sem CSV não há o que reescrever).
+    if not csv_bootstrap_done:
+        set_config("csv_bootstrap_done", "true")
+        print("[import_csv] F12: salary/contract bootstrap concluído — boots futuros preservam edições in-app")
     print(f"[import_csv] created={created}, updated={updated}")
     return created > 0
