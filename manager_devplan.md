@@ -1242,6 +1242,26 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Candidato a baseline, NÃO regra vigente.** Destino: consolidação no `DEV_METHODOLOGY.md` em revisão de metodologia dedicada (transversal manager/optimizer/predictor). Absorve a nota metodológica do UX4-b (referência, não duplicata). Registro apenas — sem código. Commit docs-only `452231b`.
 - **Relaciona-se** a "validar premissas empiricamente" (pré-IMPL) e à fonte única (T2-FIX-2 / F10): a F1 é o momento barato de pegar o gap antes do IMPL nascer sobre base falsa.
 
+### 12/06/2026 (pt3) — F10 ✅ + DOC1 ✅ + F11-FIX-UX layout + F12 + DP2 (Opus)
+
+Sessão multi-item (commits separados por item; abertura no 1º commit). Início no Opus 4.8.
+
+- **Abertura — F10 ✅:** smoke de prod passou (/cap_projector com summary canônico: $157 projetado /
+  $43 restantes / $38 usável / 5 spots min $5, matemática conferida; toggles dirigindo o POST; board
+  DP1 com aviso de store vazio). Seção F10 (4.699 chars) **migrada verbatim+flip ao archive** (O3).
+- **F11-FIX-UX (layout):** o texto novo passou no card "Season Rollover (preview)" mas **quebrou o
+  layout** do passo 2 do card "Ordem do Fluxo Pré-Temporada" (fragmentou em colunas, espaço antes do
+  `;`). Encurtado só o passo 2 → "— aplicado na etapa Season Rollover da página de Intertemporada;
+  aqui, só a prévia" (link mantido). **Segue ⚠️** até smoke do layout em prod.
+- **DOC1 ✅ (docs-only):** seção "App Startup Sequence" do CLAUDE.md reescrita lendo `app.py` passo a
+  passo (âncoras de linha). Corrigidas as 2 divergências da AUD1 (ordem do `init_auth` = perto do fim,
+  não antes do sync; `run_sync`/backfill **condicionais** a `fresh_import`, backfill ainda atrás de
+  `f8_rebuilt`) + 4 omissões achadas na mesma passada (URI via env `DYNASTY_DB`; filtro `utc_iso`/M18;
+  4 context processors + 9 blueprints + error handlers; `app.run` só sob `__main__`). Nenhuma virou
+  item novo. **Done sem smoke** (docs): cada passo com âncora apontável. Seção migrada ao archive (O3).
+- **Commit 1** (abertura + DOC1): docs + `templates/admin.html` (passo 2). _F12 e DP2 nos commits
+  seguintes — entradas abaixo conforme executados._
+
 ### 12/06/2026 (pt2) — F11 ✅ (smoke prod) + F11-FIX-UX + evidência no F9 + F10 ⚠️ localhost (Fable)
 
 - **Abertura — F11 ✅:** smoke de prod PASSOU (deploy `75e69e7`): /admin sem o botão de apply, preview

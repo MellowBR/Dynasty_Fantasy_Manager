@@ -45,7 +45,7 @@
 | OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only) — MAN-OFF26-REG | Média | 🔲 |
 | OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG | Média | 🔲 (doc) |
 | F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | 🔲 |
-| F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | ⚠️ 12/06/2026 (réplica eliminada; endpoint de cenário keep/corte no backend; localhost — ✅ após smoke em prod) |
+| F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | ✅ 12/06/2026 (réplica eliminada + smoke prod OK: $157/$43/$38/5 spots conferido) |
 | M17 | Personalização por usuário logado: home + cap widget + 8 surfaces derivam de `current_user.team_rel` (fonte única `inject_user_team`; réplica JS do chip removida) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | ⚠️ |
 | M18 | Timestamps no fuso do usuário: fonte única (`timeutil.utc_iso` + macro `local_dt` + JS `formatLocalDT`); ~11 sites migrados; armazenamento UTC mantido — prompt MAN-M16-REG (ID remapeado: M16 ocupado) | Média | ✅ 09/06/2026 (validado em prod: sync 11:47 BRT → "11:47", não 14:47 UTC) |
 | E1 | Import ESPN robusto end-to-end no Render: upload manual do PDF + degradação graciosa (sem 500) + estado de review em FS gravável + parser 299→300 — MAN-E1-REG/F1/F2/FIX | Alta | ✅ 08/06/2026 (validado em prod: upload → review 300, sem 500) |
@@ -107,7 +107,7 @@
 | E4-d | Matching frouxo nas portas do /auction: single-entry FA/rookie matcha player por nome exato sem resolver sid (guard E4-b ausente — classe órfão) + upload Excel matcha Team por substring `%name%` — achado AUD1 Lente 4 | Baixa/Média | 🔲 |
 | M19 | Validação de pesos do lottery só existe no client (JS floor/mín-1); `_normalize_weights` aceita float/zero/negativo — POST direto exclui time do pool silenciosamente — achado AUD1 Lente 1 | Baixa | 🔲 |
 | M20 | Descomissionar write-side da flag single-user: sync escreve `is_my_team` via `MY_OWNER_ID`; record_acquisition/bulk_register propagam; colunas + to_dict + check_team.py + mapeamento standings (offseason.py:312) — fora do escopo M17 (só consumidores); **bloqueado: depende de M17, hoje ⚠️ (aguardando smoke prod)** — achado AUD1 Lente 3 | Baixa | 🔲 (bloqueado) |
-| DOC1 | CLAUDE.md "App Startup Sequence" desatualizada: `init_auth` listado antes de sync/backfill (código: depois, app.py:138) + sync/backfill são condicionais a `fresh_import` (app.py:61), não passos de todo boot — docs-only fix — achado AUD1 Lente 6 | Média (blast radius: doc carregada em toda sessão) | 🔲 |
+| DOC1 | CLAUDE.md "App Startup Sequence" desatualizada: `init_auth` listado antes de sync/backfill (código: depois, app.py:138) + sync/backfill são condicionais a `fresh_import` (app.py:61), não passos de todo boot — docs-only fix — achado AUD1 Lente 6 | Média (blast radius: doc carregada em toda sessão) | ✅ 12/06/2026 (seção reescrita contra o boot real, passo a passo com âncoras) |
 | O3 | Split do improvements.md: ativo (cabeçalho + Status Rápido completo + seções 🔲/⚠️) + `improvements_archive.md` (seções ✅, movidas verbatim); migração no fim de sessão quando item → ✅ — MAN-O3-REG | Média | ✅ 11/06/2026 |
 
 ---
@@ -1125,6 +1125,13 @@ draft travado + valores ESPN atualizados). Sem nº de step e sem season hardcode
 
 **Arquivos:** `templates/admin.html` (2 cards). ✅ quando o smoke do F10 passar em prod.
 
+**Smoke parcial (12/06/2026):** card "Season Rollover (preview)" PASSOU. O passo 2 do card "Ordem
+do Fluxo Pré-Temporada" **quebrou o layout** — o texto longo fragmentou em colunas ("...da página
+de / Intertemporada ; aqui, apenas / a prévia", com espaço antes do `;`). **Fix:** encurtado só o
+passo 2 para "— aplicado na etapa Season Rollover da página de Intertemporada; aqui, só a prévia"
+(link em "Intertemporada" mantido); o card do preview fica como está. **Segue ⚠️ até o smoke do
+layout em prod.**
+
 ---
 
 ### F12 — `run_import` sobrescreve salary/contract a cada boot local, sem history
@@ -1188,18 +1195,6 @@ standings.
 
 ---
 
-### DOC1 — CLAUDE.md "App Startup Sequence" desatualizada (docs-only)
-🔲 **Registrado 11/06/2026** — achado AUD1 Lente 6 — Prioridade **Média** (blast radius: doc carregada em toda sessão do Code)
-
-**Evidência:** CLAUDE.md lista 10 passos com `init_auth` (8) antes de `run_sync` (9) e
-`_backfill_player_history` (10) incondicionais. Código real (app.py): `run_import` (60) →
-**`run_sync` e backfill SÓ se `fresh_import`** (app.py:61-82; backfill ainda atrás do guard
-`f8_rebuilt`) → context processors → `init_auth` **por último** (app.py:138). **Risco:** sessão
-futura assume "sync roda em todo boot" e mis-diagnostica dados stale (premissa falsa classe DP1-F1
-no doc de maior propagação). **Parecer:** doc desatualizado → docs-only fix no CLAUDE.md (reescrever
-a sequência refletindo condicionalidade e ordem reais). Sem F1 — evidência acima é a diagnose.
-
----
 
 ### MAN-ESPN12 — Onde o fator ×1.2 do ESPN é aplicado (diagnose read-only)
 🔲 **F1 registrada 10/06/2026** — MAN-ESPN12-F1 (**diagnose read-only; nada alterado**) —
@@ -1493,74 +1488,6 @@ inline — fechar o F9 antes garante que o primeiro rastro de aquisição da lig
 
 ---
 
-### F10 — `draft_budget` replicado em JavaScript no cap projector
-🔲 **Pendente** — Prioridade **Média** — achado lateral de [[MAN-OFF26-3-F1]] (registrado 05/06/2026)
-
-**Descrição:** a lógica canônica de budget de draft existe no backend
-(`salary_engine.draft_budget` — `$200 − keepers`, mínimo $1 por slot vazio,
-`usable`/`over_cap`/`insufficient`) e está **reimplementada no cliente** em JS, em
-`templates/cap_projector.html` (~linhas 150-171: cálculo de `raw_budget`, `usable`
-e aviso "Budget insuficiente").
-
-**Motivação:** viola o princípio "1 fonte por modo de render" estabelecido no
-**T2-FIX-2** (eliminar réplica de cálculo entre backend e JS). Divergência latente:
-qualquer mudança na regra de budget exigiria editar dois lugares.
-
-**Escopo do fix:** o cliente passa a consumir a fonte canônica via endpoint (expor
-`draft_budget` por time numa rota e o `cap_projector.html` consome em vez de
-recalcular).
-
-**Observação de dependência:** idealmente resolvido **antes do OFF26-1** (janela
-selada de keepers/cuts), que calculará budget ao vivo e deve **nascer consumindo o
-canônico** — evita criar uma terceira réplica.
-
-**Ref. cruzada:** [[MAN-OFF26-3-F1]] (diagnose do importador OFF26-3, achado §3).
-
-#### F2 ⚠️ (12/06/2026) — réplica eliminada; summary consome o backend (localhost)
-
-**Premissa do prompt refutada (MAN-METH-REG):** "pode bastar consumir o payload atual" — **não
-basta**. O `budget` do GET (`salary.py`, `draft_budget(players)`) é calculado sobre o **salário
-ATUAL do roster inteiro**; o `updateSummary` calcula sobre o **subconjunto mantido (keep/corte)
-com `next_salary` projetado** (cap_projector.html:183-184 pré-fix) — entradas diferentes, o
-payload existente não cobre nenhum cenário com corte. Solução no padrão DP1 (simulação no
-backend): **novo endpoint `POST /api/cap_projector/<team>/budget`** recebe `{kept_ids}` e devolve
-`draft_budget` canônico sobre os mantidos com `project_next_salary` (mesma fonte da coluna "Sal
-próximo ano"), + derivados de display `cap_pct`/`shortfall` (derivam do retorno do helper — o
-cliente não faz nenhuma aritmética). Projeção pura, nada escrito; ids inválidos ignorados.
-
-**JS (`updateSummary`):** vira POST dos `kept_ids` + exibição do payload — somas, `SALARY_CAP`/
-`MAX_ROSTER` (consts deletadas), spots, pct e aviso de insuficiência **todos do backend**. Guard
-de sequência contra resposta obsoleta em toggles rápidos. Mensagens "cap de $200" trocadas por
-`$${b.salary_cap}` (tb. no painel DP1 — string renderizada idêntica, endpoint DP1 intocado).
-Comentário stale do DP1 ("débito F10 fica restrito ao updateSummary") atualizado para "quitado".
-
-**Gap existe×proposto (mapeamento campo a campo, completo):** total→`keeper_salaries`;
-remaining/budget-bruto→`raw_budget` (ambos exibiam o mesmo valor; preservado); usable→
-`usable_draft_budget`; spots/min→`empty_spots`/`min_required_for_spots`; pct→`cap_pct` (min 100
-preservado); aviso over-cap→`over_cap`; aviso insuficiência→`insufficient_budget`+`shortfall`.
-**Única mudança comportamental:** o summary atualiza por round-trip (async) a cada toggle, em vez
-de sincronamente — padrão já estabelecido pelo DP1 na mesma página; mitigado pelo guard de
-sequência. Classes de cor (<0 danger, <10 warn) seguem no JS (comparação de display, não agregação).
-
-**Relatório do grep de réplicas (codebase inteiro):** única réplica JS de cálculo de budget era o
-`updateSummary` (+ consts). Demais ocorrências, com parecer: literais de display "$200"
-(base.html:73,153; trades.html:375 — valores calculados no backend, só o texto fixo; cap é
-constante de regulamento documentada → decisão consciente, sem item novo; os do cap_projector
-foram absorvidos de graça); agregações server-side de cap usado (roster/league/trades —
-semântica "cap usado", não a regra de budget; server-side, fora do princípio backend↔JS);
-draft_import.py:75 **consome** o canônico via SimpleNamespace (padrão correto). **Zero réplicas
-novas → zero itens novos.**
-
-**Validação (localhost, test client, usuário não-admin temporário):** página 200; payload ×
-canônico **idêntico** em 4 cenários (todos mantidos $256/insuf, metade $159/usable $30, todos
-cortados $0/$178, ids inválidos ignorados); paridade com o summary antigo (Σ next_salary == 
-`keeper_salaries`); 404 p/ time inexistente; **regressão DP1**: cenário vazio == budget atual e
-caso de referência **2 picks +$58** reproduzido ($46→$55, $3→$3; store local re-semeado
-temporariamente e limpo); **nada escrito** (salaries + store intactos); grep no template = zero
-aritmética de budget/`SALARY_CAP`/`MAX_ROSTER`/literais; Jinja parse OK; `salary_engine_test.py`
-**48/48**. **✅ após smoke em prod** (summary com valores corretos + toggles + board DP1).
-
----
 
 ### M10 — Busca de Jogador: Global + Calculadora
 🔲 **Pendente — refinado 28/04/2026 (MAN-M10-REFINE)** — Prioridade **Média**

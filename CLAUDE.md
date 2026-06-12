@@ -42,16 +42,27 @@ python seed_users.py --list
 
 ### App Startup Sequence (app.py)
 
-1. `load_dotenv()` → load `.env` variables (before `create_app()`)
-2. `create_app()` → Flask + SQLAlchemy init + ProxyFix (production only)
-3. `db.create_all()` → create tables
-4. `_run_migrations()` → add columns/tables to existing schema (incl. `users` table)
-5. `_seed_app_config()` → seed default AppConfig key-value pairs
-6. **Auto-seed users** → reads `data/users.csv`, inserts new emails (skips existing)
-7. `run_import()` → upsert salary/contract data from `data/dynasty_rosters_clean.csv`
-8. `init_auth(app)` → Flask-Login + Google OAuth setup
-9. `run_sync()` → Sleeper API sync (with try/except — app loads even if Sleeper is down)
-10. `_backfill_player_history()` → create history records
+Ordem real do boot (verificada contra o código — cada passo cita a âncora em `app.py`):
+
+1. `load_dotenv()` → load `.env` (module top, line 4 — antes de `create_app()` rodar)
+2. `create_app()` (linha 13) → Flask init; URI do SQLite vem da env **`DYNASTY_DB`** (fallback `BASE_DIR/dynasty.db`); `SECRET_KEY`; **ProxyFix só em produção** (`APP_ENV=production`); `db.init_app`
+3. Registra o filtro Jinja **`utc_iso`** (M18 — fonte única do "marcar UTC" nos templates; linhas 30-31)
+4. Dentro de `with app.app_context()` (linha 33), em ordem:
+   1. `db.create_all()` → cria tabelas faltantes (linha 34)
+   2. `_run_migrations()` → ALTER/CREATE para schema existente (incl. tabela `users`; 7 migrações idempotentes — linha 35)
+   3. `_seed_app_config()` → semeia AppConfig default (linha 36)
+   4. **Auto-seed users** → lê `data/users.csv` se existir, insere emails novos (pula existentes — linhas 37-57)
+   5. `fresh_import = run_import()` → upsert de salary/contract de `data/dynasty_rosters_clean.csv`; **retorna flag** (linha 60). Em prod o CSV não está no git → skip com WARNING (`fresh_import` falsy)
+   6. **CONDICIONAL — só `if fresh_import`** (linhas 61-82, tipicamente só no 1º boot/seed):
+      - `run_sync()` → Sleeper API sync, atribui times (envolto em try/except — app sobe mesmo se a Sleeper cair)
+      - `_backfill_player_history()` → **legacy**, e **só `if not f8_rebuilt`** (AppConfig); o F8 (rebuild canônico via chain do Sleeper) substituiu esse fluxo, então em DBs já migrados é pulado
+5. Define 4 **context processors** (estado global de offseason, times da navbar, time do usuário logado `inject_user_team`/M17, badge de review — linhas 84-134)
+6. `init_auth(app)` + registra `auth_bp` → Flask-Login + Google OAuth (linhas 137-139) — **perto do fim, depois dos context processors, não antes do sync**
+7. Registra os **9 blueprints** (roster, salary, trades, picks, auction, admin, offseason, league, draft_import — linhas 142-160)
+8. Error handlers 404/500 (linhas 163-173)
+9. No nível do módulo: `app = create_app()` (linha 424); `app.run(host='localhost')` só sob `__main__` (dev)
+
+**Nota de propagação (DOC1):** `run_sync` e `_backfill_player_history` **não** rodam em todo boot — só quando `run_import` semeia dados frescos. Não assumir "o sync roda no startup" ao diagnosticar dados stale em prod (onde o CSV ausente já zera o `fresh_import`).
 
 ### Route Blueprints (10)
 

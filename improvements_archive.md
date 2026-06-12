@@ -2680,3 +2680,107 @@ cap $2187 → $2310**); `/offseason` com Step 4 **bloqueado por gate** (step 3 p
 intactos. Porta única de rollover confirmada em produção. Sub-item de carona: [[F11-FIX-UX]]
 (microcopy dos dois cards do /admin, sessão F10).
 
+
+---
+
+### F10 — `draft_budget` replicado em JavaScript no cap projector
+✅ **12/06/2026** (réplica eliminada + smoke prod OK)
+
+_Status original quando aberto:_ 🔲 **Pendente** — Prioridade **Média** — achado lateral de [[MAN-OFF26-3-F1]] (registrado 05/06/2026)
+
+**Descrição:** a lógica canônica de budget de draft existe no backend
+(`salary_engine.draft_budget` — `$200 − keepers`, mínimo $1 por slot vazio,
+`usable`/`over_cap`/`insufficient`) e está **reimplementada no cliente** em JS, em
+`templates/cap_projector.html` (~linhas 150-171: cálculo de `raw_budget`, `usable`
+e aviso "Budget insuficiente").
+
+**Motivação:** viola o princípio "1 fonte por modo de render" estabelecido no
+**T2-FIX-2** (eliminar réplica de cálculo entre backend e JS). Divergência latente:
+qualquer mudança na regra de budget exigiria editar dois lugares.
+
+**Escopo do fix:** o cliente passa a consumir a fonte canônica via endpoint (expor
+`draft_budget` por time numa rota e o `cap_projector.html` consome em vez de
+recalcular).
+
+**Observação de dependência:** idealmente resolvido **antes do OFF26-1** (janela
+selada de keepers/cuts), que calculará budget ao vivo e deve **nascer consumindo o
+canônico** — evita criar uma terceira réplica.
+
+**Ref. cruzada:** [[MAN-OFF26-3-F1]] (diagnose do importador OFF26-3, achado §3).
+
+#### F2 ⚠️ (12/06/2026) — réplica eliminada; summary consome o backend (localhost)
+
+**Premissa do prompt refutada (MAN-METH-REG):** "pode bastar consumir o payload atual" — **não
+basta**. O `budget` do GET (`salary.py`, `draft_budget(players)`) é calculado sobre o **salário
+ATUAL do roster inteiro**; o `updateSummary` calcula sobre o **subconjunto mantido (keep/corte)
+com `next_salary` projetado** (cap_projector.html:183-184 pré-fix) — entradas diferentes, o
+payload existente não cobre nenhum cenário com corte. Solução no padrão DP1 (simulação no
+backend): **novo endpoint `POST /api/cap_projector/<team>/budget`** recebe `{kept_ids}` e devolve
+`draft_budget` canônico sobre os mantidos com `project_next_salary` (mesma fonte da coluna "Sal
+próximo ano"), + derivados de display `cap_pct`/`shortfall` (derivam do retorno do helper — o
+cliente não faz nenhuma aritmética). Projeção pura, nada escrito; ids inválidos ignorados.
+
+**JS (`updateSummary`):** vira POST dos `kept_ids` + exibição do payload — somas, `SALARY_CAP`/
+`MAX_ROSTER` (consts deletadas), spots, pct e aviso de insuficiência **todos do backend**. Guard
+de sequência contra resposta obsoleta em toggles rápidos. Mensagens "cap de $200" trocadas por
+`$${b.salary_cap}` (tb. no painel DP1 — string renderizada idêntica, endpoint DP1 intocado).
+Comentário stale do DP1 ("débito F10 fica restrito ao updateSummary") atualizado para "quitado".
+
+**Gap existe×proposto (mapeamento campo a campo, completo):** total→`keeper_salaries`;
+remaining/budget-bruto→`raw_budget` (ambos exibiam o mesmo valor; preservado); usable→
+`usable_draft_budget`; spots/min→`empty_spots`/`min_required_for_spots`; pct→`cap_pct` (min 100
+preservado); aviso over-cap→`over_cap`; aviso insuficiência→`insufficient_budget`+`shortfall`.
+**Única mudança comportamental:** o summary atualiza por round-trip (async) a cada toggle, em vez
+de sincronamente — padrão já estabelecido pelo DP1 na mesma página; mitigado pelo guard de
+sequência. Classes de cor (<0 danger, <10 warn) seguem no JS (comparação de display, não agregação).
+
+**Relatório do grep de réplicas (codebase inteiro):** única réplica JS de cálculo de budget era o
+`updateSummary` (+ consts). Demais ocorrências, com parecer: literais de display "$200"
+(base.html:73,153; trades.html:375 — valores calculados no backend, só o texto fixo; cap é
+constante de regulamento documentada → decisão consciente, sem item novo; os do cap_projector
+foram absorvidos de graça); agregações server-side de cap usado (roster/league/trades —
+semântica "cap usado", não a regra de budget; server-side, fora do princípio backend↔JS);
+draft_import.py:75 **consome** o canônico via SimpleNamespace (padrão correto). **Zero réplicas
+novas → zero itens novos.**
+
+**Validação (localhost, test client, usuário não-admin temporário):** página 200; payload ×
+canônico **idêntico** em 4 cenários (todos mantidos $256/insuf, metade $159/usable $30, todos
+cortados $0/$178, ids inválidos ignorados); paridade com o summary antigo (Σ next_salary == 
+`keeper_salaries`); 404 p/ time inexistente; **regressão DP1**: cenário vazio == budget atual e
+caso de referência **2 picks +$58** reproduzido ($46→$55, $3→$3; store local re-semeado
+temporariamente e limpo); **nada escrito** (salaries + store intactos); grep no template = zero
+aritmética de budget/`SALARY_CAP`/`MAX_ROSTER`/literais; Jinja parse OK; `salary_engine_test.py`
+**48/48**. **✅ após smoke em prod** (summary com valores corretos + toggles + board DP1).
+
+
+---
+
+### DOC1 — CLAUDE.md "App Startup Sequence" desatualizada (docs-only)
+✅ **12/06/2026** (seção reescrita contra o boot real)
+
+_Registrado_ 11/06/2026 — achado AUD1 Lente 6 — Prioridade **Média** (blast radius: doc carregada em toda sessão do Code)
+
+**Evidência:** CLAUDE.md lista 10 passos com `init_auth` (8) antes de `run_sync` (9) e
+`_backfill_player_history` (10) incondicionais. Código real (app.py): `run_import` (60) →
+**`run_sync` e backfill SÓ se `fresh_import`** (app.py:61-82; backfill ainda atrás do guard
+`f8_rebuilt`) → context processors → `init_auth` **por último** (app.py:138). **Risco:** sessão
+futura assume "sync roda em todo boot" e mis-diagnostica dados stale (premissa falsa classe DP1-F1
+no doc de maior propagação). **Parecer:** doc desatualizado → docs-only fix no CLAUDE.md (reescrever
+a sequência refletindo condicionalidade e ordem reais). Sem F1 — evidência acima é a diagnose.
+
+**Fix ✅ (12/06/2026, docs-only).** Seção "App Startup Sequence" reescrita lendo `app.py` passo a
+passo, cada passo com âncora de linha. Correções aplicadas:
+- **Ordem do `init_auth`:** estava como passo 8 (antes do sync); real = perto do fim (linha 138),
+  **depois** dos context processors. Corrigido.
+- **Condicionalidade de `run_sync`/backfill:** estavam como passos incondicionais 9 e 10; real =
+  ambos sob `if fresh_import` (linha 61), e o backfill ainda sob `if not f8_rebuilt` (legacy
+  superseded pelo F8). Documentado como sub-bloco condicional + nota de propagação.
+- **Divergências adicionais encontradas na mesma passada (todas corrigidas aqui, nenhuma vira item
+  novo):** (1) URI do SQLite vem da env `DYNASTY_DB`, não fixa — antes omitido; (2) registro do
+  filtro Jinja `utc_iso` (M18) não constava; (3) os 4 context processors, os 9 blueprints e os
+  error handlers 404/500 não constavam (a sequência parava no backfill); (4) `app.run(host=...)` só
+  sob `__main__`. Claims restantes da seção (passos 1-6) conferidas contra o código e corretas.
+
+**Critério de done (sem smoke de prod — docs):** cada passo documentado tem âncora apontável em
+`app.py` (verificado nesta sessão); divergências adicionais reportadas e corrigidas inline. ✅ direto.
+
