@@ -244,6 +244,16 @@ code {
   margin-bottom: .75rem;
 }
 
+/* DP2 — barra de summary única, fixa abaixo do navbar (sticky, top = navbar 54px)
+   enquanto a tabela e o board rolam. z-index abaixo do navbar (100). O fundo opaco
+   (.cap-summary-card) garante que o conteúdo role por baixo. .cap-summary-grid usa
+   flex-wrap → sem overflow horizontal em mobile (itens quebram em linha). */
+.cap-summary-sticky {
+  position: sticky;
+  top: 54px;
+  z-index: 20;
+}
+
 .cap-summary-grid {
   display: flex;
   gap: 1rem;

@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 12/06/2026-pt3 (sessão Opus: **F10 ✅** smoke prod + archive; **DOC1 ✅** startup do CLAUDE.md reescrita contra o boot real; **F12 ⚠️** CSV bootstrap one-shot (flag `csv_bootstrap_done`); **F11-FIX-UX** layout do passo 2; **DP2 ⚠️** cadeia única — board sobre keep/corte + summary sticky, `/simulate` removido (fundido no `/budget`))
 > Atualizado em: 12/06/2026-pt2 (sessão F10: **F11 ✅** — smoke prod OK, seção migrada p/ archive; **F11-FIX-UX ⚠️** microcopy /admin; evidência viva no F9; **F10 ⚠️ localhost** — réplica JS do updateSummary eliminada, summary consome `POST /api/cap_projector/<team>/budget` canônico; grep: zero réplicas novas)
 > Atualizado em: 12/06/2026 (sessão F11: **Etapa 1 verificação retroativa em prod ✅ LIMPO** — 0 rollovers jamais aplicados, salary_history vazio, 0 assinaturas admin no SyncLog; **Etapa 2 fix Opção A ⚠️ localhost** — endpoint apply + botão + JS removidos, preview mantido, offseason Step 4 = porta única)
 > Atualizado em: 11/06/2026 (sessão AUD1: REG + **F1 executada ✅** — 6 lentes varridas; 6 itens novos: F11 rollover duplicado, F12 import-overwrite local, E4-d matching /auction, M19 validação lottery client-only, M20 descomissionar flag single-user, DOC1 CLAUDE.md startup; 3ª ocorrência do MAN-METH-REG registrada)
@@ -59,6 +60,7 @@
 | E4-c-1 | Fundação do store (aditivo/reversível): tabela `espn_value_store (sleeper_id,season)[raw,adjusted,is_final]` via `db.create_all()` + backfill da coluna (Migration 7, season 2026 prelim) + helper único `set_espn_value` nos 8 escritores + badge PROV repontada ao store. **Entrega o store ao DP1.** — MAN-E4-c-F1/F2 | Alta | ✅ 09/06/2026 (backfill em prod: 273 linhas, schema ok, store==coluna, coluna intocada) |
 | E4-c-2 | Limpeza do store (destrutivo/isolado): DROP ESPNValue (vazio) + generalizar/migrar RookieEspnValue. Único passo irreversível-sem-backup; higiene após E4-c-1; **não bloqueia DP1** — MAN-E4-c-F1 | Baixa (higiene) | 🔲 |
 | DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — lê o **store canônico** — MAN-DP1-REG | A definir | 🔲 (desbloqueado: E4-c-1 ✅ em prod) |
+| DP2 | Cadeia única de planejamento no cap projector: board DP1 parte do cenário keep/corte (não mais roster integral) + summary sticky unificado refletindo cortes + rookies; estende o endpoint canônico do F10 com `rookie_sids` (1 fonte) — MAN-DP2-REG (revisão consciente da base do DP1-F2) | Média | ⚠️ 12/06/2026 (localhost; ✅ após smoke em prod) |
 | WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG | Média | 🔲 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
@@ -914,6 +916,15 @@ junto.
 ### DP1 — Board de planejamento de cap pré-draft (rookies)
 ⚠️ **Implementado (F2) — validado em localhost; smoke em prod pendente** — Prioridade **a definir** — MAN-DP1-REG (08/06/2026) / F1 / F2 (10/06/2026) — **F1 ✅ diagnose read-only concluída** (achados absorvidos abaixo); **F2 ✅ board + simulação multi-pick no backend** (validado localhost: `salary_engine_test` 48/48 verde, smoke das rotas OK; ⚠️ → ✅ só após smoke em prod)
 
+> **NOTA DE REVISÃO (12/06/2026, ver [[DP2]]):** a base da simulação do DP1-F2 — "roster integral
+> com salário ATUAL; cenário vazio = budget atual" (decisão explícita da F2 abaixo) — foi
+> **conscientemente revisada pelo DP2**. O fluxo virou uma cadeia só: a simulação de rookies passa a
+> partir do **cenário keep/corte** (com salário projetado, base idêntica à do summary do F10), e os
+> números de cap/budget/spots passam a viver numa **barra sticky única**. O endpoint `/simulate` do
+> DP1-F2 foi **removido** (fundido no `/budget` canônico do F10 estendido com `rookie_sids`). O
+> histórico do DP1 abaixo fica como está (registro da decisão original); o comportamento vivo é o do
+> DP2.
+
 **CONTEXTO**
 Owners precisam planejar o rookie draft contra o cap: avaliar drops, valorização de contratos
 e picks sabendo o valor de referência ESPN dos rookies e o salário que cada um custaria se
@@ -1062,6 +1073,52 @@ a regra 8.2.7 não depende do slot, então o board não modela picks (enriquecim
 no DB — confirma fonte correta); spot-check `$46→$55` e `$3→$3`; cenário 2 picks → soma `+$58` no
 backend; cenário vazio → budget atual sem alteração; nada escrito (store + cap intactos). **Falta:**
 smoke em prod (depende de import ESPN da season popular `RookieEspnValue`) → manter ⚠️ até lá.
+
+---
+
+### DP2 — Cadeia única de planejamento no cap projector (board sobre keep/corte + summary sticky)
+⚠️ **12/06/2026 (validado localhost; ✅ após smoke em prod)** — MAN-DP2-REG/DP2 — Prioridade
+**Média** — revisão consciente da base do [[DP1]]-F2; estende o canônico do [[F10]]
+
+**CONTEXTO (REG, decisão do owner 12/06/2026).** Pós-F10, a tela tinha **dois painéis de números com
+bases distintas**: o summary do topo respondia aos toggles keep/corte via o `/budget` canônico
+(salário projetado), enquanto o board DP1 simulava sobre o **roster integral com salário atual**
+(`/simulate`, decisão DP1-F2 "cenário vazio = budget atual"). O owner decidiu que o planejamento é
+**uma cadeia só** (cortes → budget → picks de rookies): o board passa a partir do cenário keep/corte
+e a tela ganha **uma superfície única de números**. Alternativa de painel lateral descartada (depende
+de viewport largo / acoplaria ao UX6 pendente; sticky funciona em mobile).
+
+**FIX (preferiu estender, não criar 2ª fonte).** O `POST /api/cap_projector/<team>/budget` do F10 foi
+**estendido** para aceptar `rookie_sids` além de `kept_ids`: os rookies do cenário entram na **mesma
+base** (membros de roster adicionais com `year1_salary` modo rookie — ocupam spot e custam salário,
+como um pick real) e o `draft_budget` canônico calcula o todo. O `POST /api/cap_projector/simulate`
+do DP1-F2 foi **removido** (sua conta vive aqui agora) — **fonte única de cálculo, sem segunda rota**.
+O endpoint passou a devolver também `scenario_count`/`scenario_salary_total` (campos próprios do
+board). Base unificada = **salário projetado** do summary (não mais o "salário atual" do DP1-F2).
+
+**UI.** O `#proj-cap-bar` virou **barra sticky** (`.cap-summary-sticky`: `position:sticky; top:54px`
+= altura do navbar; `z-index:20` < navbar 100; `.cap-summary-grid` já é `flex-wrap` → sem overflow
+horizontal em mobile) refletindo cortes + rookies. O painel do board (`#rookie-sim`) foi **reduzido
+aos campos próprios** (nº de rookies + custo); cap/budget/spots/avisos saíram de lá e vivem só na
+barra. As duas funções JS (`updateSummary` + `simulateScenario`) fundiram-se em **`refreshScenario`**
+(um POST com `kept_ids`+`rookie_sids`); toggle de keep e de rookie disparam o mesmo refresh; guard de
+sequência preservado (resposta obsoleta descartada).
+
+**Grep de duplicação (pergunta obrigatória do prompt).** A formatação desses números (`usable`,
+`empty_spots`, `min $`) aparecia em 2 lugares — ambos **dentro** do cap_projector (`#proj-*` ×
+`#rk-*`), exatamente a duplicação que o DP2 colapsa. Único outro sítio: `draft_import.html:83`
+(alerta soft do audit de keepers OFF26-3, por-time, backend-derivado) — **superfície distinta, fora
+de escopo**, não dedupa aqui. **Zero duplicação cross-template remanescente.**
+
+**Validação (localhost, test client, usuário não-admin temporário):** **retrocompat** — todos kept +
+0 rookies == budget do F10 ($256, base projetada); **cadeia integrada** — payload × canônico idêntico
+em 4 cenários (metade cortada + 2 rookies $138/usable $53; todos kept + 2 rookies $314/usable −$114;
+todos cortados + 1 rookie; dedup + sid inválido ignorado); **caso de referência DP1 preservado** —
+rookies $46→$55 e $3→$3, soma +$58, keeper $256→$314; **`/simulate` removido** (405, sem POST
+handler); **nada escrito** (salaries + store intactos); grep no template = zero aritmética de budget,
+zero identificador órfão (`simulateScenario`/`updateSummary`/`rk-total`…); Jinja parse OK;
+`salary_engine_test.py` **48/48**. **✅ após smoke em prod:** barra sticky visível ao rolar
+(desktop+mobile), toggles keep/corte + rookies refletindo no topo, board com nº/custo.
 
 ---
 

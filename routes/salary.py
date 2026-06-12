@@ -115,16 +115,24 @@ def cap_projector_data(team_name):
 @login_required
 def cap_projector_budget(team_name):
     """
-    F10 — budget do cenário keep/corte do summary calculado no BACKEND (fonte única
-    `draft_budget`; fim da réplica JS do `updateSummary`). Body: {"kept_ids": [id, ...]}.
+    F10 + DP2 — budget do cenário de planejamento (keep/corte + rookies do cenário)
+    calculado no BACKEND, fonte ÚNICA `draft_budget`. Body:
+    `{"kept_ids": [id, ...], "rookie_sids": ["sid", ...]}`.
 
-    Cada jogador MANTIDO entra com o salário PROJETADO da próxima season
-    (`project_next_salary` — mesma fonte da coluna de próximo salário do GET);
-    cortados ficam fora do roster simulado. Projeção pura — nada é escrito.
-    `cap_pct`/`shortfall` são derivados de display do próprio retorno do helper,
-    expostos aqui para o cliente não fazer nenhuma aritmética de budget.
+    Cadeia única de planejamento (DP2): cada jogador MANTIDO entra com o salário
+    PROJETADO da próxima season (`project_next_salary` — mesma fonte da coluna de
+    próximo salário do GET); cortados ficam fora. Cada rookie do cenário entra como
+    membro de roster adicional com `year1_salary` (modo rookie) — ocupa spot e custa
+    salário, exatamente como um pick real. Projeção pura — nada é escrito.
+
+    Antes (DP1-F2) o board simulava sobre o roster integral com salário ATUAL via
+    `/simulate`; o DP2 funde os dois caminhos aqui (base = cenário keep/corte do
+    summary), eliminando a 2ª fonte de cálculo. `cap_pct`/`shortfall`/`scenario_*` são
+    derivados de display do retorno do helper — o cliente não faz nenhuma aritmética.
     """
     from types import SimpleNamespace
+    from models import get_current_season, rookie_espn_adjusted
+    from salary_engine import year1_salary
     team = Team.query.filter_by(name=team_name).first()
     if not team:
         return jsonify({"error": "Team not found"}), 404
@@ -138,15 +146,36 @@ def cap_projector_budget(team_name):
             continue
 
     players = Player.query.filter_by(team_id=team.id, is_dropped=False).all()
-    kept = [SimpleNamespace(salary=project_next_salary(p), is_dropped=False)
-            for p in players if p.id in kept_ids]
-    budget = draft_budget(kept)
+    roster = [SimpleNamespace(salary=project_next_salary(p), is_dropped=False)
+              for p in players if p.id in kept_ids]
+
+    # DP2: rookies do cenário entram na MESMA base (ocupam spot + custam year1_salary).
+    # Dedup defensivo; sid fora do store da season é ignorado. Mesma régua de cálculo
+    # do board DP1 antigo (year1_salary modo rookie) — caso de referência $46→$55 / $3→$3.
+    season = get_current_season() + 1
+    scenario = []
+    seen = set()
+    for sid in (data.get("rookie_sids") or []):
+        sid = str(sid)
+        if sid in seen:
+            continue
+        seen.add(sid)
+        adj = rookie_espn_adjusted(sid, season)
+        if adj is None:
+            continue
+        sal = year1_salary("rookie_draft", 0, adj)
+        roster.append(SimpleNamespace(salary=sal, is_dropped=False))
+        scenario.append({"sleeper_player_id": sid, "projected_salary": sal})
+
+    budget = draft_budget(roster)
 
     return jsonify({
         "team": team.name,
         "budget": budget,
         "cap_pct": min(100.0, budget["keeper_salaries"] / budget["salary_cap"] * 100.0),
         "shortfall": max(0, -budget["usable_draft_budget"]),
+        "scenario_count": len(scenario),
+        "scenario_salary_total": sum(r["projected_salary"] for r in scenario),
     })
 
 
@@ -185,55 +214,9 @@ def cap_projector_rookies():
     return jsonify({"season": season, "rookies": rookies})
 
 
-@salary_bp.route("/api/cap_projector/simulate", methods=["POST"])
-@login_required
-def cap_projector_simulate():
-    """
-    DP1 — simulação de cenário multi-pick calculada PURAMENTE no backend (não consome
-    nem amplia a réplica JS de budget do `updateSummary` — débito F10).
-
-    Projeção, não contrato: nada é escrito (nem Player, nem SalaryHistory, nem cenário).
-    Budget = `draft_budget()` canônico sobre o cap ATUAL do time do `current_user` (M17)
-    somado aos salários projetados (`year1_salary` modo rookie) dos rookies do cenário.
-    Os rookies entram como "+salário" via objeto transitório em memória (NÃO materializa
-    Player — stub-$1 segue rejeitado, E2-REFINE). Cenário vazio → budget atual do time,
-    idêntico ao `/api/cap_projector` (sem alteração).
-    """
-    from types import SimpleNamespace
-    from models import get_current_season, rookie_espn_adjusted
-    from salary_engine import year1_salary
-    data = request.get_json() or {}
-    sids = [str(s) for s in (data.get("rookie_sids") or [])]
-    season = get_current_season() + 1
-
-    team = current_user.team_rel
-    if not team:
-        return jsonify({"error": "Usuário sem time vinculado — vincule um time para simular."}), 400
-
-    # Base = roster ativo do owner com o salário ATUAL (mesma base do /api/cap_projector).
-    roster = list(Player.query.filter_by(team_id=team.id, is_dropped=False).all())
-
-    scenario = []
-    seen = set()
-    for sid in sids:
-        if sid in seen:
-            continue                       # dedup defensivo do cenário
-        seen.add(sid)
-        adj = rookie_espn_adjusted(sid, season)
-        if adj is None:
-            continue                       # sid fora do store da season → ignora
-        sal = year1_salary("rookie_draft", 0, adj)
-        roster.append(SimpleNamespace(salary=sal, is_dropped=False))
-        scenario.append({"sleeper_player_id": sid, "projected_salary": sal})
-
-    budget = draft_budget(roster)
-    return jsonify({
-        "team": team.name,
-        "scenario": scenario,
-        "scenario_count": len(scenario),
-        "scenario_salary_total": sum(r["projected_salary"] for r in scenario),
-        "budget": budget,
-    })
+# DP2: o antigo POST /api/cap_projector/simulate foi REMOVIDO — sua conta (rookies do
+# cenário somados ao budget) foi fundida no /budget acima (base = cenário keep/corte,
+# não mais roster integral com salário atual). Fonte única de cálculo, sem segunda rota.
 
 
 @salary_bp.route("/api/salary_history")

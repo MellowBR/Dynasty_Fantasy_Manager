@@ -1270,7 +1270,18 @@ Sessão multi-item (commits separados por item; abertura no 1º commit). Início
   ESPN como candidata a item próprio). CLAUDE.md (Commands) atualizado. **Validação:** boot duplo
   (semeia→edita→preserva 26.0/cyr 3), player novo entra com flag=true (created=1), prod skip com flag
   intacta; `salary_engine_test` 48/48. Done dev-local registrado; mantido ⚠️ até o owner confirmar.
-- _DP2 no commit seguinte._
+- **DP2 ⚠️ localhost (commit 3):** cadeia única de planejamento no cap projector (revisão consciente
+  da base do DP1-F2, decisão do owner). O board de rookies passa a partir do **cenário keep/corte**
+  (salário projetado, base = summary do F10) em vez do roster integral com salário atual; a tela
+  ganha **uma barra sticky única** (cortes + rookies). **Estendeu o `/budget` canônico do F10 com
+  `rookie_sids`** (preferiu estender a criar 2ª fonte) e **removeu o `/simulate`** do DP1-F2 (fundido).
+  Painel do board reduzido a nº de rookies + custo; `updateSummary`+`simulateScenario` fundidas em
+  `refreshScenario` (1 POST `kept_ids`+`rookie_sids`). CSS `.cap-summary-sticky` (top=navbar 54px;
+  flex-wrap → sem overflow mobile). **Grep de duplicação:** a única era interna (`#proj-*`×`#rk-*`),
+  colapsada; `draft_import.html` é superfície distinta (fora de escopo). **Validação:** retrocompat
+  (all kept+0 rookies==$256 F10), 4 cenários integrados × canônico, caso DP1 ($46→$55/$3→$3/+$58),
+  `/simulate` 405, nada escrito; `salary_engine_test` 48/48. DP1 ganhou nota de revisão (cross-ref
+  DP2). ✅ após smoke em prod (sticky ao rolar + toggles refletindo + board nº/custo).
 
 ### 12/06/2026 (pt2) — F11 ✅ (smoke prod) + F11-FIX-UX + evidência no F9 + F10 ⚠️ localhost (Fable)
 

@@ -18,7 +18,7 @@
   <button class="btn btn-danger-outline" onclick="toggleAll(false)">Cortar todos</button>
 </div>
 
-<div id="proj-cap-bar" class="cap-summary-card" style="display:none">
+<div id="proj-cap-bar" class="cap-summary-card cap-summary-sticky" style="display:none">
   <div class="cap-summary-grid">
     <div class="cap-summary-item">
       <span class="cap-label">Cap Projetado 2026</span>
@@ -58,8 +58,9 @@
   <div class="page-header" style="margin-bottom:.6rem">
     <h2 class="page-title" style="font-size:1.25rem">🏈 Planejamento de Rookie Draft</h2>
     <p class="page-subtitle">
-      Monte um cenário de picks e veja o impacto agregado no <strong>seu</strong> cap.
-      Projeção — não cria contrato nem altera o cap real. Time: <strong id="rookie-team">—</strong>
+      Cortes + rookies do cenário formam uma cadeia só — o cap, budget e spots
+      resultantes aparecem na barra fixa no topo. Projeção: não cria contrato nem
+      altera o cap real. Time: <strong id="rookie-team">—</strong>
     </p>
   </div>
 
@@ -73,20 +74,7 @@
         <span class="cap-label">Custo dos rookies</span>
         <span class="cap-value" id="rk-cost">$0</span>
       </div>
-      <div class="cap-summary-item">
-        <span class="cap-label">Cap Projetado</span>
-        <span class="cap-value" id="rk-total">—</span>
-      </div>
-      <div class="cap-summary-item">
-        <span class="cap-label">Budget Usável</span>
-        <span class="cap-value" id="rk-usable">—</span>
-      </div>
-      <div class="cap-summary-item">
-        <span class="cap-label">Spots vazios</span>
-        <span class="cap-value" id="rk-spots">—</span>
-      </div>
     </div>
-    <div id="rk-warnings"></div>
   </div>
 
   <div id="rookie-list-wrap"><div class="loading-msg">Carregando rookies...</div></div>
@@ -162,7 +150,7 @@ function render() {
 
   html += '</tbody></table>';
   document.getElementById('proj-table-wrap').innerHTML = html;
-  updateSummary();
+  refreshScenario();
 }
 
 function toggleKeep(id) {
@@ -176,23 +164,25 @@ function toggleAll(state) {
   render();
 }
 
-// F10 — o budget do cenário keep/corte é SEMPRE calculado no backend
-// (/api/cap_projector/<team>/budget → draft_budget canônico). Nenhuma agregação
-// de cap em JS: este código só posta os kept_ids e exibe o payload.
-let summarySeq = 0;
-function updateSummary() {
+// F10 + DP2 — cadeia única de planejamento: cortes (keepState) + rookies do cenário
+// vão num ÚNICO POST ao /budget canônico (draft_budget). A barra sticky do topo exibe
+// o budget integrado; o board DP1 mostra só nº de rookies + custo. Nenhuma agregação de
+// cap em JS — só posta o estado (kept_ids + rookie_sids) e exibe o payload.
+let scenarioSeq = 0;
+function refreshScenario() {
   if (!teamData) return;
   const keptIds = teamData.players.filter(p => keepState[p.id] !== false).map(p => p.id);
-  const seq = ++summarySeq;
+  const seq = ++scenarioSeq;
   fetch('/api/cap_projector/' + encodeURIComponent(teamData.team.name) + '/budget', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({kept_ids: keptIds}),
+    body: JSON.stringify({kept_ids: keptIds, rookie_sids: [...scenario]}),
   })
     .then(r => r.json())
     .then(d => {
-      if (seq !== summarySeq || d.error) return;   // resposta obsoleta (toggle mais novo em voo)
+      if (seq !== scenarioSeq || d.error) return;   // resposta obsoleta (toggle mais novo em voo)
       const b = d.budget;
+      // ── barra sticky: budget integrado (cortes + rookies) ──
       document.getElementById('proj-total').textContent = '$' + b.keeper_salaries;
       document.getElementById('proj-remaining').textContent = '$' + b.raw_budget;
       document.getElementById('proj-budget').textContent = '$' + b.raw_budget;
@@ -212,10 +202,15 @@ function updateSummary() {
       const warnings = [];
       if (b.over_cap) warnings.push(`⚠️ Projeção acima do cap de $${b.salary_cap}!`);
       if (b.insufficient_budget) warnings.push(`⚠️ Budget insuficiente: faltam $${d.shortfall} para preencher ${b.empty_spots} spots.`);
-      const wEl = document.getElementById('proj-warnings');
-      wEl.innerHTML = warnings.map(w => `<div class="alert alert-warn" style="margin-top:.5rem">${w}</div>`).join('');
-
+      document.getElementById('proj-warnings').innerHTML =
+        warnings.map(w => `<div class="alert alert-warn" style="margin-top:.5rem">${w}</div>`).join('');
       document.getElementById('proj-cap-bar').style.display = 'block';
+
+      // ── board DP1: só campos próprios do cenário (nº rookies + custo) ──
+      document.getElementById('rookie-team').textContent = d.team;
+      document.getElementById('rk-count').textContent = d.scenario_count;
+      document.getElementById('rk-cost').textContent = '$' + d.scenario_salary_total;
+      document.getElementById('rookie-sim').style.display = 'block';
     });
 }
 
@@ -232,11 +227,10 @@ function renderEspnBanner(status) {
 
 loadTeam(document.getElementById('proj-team').value);
 
-// ── DP1: planejamento de rookie draft ──────────────────────────────────────
-// Cenário multi-pick; o budget resultante é SEMPRE calculado no backend
-// (/api/cap_projector/simulate). Nenhuma agregação de cap em JS aqui — não
-// duplicamos draft_budget (débito F10 quitado: o updateSummary acima também
-// consome o backend).
+// ── DP1/DP2: planejamento de rookie draft ───────────────────────────────────
+// O cenário (Set de sids) é parte do MESMO POST do refreshScenario acima — não há
+// mais rota /simulate nem segundo cálculo de budget. Toggle de rookie só atualiza o
+// Set e dispara o refresh.
 let rookieList = [];
 const scenario = new Set();
 
@@ -246,7 +240,7 @@ function loadRookies() {
     .then(data => {
       rookieList = data.rookies || [];
       renderRookies();
-      simulateScenario();   // estado inicial: cenário vazio → budget atual do time
+      refreshScenario();   // reflete o cenário (vazio no load) na barra + board
     });
 }
 
@@ -279,43 +273,7 @@ function renderRookies() {
 function toggleRookie(sid) {
   if (scenario.has(sid)) scenario.delete(sid); else scenario.add(sid);
   renderRookies();
-  simulateScenario();
-}
-
-function simulateScenario() {
-  fetch('/api/cap_projector/simulate', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({rookie_sids: [...scenario]}),
-  })
-    .then(r => r.json())
-    .then(data => {
-      const panel = document.getElementById('rookie-sim');
-      panel.style.display = 'block';
-      if (data.error) {
-        document.getElementById('rookie-team').textContent = '—';
-        document.getElementById('rk-warnings').innerHTML =
-          `<div class="alert alert-warn" style="margin-top:.5rem">${data.error}</div>`;
-        return;
-      }
-      document.getElementById('rookie-team').textContent = data.team;
-      const b = data.budget;
-      document.getElementById('rk-count').textContent = data.scenario_count;
-      document.getElementById('rk-cost').textContent = '$' + data.scenario_salary_total;
-      document.getElementById('rk-total').textContent = '$' + b.keeper_salaries;
-      document.getElementById('rk-usable').textContent = '$' + b.usable_draft_budget;
-      document.getElementById('rk-spots').textContent = b.empty_spots + ' (min $' + b.min_required_for_spots + ')';
-      ['rk-total', 'rk-usable'].forEach(id => {
-        const el = document.getElementById(id);
-        const val = parseInt(el.textContent.replace('$', ''));
-        el.className = 'cap-value ' + (val < 0 ? 'text-danger' : (val < 10 ? 'text-warn' : ''));
-      });
-      const warns = [];
-      if (b.over_cap) warns.push(`⚠️ Cenário acima do cap de $${b.salary_cap}!`);
-      if (b.insufficient_budget) warns.push('⚠️ Budget insuficiente para preencher os spots restantes.');
-      document.getElementById('rk-warnings').innerHTML =
-        warns.map(w => `<div class="alert alert-warn" style="margin-top:.5rem">${w}</div>`).join('');
-    });
+  refreshScenario();
 }
 
 loadRookies();
