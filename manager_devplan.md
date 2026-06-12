@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 23/04/2026 (M14 + M9 + M13 concluídos — atalho universal para propor trade em 1 clique)  
+> Última atualização: 12/06/2026 (F11: prod verificado LIMPO + caminho admin de rollover removido — offseason Step 4 vira porta única)  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -1241,6 +1241,33 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Lição transversal** emergida 2× (DP1-F1 = premissa de fonte falsa; UX4-b = campo existente omitido): especificação positiva **omite por silêncio**. Regra candidata: F1 de consumo/refatoração lista, com evidência do código, as premissas do prompt contradizidas + os campos/comportamentos existentes ausentes na proposta, com parecer por item (premissa falsa / remoção intencional / perda não-intencional / deslocamento).
 - **Candidato a baseline, NÃO regra vigente.** Destino: consolidação no `DEV_METHODOLOGY.md` em revisão de metodologia dedicada (transversal manager/optimizer/predictor). Absorve a nota metodológica do UX4-b (referência, não duplicata). Registro apenas — sem código. Commit docs-only `452231b`.
 - **Relaciona-se** a "validar premissas empiricamente" (pré-IMPL) e à fonte única (T2-FIX-2 / F10): a F1 é o momento barato de pegar o gap antes do IMPL nascer sobre base falsa.
+
+### 12/06/2026 — F11 (Fable): Etapa 1 prod LIMPO ✅ + Etapa 2 fix Opção A ⚠️ localhost
+
+- **Etapa 1 — verificação retroativa em prod (read-only, gate obrigatório antes do fix):** queries
+  forenses geradas pelo Code, executadas pelo owner no Render Shell (`sqlite3 -readonly /data/dynasty.db`).
+  **Veredito: LIMPO — nenhum rollover jamais foi aplicado em prod.** `salary_history` = **0 linhas**
+  (contratos vivos vieram do CSV bootstrap, que não gera history — classe F12); 0 lotes/0 duplicatas
+  de rollover; **0 assinaturas `"Season rollover"` no `sync_log`** (marcador forense exclusivo do
+  caminho admin — só ele gravava SyncLog) → botão admin nunca usado; 0 contract_year fora de 1..4;
+  config consistente (`current_season=2025`, `rollover_done=false`, `season_locked=true` — offseason
+  2026 no Step 2/3). Sem corrupção, repair desnecessário; a janela de risco estava **aberta** (1º
+  rollover da liga iminente) — o fix chegou antes do primeiro disparo possível.
+- **Pré-fix, grep por 3º caminho (restrição do prompt):** escritas de `SalaryHistory(` = models.py:396
+  (record_acquisition ano-1) + os 2 rollovers; incrementos de contract_year = os 2 rollovers + edição
+  per-player M2 (admin.py); fetches de UI = admin.html:285 + offseason.html:724. **Só os 2 catalogados.**
+- **Etapa 2 — fix Opção A (matar a réplica):** removidos `POST /api/admin/rollover/apply` (admin.py,
+  substituído por comentário-guard "porta única = offseason Step 4"), botão "⚡ Aplicar Rollover" +
+  `confirmRollover()` + `#rollover-result` (admin.html) e o comentário stale "CURRENT_SEASON is a
+  constant" (vivia dentro do endpoint removido). **Preview mantido** (decisão registrada: read-only,
+  função pura, zero dependência do caminho removido); card renomeado "Season Rollover (preview)" e
+  step-list apontando o apply para `/offseason`. **Offseason 100% intocado** (nenhum diff em
+  offseason.py/offseason.html — gates e semântica do Step 4 idênticos).
+- **Validação:** grep pós-fix = **1 caminho de escrita** (offseason.py:675-683); 0 refs a
+  `rollover/apply`/`confirmRollover`; `py_compile` + Jinja parse OK; `salary_engine_test` **48/48**.
+- **Status F11: 🔲 → ⚠️ localhost.** ✅ só após smoke em prod (deploy + admin sem botão/preview
+  funcional + offseason Step 4 intacto). Commit único código+docs. **F10 (mesma janela Fable) fica
+  para a próxima sessão** — não embarcado aqui para manter o commit do F11 atômico.
 
 ### 11/06/2026 — Encerramento da sessão AUD1 (REG + F1 + priorização do lote)
 

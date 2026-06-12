@@ -86,55 +86,9 @@ def rollover_preview():
     })
 
 
-@admin_bp.route("/api/admin/rollover/apply", methods=["POST"])
-@admin_required
-def rollover_apply():
-    """Apply season rollover: increment year, recalc salaries, log history."""
-    next_season = get_current_season() + 1
-    players = Player.query.filter_by(is_dropped=False).all()
-    applied = 0
-    renewals = 0
-
-    for p in players:
-        old_salary = p.salary
-        old_year   = p.contract_year
-        new_sal, new_yr, rule = apply_season_rollover(p)
-
-        p.salary = new_sal
-        p.contract_year = new_yr
-        if new_yr == 1:
-            p.contract_start_season = next_season
-            renewals += 1
-
-        hist = SalaryHistory(
-            player_id=p.id,
-            season=next_season,
-            salary=new_sal,
-            contract_year=new_yr,
-            rule_applied=rule,
-            espn_ref_value=p.espn_ref_value or 0.0,
-        )
-        db.session.add(hist)
-        applied += 1
-
-    db.session.commit()
-
-    # NOTE: CURRENT_SEASON in models is a constant — in production you'd persist
-    # this in a Settings table. For now, document the rollover in SyncLog.
-    from models import SyncLog
-    log = SyncLog(
-        players_updated=applied,
-        summary=f"Season rollover {get_current_season()}→{next_season}: {applied} jogadores, {renewals} renovações.",
-    )
-    db.session.add(log)
-    db.session.commit()
-
-    return jsonify({
-        "success": True,
-        "applied": applied,
-        "renewals": renewals,
-        "next_season": next_season,
-    })
+# F11: a aplicação do rollover vive SOMENTE no workflow do offseason
+# (POST /api/offseason/rollover, Step 4 — gated por etapas 2+3 e rollover_done,
+# avança current_season na AppConfig). O admin mantém apenas o preview acima.
 
 
 # ── ESPN Value Bulk Upload ────────────────────────────────────────────────────

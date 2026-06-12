@@ -63,20 +63,20 @@
     <h2 class="card-title">📋 Ordem do Fluxo Pré-Temporada</h2>
     <ol class="workflow-steps">
       <li><span class="step-num">1</span> <strong>Atualizar ESPN Values</strong> — importar valores PPR atualizados (usado no cálculo de salários)</li>
-      <li><span class="step-num">2</span> <strong>Season Rollover</strong> — avançar contratos e recalcular salários com base nos ESPN values</li>
+      <li><span class="step-num">2</span> <strong>Season Rollover</strong> — aplicado no <a href="/offseason">workflow do Offseason</a> (Step 4); aqui só o preview</li>
       <li><span class="step-num">3</span> <strong>FA Auction / Rookie Draft</strong> — registrar aquisições da nova temporada</li>
     </ol>
   </div>
 
-  <!-- Season Rollover -->
+  <!-- Season Rollover (preview-only — F11: a aplicação vive no workflow do Offseason, Step 4) -->
   <div class="card">
-    <h2 class="card-title">📅 Season Rollover</h2>
+    <h2 class="card-title">📅 Season Rollover (preview)</h2>
     <p class="text-dim" style="margin-bottom:.75rem">
-      Avança a temporada: incrementa contract_year, aplica VALORIZAÇÃO, loga histórico.
-      <strong>Use com cuidado — irreversível sem backup.</strong>
+      Simula a próxima temporada: contract_year +1, regras de VALORIZAÇÃO, renovações.
+      Somente leitura — para aplicar, use o <a href="/offseason">workflow do Offseason</a> (Step 4).
     </p>
     <button class="btn btn-secondary" onclick="previewRollover()"
-            data-tooltip="Avança todos os contratos em 1 ano e recalcula&#10;salários pelas regras de VALORIZAÇÃO do cap.&#10;Mostra preview antes de aplicar.">
+            data-tooltip="Simula o avanço de todos os contratos em 1 ano e o recálculo&#10;de salários pelas regras de VALORIZAÇÃO do cap.&#10;Não altera nada no banco.">
       👁 Preview Rollover
     </button>
     <div id="rollover-preview" style="display:none;margin-top:1rem">
@@ -84,12 +84,7 @@
       <div style="max-height:360px;overflow-y:auto;margin-top:.75rem">
         <table class="data-table" id="rollover-table"></table>
       </div>
-      <button class="btn btn-danger" style="margin-top:.75rem" onclick="confirmRollover()"
-              data-tooltip="Aplica o rollover de forma irreversível.&#10;Faça backup do dynasty.db antes!">
-        ⚡ Aplicar Rollover
-      </button>
     </div>
-    <div id="rollover-result" class="result-box" style="display:none;margin-top:.75rem"></div>
   </div>
 
   <!-- ESPN PDF Import -->
@@ -277,24 +272,6 @@ function previewRollover() {
     document.getElementById('rollover-table').innerHTML = html;
     document.getElementById('rollover-preview').style.display = 'block';
   });
-}
-
-function confirmRollover() {
-  if (!confirm('⚠️ A tabela ESPN está atualizada?\n\nO rollover usa os valores ESPN atuais para calcular salários.\nSe não atualizou, cancele e vá em "Atualizar ESPN Values" primeiro.')) return;
-  if (!confirm('Aplicar Season Rollover? Esta ação NÃO pode ser desfeita automaticamente.\n\nCertifique-se de ter um backup do dynasty.db.')) return;
-  fetch('/api/admin/rollover/apply', {method:'POST'})
-    .then(r => r.json()).then(d => {
-      const res = document.getElementById('rollover-result');
-      res.style.display = 'block';
-      if (d.success) {
-        res.className = 'result-box result-ok';
-        res.textContent = `✅ Rollover aplicado: ${d.applied} jogadores, ${d.renewals} renovações. Nova temporada: ${d.next_season}.`;
-        setTimeout(() => location.reload(), 2500);
-      } else {
-        res.className = 'result-box result-error';
-        res.textContent = '❌ ' + (d.error || 'Erro');
-      }
-    });
 }
 
 function bulkESPN() {

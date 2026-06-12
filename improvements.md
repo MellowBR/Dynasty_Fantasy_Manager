@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 12/06/2026 (sessão F11: **Etapa 1 verificação retroativa em prod ✅ LIMPO** — 0 rollovers jamais aplicados, salary_history vazio, 0 assinaturas admin no SyncLog; **Etapa 2 fix Opção A ⚠️ localhost** — endpoint apply + botão + JS removidos, preview mantido, offseason Step 4 = porta única)
 > Atualizado em: 11/06/2026 (sessão AUD1: REG + **F1 executada ✅** — 6 lentes varridas; 6 itens novos: F11 rollover duplicado, F12 import-overwrite local, E4-d matching /auction, M19 validação lottery client-only, M20 descomissionar flag single-user, DOC1 CLAUDE.md startup; 3ª ocorrência do MAN-METH-REG registrada)
 > Atualizado em: 10/06/2026 (sessão DP1: F1 diagnose ✅ + **F2 board + simulação multi-pick no backend ⚠️ localhost** — lê `RookieEspnValue` por season, NÃO o canônico; premissa "DP1 lê o store canônico" corrigida; smoke em prod pendente)
 > Atualizado em: 09/06/2026 (sessão 08–09/06: M17 + M18 ✅ prod; E2-RISK + E4-a ⚠️ matcher/tela do "Brown"; E4-b ✅ prod (órfãos); E4-c-1 ✅ prod (store canônico ESPN por sleeper_id); WV1/E3/E4-c-2 registrados; DP1 desbloqueado)
@@ -99,7 +100,7 @@
 | T3 | Valores redraft do FantasyCalc no Trade Manager (modelo 3 — duas barras independentes dynasty + redraft) | Média | ✅ 27/04/2026 |
 | T3-FIX-UX | Migrar barras dynasty + redraft de dual-fill (T2 pattern) para delta-pointing + corrigir overflow mobile + redraft no modal preview + descrição de trade em formato "de/para" 2-colunas + alinhamento vertical entre colunas (5 sub-iterações, owner-driven via screenshot mobile) | Média | ✅ 27-28/04/2026 |
 | AUD1 | Auditoria estrutural read-only do codebase: 6 lentes de incidentes históricos (F1-only — achados viram itens próprios; Lente 6 = test drive do MAN-METH-REG) — MAN-AUD1-REG/F1 | Alta | ✅ 11/06/2026 (achados absorvidos: F11, F12, E4-d, M19, M20, DOC1) |
-| F11 | Rollover de season duplicado e divergente: `/api/admin/rollover/apply` (sem gate de etapas, sem check `rollover_done`, NÃO avança `current_season`) × `/api/offseason/rollover` (gated) — ambos vivos na UI; dupla execução incrementa contratos 2× — achado AUD1 Lente 2 | Alta | 🔲 |
+| F11 | Rollover de season duplicado e divergente: `/api/admin/rollover/apply` (sem gate de etapas, sem check `rollover_done`, NÃO avança `current_season`) × `/api/offseason/rollover` (gated) — ambos vivos na UI; dupla execução incrementa contratos 2× — achado AUD1 Lente 2 | Alta | ⚠️ 12/06/2026 (prod verificado LIMPO; fix Opção A localhost — ✅ após smoke em prod) |
 | F12 | `run_import` sobrescreve salary/contract_year a cada boot com CSV presente (dev local), sem SalaryHistory — reverte silenciosamente rollover/correções locais; coluna `salary_2025` hardcoded — achado AUD1 Lente 2 | Média | 🔲 |
 | E4-d | Matching frouxo nas portas do /auction: single-entry FA/rookie matcha player por nome exato sem resolver sid (guard E4-b ausente — classe órfão) + upload Excel matcha Team por substring `%name%` — achado AUD1 Lente 4 | Baixa/Média | 🔲 |
 | M19 | Validação de pesos do lottery só existe no client (JS floor/mín-1); `_normalize_weights` aceita float/zero/negativo — POST direto exclui time do pool silenciosamente — achado AUD1 Lente 1 | Baixa | 🔲 |
@@ -1110,7 +1111,8 @@ na F1 é o momento barato de pegar o gap, antes de o IMPL nascer sobre uma base 
 ---
 
 ### F11 — Rollover de season duplicado e divergente (admin × offseason)
-🔲 **Registrado 11/06/2026** — achado AUD1 Lente 2 — Prioridade **Alta**
+⚠️ **12/06/2026** (prod verificado limpo; fix Opção A validado localhost — ✅ após smoke em prod) —
+registrado 11/06/2026, achado AUD1 Lente 2 — Prioridade **Alta**
 
 **Evidência:** dois endpoints aplicam o rollover, ambos vivos na UI: (1) `/api/admin/rollover/apply`
 (routes/admin.py:89-130; botão "⚡ Aplicar Rollover" em admin.html:285) e (2) `/api/offseason/rollover`
@@ -1125,6 +1127,29 @@ salários duas vezes** — corrupção em massa de dados calculados, sem revers�
 **Parecer:** item novo. Proposta: matar a réplica (admin delega ao endpoint canônico do offseason, ou
 remove o botão), à la T2-FIX-2/"1 fonte por caminho de escrita". F1 dispensável — diagnose acima já
 cobre causa e evidência; F2 direto.
+
+**Etapa 1 — verificação retroativa em prod (12/06/2026): VEREDITO LIMPO.** Queries read-only
+executadas pelo owner no Render Shell contra `/data/dynasty.db` (`sqlite3 -readonly`). Números:
+**`salary_history` = 0 linhas** (nenhum rollover jamais aplicado em prod — contratos vivos vieram do
+CSV bootstrap, que não gera history; classe F12); **0 lotes** de rollover por season (Q2 vazia);
+**0 duplicatas** (player, season) com regra de rollover (Q3); **0 assinaturas** `"Season rollover"` no
+`sync_log` (Q4 — o botão admin **nunca foi usado**; assinatura exclusiva do caminho admin, que gravava
+SyncLog; o offseason não grava); **0 players** ativos com contract_year fora de 1..4 (Q5); config
+consistente: `current_season=2025`, `rollover_done=false`, `season_locked=true` — offseason 2026 em
+andamento, rollover legitimamente pendente no Step 4. **Sem corrupção; janela de risco estava aberta**
+(1º rollover da história da liga é iminente) — fix urgente, repair desnecessário.
+
+**Etapa 2 — fix Opção A (12/06/2026, ⚠️ localhost):** removidos o endpoint `POST /api/admin/rollover/apply`
+(routes/admin.py — substituído por comentário-guard apontando a porta única), o botão "⚡ Aplicar
+Rollover" + `confirmRollover()` + `#rollover-result` (admin.html), e o comentário stale (vivia dentro
+do endpoint removido). **Preview mantido** (`GET /api/admin/rollover/preview` + card "Season Rollover
+(preview)"): read-only, usa só a função pura `apply_season_rollover`, zero dependência do caminho
+removido; card e step-list do admin agora apontam o apply para o workflow do Offseason (Step 4).
+Offseason intocado (gates/flags/semântica idênticos — git diff não toca offseason.py/offseason.html).
+**Validação:** grep pós-fix = exatamente 1 caminho de escrita (offseason.py:675-683; models.py:396 é
+record_acquisition ano-1, admin.py:882 é edição per-player M2); 0 referências a `rollover/apply`/
+`confirmRollover`; Jinja parse OK; `salary_engine_test.py` 48/48. **✅ após smoke em prod:** deploy +
+admin sem botão (preview funcional) + offseason Step 4 intacto.
 
 ---
 
