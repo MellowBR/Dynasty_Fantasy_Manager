@@ -111,6 +111,45 @@ def cap_projector_data(team_name):
     })
 
 
+@salary_bp.route("/api/cap_projector/<path:team_name>/budget", methods=["POST"])
+@login_required
+def cap_projector_budget(team_name):
+    """
+    F10 — budget do cenário keep/corte do summary calculado no BACKEND (fonte única
+    `draft_budget`; fim da réplica JS do `updateSummary`). Body: {"kept_ids": [id, ...]}.
+
+    Cada jogador MANTIDO entra com o salário PROJETADO da próxima season
+    (`project_next_salary` — mesma fonte da coluna de próximo salário do GET);
+    cortados ficam fora do roster simulado. Projeção pura — nada é escrito.
+    `cap_pct`/`shortfall` são derivados de display do próprio retorno do helper,
+    expostos aqui para o cliente não fazer nenhuma aritmética de budget.
+    """
+    from types import SimpleNamespace
+    team = Team.query.filter_by(name=team_name).first()
+    if not team:
+        return jsonify({"error": "Team not found"}), 404
+
+    data = request.get_json() or {}
+    kept_ids = set()
+    for i in (data.get("kept_ids") or []):
+        try:
+            kept_ids.add(int(i))
+        except (TypeError, ValueError):
+            continue
+
+    players = Player.query.filter_by(team_id=team.id, is_dropped=False).all()
+    kept = [SimpleNamespace(salary=project_next_salary(p), is_dropped=False)
+            for p in players if p.id in kept_ids]
+    budget = draft_budget(kept)
+
+    return jsonify({
+        "team": team.name,
+        "budget": budget,
+        "cap_pct": min(100.0, budget["keeper_salaries"] / budget["salary_cap"] * 100.0),
+        "shortfall": max(0, -budget["usable_draft_budget"]),
+    })
+
+
 # ── DP1: board de planejamento de cap pré-draft (rookies) ─────────────────────
 
 @salary_bp.route("/api/cap_projector/rookies")

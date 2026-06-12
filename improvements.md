@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 12/06/2026-pt2 (sessão F10: **F11 ✅** — smoke prod OK, seção migrada p/ archive; **F11-FIX-UX ⚠️** microcopy /admin; evidência viva no F9; **F10 ⚠️ localhost** — réplica JS do updateSummary eliminada, summary consome `POST /api/cap_projector/<team>/budget` canônico; grep: zero réplicas novas)
 > Atualizado em: 12/06/2026 (sessão F11: **Etapa 1 verificação retroativa em prod ✅ LIMPO** — 0 rollovers jamais aplicados, salary_history vazio, 0 assinaturas admin no SyncLog; **Etapa 2 fix Opção A ⚠️ localhost** — endpoint apply + botão + JS removidos, preview mantido, offseason Step 4 = porta única)
 > Atualizado em: 11/06/2026 (sessão AUD1: REG + **F1 executada ✅** — 6 lentes varridas; 6 itens novos: F11 rollover duplicado, F12 import-overwrite local, E4-d matching /auction, M19 validação lottery client-only, M20 descomissionar flag single-user, DOC1 CLAUDE.md startup; 3ª ocorrência do MAN-METH-REG registrada)
 > Atualizado em: 10/06/2026 (sessão DP1: F1 diagnose ✅ + **F2 board + simulação multi-pick no backend ⚠️ localhost** — lê `RookieEspnValue` por season, NÃO o canônico; premissa "DP1 lê o store canônico" corrigida; smoke em prod pendente)
@@ -44,7 +45,7 @@
 | OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only) — MAN-OFF26-REG | Média | 🔲 |
 | OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG | Média | 🔲 (doc) |
 | F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | 🔲 |
-| F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | 🔲 |
+| F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | ⚠️ 12/06/2026 (réplica eliminada; endpoint de cenário keep/corte no backend; localhost — ✅ após smoke em prod) |
 | M17 | Personalização por usuário logado: home + cap widget + 8 surfaces derivam de `current_user.team_rel` (fonte única `inject_user_team`; réplica JS do chip removida) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | ⚠️ |
 | M18 | Timestamps no fuso do usuário: fonte única (`timeutil.utc_iso` + macro `local_dt` + JS `formatLocalDT`); ~11 sites migrados; armazenamento UTC mantido — prompt MAN-M16-REG (ID remapeado: M16 ocupado) | Média | ✅ 09/06/2026 (validado em prod: sync 11:47 BRT → "11:47", não 14:47 UTC) |
 | E1 | Import ESPN robusto end-to-end no Render: upload manual do PDF + degradação graciosa (sem 500) + estado de review em FS gravável + parser 299→300 — MAN-E1-REG/F1/F2/FIX | Alta | ✅ 08/06/2026 (validado em prod: upload → review 300, sem 500) |
@@ -100,7 +101,8 @@
 | T3 | Valores redraft do FantasyCalc no Trade Manager (modelo 3 — duas barras independentes dynasty + redraft) | Média | ✅ 27/04/2026 |
 | T3-FIX-UX | Migrar barras dynasty + redraft de dual-fill (T2 pattern) para delta-pointing + corrigir overflow mobile + redraft no modal preview + descrição de trade em formato "de/para" 2-colunas + alinhamento vertical entre colunas (5 sub-iterações, owner-driven via screenshot mobile) | Média | ✅ 27-28/04/2026 |
 | AUD1 | Auditoria estrutural read-only do codebase: 6 lentes de incidentes históricos (F1-only — achados viram itens próprios; Lente 6 = test drive do MAN-METH-REG) — MAN-AUD1-REG/F1 | Alta | ✅ 11/06/2026 (achados absorvidos: F11, F12, E4-d, M19, M20, DOC1) |
-| F11 | Rollover de season duplicado e divergente: `/api/admin/rollover/apply` (sem gate de etapas, sem check `rollover_done`, NÃO avança `current_season`) × `/api/offseason/rollover` (gated) — ambos vivos na UI; dupla execução incrementa contratos 2× — achado AUD1 Lente 2 | Alta | ⚠️ 12/06/2026 (prod verificado LIMPO; fix Opção A localhost — ✅ após smoke em prod) |
+| F11 | Rollover de season duplicado e divergente: `/api/admin/rollover/apply` (sem gate de etapas, sem check `rollover_done`, NÃO avança `current_season`) × `/api/offseason/rollover` (gated) — ambos vivos na UI; dupla execução incrementa contratos 2× — achado AUD1 Lente 2 | Alta | ✅ 12/06/2026 (prod LIMPO + fix Opção A + smoke prod OK) |
+| F11-FIX-UX | Microcopy do card "Season Rollover (preview)" e do passo 2 do fluxo pré-temporada no /admin: linguagem de owner (prévia × aplicação real na Intertemporada), link p/ /offseason, sem nº de step e sem season hardcoded — carona da sessão F10 (padrão N1-FIX/T3-FIX-UX) | Baixa | ⚠️ 12/06/2026 (localhost; ✅ com o smoke do F10) |
 | F12 | `run_import` sobrescreve salary/contract_year a cada boot com CSV presente (dev local), sem SalaryHistory — reverte silenciosamente rollover/correções locais; coluna `salary_2025` hardcoded — achado AUD1 Lente 2 | Média | 🔲 |
 | E4-d | Matching frouxo nas portas do /auction: single-entry FA/rookie matcha player por nome exato sem resolver sid (guard E4-b ausente — classe órfão) + upload Excel matcha Team por substring `%name%` — achado AUD1 Lente 4 | Baixa/Média | 🔲 |
 | M19 | Validação de pesos do lottery só existe no client (JS floor/mín-1); `_normalize_weights` aceita float/zero/negativo — POST direto exclui time do pool silenciosamente — achado AUD1 Lente 1 | Baixa | 🔲 |
@@ -1110,46 +1112,18 @@ na F1 é o momento barato de pegar o gap, antes de o IMPL nascer sobre uma base 
 
 ---
 
-### F11 — Rollover de season duplicado e divergente (admin × offseason)
-⚠️ **12/06/2026** (prod verificado limpo; fix Opção A validado localhost — ✅ após smoke em prod) —
-registrado 11/06/2026, achado AUD1 Lente 2 — Prioridade **Alta**
+### F11-FIX-UX — Microcopy do preview de rollover no /admin (carona F10)
+⚠️ **12/06/2026** (aplicado na sessão F10, localhost; ✅ com o smoke do F10) — sub-item de [[F11]]
+(seção principal no archive) — padrão N1-FIX/T3-FIX-UX — Prioridade **Baixa**
 
-**Evidência:** dois endpoints aplicam o rollover, ambos vivos na UI: (1) `/api/admin/rollover/apply`
-(routes/admin.py:89-130; botão "⚡ Aplicar Rollover" em admin.html:285) e (2) `/api/offseason/rollover`
-(routes/offseason.py:653-697; Step 4 do workflow, offseason.html:724). Divergências do lado admin:
-**sem gate de etapas** (offseason exige steps 2+3), **sem check `rollover_done`** (re-execução livre),
-**não avança `current_season`** nem seta flags — grava SalaryHistory com `season=next_season` deixando
-a config da season para trás (estado inconsistente). Comentário stale em admin.py:122-123 afirma
-"CURRENT_SEASON in models is a constant — in production you'd persist this in a Settings table",
-contradito pelo código atual (`AppConfig.current_season` + `set_config`, usados pelo fluxo offseason).
-**Risco:** rodar o rollover do admin após o do offseason (ou 2× o do admin) **incrementa contratos e
-salários duas vezes** — corrupção em massa de dados calculados, sem reversão fácil.
-**Parecer:** item novo. Proposta: matar a réplica (admin delega ao endpoint canônico do offseason, ou
-remove o botão), à la T2-FIX-2/"1 fonte por caminho de escrita". F1 dispensável — diagnose acima já
-cobre causa e evidência; F2 direto.
+**Motivação:** após o F11, o card "Season Rollover (preview)" e o passo 2 do "Ordem do Fluxo
+Pré-Temporada" descreviam o preview em linguagem de dev ("Step 4", "workflow do Offseason",
+nomes de campo). Microcopy reescrita em linguagem de owner: o que a prévia mostra, que nada é
+alterado ali, e onde a aplicação real acontece (etapa Season Rollover da página de
+**Intertemporada**, com link em /offseason), incluindo as condições de liberação (sorteio do
+draft travado + valores ESPN atualizados). Sem nº de step e sem season hardcoded nos dois cards.
 
-**Etapa 1 — verificação retroativa em prod (12/06/2026): VEREDITO LIMPO.** Queries read-only
-executadas pelo owner no Render Shell contra `/data/dynasty.db` (`sqlite3 -readonly`). Números:
-**`salary_history` = 0 linhas** (nenhum rollover jamais aplicado em prod — contratos vivos vieram do
-CSV bootstrap, que não gera history; classe F12); **0 lotes** de rollover por season (Q2 vazia);
-**0 duplicatas** (player, season) com regra de rollover (Q3); **0 assinaturas** `"Season rollover"` no
-`sync_log` (Q4 — o botão admin **nunca foi usado**; assinatura exclusiva do caminho admin, que gravava
-SyncLog; o offseason não grava); **0 players** ativos com contract_year fora de 1..4 (Q5); config
-consistente: `current_season=2025`, `rollover_done=false`, `season_locked=true` — offseason 2026 em
-andamento, rollover legitimamente pendente no Step 4. **Sem corrupção; janela de risco estava aberta**
-(1º rollover da história da liga é iminente) — fix urgente, repair desnecessário.
-
-**Etapa 2 — fix Opção A (12/06/2026, ⚠️ localhost):** removidos o endpoint `POST /api/admin/rollover/apply`
-(routes/admin.py — substituído por comentário-guard apontando a porta única), o botão "⚡ Aplicar
-Rollover" + `confirmRollover()` + `#rollover-result` (admin.html), e o comentário stale (vivia dentro
-do endpoint removido). **Preview mantido** (`GET /api/admin/rollover/preview` + card "Season Rollover
-(preview)"): read-only, usa só a função pura `apply_season_rollover`, zero dependência do caminho
-removido; card e step-list do admin agora apontam o apply para o workflow do Offseason (Step 4).
-Offseason intocado (gates/flags/semântica idênticos — git diff não toca offseason.py/offseason.html).
-**Validação:** grep pós-fix = exatamente 1 caminho de escrita (offseason.py:675-683; models.py:396 é
-record_acquisition ano-1, admin.py:882 é edição per-player M2); 0 referências a `rollover/apply`/
-`confirmRollover`; Jinja parse OK; `salary_engine_test.py` 48/48. **✅ após smoke em prod:** deploy +
-admin sem botão (preview funcional) + offseason Step 4 intacto.
+**Arquivos:** `templates/admin.html` (2 cards). ✅ quando o smoke do F10 passar em prod.
 
 ---
 
@@ -1496,6 +1470,15 @@ Cópia do `dynasty.db` de produção fornecida pelo comissário (`integrity_chec
   F2 do F9 = rotear `bulk_register` por `record_acquisition` + remover o hack `_noop`. Sem
   backfill.
 
+**Corroboração ao vivo (12/06/2026, forense do F11):** queries read-only no **banco vivo**
+(`/data/dynasty.db`, Render Shell, executadas pelo owner) re-confirmaram `salary_history` = **0
+linhas** — a F1B auditara uma **cópia** de 07/06; agora confirmado no disco vivo. Tradução:
+**nenhuma aquisição jamais passou pela porta canônica `record_acquisition` em produção** (contratos
+vivos = CSV bootstrap + sync). **Eleva a urgência do F9 antes da FA auction 2026:** a auction será
+o primeiro uso real do `/auction` em prod e `bulk_register` é a única porta que ainda escreve
+inline — fechar o F9 antes garante que o primeiro rastro de aquisição da liga nasça pela porta
+única.
+
 **Observações para planejamento (fora do escopo do F9 — candidatas a item próprio):**
 1. **`salary_history` é tabela legada/morta** — superseded pelo PlayerHistory, escrita por
    `record_acquisition`/`/auction` mas lida por ninguém. Avaliar deprecar a escrita ou
@@ -1532,6 +1515,50 @@ selada de keepers/cuts), que calculará budget ao vivo e deve **nascer consumind
 canônico** — evita criar uma terceira réplica.
 
 **Ref. cruzada:** [[MAN-OFF26-3-F1]] (diagnose do importador OFF26-3, achado §3).
+
+#### F2 ⚠️ (12/06/2026) — réplica eliminada; summary consome o backend (localhost)
+
+**Premissa do prompt refutada (MAN-METH-REG):** "pode bastar consumir o payload atual" — **não
+basta**. O `budget` do GET (`salary.py`, `draft_budget(players)`) é calculado sobre o **salário
+ATUAL do roster inteiro**; o `updateSummary` calcula sobre o **subconjunto mantido (keep/corte)
+com `next_salary` projetado** (cap_projector.html:183-184 pré-fix) — entradas diferentes, o
+payload existente não cobre nenhum cenário com corte. Solução no padrão DP1 (simulação no
+backend): **novo endpoint `POST /api/cap_projector/<team>/budget`** recebe `{kept_ids}` e devolve
+`draft_budget` canônico sobre os mantidos com `project_next_salary` (mesma fonte da coluna "Sal
+próximo ano"), + derivados de display `cap_pct`/`shortfall` (derivam do retorno do helper — o
+cliente não faz nenhuma aritmética). Projeção pura, nada escrito; ids inválidos ignorados.
+
+**JS (`updateSummary`):** vira POST dos `kept_ids` + exibição do payload — somas, `SALARY_CAP`/
+`MAX_ROSTER` (consts deletadas), spots, pct e aviso de insuficiência **todos do backend**. Guard
+de sequência contra resposta obsoleta em toggles rápidos. Mensagens "cap de $200" trocadas por
+`$${b.salary_cap}` (tb. no painel DP1 — string renderizada idêntica, endpoint DP1 intocado).
+Comentário stale do DP1 ("débito F10 fica restrito ao updateSummary") atualizado para "quitado".
+
+**Gap existe×proposto (mapeamento campo a campo, completo):** total→`keeper_salaries`;
+remaining/budget-bruto→`raw_budget` (ambos exibiam o mesmo valor; preservado); usable→
+`usable_draft_budget`; spots/min→`empty_spots`/`min_required_for_spots`; pct→`cap_pct` (min 100
+preservado); aviso over-cap→`over_cap`; aviso insuficiência→`insufficient_budget`+`shortfall`.
+**Única mudança comportamental:** o summary atualiza por round-trip (async) a cada toggle, em vez
+de sincronamente — padrão já estabelecido pelo DP1 na mesma página; mitigado pelo guard de
+sequência. Classes de cor (<0 danger, <10 warn) seguem no JS (comparação de display, não agregação).
+
+**Relatório do grep de réplicas (codebase inteiro):** única réplica JS de cálculo de budget era o
+`updateSummary` (+ consts). Demais ocorrências, com parecer: literais de display "$200"
+(base.html:73,153; trades.html:375 — valores calculados no backend, só o texto fixo; cap é
+constante de regulamento documentada → decisão consciente, sem item novo; os do cap_projector
+foram absorvidos de graça); agregações server-side de cap usado (roster/league/trades —
+semântica "cap usado", não a regra de budget; server-side, fora do princípio backend↔JS);
+draft_import.py:75 **consome** o canônico via SimpleNamespace (padrão correto). **Zero réplicas
+novas → zero itens novos.**
+
+**Validação (localhost, test client, usuário não-admin temporário):** página 200; payload ×
+canônico **idêntico** em 4 cenários (todos mantidos $256/insuf, metade $159/usable $30, todos
+cortados $0/$178, ids inválidos ignorados); paridade com o summary antigo (Σ next_salary == 
+`keeper_salaries`); 404 p/ time inexistente; **regressão DP1**: cenário vazio == budget atual e
+caso de referência **2 picks +$58** reproduzido ($46→$55, $3→$3; store local re-semeado
+temporariamente e limpo); **nada escrito** (salaries + store intactos); grep no template = zero
+aritmética de budget/`SALARY_CAP`/`MAX_ROSTER`/literais; Jinja parse OK; `salary_engine_test.py`
+**48/48**. **✅ após smoke em prod** (summary com valores corretos + toggles + board DP1).
 
 ---
 

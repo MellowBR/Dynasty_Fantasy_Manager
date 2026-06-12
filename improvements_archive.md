@@ -2630,3 +2630,53 @@ F1 deve avaliar trade-offs (idempotência preservada vs poder de recovery) e cob
 **Problema:** Jogadores apareciam em ordem aleatória nos endpoints de API (roster by id, roster by name, cap projector). A página HTML de roster já ordenava via `_build_players_by_pos()`, mas as APIs JSON não.
 
 **Solução:** `POS_ORDER` movido de `routes/roster.py` para `models.py` como constante central. Criada função `sort_players_by_pos(players)` em `models.py` que ordena por posição (QB→DEF) e salary DESC. Aplicada em `routes/roster.py` (2 endpoints API) e `routes/salary.py` (cap projector).
+
+---
+
+### F11 — Rollover de season duplicado e divergente (admin × offseason)
+✅ **12/06/2026** (prod verificado limpo + fix Opção A + smoke de prod OK) —
+registrado 11/06/2026, achado AUD1 Lente 2 — Prioridade **Alta**
+
+**Evidência:** dois endpoints aplicam o rollover, ambos vivos na UI: (1) `/api/admin/rollover/apply`
+(routes/admin.py:89-130; botão "⚡ Aplicar Rollover" em admin.html:285) e (2) `/api/offseason/rollover`
+(routes/offseason.py:653-697; Step 4 do workflow, offseason.html:724). Divergências do lado admin:
+**sem gate de etapas** (offseason exige steps 2+3), **sem check `rollover_done`** (re-execução livre),
+**não avança `current_season`** nem seta flags — grava SalaryHistory com `season=next_season` deixando
+a config da season para trás (estado inconsistente). Comentário stale em admin.py:122-123 afirma
+"CURRENT_SEASON in models is a constant — in production you'd persist this in a Settings table",
+contradito pelo código atual (`AppConfig.current_season` + `set_config`, usados pelo fluxo offseason).
+**Risco:** rodar o rollover do admin após o do offseason (ou 2× o do admin) **incrementa contratos e
+salários duas vezes** — corrupção em massa de dados calculados, sem reversão fácil.
+**Parecer:** item novo. Proposta: matar a réplica (admin delega ao endpoint canônico do offseason, ou
+remove o botão), à la T2-FIX-2/"1 fonte por caminho de escrita". F1 dispensável — diagnose acima já
+cobre causa e evidência; F2 direto.
+
+**Etapa 1 — verificação retroativa em prod (12/06/2026): VEREDITO LIMPO.** Queries read-only
+executadas pelo owner no Render Shell contra `/data/dynasty.db` (`sqlite3 -readonly`). Números:
+**`salary_history` = 0 linhas** (nenhum rollover jamais aplicado em prod — contratos vivos vieram do
+CSV bootstrap, que não gera history; classe F12); **0 lotes** de rollover por season (Q2 vazia);
+**0 duplicatas** (player, season) com regra de rollover (Q3); **0 assinaturas** `"Season rollover"` no
+`sync_log` (Q4 — o botão admin **nunca foi usado**; assinatura exclusiva do caminho admin, que gravava
+SyncLog; o offseason não grava); **0 players** ativos com contract_year fora de 1..4 (Q5); config
+consistente: `current_season=2025`, `rollover_done=false`, `season_locked=true` — offseason 2026 em
+andamento, rollover legitimamente pendente no Step 4. **Sem corrupção; janela de risco estava aberta**
+(1º rollover da história da liga é iminente) — fix urgente, repair desnecessário.
+
+**Etapa 2 — fix Opção A (12/06/2026, ⚠️ localhost):** removidos o endpoint `POST /api/admin/rollover/apply`
+(routes/admin.py — substituído por comentário-guard apontando a porta única), o botão "⚡ Aplicar
+Rollover" + `confirmRollover()` + `#rollover-result` (admin.html), e o comentário stale (vivia dentro
+do endpoint removido). **Preview mantido** (`GET /api/admin/rollover/preview` + card "Season Rollover
+(preview)"): read-only, usa só a função pura `apply_season_rollover`, zero dependência do caminho
+removido; card e step-list do admin agora apontam o apply para o workflow do Offseason (Step 4).
+Offseason intocado (gates/flags/semântica idênticos — git diff não toca offseason.py/offseason.html).
+**Validação:** grep pós-fix = exatamente 1 caminho de escrita (offseason.py:675-683; models.py:396 é
+record_acquisition ano-1, admin.py:882 é edição per-player M2); 0 referências a `rollover/apply`/
+`confirmRollover`; Jinja parse OK; `salary_engine_test.py` 48/48. **✅ após smoke em prod:** deploy +
+admin sem botão (preview funcional) + offseason Step 4 intacto.
+
+**Smoke de prod (12/06/2026): PASSOU — F11 ✅.** Deploy do commit `75e69e7`; `/admin` sem o botão de
+apply, card "Season Rollover (preview)" funcional com dados reais (**273 jogadores, 0 renovações,
+cap $2187 → $2310**); `/offseason` com Step 4 **bloqueado por gate** (step 3 pendente) — gates
+intactos. Porta única de rollover confirmada em produção. Sub-item de carona: [[F11-FIX-UX]]
+(microcopy dos dois cards do /admin, sessão F10).
+

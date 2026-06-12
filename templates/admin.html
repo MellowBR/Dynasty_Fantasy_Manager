@@ -63,17 +63,20 @@
     <h2 class="card-title">📋 Ordem do Fluxo Pré-Temporada</h2>
     <ol class="workflow-steps">
       <li><span class="step-num">1</span> <strong>Atualizar ESPN Values</strong> — importar valores PPR atualizados (usado no cálculo de salários)</li>
-      <li><span class="step-num">2</span> <strong>Season Rollover</strong> — aplicado no <a href="/offseason">workflow do Offseason</a> (Step 4); aqui só o preview</li>
+      <li><span class="step-num">2</span> <strong>Season Rollover</strong> — a aplicação real é feita na etapa Season Rollover da página de <a href="/offseason">Intertemporada</a>; aqui, apenas a prévia</li>
       <li><span class="step-num">3</span> <strong>FA Auction / Rookie Draft</strong> — registrar aquisições da nova temporada</li>
     </ol>
   </div>
 
-  <!-- Season Rollover (preview-only — F11: a aplicação vive no workflow do Offseason, Step 4) -->
+  <!-- Season Rollover (preview-only — F11: a aplicação vive na etapa Season Rollover do /offseason) -->
   <div class="card">
     <h2 class="card-title">📅 Season Rollover (preview)</h2>
     <p class="text-dim" style="margin-bottom:.75rem">
-      Simula a próxima temporada: contract_year +1, regras de VALORIZAÇÃO, renovações.
-      Somente leitura — para aplicar, use o <a href="/offseason">workflow do Offseason</a> (Step 4).
+      Mostra como ficarão contratos e salários na próxima temporada: cada contrato avança um
+      ano e os salários são reajustados conforme o regulamento da liga. Nada é alterado aqui —
+      é apenas uma prévia. A aplicação real é feita na etapa Season Rollover da página de
+      <a href="/offseason">Intertemporada</a>, que é liberada depois que o sorteio do draft é
+      travado e os valores ESPN são atualizados.
     </p>
     <button class="btn btn-secondary" onclick="previewRollover()"
             data-tooltip="Simula o avanço de todos os contratos em 1 ano e o recálculo&#10;de salários pelas regras de VALORIZAÇÃO do cap.&#10;Não altera nada no banco.">

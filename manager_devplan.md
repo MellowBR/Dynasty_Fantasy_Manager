@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 12/06/2026 (F11: prod verificado LIMPO + caminho admin de rollover removido — offseason Step 4 vira porta única)  
+> Última atualização: 12/06/2026-pt2 (F11 ✅ smoke prod + F10: réplica JS de draft_budget eliminada — summary do cap projector consome o backend canônico)  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -1241,6 +1241,37 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Lição transversal** emergida 2× (DP1-F1 = premissa de fonte falsa; UX4-b = campo existente omitido): especificação positiva **omite por silêncio**. Regra candidata: F1 de consumo/refatoração lista, com evidência do código, as premissas do prompt contradizidas + os campos/comportamentos existentes ausentes na proposta, com parecer por item (premissa falsa / remoção intencional / perda não-intencional / deslocamento).
 - **Candidato a baseline, NÃO regra vigente.** Destino: consolidação no `DEV_METHODOLOGY.md` em revisão de metodologia dedicada (transversal manager/optimizer/predictor). Absorve a nota metodológica do UX4-b (referência, não duplicata). Registro apenas — sem código. Commit docs-only `452231b`.
 - **Relaciona-se** a "validar premissas empiricamente" (pré-IMPL) e à fonte única (T2-FIX-2 / F10): a F1 é o momento barato de pegar o gap antes do IMPL nascer sobre base falsa.
+
+### 12/06/2026 (pt2) — F11 ✅ (smoke prod) + F11-FIX-UX + evidência no F9 + F10 ⚠️ localhost (Fable)
+
+- **Abertura — F11 ✅:** smoke de prod PASSOU (deploy `75e69e7`): /admin sem o botão de apply, preview
+  funcional com dados reais (273 jogadores, 0 renovações, cap $2187→$2310), /offseason Step 4
+  bloqueado por gate (step 3 pendente). Seção F11 (3.928 chars) **migrada verbatim p/ o archive**
+  (regra O3, asserts por script: verbatim no archive + ausente do ativo). **F11-FIX-UX** registrado
+  (sub-item, padrão N1-FIX/T3-FIX-UX) e **aplicado**: microcopy de owner nos 2 cards do /admin
+  (prévia × aplicação real na etapa Season Rollover da página de **Intertemporada**, link
+  /offseason, sem nº de step, sem season hardcoded) — ⚠️ até o smoke do F10. **F9** ganhou a
+  corroboração viva da forense F11 (salary_history=0 no disco vivo 12/06; F1B auditara cópia de
+  07/06) + vínculo de urgência: fechar F9 **antes da FA auction 2026** (primeiro uso real do
+  /auction; `bulk_register` é a única porta inline restante).
+- **F10 — premissa do prompt refutada (MAN-METH-REG, 4ª ocorrência da família):** "pode bastar
+  consumir o payload atual" — não basta: o `budget` do GET é sobre salário ATUAL do roster inteiro;
+  o `updateSummary` soma `next_salary` do subconjunto keep/corte. **Fix no padrão DP1:** novo
+  `POST /api/cap_projector/<team>/budget` ({kept_ids} → `draft_budget` canônico sobre mantidos com
+  `project_next_salary` + derivados de display `cap_pct`/`shortfall`). JS vira POST+display puro:
+  consts `SALARY_CAP`/`MAX_ROSTER` deletadas, zero agregação, guard de sequência p/ toggles
+  rápidos, mensagens usam `b.salary_cap` (tb. no painel DP1 — render idêntico, endpoint intocado).
+- **Grep de réplicas (codebase): zero réplicas novas → zero itens novos.** Única réplica era o
+  updateSummary; literais "$200" de display (base/trades) = decisão consciente (valores vêm do
+  backend); agregações server-side de cap usado ≠ regra de budget; draft_import já consome o
+  canônico via SimpleNamespace.
+- **Validação (test client, não-admin temporário):** payload×canônico idêntico em 4 cenários de
+  keep/corte; paridade Σ next_salary == keeper_salaries; 404; **regressão DP1** — cenário vazio ==
+  budget atual e caso 2 picks **+$58** reproduzido ($46→$55, $3→$3, store re-semeado e limpo);
+  nada escrito; grep template = zero aritmética; Jinja parse OK; `salary_engine_test` **48/48**.
+- **Status: F10 🔲 → ⚠️ localhost; F11 ⚠️ → ✅; F11-FIX-UX novo ⚠️.** Commit único (código + docs);
+  push a cargo do owner. ✅ do F10/F11-FIX-UX após smoke em prod (summary correto + toggles +
+  board DP1 + cards do /admin).
 
 ### 12/06/2026 — F11 (Fable): Etapa 1 prod LIMPO ✅ + Etapa 2 fix Opção A ⚠️ localhost
 
