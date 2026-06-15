@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 12/06/2026-pt2 (F11 ✅ smoke prod + F10: réplica JS de draft_budget eliminada — summary do cap projector consome o backend canônico)  
+> Última atualização: 15/06/2026 (UX9 F2 ⚠️ localhost — fim da fragmentação do passo 2 no /admin via `<span class="step-body">` por passo; + UX8 F2 foto ao lado do nome no /cap_projector)  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -1241,6 +1241,56 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Lição transversal** emergida 2× (DP1-F1 = premissa de fonte falsa; UX4-b = campo existente omitido): especificação positiva **omite por silêncio**. Regra candidata: F1 de consumo/refatoração lista, com evidência do código, as premissas do prompt contradizidas + os campos/comportamentos existentes ausentes na proposta, com parecer por item (premissa falsa / remoção intencional / perda não-intencional / deslocamento).
 - **Candidato a baseline, NÃO regra vigente.** Destino: consolidação no `DEV_METHODOLOGY.md` em revisão de metodologia dedicada (transversal manager/optimizer/predictor). Absorve a nota metodológica do UX4-b (referência, não duplicata). Registro apenas — sem código. Commit docs-only `452231b`.
 - **Relaciona-se** a "validar premissas empiricamente" (pré-IMPL) e à fonte única (T2-FIX-2 / F10): a F1 é o momento barato de pegar o gap antes do IMPL nascer sobre base falsa.
+
+### 15/06/2026 — UX9 F2 (Opus): fim da fragmentação do passo 2 no card de fluxo (/admin)
+
+Continuação da sessão UX (Opus 4.8). F2 do UX9 após a F1 de diagnose.
+
+- **Causa-raiz (F1):** no card "Ordem do Fluxo Pré-Temporada", cada passo é um `<li>` com
+  `display:flex`. O passo 2 tem um link inline (`Intertemporada` → `/offseason`) **no meio da
+  frase**, que parte os filhos do `<li>` em vários flex items (badge + strong + texto-antes +
+  link + texto-depois); cada item de texto encolhia até min-content e quebrava numa coluna
+  estreita. Passos 1/3 (texto contíguo, um flex item) não fragmentavam. **Não era multi-coluna
+  nem comprimento** — por isso o F11-FIX-UX (que encurtou o texto) não resolveu.
+- **Fix (Opção A, estrutural):** envolver o corpo de cada passo (tudo após o badge) num
+  `<span class="step-body">` único → o `<li>` volta a ter 2 flex items (badge + body) e o
+  conteúdo do body flui inline normal, link incluso, em ordem de leitura. Regra CSS nova
+  `.step-body { flex:1; min-width:0 }`. Aplicado aos 3 passos (consistência + resistência a
+  links inline futuros).
+- **Local, zero propagação:** `.workflow-steps`/`.step-num`/`.step-body` são exclusivos deste
+  card. Card "Season Rollover (preview)" abaixo (link `/offseason` num `<p>` normal) e demais
+  cards do `/admin` **não tocados**.
+- **Amarração com F11-FIX-UX:** o sintoma que o F11-FIX-UX perseguia some pela raiz aqui. Seu
+  critério de done não tem mais trabalho próprio — quando o smoke de prod do UX9 passar, o
+  F11-FIX-UX **fecha junto** (anotado explicitamente no `improvements.md`).
+- **Validação localhost:** `salary_engine_test.py` 48/48; `git diff` = 3 `<li>` + 1 regra CSS.
+  UX9 → ⚠️ (✅ após smoke prod). **Sem push** — deploy fica com o owner.
+
+### 15/06/2026 — UX8 F2 (Opus): foto ao lado do nome no /cap_projector
+
+Sessão UX (Opus 4.8). Lote REG→F1→F2 de duas pendências de UI do cap projector e do /admin;
+o F2 do UX8 foi implementado nesta sessão (UX9 ficou em F1).
+
+- **Decisão de layout (UX8, opção B do owner):** no `/cap_projector` a foto deixa de ser
+  empilhada **acima** do nome e passa a ficar **ao lado** (mesma linha que nome + tags ANO 4/
+  REVISÃO), recuperando densidade vertical em telas com 20+ jogadores.
+- **Implementação (Opção A da F1, mínima):** uma regra CSS — `.player-name-cell` ganhou
+  `display:flex; align-items:center; gap:.4rem; flex-wrap:wrap`. A `<td>` da row vira flex
+  container; a foto fica em 32px (`.player-photo-sm` intocada). Sem mudança de markup/JS.
+- **Por que local e seguro:** `.player-name-cell` é **exclusiva do cap projector** (grep: 1
+  ocorrência). A infra de foto compartilhada (`.player-photo-sm`/`.player-photo`/macro
+  `player_photo`/helper `renderPlayerPhoto`) governa **só a imagem**, não o posicionamento — as
+  outras 5 telas densas (`/`, `/team/<id>`, `/trades`, `/salary_history`, `/player/<id>`) já põem
+  a foto ao lado por estrutura própria e **não foram tocadas**. Blast radius zero.
+- **Falso positivo corrigido:** a "tag de fechamento malformada (`<\span>`)" que a F1 havia
+  flagrado **não existia** — era artefato do Grep, que renderiza `/` como `\` (o `</span>` real
+  aparecia como `<\span>`). O Read do fonte confirmou markup bem formado. Nenhuma correção de tag
+  foi feita (não havia bug). Lição: cruzar achados de "tag malformada" do Grep com o Read antes de
+  tratar como real.
+- **Validação localhost:** `salary_engine_test.py` 48/48 (sanity de cálculo); `git diff` = 1
+  regra CSS. **Pendente:** smoke visual em prod (owner dispara o deploy). UX8 → ⚠️ no
+  `improvements.md` (✅ após smoke).
+- **Sem push** — gatilho de deploy fica com o owner.
 
 ### 12/06/2026 (pt3) — F10 ✅ + DOC1 ✅ + F11-FIX-UX layout + F12 + DP2 (Opus)
 
