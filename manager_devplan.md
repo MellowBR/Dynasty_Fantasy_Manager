@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 15/06/2026 (UX9 F2 ⚠️ localhost — fim da fragmentação do passo 2 no /admin via `<span class="step-body">` por passo; + UX8 F2 foto ao lado do nome no /cap_projector)  
+> Última atualização: 15/06/2026-pt2 (fechamento docs-only: 5 itens ✅ — UX8, UX9, F11-FIX-UX, DP2, F12 — + migração O3 das seções p/ o archive)  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -1241,6 +1241,30 @@ Total fixo: 576px (team_detail sem actions) / 660px (roster com actions). col-na
 - **Lição transversal** emergida 2× (DP1-F1 = premissa de fonte falsa; UX4-b = campo existente omitido): especificação positiva **omite por silêncio**. Regra candidata: F1 de consumo/refatoração lista, com evidência do código, as premissas do prompt contradizidas + os campos/comportamentos existentes ausentes na proposta, com parecer por item (premissa falsa / remoção intencional / perda não-intencional / deslocamento).
 - **Candidato a baseline, NÃO regra vigente.** Destino: consolidação no `DEV_METHODOLOGY.md` em revisão de metodologia dedicada (transversal manager/optimizer/predictor). Absorve a nota metodológica do UX4-b (referência, não duplicata). Registro apenas — sem código. Commit docs-only `452231b`.
 - **Relaciona-se** a "validar premissas empiricamente" (pré-IMPL) e à fonte única (T2-FIX-2 / F10): a F1 é o momento barato de pegar o gap antes do IMPL nascer sobre base falsa.
+
+### 15/06/2026-pt2 — Fechamento de 5 itens + migração O3 (Opus, docs-only)
+
+Sessão de fechamento documental (sem código). Cinco itens atingiram o critério de ✅ e foram
+marcados no Status Rápido + tiveram a seção detalhada movida **verbatim** ao
+`improvements_archive.md` (regra O3: ao marcar ✅, migrar no fechamento).
+
+- **UX8** (foto ao lado do nome no /cap_projector) e **UX9** (fragmentação do passo 2 no /admin):
+  **smoke de prod 15/06/2026** confirmado.
+- **F11-FIX-UX** (microcopy do preview de rollover): fecha **junto com o UX9** — o sintoma que
+  perseguia (passo 2 quebrado em prod) foi eliminado **pela raiz** pelo fix do UX9; sem trabalho
+  próprio remanescente.
+- **DP2** (cadeia única no cap projector — board sobre keep/corte + summary sticky): smoke de prod
+  já confirmado.
+- **F12** (CSV bootstrap one-shot via flag `csv_bootstrap_done`): fechado pelo **critério
+  dev-local** registrado (comportamento puramente dev-local; não depende de smoke de prod).
+- **Migração O3:** as 5 seções detalhadas saíram do `improvements.md` e estão no
+  `improvements_archive.md` (verbatim, só o marcador de status flipado p/ ✅). O **Status Rápido
+  permanece completo** (105 linhas; as 5 linhas seguem lá como ✅ — namespace/baseline de dedupe).
+  Cross-refs `[[DP2]]`/`[[F11-FIX-UX]]`/`[[UX9]]` continuam resolvíveis (agora apontam ao archive).
+- **Sanity:** `salary_engine_test.py` 48/48; seams de remoção limpos (1 `---` por junção); zero
+  mojibake. Nenhum item 🔲/⚠️ tocado.
+- **Lembrete ao owner:** re-upload de `improvements.md`, `improvements_archive.md` e
+  `manager_devplan.md` no Project Knowledge.
 
 ### 15/06/2026 — UX9 F2 (Opus): fim da fragmentação do passo 2 no card de fluxo (/admin)
 

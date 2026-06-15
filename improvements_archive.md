@@ -2784,3 +2784,396 @@ passo, cada passo com âncora de linha. Correções aplicadas:
 **Critério de done (sem smoke de prod — docs):** cada passo documentado tem âncora apontável em
 `app.py` (verificado nesta sessão); divergências adicionais reportadas e corrigidas inline. ✅ direto.
 
+
+---
+
+### DP2 — Cadeia única de planejamento no cap projector (board sobre keep/corte + summary sticky)
+✅ **15/06/2026 (smoke de prod confirmado)** — MAN-DP2-REG/DP2 — Prioridade
+**Média** — revisão consciente da base do [[DP1]]-F2; estende o canônico do [[F10]]
+
+**CONTEXTO (REG, decisão do owner 12/06/2026).** Pós-F10, a tela tinha **dois painéis de números com
+bases distintas**: o summary do topo respondia aos toggles keep/corte via o `/budget` canônico
+(salário projetado), enquanto o board DP1 simulava sobre o **roster integral com salário atual**
+(`/simulate`, decisão DP1-F2 "cenário vazio = budget atual"). O owner decidiu que o planejamento é
+**uma cadeia só** (cortes → budget → picks de rookies): o board passa a partir do cenário keep/corte
+e a tela ganha **uma superfície única de números**. Alternativa de painel lateral descartada (depende
+de viewport largo / acoplaria ao UX6 pendente; sticky funciona em mobile).
+
+**FIX (preferiu estender, não criar 2ª fonte).** O `POST /api/cap_projector/<team>/budget` do F10 foi
+**estendido** para aceptar `rookie_sids` além de `kept_ids`: os rookies do cenário entram na **mesma
+base** (membros de roster adicionais com `year1_salary` modo rookie — ocupam spot e custam salário,
+como um pick real) e o `draft_budget` canônico calcula o todo. O `POST /api/cap_projector/simulate`
+do DP1-F2 foi **removido** (sua conta vive aqui agora) — **fonte única de cálculo, sem segunda rota**.
+O endpoint passou a devolver também `scenario_count`/`scenario_salary_total` (campos próprios do
+board). Base unificada = **salário projetado** do summary (não mais o "salário atual" do DP1-F2).
+
+**UI.** O `#proj-cap-bar` virou **barra sticky** (`.cap-summary-sticky`: `position:sticky; top:54px`
+= altura do navbar; `z-index:20` < navbar 100; `.cap-summary-grid` já é `flex-wrap` → sem overflow
+horizontal em mobile) refletindo cortes + rookies. O painel do board (`#rookie-sim`) foi **reduzido
+aos campos próprios** (nº de rookies + custo); cap/budget/spots/avisos saíram de lá e vivem só na
+barra. As duas funções JS (`updateSummary` + `simulateScenario`) fundiram-se em **`refreshScenario`**
+(um POST com `kept_ids`+`rookie_sids`); toggle de keep e de rookie disparam o mesmo refresh; guard de
+sequência preservado (resposta obsoleta descartada).
+
+**Grep de duplicação (pergunta obrigatória do prompt).** A formatação desses números (`usable`,
+`empty_spots`, `min $`) aparecia em 2 lugares — ambos **dentro** do cap_projector (`#proj-*` ×
+`#rk-*`), exatamente a duplicação que o DP2 colapsa. Único outro sítio: `draft_import.html:83`
+(alerta soft do audit de keepers OFF26-3, por-time, backend-derivado) — **superfície distinta, fora
+de escopo**, não dedupa aqui. **Zero duplicação cross-template remanescente.**
+
+**Validação (localhost, test client, usuário não-admin temporário):** **retrocompat** — todos kept +
+0 rookies == budget do F10 ($256, base projetada); **cadeia integrada** — payload × canônico idêntico
+em 4 cenários (metade cortada + 2 rookies $138/usable $53; todos kept + 2 rookies $314/usable −$114;
+todos cortados + 1 rookie; dedup + sid inválido ignorado); **caso de referência DP1 preservado** —
+rookies $46→$55 e $3→$3, soma +$58, keeper $256→$314; **`/simulate` removido** (405, sem POST
+handler); **nada escrito** (salaries + store intactos); grep no template = zero aritmética de budget,
+zero identificador órfão (`simulateScenario`/`updateSummary`/`rk-total`…); Jinja parse OK;
+`salary_engine_test.py` **48/48**. **✅ após smoke em prod:** barra sticky visível ao rolar
+(desktop+mobile), toggles keep/corte + rookies refletindo no topo, board com nº/custo.
+
+---
+
+### F11-FIX-UX — Microcopy do preview de rollover no /admin (carona F10)
+✅ **15/06/2026 — fecha junto com o [[UX9]]** (sintoma do passo 2 eliminado pela raiz; sem trabalho próprio remanescente) — sub-item de [[F11]]
+(seção principal no archive) — padrão N1-FIX/T3-FIX-UX — Prioridade **Baixa**
+
+**Motivação:** após o F11, o card "Season Rollover (preview)" e o passo 2 do "Ordem do Fluxo
+Pré-Temporada" descreviam o preview em linguagem de dev ("Step 4", "workflow do Offseason",
+nomes de campo). Microcopy reescrita em linguagem de owner: o que a prévia mostra, que nada é
+alterado ali, e onde a aplicação real acontece (etapa Season Rollover da página de
+**Intertemporada**, com link em /offseason), incluindo as condições de liberação (sorteio do
+draft travado + valores ESPN atualizados). Sem nº de step e sem season hardcoded nos dois cards.
+
+**Arquivos:** `templates/admin.html` (2 cards). ✅ quando o smoke do F10 passar em prod.
+
+**Smoke parcial (12/06/2026):** card "Season Rollover (preview)" PASSOU. O passo 2 do card "Ordem
+do Fluxo Pré-Temporada" **quebrou o layout** — o texto longo fragmentou em colunas ("...da página
+de / Intertemporada ; aqui, apenas / a prévia", com espaço antes do `;`). **Fix:** encurtado só o
+passo 2 para "— aplicado na etapa Season Rollover da página de Intertemporada; aqui, só a prévia"
+(link em "Intertemporada" mantido); o card do preview fica como está. **Segue ⚠️ até o smoke do
+layout em prod.**
+
+**Smoke de prod (15/06/2026) — encurtar NÃO resolveu:** o passo 2 **continua fragmentando em
+colunas** em produção (palavras fora da ordem de leitura). Conclusão: a causa **não é
+comprimento de texto** e sim **layout do card**. O bug de layout vira item próprio — ver
+**[[UX9]]** (MAN-UX9-REG + F1 de diagnose). **F11-FIX-UX permanece ⚠️**: seu critério de done
+depende do passo 2 ficar correto em prod, agora rastreado pelo UX9.
+
+**Causa real (UX9-F1, 15/06/2026):** não era "texto longo" — é o **`<a>Intertemporada</a>` inline
+no meio da frase** dentro de uma `<li>` que é `display:flex`: o link parte o texto em flex items
+separados, cada um colapsando numa coluna estreita. Encurtar nunca resolveria (o link continua
+partindo a linha). Fix recomendado: envolver o body do passo num único `span` inline (Opção A do
+UX9). O "espaço antes do `;`" observado aqui era o `gap: .6rem` entre flex items.
+
+**Fix aplicado pela raiz no [[UX9]] (F2, 15/06/2026, ⚠️ localhost):** o body de cada passo virou
+um `<span class="step-body">` único → passo 2 flui em linha contínua, link `/offseason` clicável.
+**Dependência de done explícita:** o critério do F11-FIX-UX (passo 2 correto em prod) **não tem
+mais trabalho próprio** — quando o smoke de prod do UX9 passar, **F11-FIX-UX fecha junto** (✅).
+Até lá, ambos seguem ⚠️.
+
+---
+
+### UX9 — Passo 2 do fluxo pré-temporada fragmenta em colunas no /admin
+✅ **F2 validada em smoke de prod (15/06/2026)** — Prioridade **Baixa** (cosmético; não afeta cálculo nem dados) — MAN-UX9-REG/F1/F2 (15/06/2026) — relacionado a [[F11-FIX-UX]]
+
+**CONTEXTO**
+O card "Ordem do Fluxo Pré-Temporada" no `/admin` tem um **passo 2** cujo texto, em
+produção, **fragmenta verticalmente em colunas** — as palavras quebram fora da ordem de
+leitura (ex.: "aplicado na / Intertemporada / ; aqui, / só a / prévia" intercalado com
+"etapa Season / Rollover da / página de"). O **smoke de prod de 15/06/2026** confirmou a
+fragmentação.
+
+**PROBLEMA / OPORTUNIDADE**
+É o mesmo sintoma que o **F11-FIX-UX** tentou corrigir **encurtando** o texto do passo 2
+("— aplicado na etapa Season Rollover da página de Intertemporada; aqui, só a prévia").
+O smoke de 15/06 mostra que **encurtar não resolveu** → a causa **não é comprimento de
+texto** e sim **layout do card** (provável container com comportamento de coluna /
+`column-count`/`columns` herdado, ou largura insuficiente forçando wrap anômalo). Bug de
+UI próprio, que **desbloqueia o done do F11-FIX-UX** (cujo critério depende deste layout
+ficar correto em prod).
+
+**DECISÕES JÁ TOMADAS**
+- Item **próprio** (separado do F11-FIX-UX, que era microcopy; aqui é layout).
+- Registro agora; **diagnose (F1) e implementação são itens próprios**.
+
+**QUESTÕES EM ABERTO** (F1 — MAN-UX9-F1, read-only)
+- Qual marcação/CSS governa o card "Ordem do Fluxo Pré-Temporada" e o passo 2 em
+  `templates/admin.html`? Há `column-count`/`columns`/`display` herdado de um wrapper
+  que produza o efeito de coluna?
+- A fragmentação vem de **largura do container** (texto quebra dentro de uma célula
+  estreita) ou de uma propriedade de **multi-coluna** aplicada ao bloco?
+- O sintoma é específico do passo 2 (texto mais longo) ou os outros passos também
+  quebrariam com texto equivalente? (isola se é layout do card vs. conteúdo do item)
+- Há réplica do bloco em outra tela (preview de rollover compartilha marcação)?
+
+**RESTRIÇÕES**
+- Cosmético: não tocar lógica de offseason, rollover, `salary_engine`, schema ou sync.
+- Não antecipar causa-raiz nem correção — entregável da F1.
+
+**DEPENDÊNCIAS**
+- Desbloqueado: **MAN-UX9-F1** concluída (abaixo). Causa confirmada; escopo **local** ao card.
+- Relaciona-se com: **[[F11-FIX-UX]]** (encurtar texto não resolveu — a F1 explica por quê; done
+  do F11-FIX-UX depende deste layout em prod), **[[F11]]** (sessão de origem).
+
+**F1 — ACHADOS (diagnose read-only, concluída 15/06/2026 — MAN-UX9-F1, zero writes)**
+
+*Causa-raiz confirmada — é flex, NÃO multi-coluna.* A premissa do REG (`column-count`/`columns`)
+está **refutada**: não existe propriedade de multi-coluna em jogo (grep em `static/style.css`:
+todos os `column-*` são `grid-template-columns`/`column-gap`, nenhum em `.workflow-steps`). A
+regra responsável é **`.workflow-steps li { display: flex; align-items: baseline; gap: .6rem }`**
+(CSS do card workflow). Cada `<li>` é uma **linha flex** (default `flex-direction: row`,
+`flex-wrap: nowrap`), e **cada filho direto vira um flex item** — inclusive **cada trecho de
+texto separado por um elemento inline vira um flex item anônimo próprio**.
+
+*Por que incide no passo 2 e não no 1/3.* No `templates/admin.html`, os bodies dos passos 1 e 3
+são `<strong>…</strong>` + **um único trecho de texto contíguo** → no máximo 3 flex items, com a
+descrição inteira sendo **um** item que quebra normalmente, na ordem de leitura. O **passo 2 tem
+um `<a href="/offseason">Intertemporada</a>` no MEIO da frase**, que **parte o texto em dois**:
+os filhos do `<li>` viram `[step-num] [strong] [texto-antes] [<a>] [texto-depois]` = **5 flex
+items**. Com `nowrap` e a largura do card, cada item de texto encolhe até ~min-content e **quebra
+o próprio texto numa coluna estreita** → "fragmenta em colunas, fora da ordem de leitura". O
+`gap: .6rem` entre itens também explica o "espaço antes do `;`" observado no smoke do F11-FIX-UX.
+
+*Por que encurtar (F11-FIX-UX) não resolveu.* A fragmentação é **estrutural** (flex na `li` +
+link no meio da frase partindo o texto em vários flex items), **independente do comprimento**.
+Reduzir o texto não remove o `<a>` interno → os fragmentos persistem. **Isto corrige o
+entendimento do F11-FIX-UX**: o sintoma não era "texto longo", era **o link inline** dentro de
+uma `li` flex.
+
+*Compartilhamento / blast radius — local, zero propagação.* `.workflow-steps`, `.workflow-steps
+li` e `.step-num` aparecem **só neste card** (grep: 1 template, `admin.html`; classes não usadas
+em nenhuma outra tela). O card "Season Rollover (preview)" logo abaixo também tem um link
+`/offseason`, mas dentro de um `<p>` normal (**não** flex) → flui bem; não compartilha o defeito.
+Corrigir `.workflow-steps li` (ou o markup dos `<li>`) afeta **apenas** este card.
+
+*Opções de implementação (F2 — não implementar nesta sessão):*
+- **Opção A (RECOMENDADA):** **embrulhar o conteúdo pós-badge num único elemento** — cada `<li>`
+  passa a ter exatamente 2 flex items: `.step-num` + `<span class="step-body">…</span>` (com
+  `<strong>` + texto + link dentro). Dentro do `step-body` o conteúdo volta a ser **fluxo inline
+  normal** → o link fica inline no meio da frase e o texto quebra na ordem de leitura. Mudança de
+  markup em `admin.html` (aplicar aos 3 passos por consistência); provável `min-width:0` no
+  `step-body` para permitir encolher. Preserva o alinhamento do badge (baseline). **Blast radius
+  local** (só o card). Causa-raiz de fato resolvida (colapsa os 5 items de volta a 2).
+- **Opção B:** **tirar o flex da `li`** — `.workflow-steps li { display: block }` + `.step-num`
+  como `float:left` (com `margin-right`) ou `inline-flex` com `vertical-align`. Conteúdo vira
+  fluxo inline → link inline, texto em ordem. Trade-off: perde o hanging-indent limpo (coluna do
+  número × coluna do texto) que o flex dava; precisa de `padding-left`/`text-indent` para
+  restaurar. CSS um pouco mais delicado; ainda local.
+- **Rejeitada (C):** só adicionar `flex-wrap: wrap` à `li` — mantém o texto como flex items
+  separados; eles quebrariam como grupo, mas cada segmento continua um item próprio e ainda pode
+  colapsar em coluna quando estreito. Não ataca a raiz.
+- **Rejeitada (D):** encurtar mais o texto — já provado que não resolve (smoke 15/06); a causa
+  não é comprimento.
+
+**Recomendação para a F2:** Opção A (envolver o body do passo num único `span` inline). Fecha a
+causa-raiz, preserva o badge, local ao card. Quando aplicada e validada em prod, **fecha também
+o critério de done do [[F11-FIX-UX]]** (layout do passo 2 correto em produção).
+
+**F2 — IMPLEMENTAÇÃO (15/06/2026, ⚠️ validado em localhost) — MAN-UX9**
+
+*Correção estrutural (Opção A), não de comprimento:* em `templates/admin.html`, o corpo de cada
+passo (tudo após o badge `.step-num`) foi envolto num **`<span class="step-body">…</span>`**
+único. Agora cada `<li>` tem **exatamente 2 flex items** (badge + body), e dentro do `step-body`
+o conteúdo — incluindo o `<a href="/offseason">Intertemporada</a>` do passo 2 — volta a ser
+**fluxo inline normal**, em ordem de leitura. Nova regra CSS `.step-body { flex: 1; min-width: 0 }`
+(em `static/style.css`) faz o body ocupar a largura restante e permitir que o texto quebre dentro
+do card. **Aplicado uniformemente aos 3 passos** → card consistente e resistente a links inline
+futuros.
+
+*Sem mudança de redação/conteúdo:* badge, textos, o link interno do passo 2 (href `/offseason`,
+clicável) e o alinhamento badge↔texto preservados. Passos 1 e 3 visualmente equivalentes (corpo
+contíguo, agora dentro do span).
+
+*Escopo local confirmado:* `git diff` = 3 `<li>` envoltos + 1 regra `.step-body`. **Não** tocou
+o card "Season Rollover (preview)" (link `/offseason` dele já vive num `<p>` normal, sem o
+defeito) nem nenhum outro card do `/admin`. Classes `.workflow-steps`/`.step-num`/`.step-body`
+exclusivas deste card → zero propagação.
+
+*Validação localhost:* `salary_engine_test.py` **48/48** (sanity de cálculo). Diff revisado: só
+markup do card + 1 regra CSS. **Pendente:** smoke visual em prod (passo 2 em linha contínua, link
+clicável; passos 1/3 sem regressão) — owner dispara o deploy.
+
+**Arquivos:** `templates/admin.html` (3 `<li>`), `static/style.css` (regra `.step-body`).
+Sem mudança de lógica/JS/schema.
+
+*Done do [[F11-FIX-UX]] amarrado a este fix:* o sintoma que o F11-FIX-UX perseguia (passo 2
+quebrado em prod) é eliminado **pela raiz** aqui. Quando o smoke de prod do UX9 passar, o
+F11-FIX-UX **fecha junto** (não há mais layout pendente a validar).
+
+---
+
+### F12 — `run_import` sobrescreve salary/contract a cada boot local, sem history
+✅ **Concluído 15/06/2026 (critério dev-local; sem smoke de prod — comportamento puramente dev-local)** — achado AUD1 Lente 2 — Prioridade **Média** (dev local; prod safe)
+
+**Evidência:** import_csv.py:110-112 — para player existente, `player.salary = salary` +
+`player.contract_year = cyr` **incondicionalmente** a cada `run_import()` (todo boot com CSV
+presente, app.py:60), **sem criar SalaryHistory**. O guard `f8_rebuilt` (import_csv.py:61-63)
+protege só `acquisition_type`/`contract_start_season`. A coluna lida é `salary_2025` (hardcoded,
+import_csv.py:90) — snapshot estático de 2025. Em prod o CSV não existe (não está no git) → skip
+(WARNING, import_csv.py:54-56). **Risco:** em dev local, rollover/correções feitos in-app são
+silenciosamente revertidos ao snapshot 2025 no próximo boot, sem trilha — explica/agrava o
+"dynasty.db local diverge do repo" e cria falsos negativos em testes locais de rollover.
+**Parecer:** item novo. Candidatos de fix (decidir em F2): guard tipo `csv_imported` one-shot,
+ou skip de salary/cyr quando `f8_rebuilt`/flag equivalente — manter CSV como bootstrap, não como
+autoridade contínua. Atualizar CLAUDE.md junto ("first run auto-imports" hoje não descreve o código).
+
+#### F2 ⚠️ (12/06/2026) — bootstrap one-shot via flag própria (validado localhost)
+
+**Decisão de design — Opção B (flag one-shot `csv_bootstrap_done`), NÃO o guard `f8_rebuilt`.**
+Justificativa: `f8_rebuilt` é semanticamente o marcador do rebuild de PlayerHistory via chain do
+Sleeper (estado tipicamente só atingido em prod). Num DB de **dev fresco** `f8_rebuilt=false`, então
+reusá-lo **não fecharia o caso dev-local** (salary/cyr seguiriam sobrescritos todo boot). Uma flag
+própria casa exatamente com o critério "CSV é bootstrap, não autoridade contínua" e segue o
+**precedente do próprio `f8_rebuilt`** (flag de guard de import, lazy, lida com fallback `"false"` e
+fora do `_seed_app_config`) — `csv_bootstrap_done` é **chave nova em AppConfig**, não mudança de
+schema (restrição respeitada: AppConfig existente, sem coluna nova).
+
+**Implementação (import_csv.py, contida em 1 arquivo):** lê `csv_bootstrap_done`; no branch de player
+**existente**, `salary`/`contract_year` só são escritos `if not csv_bootstrap_done` (a 1ª semeadura);
+após o commit, seta a flag. Branch de player **novo** intocado (o create segue semeando salary/cyr do
+CSV — primeiro contrato legítimo). Em prod (CSV ausente) o `run_import` retorna cedo no WARNING e
+**nunca seta a flag** — inofensiva (sem CSV não há o que reescrever). **Escopo estrito a salary/cyr:**
+`set_espn_value`, `position`, `nfl_team` etc. seguem como estavam (fora do escopo do F12).
+
+**Observação fora de escopo (candidata a item próprio):** o `set_espn_value` também re-aplica o
+snapshot ESPN do CSV todo boot local — mesma classe de "snapshot estático reescreve estado in-app",
+mas para ESPN values, não salary/contract. Não tocado aqui (escopo F12 = salary/cyr); registrar se
+virar incômodo real em dev (após import ESPN local seria revertido no boot seguinte).
+
+**CLAUDE.md atualizado:** a linha "first run auto-imports …" (Commands) agora descreve o bootstrap
+one-shot de salary/contract + a flag `csv_bootstrap_done`.
+
+**Validação localhost (DB de teste = cópia do seed + `db.create_all`):** (1) **boot duplo** — boot 1
+semeia (Mahomes salary 9.0) e seta a flag; edição in-app (→26.0/cyr 3); boot 2 com guard ativo
+**preserva** (26.0/cyr 3, não reverteu); (2) **player novo** com a flag já `true` entra normalmente
+via CSV temporário (salary 7.0/cyr 1, `created=1`); (3) **caminho prod** (CSV ausente) → skip com
+WARNING, `return False`, flag intacta. `salary_engine_test.py` **48/48**. **Critério de ✅
+(dev-local, sem smoke de prod):** a validação dupla acima — registrada como done; F12 pode flipar ✅
+direto. (Mantido ⚠️ no Status Rápido até o owner confirmar; comportamento é puramente dev-local.)
+
+---
+
+### UX8 — Densidade vertical do cap projector (foto ao lado do nome)
+✅ **F2 validada em smoke de prod (15/06/2026)** — Prioridade **Baixa/Média** (UX, sem mudança de cálculo) — MAN-UX8-REG/F1/F2 (15/06/2026)
+
+**CONTEXTO**
+O `/cap_projector` renderiza as rows de jogador em **JS** (template literals — não SSR),
+com a foto do jogador empilhada **acima** do nome. Em telas com 20+ jogadores, o
+espaçamento vertical resultante dificulta a visão do conjunto. As demais telas densas
+(`/team/<id>`, `/`, `/trades`, `/salary_history`, `/player/<id>`) usam a infra de foto
+compartilhada de UX1/UX3 (macro Jinja `player_photo` + helper JS `renderPlayerPhoto` +
+classe CSS `.player-photo-sm`) — fonte única por modo de render (convenção MAN-O2/O1).
+
+**PROBLEMA / OPORTUNIDADE**
+A foto acima do nome custa altura por row; com 20+ jogadores o owner perde a visão do
+conjunto no cap projector. Mover a foto para **ao lado** do nome recupera densidade
+vertical sem abrir mão da identidade visual da foto.
+
+**DECISÕES JÁ TOMADAS**
+- **Opção B (foto ao lado do nome)** — mock confirmado em chat pelo owner (15/06/2026).
+- Registro agora; **diagnose (F1) e implementação (F2) são itens próprios**.
+
+**QUESTÕES EM ABERTO** (F1 — MAN-UX8-F1, read-only)
+- A classe `.player-photo-sm` (foto acima do nome) é **compartilhada** com as outras
+  telas densas, ou o cap projector tem layout próprio? Disso depende se a mudança é
+  uma classe nova/variante (não regredir as outras telas) ou um ajuste à classe comum.
+- Onde exatamente o cap projector monta a row em JS (`renderPlayerPhoto` + template
+  literal) e qual marcação/CSS governa o empilhamento foto-acima-do-nome?
+- Há réplica do layout de foto entre o cap projector e as outras telas, ou a infra de
+  UX1/UX3 já é fonte única (e a mudança só precisa de uma variante de classe)?
+
+**RESTRIÇÕES**
+- Sem mudança de cálculo: não tocar `salary_engine`, schema, sync, nem a lógica de
+  budget/salário. Mudança puramente de apresentação.
+
+**DEPENDÊNCIAS**
+- Desbloqueado: **MAN-UX8-F1** concluída (abaixo). Escopo confirmado **local** ao cap projector.
+- Relaciona-se com: **UX1/UX3** (infra de foto compartilhada), **F10/DP2** (render JS do cap projector).
+
+**F1 — ACHADOS (diagnose read-only, concluída 15/06/2026 — MAN-UX8-F1, zero writes)**
+
+*Como o cap projector monta foto+nome:* render **100% JS** (template literal em
+`templates/cap_projector.html`). A row coloca, **dentro de um único
+`<td class="player-name-cell">`**: `renderPlayerPhoto(p, 'player-photo-sm')` (img inline) +
+`renderPlayerNameLink(p)` (gera elemento `.player-name`) + tags ANO 4/REVISÃO. **Não** usa a
+macro Jinja `player_roster_row`.
+
+*Causa-raiz do empilhamento (premissa do REG refinada):* o stacking **não vem** de
+`.player-photo-sm` nem da infra compartilhada — vem do **container local**. `.player-name-cell`
+(em `static/style.css`) é só `font-weight:600`, **sem `display:flex`**; e `.player-name` é
+`display:flex` → **caixa block-level**, que cai para a linha **abaixo** da `<img>` inline.
+Resultado: foto acima do nome. **`.player-photo-sm` só define tamanho (32px) e borda — não
+posiciona nada.**
+
+*A estrutura foto+nome existe em mais de um lugar? SIM a infra de imagem, NÃO o layout.* O que
+é compartilhado (`renderPlayerPhoto` / `player_photo` / `.player-photo` / `.player-photo-sm`)
+governa **só a imagem** (URL Sleeper CDN, tamanho, borda, fallback `onerror`). O
+**posicionamento relativo ao nome é próprio de cada tela** — e **todas as outras já põem a foto
+AO LADO**:
+- `/` (roster) e `/team/<id>`: macro `player_roster_row` → foto e nome em **`<td>` separados**
+  (`col-photo` + `col-name`) → lado a lado por coluna.
+- `/trades`: `<label class="asset-item">` (`display:flex; align-items:center`) → lado a lado.
+- `/salary_history`: `.player-card-header` (pos-badge + foto + `.player-name` num header) → lado a lado.
+- `/player/<id>`: `player_photo(player)` **sem `-sm`** (96px) em `.player-detail-header` → cabeçalho, não row.
+**O cap projector é o único que empilha**, porque é o único que mete foto+nome no **mesmo `td`**
+sem flex. **`.player-name-cell` é exclusiva do cap projector** (grep: 1 só ocorrência no projeto).
+
+*Blast radius — local, zero propagação:* mexer em `.player-name-cell` (torná-la flex) afeta
+**somente** o cap projector. **Não** precisa tocar `.player-photo-sm` (isso sim propagaria os
+32px a 5 telas). Logo a mudança "ao lado" é **local ao cap projector, sem variante nova de
+classe e sem risco às outras 5 telas** — refuta a hipótese do REG de que poderia exigir classe
+própria para não propagar.
+
+*Premissas/efeitos colaterais:*
+- **Confirmada:** a foto **está** empilhada acima do nome (sintoma real).
+- **Refinada:** o REG temia compartilhamento via `.player-photo-sm`; o código mostra que o
+  compartilhado é só a imagem, não o layout → escopo **local**, não cross-tela.
+- **Sem perda de campo:** ao virar flex, img + nome + tags ANO 4/REVISÃO ficam na mesma linha;
+  nenhum campo some (deslocamento intencional, não remoção).
+- **Achado incidental (fora do escopo de layout, mas no mesmo bloco que a F2 vai editar):** as
+  tags fecham com `<\span>` (não `<\/span>`) no template literal — em JS `\s`→`s`, então renderiza
+  um `<span>` de abertura solto em vez de fechamento. Pré-existente, tolerado pelo browser;
+  registrar para limpeza oportunista na F2 (não é UX8 em si).
+
+*Opções de implementação (F2 — não implementar nesta sessão):*
+- **Opção A (RECOMENDADA):** dar `display:flex; align-items:center; gap:.4rem` (+ `flex-wrap:wrap`)
+  a `.player-name-cell` em `static/style.css`. ~1 regra, **zero blast radius** (classe exclusiva),
+  recupera ~32px de altura por row. Trade-off: as tags ANO 4/REVISÃO viram itens flex inline após
+  o nome — provável OK (com wrap); validar visualmente.
+- **Opção B:** embrulhar foto+nome num `<div class="cap-name-wrap">` flex novo dentro do `td`
+  (mudança no template literal JS + classe nova). Isola o flex a foto+nome e deixa as tags fora;
+  mais código, mesmo zero blast radius. Usar só se as tags na Opção A destoarem.
+- **Rejeitada:** tocar `.player-photo-sm` ou a macro compartilhada — desnecessário e propagaria às
+  outras telas.
+
+**Recomendação para a F2:** Opção A (uma regra CSS local). Escopo fechado, sem cross-tela.
+
+**F2 — IMPLEMENTAÇÃO (15/06/2026, ⚠️ validado em localhost) — MAN-UX8**
+
+*Mudança única (Opção A):* `.player-name-cell` (em `static/style.css`) passou de
+`{ font-weight: 600 }` para `{ font-weight: 600; display: flex; align-items: center; gap: .4rem;
+flex-wrap: wrap }`. A `<td>` da row vira container flex → foto (`player-photo-sm`, 32px
+intactos), nome (link) e tags ANO 4/REVISÃO ficam **na mesma linha**; `flex-wrap` deixa as tags
+caírem se faltar largura. **Zero mudança de markup** (a row já tinha foto→nome→tags em ordem no
+`td`). Recupera ~32px de altura por row.
+
+*Achado incidental da F1 era FALSO POSITIVO (registro corrigido):* a "tag de fechamento
+malformada (`<\span>`)" reportada pela F1 **não existe no código** — era artefato de renderização
+do Grep, que exibe `/` como `\` (o `</span>` real aparecia como `<\span>`; idem `</th>` na tabela
+de rookies). O Read do fonte confirma `</span>`/`</th>` bem formados em `cap_projector.html`.
+**Nenhuma correção de tag foi necessária nem feita** — não havia bug. (Lição: validar achados de
+"tag malformada" vindos de Grep contra o Read do fonte antes de tratar como real.)
+
+*Escopo local confirmado (telas intocadas):* `git diff` = só a 1 regra de `.player-name-cell`.
+Não tocou `.player-photo-sm`, `.player-photo`, a macro `player_photo`, nem o helper
+`renderPlayerPhoto`. As outras 5 telas densas não usam `.player-name-cell` (usam `<td>` separados
+via macro, ou `.asset-item`/`.player-card-header`/`.player-detail-header`) → **sem propagação
+visual**.
+
+*Validação localhost:* `salary_engine_test.py` **48/48** (sanity de cálculo). Diff revisado: 1
+regra CSS, classe exclusiva do cap projector. **Pendente:** smoke visual em prod (foto ao lado,
+altura menor, tags/link preservados) — owner dispara o deploy.
+
+**Arquivos:** `static/style.css` (1 regra). Sem mudança de template/JS/schema.
+
+---
