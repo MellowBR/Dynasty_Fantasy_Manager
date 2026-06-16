@@ -177,6 +177,10 @@ def _get_step_statuses():
     rollover_done = get_config("rollover_done", "false") == "true"
     rookie_done = get_config("rookie_draft_done", "false") == "true"
     auction_done = get_config("auction_done", "false") == "true"
+    # OFF26-1: passo 6 concluído = snapshot canônico da janela de cortes existe
+    from models import CutWindowAudit
+    cuts_done = CutWindowAudit.query.filter_by(
+        season=season, is_canonical=True).count() > 0
 
     steps = [
         {"num": 1, "name": "Fechar Temporada", "key": "season_closed",
@@ -189,7 +193,7 @@ def _get_step_statuses():
          "done": rollover_done, "locked": not (lottery_locked and espn_updated)},
         {"num": 5, "name": "Rookie Draft", "key": "rookie_draft_done",
          "done": rookie_done, "locked": False},
-        {"num": 6, "name": "Definir Keepers / Cortes", "done": False, "locked": False},
+        {"num": 6, "name": "Definir Keepers / Cortes", "done": cuts_done, "locked": False},
         {"num": 7, "name": "FA Auction", "key": "auction_done",
          "done": auction_done, "locked": False},
     ]

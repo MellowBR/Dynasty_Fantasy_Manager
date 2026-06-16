@@ -148,6 +148,7 @@ def create_app():
     from routes.offseason import offseason_bp
     from routes.league import league_bp
     from routes.draft_import import draft_import_bp
+    from routes.cuts import cuts_bp
 
     app.register_blueprint(roster_bp)
     app.register_blueprint(salary_bp)
@@ -158,6 +159,7 @@ def create_app():
     app.register_blueprint(offseason_bp)
     app.register_blueprint(league_bp)
     app.register_blueprint(draft_import_bp)
+    app.register_blueprint(cuts_bp)
 
     # Error pages
     @app.errorhandler(404)
@@ -414,6 +416,7 @@ def _seed_app_config():
         "rookie_draft_done": "false",
         "auction_done": "false",
         "playoffs_started": "false",
+        "cuts_window_open": "false",  # OFF26-1: janela de cortes selada
     }
     for key, val in defaults.items():
         if not db.session.get(AppConfig, key):

@@ -819,6 +819,94 @@ class LotteryAudit(db.Model):
         }
 
 
+class CutDeclaration(db.Model):
+    """OFF26-1 — declaração de CORTES editável por owner (lista de Player.id).
+
+    Estado de trabalho PRÉ-lock: PRIVADO (D6 — só o próprio owner lê o conteúdo;
+    nem admin lê a alheia; o admin só ESCREVE pelo time via /admin/declare, nunca
+    lê). Keepers derivam por complemento (roster atual − cortes). Default de quem
+    não declara = zero cortes (D2 — mantém todos). 1 row por (season, team).
+
+    NÃO muta roster nem Sleeper — só registra a decisão. Congela no snapshot
+    canônico (CutWindowAudit) no momento do lock/revelação (D7)."""
+    __tablename__ = "cut_declarations"
+    __table_args__ = (db.UniqueConstraint("season", "team_id", name="uq_cut_decl_season_team"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    season = db.Column(db.Integer, nullable=False)  # season da janela (= current_season pós-rollover)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    cut_ids_json = db.Column(db.Text, nullable=False, default="[]")  # [Player.id, ...]
+    declared = db.Column(db.Boolean, default=False, nullable=False)  # owner confirmou (conta no "X/12")
+    updated_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    team = db.relationship("Team", foreign_keys=[team_id])
+    editor = db.relationship("User", foreign_keys=[updated_by])
+
+    def cut_ids(self) -> list:
+        import json as _json
+        try:
+            return [int(x) for x in _json.loads(self.cut_ids_json or "[]")]
+        except (ValueError, TypeError):
+            return []
+
+
+class CutWindowAudit(db.Model):
+    """OFF26-1 — snapshot auditável da janela de cortes no lock (molde M8 / LotteryAudit).
+
+    Congela a declaração de cortes de TODOS os times no momento da revelação
+    simultânea (D7). Times sem declaração entram como zero cortes (D2). Canônico +
+    previous_audit_id (cadeia no replace) + reason (obrigatório no replace) + hash
+    determinístico + executed_at/by. Verify re-deriva o hash do snapshot.
+
+    NÃO escreve no Sleeper (isso é OFF26-8) nem materializa cortes no estado oficial
+    do Manager (adequação/salário moram no Rollover e na fronteira do FA auction)."""
+    __tablename__ = "cut_window_audit"
+
+    id = db.Column(db.Integer, primary_key=True)
+    season = db.Column(db.Integer, nullable=False)
+    # [{team_id, team_name, cut_ids:[...], cut_names:[...], num_cuts, declared}, ...] — todos os times
+    declarations_json = db.Column(db.Text, nullable=False)
+    executed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    executed_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    result_hash = db.Column(db.String(64), nullable=False)  # SHA256 hex determinístico
+    previous_audit_id = db.Column(db.Integer, db.ForeignKey("cut_window_audit.id"), nullable=True)
+    reason = db.Column(db.Text, nullable=True)  # obrigatório quando previous_audit_id preenchido
+    is_canonical = db.Column(db.Boolean, default=True, nullable=False)
+
+    executor = db.relationship("User", foreign_keys=[executed_by])
+    previous = db.relationship("CutWindowAudit", remote_side=[id], foreign_keys=[previous_audit_id])
+
+    def to_dict(self):
+        import json as _json
+        return {
+            "id": self.id,
+            "season": self.season,
+            "declarations": _json.loads(self.declarations_json),
+            "executed_at": utc_iso(self.executed_at) or None,  # M18
+            "executed_by_name": self.executor.name if self.executor else None,
+            "result_hash": self.result_hash,
+            "previous_audit_id": self.previous_audit_id,
+            "reason": self.reason,
+            "is_canonical": self.is_canonical,
+        }
+
+
+def compute_cut_snapshot_hash(declarations: list) -> str:
+    """OFF26-1 — SHA256 determinístico do snapshot de cortes (molde M8 _compute_result_hash).
+
+    Ordena por team_id e por cut_id para ser estável independente da ordem de
+    inserção. Chave: 'team_id:cut_id,cut_id;team_id:...'."""
+    import hashlib
+    ordered = sorted(declarations, key=lambda d: d["team_id"])
+    parts = []
+    for d in ordered:
+        cuts = ",".join(str(c) for c in sorted(d.get("cut_ids", [])))
+        parts.append(f"{d['team_id']}:{cuts}")
+    key = ";".join(parts)
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
 class TradeProposal(db.Model):
     """T1 — simulação de trade salva com UUID para compartilhar via link.
     Expira 7 dias após created_at. Assets armazenados como JSON arrays

@@ -129,6 +129,13 @@ def cap_projector_budget(team_name):
     `/simulate`; o DP2 funde os dois caminhos aqui (base = cenário keep/corte do
     summary), eliminando a 2ª fonte de cálculo. `cap_pct`/`shortfall`/`scenario_*` são
     derivados de display do retorno do helper — o cliente não faz nenhuma aritmética.
+
+    OFF26-1 (D9) — AMPLIAÇÃO DELIBERADA, não réplica: `projected` (default True)
+    seleciona a BASE DE SALÁRIO do mantido. `true` = `project_next_salary` (default
+    intocado p/ o cap_projector). `false` = salário CORRENTE (`p.salary`) — usado pela
+    janela de cortes selada, que roda PÓS-rollover (salário já valorizado); re-projetar
+    duplicaria. A FONTE DE CÁLCULO segue única (`draft_budget`); muda só qual salário
+    alimenta o helper — não há aritmética nova nem 2ª rota (invariante F10 preservada).
     """
     from types import SimpleNamespace
     from models import get_current_season, rookie_espn_adjusted
@@ -138,6 +145,9 @@ def cap_projector_budget(team_name):
         return jsonify({"error": "Team not found"}), 404
 
     data = request.get_json() or {}
+    # D9: modo de base salarial — projetado (default) vs. corrente (já rollado)
+    projected = data.get("projected", True)
+    base_salary = (lambda p: project_next_salary(p)) if projected else (lambda p: p.salary)
     kept_ids = set()
     for i in (data.get("kept_ids") or []):
         try:
@@ -146,7 +156,7 @@ def cap_projector_budget(team_name):
             continue
 
     players = Player.query.filter_by(team_id=team.id, is_dropped=False).all()
-    roster = [SimpleNamespace(salary=project_next_salary(p), is_dropped=False)
+    roster = [SimpleNamespace(salary=base_salary(p), is_dropped=False)
               for p in players if p.id in kept_ids]
 
     # DP2: rookies do cenário entram na MESMA base (ocupam spot + custam year1_salary).

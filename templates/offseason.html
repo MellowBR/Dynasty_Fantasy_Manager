@@ -285,9 +285,18 @@
       </div>
 
     {% elif step.num == 6 %}
-      {# ── STEP 6: Keepers/Cuts (informational) ── #}
+      {# ── STEP 6: Janela de cortes selada (OFF26-1) ── #}
       <div class="step-content">
-        <p class="text-dim">Definir quais jogadores manter e quais cortar.</p>
+        <p class="text-dim" style="margin-bottom:.75rem">
+          Janela selada: cada owner declara em sigilo os cortes do próprio roster;
+          o admin revela tudo simultaneamente no lock. Pressupõe o Rollover já aplicado.
+        </p>
+        {% if step.done %}
+          <div class="alert alert-ok" style="margin-bottom:.75rem">✅ Janela revelada (snapshot canônico).</div>
+        {% endif %}
+        <div class="step-actions">
+          <a href="/cuts" class="btn btn-primary">✂️ Ir para a Janela de Cortes</a>
+        </div>
       </div>
 
     {% elif step.num == 7 %}

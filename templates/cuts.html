@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block title %}Janela de Cortes{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">✂️ Janela de Cortes Selada</h1>
+  <p class="page-subtitle">
+    Declare em sigilo os cortes do seu roster {{ season }}. A revelação é simultânea —
+    ninguém vê os cortes alheios antes do lock do admin.
+  </p>
+</div>
+
+{# ── Banner de estado da janela ── #}
+<div id="state-banner" class="alert" style="margin-bottom:1rem">Carregando…</div>
+
+{# ── Seção do OWNER ── #}
+{% if my_team %}
+<div class="card" style="margin-bottom:1.5rem">
+  <h2 style="margin-top:0">Seu roster — {{ my_team.name }}</h2>
+
+  {# barra de budget (consome a porta canônica em modo NÃO-PROJETADO) #}
+  <div id="budget-bar" class="cap-summary-card" style="display:none;margin-bottom:1rem">
+    <div class="cap-summary-grid">
+      <div class="cap-summary-item"><span class="cap-label">Keepers (mantidos)</span><span class="cap-value" id="b-keepers">—</span></div>
+      <div class="cap-summary-item"><span class="cap-label">Budget Bruto</span><span class="cap-value" id="b-raw">—</span></div>
+      <div class="cap-summary-item"><span class="cap-label">Budget Usável</span><span class="cap-value" id="b-usable">—</span></div>
+      <div class="cap-summary-item"><span class="cap-label">Spots vazios</span><span class="cap-value" id="b-spots">—</span></div>
+    </div>
+    <div id="b-alert" style="margin-top:.5rem"></div>
+  </div>
+
+  <table class="data-table">
+    <thead><tr><th>Cortar?</th><th>Jogador</th><th>Pos</th><th>Salário</th><th>Contrato</th></tr></thead>
+    <tbody>
+      {% for p in my_roster %}
+      <tr>
+        <td><input type="checkbox" class="cut-box" value="{{ p.id }}" onchange="recalc()"></td>
+        <td>{{ p.name }}{% if p.is_on_ir %} <span class="badge">IR</span>{% endif %}</td>
+        <td>{{ p.position }}</td>
+        <td>${{ p.salary|int }}</td>
+        <td>{{ p.contract_display }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="step-actions" style="margin-top:1rem;display:flex;gap:.75rem;align-items:center">
+    <button id="save-btn" class="btn btn-primary" onclick="saveDeclaration()">💾 Salvar minha declaração</button>
+    <span id="save-result" class="text-dim"></span>
+  </div>
+  <p class="text-dim" style="margin-top:.5rem;font-size:.85rem">
+    Sem declaração = zero cortes (mantém todos). A validação de cap (8.3.4) é só alerta aqui;
+    a adequação é resolvida no FA auction.
+  </p>
+</div>
+{% else %}
+<div class="alert alert-warn">Você não tem time vinculado — fale com o admin.</div>
+{% endif %}
+
+{# ── Seção do ADMIN ── #}
+{% if is_admin %}
+<div class="card" style="margin-bottom:1.5rem;border:1px solid var(--border)">
+  <h2 style="margin-top:0">🔧 Admin — janela</h2>
+  <div id="admin-gate" class="text-dim" style="margin-bottom:.75rem"></div>
+  <div class="step-actions" style="display:flex;flex-wrap:wrap;gap:.75rem">
+    <button class="btn btn-secondary" onclick="adminOpen()">🔓 Abrir janela</button>
+    <button class="btn btn-secondary" onclick="adminClose()">🔒 Fechar (sem revelar)</button>
+    <button class="btn btn-danger" onclick="adminLock()">🎬 Lock + Revelação</button>
+  </div>
+  <div id="admin-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+
+  <hr style="margin:1rem 0;border-color:var(--border)">
+  <h3 style="margin:0 0 .5rem">Suprir / ajustar pelo time (escrita pelo time)</h3>
+  <p class="text-dim" style="font-size:.85rem">Escolhe um time, marca os cortes a partir do roster público e grava. Não revela a declaração existente.</p>
+  <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+    <select id="admin-team" onchange="adminLoadRoster(this.value)">
+      <option value="">— time —</option>
+      {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-secondary" onclick="adminSaveForTeam()">💾 Gravar cortes do time</button>
+    <span id="admin-supply-result" class="text-dim"></span>
+  </div>
+  <div id="admin-roster" style="margin-top:.75rem"></div>
+</div>
+{% endif %}
+
+{# ── Revelação (pós-lock) ── #}
+<div id="reveal-section" class="card" style="display:none">
+  <h2 style="margin-top:0">📜 Revelação — snapshot canônico</h2>
+  <div id="reveal-meta" class="text-dim" style="margin-bottom:.5rem"></div>
+  <button class="btn btn-secondary btn-sm" onclick="verifyHash()">🔐 Verificar hash</button>
+  <span id="verify-result" class="text-dim"></span>
+  <div id="reveal-table" style="margin-top:.75rem"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MY_TEAM = {% if my_team %}{{ my_team.name | tojson }}{% else %}null{% endif %};
+const SEASON = {{ season }};
+let adminRosterIds = [];
+
+function rosterIds() {
+  return Array.from(document.querySelectorAll('.cut-box')).map(b => parseInt(b.value));
+}
+function cutIds() {
+  return Array.from(document.querySelectorAll('.cut-box:checked')).map(b => parseInt(b.value));
+}
+
+// Budget ao vivo: kept = roster − cortes (diferença de seleção, NÃO aritmética de cap).
+// A conta de cap vem 100% da porta canônica em modo não-projetado (salário já rollado).
+function recalc() {
+  if (!MY_TEAM) return;
+  const cuts = new Set(cutIds());
+  const kept = rosterIds().filter(id => !cuts.has(id));
+  fetch('/api/cap_projector/' + encodeURIComponent(MY_TEAM) + '/budget', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({kept_ids: kept, projected: false}),
+  }).then(r => r.json()).then(d => {
+    if (d.error) return;
+    const b = d.budget;
+    document.getElementById('budget-bar').style.display = 'block';
+    document.getElementById('b-keepers').textContent = '$' + b.keeper_salaries + ' (' + b.num_keepers + ')';
+    document.getElementById('b-raw').textContent = '$' + b.raw_budget;
+    document.getElementById('b-usable').textContent = '$' + b.usable_draft_budget;
+    document.getElementById('b-spots').textContent = b.empty_spots + ' (min $' + b.min_required_for_spots + ')';
+    const al = document.getElementById('b-alert');
+    if (b.insufficient_budget) al.innerHTML = '<span class="alert alert-warn">⚠️ Budget insuficiente: faltam $' + d.shortfall + ' para preencher ' + b.empty_spots + ' spots (alerta — não trava).</span>';
+    else if (b.over_cap) al.innerHTML = '<span class="alert alert-warn">⚠️ Acima do cap (alerta).</span>';
+    else al.innerHTML = '';
+  });
+}
+
+function saveDeclaration() {
+  fetch('/api/cuts/declaration', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({cut_ids: cutIds()}),
+  }).then(r => r.json()).then(d => {
+    const el = document.getElementById('save-result');
+    if (d.error) { el.textContent = '❌ ' + d.error; return; }
+    el.textContent = '✅ Declarado (' + d.cut_ids.length + ' cortes).';
+    loadState();
+  });
+}
+
+function loadMyDeclaration() {
+  if (!MY_TEAM) return;
+  fetch('/api/cuts/declaration').then(r => r.json()).then(d => {
+    if (d.error) return;
+    const set = new Set(d.cut_ids || []);
+    document.querySelectorAll('.cut-box').forEach(b => { b.checked = set.has(parseInt(b.value)); });
+    recalc();
+  });
+}
+
+function loadState() {
+  fetch('/api/cuts/state').then(r => r.json()).then(d => {
+    const banner = document.getElementById('state-banner');
+    const label = {closed: '🔒 Fechada', open: '🔓 Aberta', locked: '🎬 Revelada'}[d.state] || d.state;
+    banner.className = 'alert ' + (d.state === 'open' ? 'alert-ok' : 'alert-warn');
+    banner.innerHTML = '<strong>Janela: ' + label + '</strong> — ' + d.declared_count + '/' + d.total_teams +
+      ' declararam' + (d.i_declared ? ' · você já declarou ✅' : '');
+    // owner só edita quando aberta
+    const saveBtn = document.getElementById('save-btn');
+    if (saveBtn) saveBtn.disabled = (d.state !== 'open');
+    const gate = document.getElementById('admin-gate');
+    if (gate) gate.innerHTML = d.pending_review > 0
+      ? '⛔ ' + d.pending_review + ' jogador(es) em needs_review — abertura bloqueada até zerar.'
+      : '✅ needs_review zerado — abertura liberada.';
+    if (d.state === 'locked') loadReveal();
+  });
+}
+
+// ── Admin ──
+function adminPost(url, body, cb) {
+  fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})})
+    .then(r => r.json()).then(d => {
+      const el = document.getElementById('admin-result');
+      el.style.display = 'block';
+      el.textContent = d.error ? ('❌ ' + d.error) : '✅ OK';
+      loadState();
+      if (cb) cb(d);
+    });
+}
+function adminOpen() { adminPost('/api/cuts/admin/open'); }
+function adminClose() { adminPost('/api/cuts/admin/close'); }
+function adminLock() {
+  if (!confirm('Lock + revelação simultânea? Congela o snapshot canônico de TODOS os times.')) return;
+  adminPost('/api/cuts/admin/lock');
+}
+function adminLoadRoster(teamId) {
+  const box = document.getElementById('admin-roster');
+  if (!teamId) { box.innerHTML = ''; adminRosterIds = []; return; }
+  fetch('/api/roster/' + teamId).then(r => r.json()).then(players => {
+    adminRosterIds = players.map(p => p.id);
+    box.innerHTML = '<table class="data-table"><thead><tr><th>Cortar?</th><th>Jogador</th><th>Pos</th><th>Salário</th></tr></thead><tbody>' +
+      players.map(p => '<tr><td><input type="checkbox" class="admin-cut-box" value="' + p.id + '"></td><td>' +
+        p.name + '</td><td>' + p.position + '</td><td>$' + Math.round(p.salary) + '</td></tr>').join('') +
+      '</tbody></table>';
+  });
+}
+function adminSaveForTeam() {
+  const teamId = document.getElementById('admin-team').value;
+  if (!teamId) return;
+  const cuts = Array.from(document.querySelectorAll('.admin-cut-box:checked')).map(b => parseInt(b.value));
+  fetch('/api/cuts/admin/declare', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({team_id: parseInt(teamId), cut_ids: cuts}),
+  }).then(r => r.json()).then(d => {
+    document.getElementById('admin-supply-result').textContent =
+      d.error ? ('❌ ' + d.error) : ('✅ Gravado (' + d.num_cuts + ' cortes).');
+    loadState();
+  });
+}
+
+// ── Reveal ──
+function loadReveal() {
+  fetch('/api/cuts/audit').then(r => r.json()).then(d => {
+    if (!d.revealed) return;
+    document.getElementById('reveal-section').style.display = 'block';
+    const a = d.audit;
+    document.getElementById('reveal-meta').innerHTML =
+      'Hash: <code>' + a.result_hash.slice(0, 16) + '…</code> · por ' + (a.executed_by_name || '—') +
+      (a.previous_audit_id ? ' · replace de #' + a.previous_audit_id + ' (' + (a.reason || '') + ')' : '');
+    document.getElementById('reveal-table').innerHTML =
+      '<table class="data-table"><thead><tr><th>Time</th><th>Cortes</th><th>Jogadores cortados</th></tr></thead><tbody>' +
+      a.declarations.map(t => '<tr><td>' + t.team_name + '</td><td>' + t.num_cuts +
+        (t.declared ? '' : ' <span class="text-dim">(não declarou)</span>') + '</td><td>' +
+        (t.cut_names.join(', ') || '—') + '</td></tr>').join('') + '</tbody></table>';
+  });
+}
+function verifyHash() {
+  fetch('/api/cuts/audit/verify').then(r => r.json()).then(d => {
+    document.getElementById('verify-result').textContent = d.error ? ('❌ ' + d.error)
+      : (d.hash_match ? '✅ Hash confere (snapshot íntegro).' : '❌ Hash DIVERGE!');
+  });
+}
+
+loadState();
+loadMyDeclaration();
+</script>
+{% endblock %}
