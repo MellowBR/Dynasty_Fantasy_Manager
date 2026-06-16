@@ -296,6 +296,7 @@
         {% endif %}
         <div class="step-actions">
           <a href="/cuts" class="btn btn-primary">✂️ Ir para a Janela de Cortes</a>
+          {% if step.done %}<a href="/cuts/keeper_sheet" class="btn btn-secondary">📋 Keeper Sheet</a>{% endif %}
         </div>
       </div>
 

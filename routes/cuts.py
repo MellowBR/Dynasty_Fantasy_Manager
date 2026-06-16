@@ -15,14 +15,19 @@ opera o time alheio só por ESCRITA. A contagem agregada ("X/Y declararam") não
 conteúdo.
 """
 
+import csv as _csv
+import io as _io
 import json as _json
-from flask import Blueprint, render_template, request, jsonify
+from types import SimpleNamespace
+from flask import Blueprint, render_template, request, jsonify, Response
 from flask_login import login_required, current_user
 from models import (
     db, Team, Player, User,
     CutDeclaration, CutWindowAudit, compute_cut_snapshot_hash,
     get_config, set_config, get_current_season,
 )
+from salary_engine import draft_budget
+from timeutil import utc_iso
 from routes.auth import admin_required
 
 cuts_bp = Blueprint("cuts", __name__)
@@ -345,3 +350,118 @@ def cuts_audit_verify():
         "recomputed_hash": recomputed,
         "hash_match": recomputed == canonical.result_hash,
     })
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# OFF26-2 — Keeper sheet exportável (consolidada; LEITORA — não muta nada)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Deriva por INVERSÃO do snapshot do OFF26-1: keepers = roster LIVE − cut_ids do
+# snapshot canônico (D1). Salário = p.salary canônico (D3, não re-derivar). Budget de
+# FA = `usable_draft_budget` via o MESMO `draft_budget` que a porta usa em
+# `projected:false` (D4 — consome a fonte única, não recalcula; mesmo precedente de
+# draft_import.py). Fonte mista deliberada (D2): cortes frozen, salário/budget ao vivo;
+# a página exibe o timestamp do lock + aviso. Status `declared` por time (D6).
+
+# Labels PT do status de declaração (D6) — chave estável p/ CSV/tabela.
+_DECL_STATUS_LABEL = {
+    "owner_declared": "Declarou",
+    "default_zero": "Default (manteve todos)",
+    "admin_supplied": "Admin supriu",
+}
+
+
+def _declared_status(snap_team: dict, season: int) -> str:
+    """Status de declaração (D6). default-zero vs. declarou vem do SNAPSHOT (`declared`);
+    owner-vs-admin é enriquecido pela CutDeclaration live (congelada pós-lock — sem edição
+    possível com a janela travada). Leitura pura."""
+    if not snap_team.get("declared"):
+        return "default_zero"  # não declarou → manteve todos (D2 do OFF26-1)
+    decl = CutDeclaration.query.filter_by(
+        season=season, team_id=snap_team["team_id"]).first()
+    if decl and decl.editor and decl.editor.team_id != snap_team["team_id"]:
+        return "admin_supplied"  # escrito por quem não é dono daquele time (D5)
+    return "owner_declared"
+
+
+def _team_fa_budget(keepers: list) -> int:
+    """Budget de FA do time = `usable_draft_budget` (D4). Consome o ÚNICO `draft_budget`
+    com base salarial CORRENTE (`p.salary` — equivale a `projected:false` da porta).
+    Nenhuma aritmética de cap nova (invariante F10)."""
+    roster = [SimpleNamespace(salary=p.salary, is_dropped=False) for p in keepers]
+    return int(draft_budget(roster)["usable_draft_budget"])
+
+
+def _build_keeper_sheet(season: int) -> dict:
+    """Monta a sheet consolidada (12 times). Leitora — não escreve nada.
+    Retorna {revealed:False} se a janela não foi revelada (pré-condição D9)."""
+    canonical = CutWindowAudit.query.filter_by(
+        season=season, is_canonical=True).first()
+    if not canonical:
+        return {"revealed": False, "season": season}
+
+    snapshot = _json.loads(canonical.declarations_json)
+    teams = []
+    for snap in sorted(snapshot, key=lambda d: d["team_name"].lower()):
+        cut_ids = set(snap.get("cut_ids", []))
+        # keepers = roster LIVE − cortes do snapshot (D1)
+        roster = Player.query.filter_by(
+            team_id=snap["team_id"], is_dropped=False).all()
+        keepers = [p for p in roster if p.id not in cut_ids]
+        keepers.sort(key=lambda p: (-p.salary, p.name))
+        status = _declared_status(snap, season)
+        teams.append({
+            "team_id": snap["team_id"],
+            "team_name": snap["team_name"],
+            "declared_status": status,
+            "declared_label": _DECL_STATUS_LABEL[status],
+            "fa_budget": _team_fa_budget(keepers),  # usable_draft_budget (D4)
+            "num_keepers": len(keepers),
+            "keepers": [{
+                "id": p.id, "name": p.name, "position": p.position,
+                "salary": int(p.salary),
+            } for p in keepers],
+        })
+    return {
+        "revealed": True,
+        "season": season,
+        "lock_timestamp": utc_iso(canonical.executed_at) or None,
+        "teams": teams,
+    }
+
+
+@cuts_bp.route("/cuts/keeper_sheet")
+@login_required
+def keeper_sheet_page():
+    season = get_current_season()
+    return render_template("keeper_sheet.html", season=season,
+                           sheet=_build_keeper_sheet(season))
+
+
+@cuts_bp.route("/api/cuts/keeper_sheet")
+@login_required
+def keeper_sheet_json():
+    return jsonify(_build_keeper_sheet(get_current_season()))
+
+
+@cuts_bp.route("/api/cuts/keeper_sheet.csv")
+@login_required
+def keeper_sheet_csv():
+    """CSV com PARIDADE 1:1 com a tabela renderizada (mesma fonte _build_keeper_sheet).
+    1 linha por keeper; budget de FA e status repetidos por time. Sem mutação."""
+    season = get_current_season()
+    sheet = _build_keeper_sheet(season)
+    si = _io.StringIO()
+    w = _csv.writer(si)
+    w.writerow(["Time", "Keeper", "Posicao", "Salario", "Budget FA (time)", "Status"])
+    if sheet.get("revealed"):
+        for t in sheet["teams"]:
+            for k in t["keepers"]:
+                w.writerow([t["team_name"], k["name"], k["position"],
+                            k["salary"], t["fa_budget"], t["declared_label"]])
+    return Response(
+        si.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition":
+                 f'attachment; filename=keeper_sheet_{season}.csv'},
+    )

@@ -46,7 +46,7 @@
 | M15-FIX | Editor de pesos do lottery: pool/legenda não re-renderizam ao editar + legenda /picks pós-sorteio lê canônico, não o audit | Média | ✅ 05/06/2026 |
 | M16 | Lottery aplica ordem sorteada a R2/R3 (deveria ser standings invertido) — corrompe ordem + valores dynasty de R2/R3 — MAN-M16-REG | Alta | ✅ 05/06/2026 |
 | OFF26-1 | Janela de cortes selada no Manager (declaração privada de cortes + budget ao vivo não-projetado + lock/revelação simultânea admin-manual, snapshot M8) — MAN-OFF26-REG/F1/REFINE/F2 | Alta | ⚠️ F2 implementado + e2e localhost 23/23; aguarda smoke prod (lição E1) |
-| OFF26-2 | Keeper sheet exportável (relatório por time pós-revelação: keepers, salários, budget FA) — insumo do Cowork — MAN-OFF26-REG | Alta | 🔲 |
+| OFF26-2 | Keeper sheet consolidada (12 times pós-revelação: keeper+salário+budget FA usable via porta projected:false+status declared, tabela+CSV) — insumo do Cowork — MAN-OFF26-REG/F1/REFINE/F2 | Alta | ⚠️ F2 implementado + e2e localhost 20/20; aguarda smoke prod |
 | OFF26-3 | Importador de drafts de liga fantasma (rookie linear + FA auction via API, match por sleeper_player_id, preview + helper atômico) — MAN-OFF26-REG | Alta | ✅ 05/06/2026 |
 | OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only) — MAN-OFF26-REG | Média | 🔲 |
 | OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG | Média | 🔲 (doc) |
@@ -1623,7 +1623,7 @@ exceção à regra cega.
 ---
 
 ### OFF26-2 — Keeper sheet exportável
-🔲 **Pendente** — Prioridade **Alta**
+⚠️ **F2 implementado (16/06/2026) — aguarda smoke prod** — Prioridade **Alta**
 
 **Descrição:** relatório por time gerado a partir da revelação do OFF26-1 — keepers,
 salários e budget resultante para o FA Auction.
@@ -1634,7 +1634,167 @@ a transcrição não tem fonte de verdade.
 **Escopo resumido:** exportar, por time, a lista de keepers + salário + budget de FA,
 derivada da revelação selada.
 
-**Dependências:** depende do **OFF26-1**.
+**Dependências:** depende do **OFF26-1** (revelação/snapshot canônico).
+
+#### Spec final — decisões de produto arbitradas (MAN-OFF26-2-REFINE, 16/06/2026)
+
+Decisões do owner pós-F1. **Esta spec é a verdade do item.** A F2 lê esta camada; o
+terreno/portas/gaps da F1 continuam válidos abaixo.
+
+- **D1 — Língua do KEEPER por inversão do snapshot.** A sheet mostra **quem fica + salário
+  + budget de FA**, derivada de `keepers = roster_live − cut_ids` do snapshot canônico do
+  OFF26-1 (`CutWindowAudit`, season = `get_current_season()`), chave **`Player.id`**.
+
+- **D2 — Fonte mista assumida e mitigada (⚙️ DELIBERADA).** Os **cortes** vêm congelados do
+  snapshot; **salário e budget** são derivados **AO VIVO** na geração. A página exibe o
+  **timestamp do lock** + aviso ("salários conferidos agora; regenere se algo mudou desde o
+  lock"). **Justificativa:** não congelar salário no snapshot evita **duplicar a fonte
+  canônica `p.salary` dentro do audit** e **não mexe no OFF26-1 já validado** (⚠️ localhost).
+  O risco (rollover/correção/drop entre lock e sheet) é coberto pelo aviso de timestamp.
+
+- **D3 — Salário = `p.salary`** (valorizado pós-rollover, D8 do OFF26-1). A sheet **NÃO**
+  re-deriva via `project_next_salary`.
+
+- **D4 — Budget de FA = `usable_draft_budget`** (reserva $1/slot, regra 8.3.4), obtido pela
+  porta canônica `POST /api/cap_projector/<team>/budget` em **`projected:false`** — **mesma
+  chamada e mesmo modo da janela**, para a sheet **bater com o que o owner viu no lock**. A
+  sheet **NÃO recalcula** budget.
+
+- **D5 — IR conta normalmente** (D11 do OFF26-1 mantida — jogador no IR é tratado como
+  qualquer outro no budget). A sheet **NÃO** tem coluna/flag de IR.
+
+- **D6 — Colunas:** `keeper`, `salário`, `budget de FA do time`, e **`declared`** (declarou de
+  verdade / default-zero mantém-todos / admin-supriu) como **coluna de conferência**. **SEM**
+  slots vazios, **SEM** contagem 8.3.4 — pertencem à fronteira do FA auction, não à transcrição.
+
+- **D7 — Granularidade: CONSOLIDADA** — os **12 times** de uma vez (o Cowork monta a liga
+  inteira; a OFF26-4 também quer todos).
+
+- **D8 — Saída:** **CSV** como artefato principal (consumo do Cowork + registro anual) **+
+  tabela renderizada na mesma página** (conferência humana). A F2 verifica se há precedente
+  de export reutilizável (F1: **não há** — `csv` stdlib + `Content-Disposition` é padrão novo).
+
+- **D9 — Pré-condição:** só gera **após a revelação** do OFF26-1 (snapshot canônico da season
+  existe — `_window_locked`/`revealed:true`); a página comunica claramente se a janela ainda
+  **não foi locked/revelada**.
+
+**Decisão que toca a arquitetura, marcada deliberada:** **D2** — derivar salário/budget ao
+vivo + aviso de timestamp (em vez de congelar no snapshot), preservando a fonte única
+`p.salary`/`draft_budget` e o OFF26-1 intocado.
+
+#### F2 — Implementação (MAN-OFF26-2, 16/06/2026) — ⚠️ aguarda smoke prod
+
+Construído sobre a Spec final. **LEITORA — não muta nada.** e2e localhost **20/20**;
+`salary_engine_test` 48/48. **Não marcar ✅ até smoke de prod** (depende, como o OFF26-1, de
+janela revelada numa season real pós-rollover).
+
+**Arquivos tocados:**
+- `routes/cuts.py` — `_build_keeper_sheet(season)` (deriva `keepers = roster_live − cut_ids`
+  do snapshot canônico; salário = `p.salary`; budget = `usable_draft_budget` via o **único**
+  `draft_budget` com base corrente — mesmo precedente de `draft_import.py`, **sem aritmética
+  nova**), `_declared_status` (default-zero/owner/admin-supplied: declared do snapshot +
+  `CutDeclaration.updated_by` live, congelada pós-lock), `_team_fa_budget`. Rotas:
+  `GET /cuts/keeper_sheet` (página), `GET /api/cuts/keeper_sheet` (JSON),
+  `GET /api/cuts/keeper_sheet.csv` (download, `Content-Disposition`, `csv` stdlib).
+- `templates/keeper_sheet.html` (**novo**) — tabela consolidada 12 times + aviso de fonte
+  mista com **timestamp do lock** (D2) + botão CSV + comunicação da pré-condição (D9).
+- `templates/cuts.html` + `templates/offseason.html` — links para a sheet (reveal / passo 6).
+
+**Validações (e2e):**
+- **keepers = roster − cortes:** Alpha corta A-Three → keepers {A-One, A-Two}; **Bravo
+  default-zero** → mantém todos (status `default_zero`); **Charlie admin-supriu** → status
+  `admin_supplied`. ✅
+- **Budget == porta:** `fa_budget` (sheet) == `usable_draft_budget` da porta em
+  `projected:false` para os mesmos keepers (130 == 130; usa `p.salary`, não `raw_budget`). ✅
+- **Paridade tabela × CSV:** nº de linhas do CSV == total de keepers; CSV carrega
+  `fa_budget`+status por time. ✅
+- **Sem snapshot:** página 200 comunicando a pré-condição (não quebra); JSON `revealed:false`. ✅
+- **Sem mutação:** Player intocado após gerar sheet/CSV. ✅
+- **Réplica:** grep confirma **zero** aritmética de cap em `cuts.py`/`keeper_sheet.html` (única
+  referência a budget é `draft_budget(...)["usable_draft_budget"]`). Invariante F10 mantida. ✅
+
+**Cadeia (para OFF26-4 e OFF26-7):** a **OFF26-4** (auditoria pré-leilão) compara a config real
+da liga fantasma **contra esta sheet** — consumir `/api/cuts/keeper_sheet` (JSON) como base de
+diff. O **OFF26-7** (dry run E2E) encadeia: revelação OFF26-1 → **keeper sheet (CSV)** → Cowork
+transcreve → OFF26-4 audita. A sheet pressupõe **snapshot revelado** (logo E4-a + rollover +
+janela locked antes).
+
+**Pendente (smoke prod):** com janela revelada numa season real, abrir `/cuts/keeper_sheet`,
+conferir keepers/salário/budget por time, baixar CSV e validar paridade. Só então ✅.
+
+#### F1 — Diagnose read-only do terreno (MAN-OFF26-2-F1, 16/06/2026)
+
+Read-only (zero mutação) sobre o OFF26-1 F2 recém-commitado (`2c243d4`), roster e a
+porta de budget. Base verificada para a F2.
+
+**Estrutura do snapshot revelado (o que a sheet deriva):** `CutWindowAudit`
+([models.py:854]); `to_dict()` expõe `declarations` = lista por time
+`[{team_id, team_name, cut_ids, cut_names, num_cuts, declared}]`. **ACHADO CHAVE: o
+snapshot congela SÓ a decisão de corte — NÃO grava salário nem budget.** Acesso ao
+canônico: `CutWindowAudit.query.filter_by(season=season, is_canonical=True).first()`,
+já exposto por `GET /api/cuts/audit` (`{revealed:true, audit:{...}}`). **Chave de season:**
+a janela usa `get_current_season()` **direto** (pós-rollover) — NÃO `season+1` (isso é só
+o lottery). A sheet deve casar essa chave.
+
+**Derivar keepers:** `keepers = roster_atual − cut_ids`, com `roster_atual =
+Player.query.filter_by(team_id, is_dropped=False)` e chave **`Player.id`** (mesma de
+`cut_ids`). ⚠️ **Fonte mista:** roster é LIVE, `cut_ids` vêm do SNAPSHOT — coerente só
+enquanto o roster ficar estável pós-lock (sem drop/trade entre o lock e a geração da sheet).
+
+**Salário a exibir (fonte canônica):** **`p.salary`** (já valorizado pós-rollover — D8).
+A janela calculou budget em **modo não-projetado** (D9), logo a sheet usa o **mesmo**
+`p.salary`, **não** `project_next_salary`. O snapshot não guarda salário → a sheet lê live;
+bate com o lock só na janela estável pós-lock (ver acima).
+
+**Budget de FA (consumir, nunca recalcular):** `POST /api/cap_projector/<team>/budget`
+com **`projected:false`** + `kept_ids = roster − cuts` — **exatamente a chamada que a
+janela fez** (salary.py:114-189, D9). Retorna `raw_budget`, `usable_draft_budget`,
+`empty_spots`, `min_required_for_spots`, `insufficient_budget`. **Decisão pendente: qual
+número é "o budget de FA"** que o Cowork digita (provável `usable_draft_budget`, que já
+reserva $1/slot vazio — 8.3.4).
+
+**Pré-condição de existência:** a sheet só faz sentido com snapshot canônico presente —
+`_window_locked(season)` (cuts.py:34) / `revealed:true` no `/api/cuts/audit`. Gate.
+
+**Formato de export (precedente no app):** **NÃO há** export de CSV, página imprimível
+(`@media print`/`window.print`), nem clipboard-de-dados. O que existe: import CSV/Excel
+(admin/auction), **JSON por time** (`/api/roster`, `/api/cap_projector`, `/api/cuts/audit`),
+tabelas **server-side Jinja** (casa de `league.py` team_detail, `roster.py`) e **1
+precedente de clipboard** (link de trade, `trades.html:659-670`). `pandas`+`openpyxl`
+disponíveis (requirements). Opções viáveis p/ o Cowork: (a) página Jinja imprimível
+(mais aderente à casa, Cowork lê na tela), (b) download CSV (`csv` stdlib + header
+`Content-Disposition` — padrão novo), (c) clipboard TSV (reusa o mecanismo do trade).
+
+**PERGUNTA DE RÉPLICA — fonte única confirmada:** o cálculo de budget é só `draft_budget`
+(via porta; F10/F1 confirmaram, `cuts.html` só exibe). O salário do keeper é só `p.salary`
+/ `project_next_salary` — nenhuma 2ª derivação. **A sheet DEVE consumir** (porta + `p.salary`),
+**nunca recalcular.** Nenhuma réplica encontrada.
+
+**REFUTAÇÃO DE PREMISSAS (MAN-METH-REG):**
+- *(premissa falsa)* "o snapshot congela salários/budget no lock" — **falso**: congela só
+  `cut_ids`/`cut_names`/`num_cuts`/`declared`. A sheet deriva salário/budget **live**; só
+  bate com o lock enquanto não houver rollover/correção/drop entre lock e sheet.
+- *(deslocamento)* "keeper = roster − cortes revelados" — verdadeiro, mas é **fonte mista**
+  (roster live − cuts do snapshot). Decisão da F2: aceitar derivação live (documentar a
+  premissa de janela estável) — o snapshot **não** guarda a composição do roster no lock.
+- *(premissa correta)* "modo de budget = não-projetado p/ bater com o lock" — confirmada (D9).
+- *(perda)* o snapshot tem `declared` (declaração real vs. default-zero vs. suprido por admin);
+  a proposta da sheet é silente. O Cowork deveria ver a **proveniência** (sheet de time que
+  não declarou = roster inteiro por default, não escolha ativa).
+- *(deslocamento/decisão)* keepers incluem **IR** (roster só exclui `is_dropped`; IR conta no
+  budget — D11). A sheet listará IR; decidir se sinaliza.
+
+**Decisões de produto NÃO arbitradas (p/ o owner, antes da F2):** (1) **formato de export**
+(página imprimível vs. CSV vs. clipboard TSV); (2) **por-time individual vs. consolidada**
+(12 times — o Cowork monta a liga inteira; a OFF26-4 também quer todos); (3) **qual número
+é o "budget de FA"** (`usable_draft_budget` vs. `raw_budget`); (4) a sheet **inclui** slots
+vazios / contagem 8.3.4 / flag IR / status `declared`?
+
+**Gaps que a F2 fecha (curto):** derivar keepers = roster live − `cut_ids` do snapshot
+(documentar premissa de estabilidade pós-lock); coluna de salário = `p.salary` canônico;
+budget consumido da porta em `projected:false` (nunca recalcular); gate por snapshot canônico
+existir; escolher formato de export; surfacing de `declared`/IR/qual budget; decidir
+por-time vs. consolidada.
 
 ---
 

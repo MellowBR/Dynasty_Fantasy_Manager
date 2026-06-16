@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Keeper Sheet {{ season }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">📋 Keeper Sheet {{ season }}</h1>
+  <p class="page-subtitle">
+    Relatório consolidado de keepers por time — insumo da transcrição para a liga
+    fantasma (FA auction) e base da auditoria pré-leilão.
+  </p>
+</div>
+
+{% if not sheet.revealed %}
+  {# Pré-condição (D9): só existe após a revelação do OFF26-1 #}
+  <div class="alert alert-warn">
+    ⏳ A janela de cortes ainda <strong>não foi revelada</strong> nesta season.
+    A keeper sheet só é gerada após o lock/revelação.
+    <a href="/cuts">Ir para a Janela de Cortes</a>.
+  </div>
+{% else %}
+  {# Aviso de fonte mista (D2): cortes congelados; salário/budget ao vivo #}
+  <div class="alert" style="margin-bottom:1rem">
+    🔒 Snapshot revelado em
+    <strong><span id="lock-ts" data-utc="{{ sheet.lock_timestamp }}">{{ sheet.lock_timestamp }}</span></strong>.
+    Cortes vêm congelados do snapshot; <strong>salários e budget são conferidos AGORA (ao vivo)</strong>
+    — regenere a sheet se algo mudou desde o lock.
+  </div>
+
+  <div class="toolbar" style="margin-bottom:1rem">
+    <a class="btn btn-primary" href="/api/cuts/keeper_sheet.csv">⬇️ Baixar CSV</a>
+  </div>
+
+  {% for t in sheet.teams %}
+  <div class="card" style="margin-bottom:1rem">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.5rem">
+      <h2 style="margin:.25rem 0">{{ t.team_name }}</h2>
+      <div class="text-dim">
+        Keepers: <strong>{{ t.num_keepers }}</strong> ·
+        Budget FA: <strong>${{ t.fa_budget }}</strong> ·
+        Status:
+        <span class="badge">{{ t.declared_label }}</span>
+      </div>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Keeper</th><th>Pos</th><th>Salário</th><th>Budget FA (time)</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for k in t.keepers %}
+        <tr>
+          <td>{{ k.name }}</td>
+          <td>{{ k.position }}</td>
+          <td>${{ k.salary }}</td>
+          <td>{% if loop.first %}${{ t.fa_budget }}{% else %}<span class="text-dim">—</span>{% endif %}</td>
+          <td>{% if loop.first %}{{ t.declared_label }}{% else %}<span class="text-dim">—</span>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-dim">Sem keepers (todos cortados).</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Localiza o timestamp do lock (ISO 'Z' → fuso do cliente).
+(function () {
+  const el = document.getElementById('lock-ts');
+  if (!el) return;
+  const iso = el.getAttribute('data-utc');
+  if (iso) { try { el.textContent = new Date(iso).toLocaleString(); } catch (e) {} }
+})();
+</script>
+{% endblock %}
