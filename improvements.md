@@ -4,6 +4,9 @@
 > Atualizado em: 15/06/2026-pt2 (sessão Opus, fechamento documental — **5 itens ✅ + migração O3**: UX8 e UX9 (smoke de prod 15/06), F11-FIX-UX (fecha junto com UX9 — sintoma eliminado pela raiz), DP2 (smoke de prod confirmado), F12 (critério dev-local). Seções detalhadas movidas verbatim p/ `improvements_archive.md`; Status Rápido mantém as 5 linhas como ✅. Zero mudança de código.)
 > Atualizado em: 15/06/2026 (sessão Opus: **UX8 ⚠️ REG+F1+F2** — densidade vertical do cap projector, foto ao lado do nome (opção B); F2 flexou `.player-name-cell` (1 regra CSS, classe exclusiva, zero blast radius, 48/48), "tag malformada" da F1 era falso positivo (artefato Grep) → validado localhost, ✅ após smoke prod. **UX9 ⚠️ REG+F1+F2** — passo 2 do fluxo pré-temporada no /admin fragmentava em colunas; causa: `.workflow-steps li` é flex e o link inline `Intertemporada` partia o texto em flex items; F2 envolveu o body num `<span class="step-body">` (texto+link inline em ordem, estrutural não comprimento), 48/48 → localhost, ✅ após smoke prod; fecha o done do F11-FIX-UX junto)
 > Atualizado em: 12/06/2026-pt3 (sessão Opus: **F10 ✅** smoke prod + archive; **DOC1 ✅** startup do CLAUDE.md reescrita contra o boot real; **F12 ⚠️** CSV bootstrap one-shot (flag `csv_bootstrap_done`); **F11-FIX-UX** layout do passo 2; **DP2 ⚠️** cadeia única — board sobre keep/corte + summary sticky, `/simulate` removido (fundido no `/budget`))
+> Atualizado em: 16/06/2026-pt4 (sessão OFF26-6-7-REG: **registro docs-only** — 2 itens novos no pacote OFF26: **OFF26-6** PoC do Cowork montando a liga fantasma (validação operacional não-código, gate antes da FA auction real, dados fake, roda cedo/isolado) e **OFF26-7** dry run E2E da intertemporada (foco nas costuras entre módulos; depende de OFF26-1/2/4 existirem; OFF26-6 ⊂ OFF26-7; decisão em aberto: gate único vs. por etapas). Ambos 🔲. Nenhum item OFF26 existente alterado.)
+> Atualizado em: 16/06/2026-pt3 (sessão E4-d-F1b: **diagnose read-only de aliases ✅** — veredito: **zero infra de alias** no codebase. TIME só tem `name`/`display_name`(=name)/`owner_name`, sem abreviação/mapa; "Houston/HOU" não tem fonte. JOGADOR: pool Sleeper (sid 5848 inspecionado) **não tem campo de apelido** → resolver cobre acento/sufixo/pontuação, NÃO Hollywood↔Marquise; E4-b **deletou** o órfão Brown, nunca resolveu o apelido. Parecer: time por `name`+`owner_name` exato→norm; apelido só por mapa curado (Sleeper não tem). 3 decisões D/E/F p/ owner. Item segue 🔲)
+> Atualizado em: 16/06/2026-pt2 (sessão E4-d-F1: **E4-d diagnose read-only ✅** — mapa das 4 portas do `/auction`: jogador-sem-sid replicado nas 3 individuais + Excel (tudo em auction.py, não vaza); time-substring **isolado em 1 linha** (auction.py:219, Excel); resolver E4-a **exige adaptação** (forms não têm NFL team → name-only: único→sid, ambíguo→needs_review); órfão silencioso é o pior caso; parecer F2 + 3 decisões de escopo p/ owner. Item segue 🔲)
 > Atualizado em: 16/06/2026 (sessão F9: **F9 ⚠️ localhost** — `bulk_register` roteado por `record_acquisition`, última réplica inline do `/auction` fechada [Player+SalaryHistory+AuctionLog atômicos], `_noop` vestigial removido, idempotência por `event_ref`; smoke temp DB BEFORE(0,0)→RUN1(2,2)→RUN2 idempotente, 48/48; ✅ aguarda smoke prod / FA auction 2026)
 > Atualizado em: 12/06/2026 (sessão F11: **Etapa 1 verificação retroativa em prod ✅ LIMPO** — 0 rollovers jamais aplicados, salary_history vazio, 0 assinaturas admin no SyncLog; **Etapa 2 fix Opção A ⚠️ localhost** — endpoint apply + botão + JS removidos, preview mantido, offseason Step 4 = porta única)
 > Atualizado em: 11/06/2026 (sessão AUD1: REG + **F1 executada ✅** — 6 lentes varridas; 6 itens novos: F11 rollover duplicado, F12 import-overwrite local, E4-d matching /auction, M19 validação lottery client-only, M20 descomissionar flag single-user, DOC1 CLAUDE.md startup; 3ª ocorrência do MAN-METH-REG registrada)
@@ -47,6 +50,8 @@
 | OFF26-3 | Importador de drafts de liga fantasma (rookie linear + FA auction via API, match por sleeper_player_id, preview + helper atômico) — MAN-OFF26-REG | Alta | ✅ 05/06/2026 |
 | OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only) — MAN-OFF26-REG | Média | 🔲 |
 | OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG | Média | 🔲 (doc) |
+| OFF26-6 | PoC de viabilidade do Cowork montando a liga fantasma no Sleeper (validação operacional NÃO-código: roteiro de experimento + registro do resultado; gate antes de confiar a FA auction real ao procedimento) — MAN-OFF26-6-7-REG | Alta | 🔲 (op) |
+| OFF26-7 | Dry run E2E da intertemporada: ensaio da cadeia inteira encadeada, foco nas costuras entre módulos (OFF26-6 ⊂ OFF26-7); depende de OFF26-1/2/4 existirem; decisão em aberto (gate único vs. por etapas) — MAN-OFF26-6-7-REG | Alta | 🔲 (op) |
 | F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | ⚠️ |
 | F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | ✅ 12/06/2026 (réplica eliminada + smoke prod OK: $157/$43/$38/5 spots conferido) |
 | M17 | Personalização por usuário logado: home + cap widget + 8 surfaces derivam de `current_user.team_rel` (fonte única `inject_user_team`; réplica JS do chip removida) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | ⚠️ |
@@ -1128,15 +1133,144 @@ na F1 é o momento barato de pegar o gap, antes de o IMPL nascer sobre uma base 
 ---
 
 ### E4-d — Matching frouxo nas portas do /auction (single-entry + Excel)
-🔲 **Registrado 11/06/2026** — achado AUD1 Lente 4 — Prioridade **Baixa/Média** — família [[E4]]
+🔲 **Registrado 11/06/2026 (achado AUD1 Lente 4); F1 diagnose read-only executada 16/06/2026
+(MAN-E4-d-F1 — nada alterado, item segue 🔲)** — Prioridade **Baixa/Média** — família [[E4]]
 
-**Evidência:** (1) single-entry FA/rookie: `Player.name.ilike(player_name)` sem wildcard
-(auction.py:50 e 91) — exato case-insensitive, sem resolução nome+team→sid (resolver E4-a/E4-b
-existe e não é usado aqui); grafia divergente do Sleeper cria **órfão-duplicata** (classe E4-b, cujo
-guard cobriu só import_csv). (2) upload Excel: `Team.name.ilike(f"%{team_name}%")` (auction.py:219) —
-**substring** em nome de time; colisão entre times que compartilham palavra atribui contrato ao time
-errado. **Parecer:** item novo na família E4 (identidade na porta de aquisição): aplicar o resolver
-sid na entrada manual (mesma régua do import) + match exato/escolha explícita para times no Excel.
+**Registro original (AUD1):** (1) single-entry FA/rookie matcha player por nome exato sem resolver
+sid; (2) upload Excel matcha Team por substring `%name%`. A F1 abaixo confirma, quantifica e estende.
+
+#### F1 — Mapa de identidade das 4 portas do `/auction` (read-only)
+
+Helper canônico `record_acquisition` (models.py:340) aceita `player` OU `player_name`+`sleeper_player_id`,
+mas **o matching/resolução de identidade é do CHAMADOR** (o helper só escreve). As 4 portas resolvem
+identidade ANTES de chamar o helper, e nenhuma passa `sleeper_player_id`:
+
+| Porta | JOGADOR (como resolve) | TIME (como resolve) | Falha de jogador hoje | Falha de time hoje |
+|---|---|---|---|---|
+| **FA individual** (`register_fa_auction`, auction.py:49-52) | `Player.name.ilike(player_name)` exato-ci, escopado a `team_id`. Sem normalização (acento/sufixo), **sem sid** | `Team.query.filter_by(name=...)` **exato** (l.42) | miss → `player=None` → helper **cria órfão silencioso sem sid** (parece sucesso) | not found → **404 visível** |
+| **Rookie individual** (`register_rookie`, auction.py:90-93) | idêntico à FA (exato-ci, team-scoped, sem sid) | `filter_by(name=...)` **exato** (l.84) | igual → **órfão silencioso** | **404 visível** |
+| **Bulk** (`bulk_register`, auction.py:141-143; pós-F9) | idêntico (exato-ci, team-scoped, sem sid) | `filter_by(name=...)` **exato** (l.127) | igual → **órfão silencioso** | erro na lista (visível) |
+| **Excel** (`upload_excel`, auction.py:217-219) | `find_player_by_name()` (player_lookup — normalizado, **melhor**), mas **sem sid** e **sem escopo de time** | `Team.name.ilike(f"%{team_name}%")` **SUBSTRING** (l.219) | miss → skip + erro visível (**não** cria) | substring casa **time errado em silêncio** |
+
+**Régua canônica existente (referência, não alvo):** resolver `_resolve_entry_sid` (admin.py:520,
+Brown-safe: nome+**nfl_team**→sid, ambíguo→None) + `_build_pool_index` (admin.py:500) + lookup
+`find_player_by_sleeper_id` (player_lookup.py:53) + guard E4-b (import_csv.py:78-158: nome não casou →
+resolve sid → acha Player canônico por sid → atualiza em vez de inserir órfão; cria com sid ou marca
+`needs_review`). **`draft_import` já é sid-first** (find_player_by_sleeper_id + passa `sleeper_player_id`
+ao helper) — é o **modelo bom** a espelhar.
+
+**A lógica frouxa está replicada em mais de um lugar? — RESPOSTA EXPLÍCITA:**
+- **Jogador por nome-sem-sid:** replicado nas **3 portas individuais** (FA/rookie/bulk, `Player.name.ilike`
+  cru, idêntico) + Excel (variante melhor via `find_player_by_name`, ainda sem sid). **Tudo dentro de
+  `auction.py`** — não vaza para outras rotas de escrita: o único outro chamador de `record_acquisition`
+  (`draft_import`) já resolve por sid. `roster.py:332` (`Player.name.ilike('%q%')`) é **busca de UI**, não
+  porta de aquisição — fora de escopo.
+- **Time por substring `%...%`:** **isolado em 1 linha** — `auction.py:219` (Excel). Grep em todo o
+  codebase: nenhuma outra rota usa substring de time (todas as demais usam `filter_by(name=)` exato ou
+  `sleeper_owner_id`). **Não há replicação do bug de time.**
+
+**Régua canônica aplicável às portas como está, ou exige adaptação? — EXIGE ADAPTAÇÃO:**
+O resolver E4-a desambigua por **NFL team** (`entry['nfl_team']`). Mas os forms do `/auction`
+(auction.html) enviam apenas `player_name` (texto livre) + `team_name` = time **fantasy** (select);
+o bulk é `nome, time_fantasy, valor, espn`. **Nenhuma porta tem o NFL team nem sleeper_id no input.**
+Consequência ao aplicar o resolver name-only:
+- Nome **único** no pool Sleeper → `len(cands)==1` resolve o sid com segurança (caminho já existe).
+- Nome **ambíguo** (classe Brown) → resolver retorna None (sem NFL team p/ desambiguar) → a porta
+  **deve degradar para miss visível / escolha explícita**, nunca criar órfão ou chutar.
+  → **Decisão de escopo p/ o owner (ver abaixo):** adicionar campo NFL team ao form, ou aceitar
+  resolução name-only (único→sid; ambíguo→needs_review/visível).
+
+**Comportamento de falha — hoje × desejável:**
+- FA/rookie/bulk: jogador miss = **órfão silencioso sem sid** (pior caso; semeia a duplicata que um
+  sync futuro re-duplica). Desejável: resolver sid → atualizar canônico (guard E4-b); senão criar com
+  `needs_review=True` (some no review M2) — nunca órfão invisível.
+- Excel: jogador miss já é seguro (skip visível); **time substring = atribuição errada silenciosa** →
+  desejável trocar por match exato + miss visível (mesma régua das outras 3 portas).
+
+**Parecer de escopo p/ F2 (sem implementação):**
+1. **Time (Excel):** trocar `Team.name.ilike('%...%')` por match exato (`filter_by(name=)`), miss →
+   skip+erro visível. Mudança de 1 linha + tratamento de miss; risco baixo, alto retorno. Candidato a
+   fatia mínima isolável.
+2. **Jogador (4 portas):** unificar a resolução numa única régua sid-first espelhando `draft_import`:
+   tentar local → resolver nome(+nfl_team se disponível)→sid → `find_player_by_sleeper_id` → atualizar
+   canônico; passar `sleeper_player_id` resolvido ao helper; órfão só como `needs_review`. Reusa
+   `_resolve_entry_sid`/`_build_pool_index`/`find_player_by_sleeper_id`/guard E4-b — **sem duplicar** a
+   régua. Custo do pool (~15MB) é lazy como no E4-b.
+
+**Decisões de escopo EM ABERTO p/ o owner (antes da F2):**
+- **(A) NFL team no form?** Adicionar campo `nfl_team` às telas/bulk do `/auction` (resolução Brown-safe
+  completa) **ou** aceitar name-only (mais simples, ambíguos caem em needs_review)?
+- **(B) Fatiar?** F2 = só o time do Excel (mínima, 1 linha) + um item separado p/ a unificação sid-first
+  das 4 portas, **ou** tudo num F2 só?
+- **(C) Prioridade vs. calendário:** a FA auction 2026 é o 1º uso real do `/auction` (ver [[F9]]) — o
+  fix de identidade idealmente entra antes do registro em massa real. Owner decide se promove a
+  prioridade.
+
+**Decisões do owner pós-F1 (registradas):** resolução name-only com degradação p/ revisão (sem campo
+NFL team novo); jogador + time corrigidos juntos; **prioridade elevada a Alta**.
+
+#### F1b — Infra de aliases (time + jogador) (read-only, 16/06/2026)
+
+Pergunta: que infraestrutura de alias já existe antes de a F2 escolher mecanismo. **Veredito central:
+não existe NENHUMA infra de alias no sistema** (grep `alias|nickname|abbrev|apelido|Hollywood` em todo
+`*.py` → só um comentário em import_csv.py:111 e a docstring do E4-b; zero mapa de dados). O "Brown-safe"
+do E4-a resolve o risco de **casar demais** (homônimos reais desambiguados por NFL team), **não** o de
+alias/apelido (casar de menos). São problemas distintos.
+
+**TIME — representações existentes (models.py:79-118 + sync_sleeper.py:107-176):**
+- `Team.name` (= `metadata.team_name` do Sleeper, ex "Cangaceiros da Colina"), `Team.display_name`
+  (**hoje idêntico a `name`** — o sync seta os dois com o mesmo `team_name`; não é alias distinto),
+  `Team.owner_name` (= `display_name` do Sleeper = **handle do manager**, ex "MellowBR"),
+  `Team.sleeper_owner_id` / `sleeper_roster_id` (IDs estáveis).
+- **Não há** campo de abreviação/cidade/apelido, nem mapa de alias. O exemplo "Houston Texans / Houston
+  / Texans / HOU" **não tem fonte no sistema**. (`team_abbr` existe no pool de *jogadores* do Sleeper —
+  é NFL team, irrelevante p/ time fantasy.)
+- **Fonte confiável p/ derivar:** os IDs estáveis (`sleeper_owner_id`/`roster_id`) são a verdade, mas
+  **não chegam no input free-text** do `/auction`. Aliases textuais reais já disponíveis p/ reusar:
+  `name` + `owner_name` (2 handles distintos). Além disso, um mapa cidade/apelido/abreviação seria
+  **dado NOVO curado pelo owner** (não derivável do Sleeper).
+- **Nota de escopo:** FA/rookie individuais usam `<select>` (valor canônico exato — sem problema de
+  alias). O alias só afeta as portas **free-text**: bulk (textarea) e Excel.
+
+**JOGADOR — o resolver lida com apelidos? NÃO (evidência direta no pool):**
+- Inspeção do cache real (`.sleeper_players_cache.json`, 11.578 players) no registro de Marquise Brown
+  (sid 5848): campos de nome = só `full_name`='Marquise Brown', `first/last_name`, e `search_full_name`
+  ='marquisebrown' (+ search_first/last). **"Hollywood" não aparece em campo nenhum.** O objeto Sleeper
+  **não tem campo de apelido/nome alternativo.**
+- Logo `_resolve_entry_sid`/`_norm_name` (que casam `_norm_name(input)` contra `full_name` do pool)
+  **cobrem:** acento, sufixo (Jr/Sr/II–V), pontuação ('`.-), caixa, espaço. **NÃO cobrem:** apelido /
+  nome alternativo (Hollywood↔Marquise) — porque a **fonte (Sleeper) não contém o apelido**.
+- **Como o E4-b tratou o Brown:** NÃO resolveu o apelido. `cleanup_orphan_players` (admin.py:356)
+  simplesmente **DELETOU** o órfão "Hollywood Brown" (id 279, sem sid/team/SalaryHistory/AuctionLog =
+  sem valor). Foi limpeza pós-fato de órfão sem valor, **não** resolução de alias. Nenhum mecanismo
+  hoje mapeia apelido→sid.
+
+**Risco de casar demais (mitigação no parecer):**
+- TIME: abreviação curta (ex "HOU", ou 1 palavra) colidindo entre times que compartilham palavra =
+  **exatamente o bug de substring atual, só relocado**. Mitigar: casar `name`/`owner_name` por
+  exato→normalizado primeiro; alias curto só se **único**; ambíguo → escolha explícita.
+- JOGADOR: o resolver já retorna None em ambiguidade (≥2 cands sem NFL team único). Adicionar apelido
+  por fuzzy **reduziria** a segurança (o E2 já viu falso-positivo Carnell Tate~Darnell Mooney @0.665) →
+  apelido só por mapa curado, nunca fuzzy/substring.
+
+**Parecer de mecanismo p/ F2 (sem implementação):**
+- **TIME:** resolver input contra handles reais existentes — `name` + `owner_name`, exato→normalizado
+  (reusa `_norm_name`), **sem substring**. Aliases que não batem com nenhum dos dois (ex "Houston" p/
+  "Houston Texans") → **só** via mapa pequeno curado pelo owner `{team_id: [aliases]}` (dado novo) **ou**
+  exigir o `name` canônico no bulk/Excel. Ambíguo/desconhecido → miss visível / escolha, nunca time
+  errado silencioso.
+- **JOGADOR:** manter o resolver Brown-safe (nome+nfl_team→sid; fallback nome-único) como espinha.
+  Apelido **não está no Sleeper** → não há auto-resolução possível; o único caminho robusto é um mapa
+  pequeno curado `apelido→sid` (ou apelido→nome canônico) p/ os poucos casos conhecidos (Hollywood→
+  Marquise), aplicado como **pré-normalização ANTES** da resolução no pool. Ambíguo → needs_review.
+
+**Decisões de mecanismo EM ABERTO p/ o owner (antes da F2):**
+- **(D) Aliases de TIME:** só `name`+`owner_name` (mais simples; "Houston" p/ "Houston Texans" ainda
+  cai em miss/escolha) **ou** introduzir mapa curado de alias de time?
+- **(E) Apelidos de JOGADOR:** mapa curado pequeno apelido→sid (cobre Hollywood↔Marquise) **ou** aceitar
+  que apelido vá p/ needs_review (sem auto-merge)?
+- **(F) Fonte de verdade dos mapas (se adotados):** onde vivem (dict estático no código vs. tabela no
+  DB) e quem mantém. Implica schema só se for tabela — fora do "sem mudar schema" se for dict.
 
 ---
 
@@ -1249,6 +1383,10 @@ transcrição da keeper sheet para o Sleeper é feita via **Cowork + Claude in C
 
 **Dependências do pacote:** OFF26-1 → OFF26-2 → OFF26-4; OFF26-3 independente e
 paralelizável; OFF26-5 é documentação (depende conceitualmente de 2 e 4).
+**Validação operacional (REG 16/06/2026):** OFF26-6 (PoC do Cowork montando a liga) roda
+**cedo e isolado** (mecânica pura com dados fake) e é **gate** de OFF26-5/FA auction real;
+OFF26-6 é **subconjunto** de OFF26-7 (dry run E2E), que ensaia a cadeia inteira e depende
+de OFF26-1/2/4 existirem.
 **Prioridades abaixo são triagem inicial — o comissário re-prioriza.**
 **Próximos candidatos naturais de F1 (sessões separadas):** OFF26-1 e OFF26-3.
 
@@ -1325,6 +1463,69 @@ workflow → execução → gatilho da auditoria OFF26-4).
 
 **Dependências:** documentação; depende conceitualmente de **OFF26-2** e **OFF26-4**
 para fazer sentido completo.
+
+---
+
+### OFF26-6 — PoC de viabilidade do Cowork montando a liga fantasma
+🔲 **Registrado 16/06/2026** — MAN-OFF26-6-7-REG — Prioridade **Alta** — **validação
+operacional (NÃO é código do Manager)** — **GATE**
+
+**Descrição:** prova de conceito, em liga de **teste descartável** e com antecedência,
+de que **Cowork + Claude in Chrome** conseguem, dirigindo a UI do Sleeper, montar a liga
+fantasma de ponta a ponta: **criar sala → popular 12 times → configurar draft auction →
+setar keepers como rosters + budgets**. Produz um **roteiro de experimento** + **registro
+estruturado do resultado** (onde o procedimento trava, que intervenção manual exige).
+
+**Motivação:** a API do Sleeper é **read-only** — a montagem só é possível dirigindo a UI
+pelo navegador, frágil por natureza e **nunca validada**. O runbook OFF26-5 já documenta
+esse procedimento **assumindo que ele funciona**; falta o passo anterior, que prova **SE e
+COMO** funciona. É premissa não testada no **caminho crítico** (a FA auction real depende
+dela).
+
+**Escopo resumido:** roteiro do experimento (passos da montagem na UI) + execução numa liga
+de teste com **dados fake** (não precisa da keeper sheet real) + registro estruturado do
+resultado (sucesso/trava por etapa, intervenções manuais necessárias). Testa a **mecânica
+pura** da montagem, isolada das demais peças.
+
+**Função de GATE:** deve **passar antes** de confiar a FA auction real ao procedimento Cowork.
+
+**Dependências:** nenhuma para rodar (testa a mecânica isolada, dados fake). **Relação com
+OFF26-5:** o resultado do PoC é o **insumo** do runbook (o runbook documenta o caminho
+**comprovado** pelo PoC). **Relação com OFF26-7:** é um **subconjunto** dele (a etapa "Cowork
+monta a liga" dentro do ensaio E2E maior).
+
+---
+
+### OFF26-7 — Dry run end-to-end da intertemporada
+🔲 **Registrado 16/06/2026** — MAN-OFF26-6-7-REG — Prioridade **Alta** — **ensaio geral
+operacional (não-código)**
+
+**Descrição:** ensaio geral do **processo inteiro encadeado** em ambiente de teste,
+exercitando a cadeia completa: **rookie draft de teste → import (OFF26-3) → ESPN
+parcial+definitivo (E4-a) → janela selada (OFF26-1) → keeper sheet (OFF26-2) → Cowork monta
+a liga fantasma (OFF26-6) → auditoria (OFF26-4) → FA auction de teste → import do resultado
+(OFF26-3)**.
+
+**Motivação:** cada item OFF26 tem validação própria, mas as **COSTURAS** entre eles nunca
+foram exercitadas juntas: a keeper sheet sai num formato que o Cowork transcreve? a liga
+montada bate com o que a auditoria espera ler? o import reconhece times/jogadores da liga de
+teste? O ensaio valida o **formato de handoff entre etapas**, não a lógica interna de cada
+peça (já coberta item a item).
+
+**Escopo resumido:** exercitar a cadeia inteira em ambiente de teste com foco nas **interfaces
+de handoff** entre módulos; registrar onde uma etapa produz algo que a seguinte não consome
+como esperado.
+
+**Relação OFF26-6 ⊂ OFF26-7:** OFF26-6 (Cowork monta) é **uma etapa** dentro do ensaio maior;
+pode ser validada **antes e isolada**, mas também é exercitada **dentro** do dry run completo.
+
+**Dependências:** só pode rodar **de verdade** depois que **OFF26-1, OFF26-2 e OFF26-4
+existirem** (não se ensaia cadeia cujas peças centrais não foram construídas). OFF26-3 já está
+✅; E4-a já existe.
+
+**DECISÃO EM ABERTO (pendente do owner — não arbitrada):** OFF26-7 é um **gate único final**
+antes da intertemporada real, **ou** roda **por etapas** conforme as peças (OFF26-1/2/4) ficam
+prontas? Registrar a decisão antes de iniciar a F1 do item.
 
 ---
 
