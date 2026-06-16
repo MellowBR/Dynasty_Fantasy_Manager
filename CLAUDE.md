@@ -138,10 +138,11 @@ draft. Helpers: `upsert_rookie_espn` / `rookie_espn_adjusted` / `clear_rookie_es
 
 `models.record_acquisition(...)` é a **única porta canônica** de criação de contrato
 de aquisição (Player upsert + SalaryHistory + AuctionLog atômicos; salário sempre via
-`salary_engine.year1_salary`). Usado por `/auction` (FA/rookie/excel) e pelo importador
-OFF26-3. Idempotência por token `[ref:<event_ref>]` em `AuctionLog.notes` via
-`acquisition_already_recorded()`. **Exceção:** `bulk_register` ainda escreve inline
-(item F9, pendente). Não criar contrato fora desse helper.
+`salary_engine.year1_salary`). Usado pelas **4 portas** do `/auction` (FA/rookie/bulk/excel)
+e pelo importador OFF26-3. Idempotência por token `[ref:<event_ref>]` em `AuctionLog.notes`
+via `acquisition_already_recorded()`. **Nenhuma porta escreve contrato inline** (F9, 16/06/2026:
+`bulk_register` roteado pelo helper — última réplica inline fechada; ⚠️ aguardando smoke prod).
+Não criar contrato fora desse helper.
 
 ### Audit Trails
 
