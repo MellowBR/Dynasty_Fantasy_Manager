@@ -1666,3 +1666,45 @@ Sessão multi-item (commits separados por item; abertura no 1º commit). Início
 - **Validação localhost:** smoke contra DB temp (test client, admin seedado): BEFORE (0 SH,0 AL) → RUN1 registra 2 → **(2,2)**, salaries `[7,3]` = canônico; RUN2 mesmas entradas → `registered=0`, counts **(2,2)** (idempotente). `salary_engine_test.py` 48/48. Contrato da rota `{registered, results, errors}` estável.
 - **Status ⚠️ (não ✅):** ✅ depende do smoke em prod (a FA auction 2026 será o 1º uso real). **Sem push** — deploy fica com o owner.
 - **Arquivos:** `routes/auction.py`, `improvements.md`, `manager_devplan.md`.
+
+### 16/06/2026 — Maratona OFF26: OFF26-8 (reg) + OFF26-1 + OFF26-2 implementados ⚠️ (pushed)
+
+Sessão longa (Opus 4.8 1M). Pipeline REG-before-IMPL em cada item: F1 (diagnose read-only)
+→ REFINE (spec do owner) → F2 (implementação). Tudo pushado (`6b73141`/`2c243d4`/`a8c6f0f`).
+
+- **OFF26-8 registrado** 🔲 (op, Média) — capability NÃO-código: agente Cowork aplica os
+  cortes do OFF26-1 no roster real do Sleeper (irmão de OFF26-6, ⊂ OFF26-7, dep. OFF26-1).
+  Docs-only (`6b73141`).
+
+- **OFF26-1 — janela de cortes selada ⚠️ localhost** (`2c243d4`). Owner declara em sigilo a
+  **lista de CORTES** do próprio roster (keepers = complemento); admin abre (gate duro
+  `needs_review` zerado), supre time ausente por **escrita** (nunca lê alheio), e dispara
+  **lock + revelação simultânea** que congela snapshot canônico (molde M8: `is_canonical` +
+  `previous_id` + `reason` + `hash`). **Não escreve no Sleeper** (OFF26-8) nem materializa
+  cortes (Rollover/FA auction). Spec D1–D11.
+  - **D8 (infra):** janela roda **pós-rollover** (lê salário já valorizado).
+  - **D9 (infra):** porta canônica `.../budget` ganhou flag **`projected`** (default True
+    intocado; `false` = salário corrente). **Ampliação deliberada, não réplica** — fonte de
+    cálculo segue única (`draft_budget`); invariante F10 mantida.
+  - **Sigilo (segurança):** nenhuma rota expõe `cut_ids` alheios pré-lock; `/state` só dá
+    contagem agregada. e2e **23/23** + `salary_engine` 48/48.
+  - **Models novos** (`CutDeclaration`, `CutWindowAudit`) → `create_all` **toca o schema de
+    prod** no deploy (aditivo). **Backup do `dynasty.db` antes do smoke.**
+
+- **OFF26-2 — keeper sheet consolidada ⚠️ localhost** (`a8c6f0f`). **Leitora pura** — deriva
+  por inversão do snapshot: `keepers = roster_live − cut_ids`; salário = `p.salary`
+  (pós-rollover); budget de FA = `usable_draft_budget` via porta em **`projected:false`**
+  (paridade com o lock, 130==130). Status `declared` por time. Saída **CSV + tabela** (12
+  times). **Fonte mista deliberada (D2):** salário/budget ao vivo + aviso de timestamp do
+  lock — não duplica fonte canônica, não mexe no OFF26-1. Zero aritmética de cap nova (grep).
+  e2e **20/20**. Expõe `/api/cuts/keeper_sheet` (JSON) = **base de diff da futura OFF26-4**.
+
+- **Nota de processo:** o OFF26-1 foi commitado inteiro em `2c243d4` ainda na turn de "pode
+  dar commit"; a tentativa posterior de "commit 1 de 2 (OFF26-1)" era **no-op** (já commitado)
+  — surfaçado ao owner, e o ciclo fechou em **1 commit OFF26-2** (`a8c6f0f`) com os
+  compartilhados + `improvements.md` dos dois ciclos.
+
+- **Cadeia / próximos:** **OFF26-4** consome a keeper sheet (diff vs. liga fantasma real);
+  **OFF26-7** encadeia revelação → sheet → Cowork → auditoria. **Smoke prod** dos dois itens
+  depende de **E4-a (ESPN definitiva) + rollover** aplicados numa season real (~ago) com
+  `needs_review` zerado; só então ✅. Candidato natural de F1 restante do pacote: OFF26-4.
