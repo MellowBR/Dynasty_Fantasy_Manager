@@ -52,6 +52,7 @@
 | OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG | Média | 🔲 (doc) |
 | OFF26-6 | PoC de viabilidade do Cowork montando a liga fantasma no Sleeper (validação operacional NÃO-código: roteiro de experimento + registro do resultado; gate antes de confiar a FA auction real ao procedimento) — MAN-OFF26-6-7-REG | Alta | 🔲 (op) |
 | OFF26-7 | Dry run E2E da intertemporada: ensaio da cadeia inteira encadeada, foco nas costuras entre módulos (OFF26-6 ⊂ OFF26-7); depende de OFF26-1/2/4 existirem; decisão em aberto (gate único vs. por etapas) — MAN-OFF26-6-7-REG | Alta | 🔲 (op) |
+| OFF26-8 | Agente Cowork aplica os cortes do OFF26-1 no roster real do Sleeper (capability operacional NÃO-código: dirige a UI para dropar os cortados de cada time; irmão de OFF26-6, ⊂ OFF26-7); depende de OFF26-1 (fonte da lista) — MAN-OFF26-8-REG | Média | 🔲 (op) |
 | F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | ⚠️ |
 | F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | ✅ 12/06/2026 (réplica eliminada + smoke prod OK: $157/$43/$38/5 spots conferido) |
 | M17 | Personalização por usuário logado: home + cap widget + 8 surfaces derivam de `current_user.team_rel` (fonte única `inject_user_team`; réplica JS do chip removida) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | ⚠️ |
@@ -1386,7 +1387,8 @@ paralelizável; OFF26-5 é documentação (depende conceitualmente de 2 e 4).
 **Validação operacional (REG 16/06/2026):** OFF26-6 (PoC do Cowork montando a liga) roda
 **cedo e isolado** (mecânica pura com dados fake) e é **gate** de OFF26-5/FA auction real;
 OFF26-6 é **subconjunto** de OFF26-7 (dry run E2E), que ensaia a cadeia inteira e depende
-de OFF26-1/2/4 existirem.
+de OFF26-1/2/4 existirem. OFF26-8 (Cowork aplica os cortes do OFF26-1 no roster real) é
+**irmão** de OFF26-6 e também **subconjunto** de OFF26-7 (etapa "aplicar cortes no Sleeper").
 **Prioridades abaixo são triagem inicial — o comissário re-prioriza.**
 **Próximos candidatos naturais de F1 (sessões separadas):** OFF26-1 e OFF26-3.
 
@@ -1526,6 +1528,35 @@ existirem** (não se ensaia cadeia cujas peças centrais não foram construídas
 **DECISÃO EM ABERTO (pendente do owner — não arbitrada):** OFF26-7 é um **gate único final**
 antes da intertemporada real, **ou** roda **por etapas** conforme as peças (OFF26-1/2/4) ficam
 prontas? Registrar a decisão antes de iniciar a F1 do item.
+
+---
+
+### OFF26-8 — Cowork aplica os cortes no roster real do Sleeper
+🔲 **Registrado 16/06/2026** — MAN-OFF26-8-REG — Prioridade **Média** — **capability
+operacional (NÃO é código do Manager)**
+
+**Descrição:** a partir da **lista de cortes** revelada pelo OFF26-1 (janela selada),
+um agente **Cowork + Claude in Chrome** dirige a UI do Sleeper para **dropar os jogadores
+cortados** do roster real de cada time. O OFF26-1 produz a lista auditável de cortes mas
+**não os executa em lugar nenhum**; esta é a peça que efetiva esses cortes no Sleeper.
+
+**Motivação:** a API do Sleeper é **read-only** — o Manager nunca escreve lá. Mexer no
+roster real (dropar jogadores) só é possível **dirigindo a UI pelo navegador**, mesma
+natureza operacional de OFF26-5 (runbook) e OFF26-6 (PoC) — itens `(op)` fora do código
+do Manager. Sem esta capability, os cortes revelados pela janela selada ficariam órfãos
+entre "decidido no Manager" e "aplicado no Sleeper".
+
+**Escopo resumido:** a partir da lista de cortes do OFF26-1, roteiro operacional do
+agente Cowork para dropar cada jogador cortado do roster real do time correspondente na
+UI do Sleeper. Registro apenas — sem implementação.
+
+**Dependências:** depende do **OFF26-1** (fonte da lista de cortes selada/revelada).
+Conceitualmente próximo de **OFF26-5/OFF26-6** (mesmo procedimento Cowork supervisionado
+pelo navegador).
+
+**Relação OFF26-8 ⊂ OFF26-7:** é um **subconjunto operacional** do dry run E2E — entra como
+a etapa "aplicar cortes no Sleeper" da cadeia. **Irmão de OFF26-6** (mesma natureza:
+validação/procedimento operacional não-código que dirige a UI do Sleeper).
 
 ---
 
