@@ -1655,3 +1655,14 @@ Sessão multi-item (commits separados por item; abertura no 1º commit). Início
 - **Validação:** 12/12 (temp DB; PDF+pool read-only) — Love adj 55, Carnell Tate adj 14, idempotente, Brown-safe, matched intocado, rookie→salário 55, cleanup ok, salary_engine 48/48.
 - **Status ⚠️ (não ✅):** store validável em prod agora (import → conferir store); aplicação no draft só e2e no rookie draft real (~ago, 8.2.2). **DP1 desbloqueado** (store existe).
 - **Arquivos:** `models.py`, `routes/admin.py`, `routes/draft_import.py`, `routes/offseason.py`, `CLAUDE.md`.
+
+### 16/06/2026 — F9 ⚠️ localhost (bulk_register pela porta canônica, sem backfill)
+
+- **Última réplica inline fechada.** `bulk_register` (`routes/auction.py`) deixou de criar contrato inline (Player + AuctionLog, **sem** SalaryHistory + `salary = max(1,int(value_paid))` duplicado) e passou a consumir `record_acquisition` — mesma porta das outras 3 entradas do `/auction`. Agora cada item gera **Player + SalaryHistory + AuctionLog** atômicos. **As 4 portas do `/auction` escrevem contrato num único ponto.**
+- **Valor inalterado:** para `auction_draft`, `year1_salary(_, value_paid, _) = max(1, int(value_paid))` — exatamente o que o inline calculava. A mudança adiciona SalaryHistory (que faltava), não altera salário.
+- **Idempotência nova:** `event_ref = f"bulk:{season}:{team_name}:{player_name}"` + guarda `acquisition_already_recorded` (padrão OFF26-3). O inline antigo duplicava AuctionLog em re-execução; agora a 2ª passada não cria nada.
+- **Bloco vestigial removido:** classe `_noop` + `test_request_context()`/`app_context()` no-op (eram herança de um esboço que nunca teve efeito). `grep` em `auction.py` → zero ocorrências.
+- **Decisão sem backfill** ratificada pela diagnose F1+F1B (e forense ao vivo do F11): `bulk_register` **nunca rodou em prod** (`salary_history`=0, zero AuctionLog em players ativos), dano acumulado = 0. Refatoração pura, sem migração/rota de reparo.
+- **Validação localhost:** smoke contra DB temp (test client, admin seedado): BEFORE (0 SH,0 AL) → RUN1 registra 2 → **(2,2)**, salaries `[7,3]` = canônico; RUN2 mesmas entradas → `registered=0`, counts **(2,2)** (idempotente). `salary_engine_test.py` 48/48. Contrato da rota `{registered, results, errors}` estável.
+- **Status ⚠️ (não ✅):** ✅ depende do smoke em prod (a FA auction 2026 será o 1º uso real). **Sem push** — deploy fica com o owner.
+- **Arquivos:** `routes/auction.py`, `improvements.md`, `manager_devplan.md`.

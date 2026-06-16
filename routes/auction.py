@@ -2,7 +2,8 @@ import io
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required
 from models import (db, Player, Team, AuctionLog, SalaryHistory, CURRENT_SEASON,
-                    get_current_season, record_acquisition)
+                    get_current_season, record_acquisition,
+                    acquisition_already_recorded)
 from salary_engine import year1_salary, _floor
 from routes.auth import admin_required
 
@@ -117,46 +118,38 @@ def bulk_register():
     for entry in entries:
         entry_type = entry.get("type", "fa_auction")
         try:
-            if entry_type == "fa_auction":
-                with auction_bp.app_context() if hasattr(auction_bp, 'app_context') else _noop():
-                    from flask import current_app
-                    with current_app.test_request_context():
-                        pass
-                # Inline FA processing
-                team_name = entry.get("team_name", "").strip()
-                player_name = entry.get("player_name", "").strip()
-                team = Team.query.filter_by(name=team_name).first()
-                if not team:
-                    errors.append(f"{player_name}: equipe '{team_name}' não encontrada")
-                    continue
-                value_paid = float(entry.get("value_paid", 1) or 1)
-                espn_raw = float(entry.get("espn_ref_value", 0) or 0)
-                season = int(entry.get("season", get_current_season()) or get_current_season())
-                salary = max(1, int(value_paid))
-                espn_adj = espn_raw * 1.2
-                from models import set_espn_value
-                player = Player.query.filter(
-                    Player.name.ilike(player_name), Player.team_id == team.id
-                ).first()
-                if not player:
-                    player = Player(name=player_name, team_id=team.id, salary=salary,
-                                    contract_year=1, contract_start_season=season,
-                                    acquisition_type="auction_draft",
-                                    is_my_team=team.is_my_team, needs_review=True)
-                    db.session.add(player)
-                    db.session.flush()
-                else:
-                    player.salary = salary
-                    player.contract_year = 1
-                    player.acquisition_type = "auction_draft"
-                # E4-c-1: valor ESPN via fonte única (store + materializa a coluna).
-                set_espn_value(player, season, espn_adj)
-                db.session.add(AuctionLog(season=season, player_id=player.id, team_id=team.id,
-                    player_name=player_name, team_name=team_name, entry_type="fa_auction",
-                    value_paid=value_paid, espn_ref_value_at_time=espn_adj))
-                results.append({"name": player_name, "salary": salary})
-            else:
+            if entry_type != "fa_auction":
                 errors.append(f"Tipo desconhecido: {entry_type}")
+                continue
+
+            player_name = entry.get("player_name", "").strip()
+            team_name = entry.get("team_name", "").strip()
+            team = Team.query.filter_by(name=team_name).first()
+            if not team:
+                errors.append(f"{player_name}: equipe '{team_name}' não encontrada")
+                continue
+
+            value_paid = float(entry.get("value_paid", 1) or 1)
+            espn_adj = float(entry.get("espn_ref_value", 0) or 0) * 1.2
+            season = int(entry.get("season", get_current_season()) or get_current_season())
+
+            # Idempotência por referência de evento (mesmo padrão do importador OFF26-3).
+            ev_ref = f"bulk:{season}:{team_name}:{player_name}"
+            if acquisition_already_recorded(ev_ref):
+                continue
+
+            player = Player.query.filter(
+                Player.name.ilike(player_name), Player.team_id == team.id
+            ).first()
+
+            # F9: criação de contrato via helper atômico canônico (única porta) —
+            # Player + SalaryHistory + AuctionLog. Sem cálculo de salário local.
+            player, salary = record_acquisition(
+                player=player, player_name=player_name, team=team,
+                acquisition_type="auction_draft", season=season,
+                value_paid=value_paid, espn_adjusted=espn_adj, event_ref=ev_ref,
+            )
+            results.append({"name": player_name, "salary": salary})
         except Exception as e:
             errors.append(f"{entry.get('player_name', '?')}: {e}")
 
@@ -251,8 +244,3 @@ def upload_excel():
 
     flash(msg, "ok" if not skipped else "warn")
     return redirect(url_for("auction.auction_page"))
-
-
-class _noop:
-    def __enter__(self): return self
-    def __exit__(self, *a): pass

@@ -4,7 +4,7 @@
 > Atualizado em: 15/06/2026-pt2 (sessão Opus, fechamento documental — **5 itens ✅ + migração O3**: UX8 e UX9 (smoke de prod 15/06), F11-FIX-UX (fecha junto com UX9 — sintoma eliminado pela raiz), DP2 (smoke de prod confirmado), F12 (critério dev-local). Seções detalhadas movidas verbatim p/ `improvements_archive.md`; Status Rápido mantém as 5 linhas como ✅. Zero mudança de código.)
 > Atualizado em: 15/06/2026 (sessão Opus: **UX8 ⚠️ REG+F1+F2** — densidade vertical do cap projector, foto ao lado do nome (opção B); F2 flexou `.player-name-cell` (1 regra CSS, classe exclusiva, zero blast radius, 48/48), "tag malformada" da F1 era falso positivo (artefato Grep) → validado localhost, ✅ após smoke prod. **UX9 ⚠️ REG+F1+F2** — passo 2 do fluxo pré-temporada no /admin fragmentava em colunas; causa: `.workflow-steps li` é flex e o link inline `Intertemporada` partia o texto em flex items; F2 envolveu o body num `<span class="step-body">` (texto+link inline em ordem, estrutural não comprimento), 48/48 → localhost, ✅ após smoke prod; fecha o done do F11-FIX-UX junto)
 > Atualizado em: 12/06/2026-pt3 (sessão Opus: **F10 ✅** smoke prod + archive; **DOC1 ✅** startup do CLAUDE.md reescrita contra o boot real; **F12 ⚠️** CSV bootstrap one-shot (flag `csv_bootstrap_done`); **F11-FIX-UX** layout do passo 2; **DP2 ⚠️** cadeia única — board sobre keep/corte + summary sticky, `/simulate` removido (fundido no `/budget`))
-> Atualizado em: 12/06/2026-pt2 (sessão F10: **F11 ✅** — smoke prod OK, seção migrada p/ archive; **F11-FIX-UX ⚠️** microcopy /admin; evidência viva no F9; **F10 ⚠️ localhost** — réplica JS do updateSummary eliminada, summary consome `POST /api/cap_projector/<team>/budget` canônico; grep: zero réplicas novas)
+> Atualizado em: 16/06/2026 (sessão F9: **F9 ⚠️ localhost** — `bulk_register` roteado por `record_acquisition`, última réplica inline do `/auction` fechada [Player+SalaryHistory+AuctionLog atômicos], `_noop` vestigial removido, idempotência por `event_ref`; smoke temp DB BEFORE(0,0)→RUN1(2,2)→RUN2 idempotente, 48/48; ✅ aguarda smoke prod / FA auction 2026)
 > Atualizado em: 12/06/2026 (sessão F11: **Etapa 1 verificação retroativa em prod ✅ LIMPO** — 0 rollovers jamais aplicados, salary_history vazio, 0 assinaturas admin no SyncLog; **Etapa 2 fix Opção A ⚠️ localhost** — endpoint apply + botão + JS removidos, preview mantido, offseason Step 4 = porta única)
 > Atualizado em: 11/06/2026 (sessão AUD1: REG + **F1 executada ✅** — 6 lentes varridas; 6 itens novos: F11 rollover duplicado, F12 import-overwrite local, E4-d matching /auction, M19 validação lottery client-only, M20 descomissionar flag single-user, DOC1 CLAUDE.md startup; 3ª ocorrência do MAN-METH-REG registrada)
 > Atualizado em: 10/06/2026 (sessão DP1: F1 diagnose ✅ + **F2 board + simulação multi-pick no backend ⚠️ localhost** — lê `RookieEspnValue` por season, NÃO o canônico; premissa "DP1 lê o store canônico" corrigida; smoke em prod pendente)
@@ -47,7 +47,7 @@
 | OFF26-3 | Importador de drafts de liga fantasma (rookie linear + FA auction via API, match por sleeper_player_id, preview + helper atômico) — MAN-OFF26-REG | Alta | ✅ 05/06/2026 |
 | OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only) — MAN-OFF26-REG | Média | 🔲 |
 | OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG | Média | 🔲 (doc) |
-| F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | 🔲 |
+| F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | ⚠️ |
 | F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | ✅ 12/06/2026 (réplica eliminada + smoke prod OK: $157/$43/$38/5 spots conferido) |
 | M17 | Personalização por usuário logado: home + cap widget + 8 surfaces derivam de `current_user.team_rel` (fonte única `inject_user_team`; réplica JS do chip removida) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | ⚠️ |
 | M18 | Timestamps no fuso do usuário: fonte única (`timeutil.utc_iso` + macro `local_dt` + JS `formatLocalDT`); ~11 sites migrados; armazenamento UTC mantido — prompt MAN-M16-REG (ID remapeado: M16 ocupado) | Média | ✅ 09/06/2026 (validado em prod: sync 11:47 BRT → "11:47", não 14:47 UTC) |
@@ -1461,6 +1461,31 @@ inline — fechar o F9 antes garante que o primeiro rastro de aquisição da lig
 3. **Risco seed ≠ produção / sem backup automatizado** — confirmado (seed de abril ≠ disco
    vivo). A cópia recebida hoje serve de backup pontual; avaliar item de rotina de backup +
    refresh do seed.
+
+#### Fase 2 ⚠️ localhost (16/06/2026) — MAN-F9 (refatoração, sem backfill)
+
+`bulk_register` (`routes/auction.py`) deixou de criar contrato inline e passou a consumir a
+porta canônica `record_acquisition` — mesma das outras 3 entradas do `/auction`. Cada item
+agora gera **Player + SalaryHistory + AuctionLog** atômicos (antes: só Player + AuctionLog,
+sem SalaryHistory). Salário nasce de `year1_salary("auction_draft", value_paid, …)` — que é
+exatamente o `max(1, int(value_paid))` que o bloco inline calculava, logo **valor inalterado**.
+
+- **Idempotência (nova):** `event_ref = f"bulk:{season}:{team_name}:{player_name}"` + guarda
+  `acquisition_already_recorded(ev_ref)` antes de gravar (padrão do importador OFF26-3). O
+  inline antigo **não** era idempotente — re-rodar duplicava AuctionLog. Agora a 2ª execução
+  não cria nada.
+- **Bloco vestigial removido:** classe `_noop` + `test_request_context()`/`app_context()` no-op.
+  `grep _noop|test_request_context|app_context|set_espn_value` em `auction.py` → zero.
+- **Contrato da rota estável:** resposta segue `{registered, results, errors}`.
+
+**Validação localhost (smoke contra DB temp, test client com admin seedado):**
+- BEFORE (0 SH, 0 AL) → RUN1 registra 2 → **(2 SH, 2 AL)**; `registered=2`, salaries `[7, 3]`.
+- Paridade: `year1_salary("auction_draft", 7)=7`, `(3)=3` — igual ao gravado.
+- RUN2 (mesmas entradas) → `registered=0`, counts **(2, 2)** inalterado (idempotência).
+- `salary_engine_test.py` → 48/48.
+
+**Critério de ✅:** smoke em produção (registrar via `/auction` em massa e conferir SalaryHistory).
+**Sem push** — gatilho de deploy fica com o owner.
 
 ---
 
