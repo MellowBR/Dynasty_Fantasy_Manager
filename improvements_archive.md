@@ -3177,3 +3177,193 @@ altura menor, tags/link preservados) — owner dispara o deploy.
 **Arquivos:** `static/style.css` (1 regra). Sem mudança de template/JS/schema.
 
 ---
+
+### OFF26-9 — Acoplamento das fases da intertemporada × dependência do ESPN definitivo
+✅ **17/06/2026 — F1 confirmou a suspeita (abertura só exige `needs_review` zerado; E4-a por
+arrasto) + correção de redação/microcopy aplicada (D8 esclarecida, pré-condições separadas,
+microcopy do passo 6 ajustado); smoke do microcopy em prod conferido. Sem mudança de
+lógica/gate.** — MAN-OFF26-PHASE-REG/F1/FIX — Prioridade **Alta**
+
+> **Smoke do microcopy ✅ (17/06/2026, prod pós-deploy):** o owner abriu `/offseason` e conferiu
+> o passo 6 ("Definir Keepers / Cortes") — o texto distingue corretamente a **pré-condição de
+> abertura** ("Abrir a janela exige apenas a fila de revisão needs_review zerada") da
+> **recomendação de qualidade de dado** ("rodar o Rollover antes para o budget refletir o salário
+> valorizado — não é pré-condição de abertura"); **texto lê bem e layout intacto**. Critério
+> pendente de ✅ satisfeito. **O3:** seção migrada para `improvements_archive.md` no fechamento.
+
+**Descrição:** investigar se as **fases da intertemporada do Manager** (notadamente o
+Season Rollover, passo 4, e a abertura da **janela de cortes** [[OFF26-1]]) estão
+**indevidamente acopladas** ao import do **ESPN definitivo** ([[E4-a]]). A regra da liga é
+que a intertemporada **começa logo após o fim da anterior**, mas o E4-a é **deliberadamente
+tardio** — só ocorre **perto do rookie draft**, para não distorcer os valores. Se a abertura
+da intertemporada depende do E4-a, o início está sendo **atrasado por arrasto**.
+
+**Motivação:** o handoff de fechamento da maratona OFF26 listou **"E4-a (ESPN definitivo) +
+Season Rollover aplicados"** como pré-condições do smoke da janela de cortes (OFF26-1), e a
+spec **D8** da OFF26-1 fixou que a janela roda **pós-rollover** (para ler salário
+**valorizado**). O owner levantou a suspeita de que o **E4-a entrou na lista por arrasto**: o
+que realmente importa para **abrir a janela** seria o **rollover + `needs_review` zerado**
+(gate D3), **não** o ESPN. Os dois relógios — o da **intertemporada** (rollover, logo após o
+fim da temporada) e o do **ESPN** (E4-a, perto do rookie draft) — seriam **independentes**.
+Se for o caso, a intertemporada pode começar **antes** do ESPN definitivo, sem esperar o E4-a.
+
+**Escopo da investigação (3 perguntas — a F1 responde read-only):**
+1. **Rollover × ESPN** — o Season Rollover (passo 4) **depende** do import ESPN definitivo
+   (E4-a) ou opera sobre **outra base**? (i.e., a VALORIZAÇÃO/renovação do rollover lê
+   `espn_ref_value` já gravado no DB — e esse valor precisa ser o **definitivo** ou o
+   **preliminar** já basta para rollar?)
+2. **O que a fase habilita/bloqueia** — o que o estado **"intertemporada"** e **cada passo**
+   do workflow de fato **habilitam e bloqueiam no código** (`is_offseason`,
+   `_get_step_statuses`, flags individuais de AppConfig, gates de abertura)?
+3. **Pré-condição real de abertura** — a abertura da janela de cortes ([[OFF26-1]]) exige
+   **E4-a** (ESPN definitivo) ou **apenas rollover + `needs_review` zerado** (gate **D3**)?
+   Confirmar se o E4-a é dependência **real** da abertura ou **arrasto** do handoff.
+
+**Hipótese a confrontar:** a dependência do E4-a na **abertura** da janela é **por arrasto**;
+o gate real de abertura é **`needs_review` zerado (D3)** + rollover aplicado. O E4-a seria
+dependência de **dados de salário** (para o salário valorizado que a janela exibe via budget
+não-projetado, D9), mas **não** um gate temporal que precise ocorrer **antes** do início da
+intertemporada.
+
+**Conceitos a mapear na F1:** rollover (passo 4, `apply_season_rollover` /
+`/api/offseason/rollover`); gate de abertura da janela (**D3** — `needs_review` zerado);
+`_get_step_statuses` e o backing do passo 6; estado de fase da intertemporada
+(`get_current_season` / `is_offseason` sobre AppConfig k-v).
+
+**Natureza:** **investigação** — a execução é a **F1 (MAN-OFF26-PHASE-F1, diagnose
+read-only)**, despachada em **prompt separado** (não agora). **Sem F2 próprio garantido**: os
+achados que exijam mudança viram **itens individuais**.
+
+**Restrições de escopo (deste registro e da investigação):** **não** reabre as decisões
+**D1–D11** da [[OFF26-1]] (o item investiga **acoplamento de fase**, não a mecânica da
+janela); **não** altera código, schema, `salary_engine`, sync, nem os specs já arbitrados de
+OFF26-1/OFF26-2.
+
+**Ref. cruzada:** [[OFF26-1]] (janela de cortes — spec **D8** pós-rollover, gate **D3**
+`needs_review`, **D9** budget não-projetado), [[OFF26-2]] (keeper sheet), [[E4-a]] (matcher
+ESPN, ⚠️), [[E4-c-1]] (store ESPN canônico, ✅). Série **OFF26** (intertemporada).
+
+#### F1 — Diagnose read-only (MAN-OFF26-PHASE-F1, 17/06/2026) ✅ — zero mutação
+
+Diagnose estritamente read-only contra o código atual. **Confirma a suspeita do owner:**
+nenhum gate de código acopla a abertura da janela (nem o rollover) ao **E4-a**. O E4-a entrou
+nas pré-condições do smoke **por arrasto de spec/handoff** (D8 + handoff de fechamento), não
+por dependência funcional. Os quatro vereditos:
+
+**(1) Rollover × ESPN — COMPUTACIONALMENTE acoplado ao DADO, NÃO gated no E4-a (evento).**
+- O cálculo `apply_season_rollover(p)` ([salary_engine.py:190-213]) lê como insumo
+  `p.espn_ref_value` (+ `p.salary` prev, `p.acquisition_type`, `p.contract_year`). ESPN **é**
+  entrada da VALORIZAÇÃO/renovação. Com `espn_ref_value=0` a valorização degrada para
+  `MAX(prev_salary, floor(0.5×0)) = prev_salary` — **roda mesmo sem ESPN**, só produz valor de
+  baixa qualidade.
+- A rota `do_rollover` ([offseason.py:657-701]) é **gated no nível do workflow** por
+  `step4.locked = not (lottery_locked and espn_updated)` ([offseason.py:193]). Mas
+  `espn_updated` = flag **`espn_values_updated`**, setada **manualmente** por `confirm_espn`
+  ([offseason.py:645-650], passo 3 = "marcar como atualizado") — **NÃO** pelo import E4-a. O
+  import ESPN (`routes/admin.py`) **não escreve** `espn_values_updated` (grep: zero ocorrências
+  em admin.py). Logo o gate do rollover é satisfeito por um **checkbox do admin**, agnóstico a
+  *qual* import (preliminar ou definitivo) rodou.
+- **Veredito:** o rollover **pode rodar sobre ESPN preliminar**; a base de cálculo é
+  `Player.salary` + `Player.espn_ref_value` (o que estiver no DB) + tipo/ano. "Rollover depende
+  do E4-a" = **premissa parcialmente falsa (arrasto)**: depende do *dado* `espn_ref_value`
+  presente e de uma *flag manual*, não do **evento** E4-a.
+
+**(2) O que a fase habilita/bloqueia — quase tudo é RÓTULO; só 2 gates funcionais duros.**
+- `offseason_mode`/`is_offseason()` ([models.py:45-46]) é **uma flag setada `true` SÓ no
+  rollover** ([offseason.py:692]) e **nunca revertida por código** (só o seed default
+  `false`, [app.py:410]; é o sintoma do [[M1-FOLLOWUP]]). Gateia **apenas cosmético**: banner
+  de offseason ([base.html:142]) e banner de cap estourado M1 ([roster.html:72]). **Não** trava
+  trades/auction/escrita. Nuance temporal: a flag de "fase" só liga **no passo 4**, não no
+  fechamento da temporada (passo 1) — o "estado intertemporada" como flag **atrasa** o início
+  real do workflow.
+- Status dos 7 passos (`_get_step_statuses`, [offseason.py:168-209]) é majoritariamente
+  **UI/label**. "locked" duro só em **passo 2** (`not standings_exist`) e **passo 4**
+  (`not (lottery_locked and espn_updated)`). Passos 1/3/5/6/7 **nunca** travam.
+- **Gates funcionais reais que bloqueiam ação:** só **(a)** rota do rollover (gate do passo 4)
+  e **(b)** abertura da janela de cortes (gate `needs_review`, ver §3). Todo o resto é
+  rótulo/cosmético.
+- **Veredito:** a "fase intertemporada" é **mistura** — predominantemente label de UI (banner +
+  display de passos), com **dois** gates funcionais isolados (rollover, abertura de cortes).
+
+**(3) Pré-condição de ABERTURA da janela — SÓ `needs_review` zerado. NÃO E4-a, NÃO rollover.**
+- `admin_open_window` ([cuts.py:183-197]) checa **exatamente dois** itens: (i) `_window_locked`
+  falso (não há audit canônica ainda) e (ii) `_pending_review_count() == 0`
+  ([cuts.py:53-55, 190-195], conta `Player.needs_review=True, is_dropped=False`).
+- **Não** checa `espn_values_updated`, **não** checa E4-a, **não** checa `rollover_done`. Grep
+  confirma: `cuts.py` não referencia nenhuma flag de ESPN nem de rollover.
+- **Veredito (suspeita do owner CONFIRMADA):** abrir a janela exige **apenas `needs_review`
+  zerado** (+ não estar já travada). **E4-a: NÃO** (arrasto puro). **Rollover: NÃO** sequer é
+  gate de código — o "pós-rollover" da **D8** e o "E4-a + rollover aplicados" do handoff são
+  **convenção de processo / correção de dado** (para o budget não-projetado **D9** exibir
+  salário **já valorizado e definitivo**), não trava de abertura. O acoplamento real
+  E4-a→janela é **transitivo via salário exibido**: a janela (D8) mostra `p.salary`
+  pós-rollover; esse salário só é "definitivo" se o rollover tiver lido ESPN definitivo. Não há
+  nada no código que force essa ordem.
+
+**(4) Réplica — em geral fonte única por preocupação; 1 duplicação leve + gates NÃO compartilham camada.**
+- `_get_step_statuses` ([offseason.py:168]) é a fonte única do status/locks dos passos;
+  consumida por `offseason_page`, `/api/offseason/status` e pelo próprio `do_rollover` (relê o
+  step 4). ✔ única.
+- `is_offseason()` ([models.py:45]) — helper único; exposto via context processor
+  `g_offseason_mode` ([app.py:89]) e lido nos templates ([base.html:142], [roster.html:72]). ✔
+  única.
+- `espn_values_updated` — escrita só em `confirm_espn` ([offseason.py:649]); lida só em
+  `_get_step_statuses` ([offseason.py:176]). ✔ única.
+- **Duplicação leve (mesma query, 2 lugares):** "janela travada/passo 6 done" é computado em
+  `cuts.py` (`_window_locked`, [cuts.py:38-41]) **e** em `_get_step_statuses` (`cuts_done`,
+  [offseason.py:181-183]) — ambos `CutWindowAudit.filter_by(season, is_canonical=True)`. Não é
+  bug (read-only, mesma verdade), mas é o local a alinhar se a semântica mudar.
+- **Achado estrutural (relevante p/ qualquer fix futuro):** o **gate de abertura da janela**
+  (D3 `needs_review`) vive **só em `cuts.py:admin_open_window`**, **totalmente separado** do
+  `_get_step_statuses`. As travas do workflow offseason e a trava da janela de cortes **não
+  compartilham camada de pré-condição**. Logo, se um item futuro quiser "abertura exige
+  `rollover_done`" (ou explicitamente *desacoplar* do ESPN), a mudança é em **`cuts.py`**, não
+  no helper de passos — e não há réplica a fechar além disso.
+
+**Classificação das premissas do contexto:**
+- *"Abertura acoplada ao E4-a"* → **arrasto (premissa falsa no código)**: o único gate de
+  abertura é `needs_review` zerado. Item de correção candidato: **desacoplar formalmente** —
+  revisar a pré-condição de smoke da [[OFF26-1]] (handoff) e a redação da **D8** para separar
+  "janela pós-rollover" (timing) de "ESPN definitivo" (qualidade de dado), **sem reabrir D1–D11**.
+- *"Rollover depende do ESPN definitivo"* → **deslocamento**: depende do **dado**
+  `espn_ref_value` (qualquer) + flag manual `espn_values_updated`, não do **evento** E4-a; pode
+  rodar sobre preliminar.
+- *"Relógios intertemporada (rollover) × ESPN (rookie draft) independentes"* → **confirmada no
+  código**: nenhum gate liga abertura/rollover ao E4-a; o E4-a só é insumo de *qualidade* do
+  salário valorizado (rollover) e do salário de rookie (`floor(ESPN×1.2)`, passo 5).
+- *"D8 justifica timing só por salário valorizado, não menciona ESPN"* → **imprecisa**: a D8
+  **bundla** "ESPN definitiva E4-a + regra de valorização" na dependência de dado
+  ([improvements.md], D8 da OFF26-1). É exatamente nesse bundle que o E4-a entrou — mas é
+  **decisão de spec, não trava de código**.
+
+**Natureza do desfecho:** divergência confirmada (acoplamento por arrasto). **Sem F2 próprio
+garantido** — o achado vira insumo de uma revisão de redação/processo da pré-condição de smoke
+da OFF26-1 (handoff + D8), que é **decisão do owner**, não mudança de código. Nenhum gate de
+código precisa mudar para a intertemporada começar antes do E4-a: o código **já** permite abrir
+a janela com só `needs_review` zerado.
+
+#### FIX — correção de redação/microcopy (MAN-OFF26-9, 17/06/2026) ✅ smoke do microcopy conferido em prod — sem mudança de lógica
+
+Separados, nos pontos onde a redação os havia fundido, o **TIMING "pós-rollover"** (qualidade
+de dado: budget valorizado) da **QUALIDADE DE DADO "ESPN definitivo (E4-a)"** (exatidão de
+valor + salário de rookie no draft, posterior), deixando explícito que a **abertura** exige
+**só `needs_review` zerado**. **Nenhum gate, rota, schema, salary_engine, sync ou decisão
+D1–D11 tocados** — só texto de orientação.
+
+- **`templates/offseason.html`** (microcopy do passo 6 "Definir Keepers / Cortes"): trocado
+  "Pressupõe o Rollover já aplicado" por texto que distingue **abertura** (só `needs_review`
+  zerado) de **recomendação** (rodar rollover antes → budget valorizado; "qualidade de dado,
+  não pré-condição"). **Único artefato de runtime** — texto estático dentro do `<p>` existente,
+  **sem Jinja/condição/CSS novos** (grep: nenhuma condição de gate no bloco do passo 6).
+- **`improvements.md`** — OFF26-1: **D8** ganhou esclarecimento anexo (sem alterar a decisão);
+  a linha **"Dependências"** foi reescrita separando pré-condição de abertura (`needs_review`)
+  das recomendações de qualidade de dado (rollover/E4-a); a nota de dependência de dados do
+  OFF26-7 (seção F2) idem.
+- **`handoff_code_manager_16_06_2026_pt12.md`** — item 2 das pré-condições de smoke reescrito
+  com a mesma distinção (abertura = `needs_review`; rollover/E4-a = qualidade de dado).
+
+**Verificação:** `grep` confirma que o passo 6 do `offseason.html` não tem nenhuma condição de
+gate (`{% if %}` de trava) ligada ao texto alterado — a mudança é puramente de redação. As
+demais edições são documentais. **Comportamento de fluxo inalterado.**
+
+---
