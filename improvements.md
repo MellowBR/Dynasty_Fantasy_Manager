@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 17/06/2026-pt5 (sessão MAN-OFF26-9-STATUS: **rebaixado OFF26-9 ✅ → ⚠️**. Revisão de planejamento: o FIX inclui um **artefato de runtime** — o microcopy do passo 6 em `templates/offseason.html`, lido na tela em prod no ponto de decisão que o fix esclarece. Regra "✅ só após smoke prod" aplica: clareza de UI + layout só se verificam na tela renderizada. Pendência p/ ✅: abrir `/offseason` em prod pós-deploy, conferir texto do passo 6 (lê bem + layout intacto). Partes docs-only permanecem aplicadas; microcopy **não** revertido; seção **não** migrada ao archive (O3 só no ✅). Sem mudança de código.)
 > Atualizado em: 17/06/2026-pt4 (sessão MAN-OFF26-SMOKE-REG: **registro docs-only** do **smoke PARCIAL em prod** de **OFF26-1/2** (17/06, antes dos passos 3-ESPN/4-Rollover; backup `dynasty_prod_backup_17_06_2026_pre-off26.db` 540K). Validado: deploy live, tabelas `CutDeclaration`/`CutWindowAudit` criadas no schema de prod, tela `/cuts` "Fechada — 0/12" + roster + budget + cap soft, gate `needs_review` zerado, fluxo de 7 passos coerente com a F1. **Não validado (owner optou por não travar):** abertura+cortes reais, lock/reveal+hash, budget definitivo da keeper sheet → **tudo para o [[OFF26-7]]**. **Ambos permanecem ⚠️** — sem ✅.)
 > Atualizado em: 17/06/2026-pt3 (sessão MAN-OFF26-9: **OFF26-9 ✅ — correção de redação/microcopy** (sem mudança de lógica). Separado o **timing "pós-rollover"** (qualidade de dado: budget valorizado) da **qualidade de dado "ESPN definitivo (E4-a)"** nos pontos que os fundiram: microcopy do **passo 6** do `offseason.html` (abertura = só `needs_review` zerado; rollover = recomendação), **D8** da OFF26-1 (esclarecimento anexo, decisão intacta), linha "Dependências" + nota do OFF26-7 na OFF26-1, e item 2 das pré-condições de smoke no handoff de fechamento (pt12). Nenhum gate/rota/schema/salary_engine/sync/D1–D11 tocado. Migração O3 (seção → archive) no fechamento.)
 > Atualizado em: 17/06/2026-pt2 (sessão MAN-OFF26-PHASE-F1: **diagnose read-only ✅** — suspeita do owner **CONFIRMADA**. Abertura da janela de cortes (`admin_open_window`, cuts.py) checa **só** `needs_review` zerado — **NÃO** E4-a, **NÃO** rollover. Rollover (do_rollover) é gated na flag **manual** `espn_values_updated` (passo 3, set por `confirm_espn`), **não** pelo import E4-a; lê `Player.espn_ref_value` (qualquer) → roda sobre ESPN preliminar. `offseason_mode` só liga no rollover e gateia cosmético (banners). E4-a entrou como pré-condição **por arrasto** da D8/handoff (bundle "ESPN definitiva + valorização"). **Sem F2 de código** — desfecho é revisão de redação D8/pré-condição de smoke da OFF26-1, decisão do owner. Zero mutação.)
@@ -57,7 +58,7 @@
 | OFF26-6 | PoC de viabilidade do Cowork montando a liga fantasma no Sleeper (validação operacional NÃO-código: roteiro de experimento + registro do resultado; gate antes de confiar a FA auction real ao procedimento) — MAN-OFF26-6-7-REG | Alta | 🔲 (op) |
 | OFF26-7 | Dry run E2E da intertemporada: ensaio da cadeia inteira encadeada, foco nas costuras entre módulos (OFF26-6 ⊂ OFF26-7); depende de OFF26-1/2/4 existirem; decisão em aberto (gate único vs. por etapas) — MAN-OFF26-6-7-REG | Alta | 🔲 (op) |
 | OFF26-8 | Agente Cowork aplica os cortes do OFF26-1 no roster real do Sleeper (capability operacional NÃO-código: dirige a UI para dropar os cortados de cada time; irmão de OFF26-6, ⊂ OFF26-7); depende de OFF26-1 (fonte da lista) — MAN-OFF26-8-REG | Média | 🔲 (op) |
-| OFF26-9 | Acoplamento das fases da intertemporada × dependência do ESPN definitivo: o rollover (e a abertura da janela de cortes OFF26-1) depende mesmo do E4-a (ESPN definitivo, deliberadamente tardio) ou só de rollover + `needs_review` zerado? Suspeita do owner: E4-a entrou nas pré-condições por arrasto, atrasando indevidamente o início da intertemporada — investigação (F1 read-only) + correção de redação/microcopy — MAN-OFF26-PHASE-REG/F1/FIX | Alta | ✅ 17/06/2026 (F1 confirmou: abertura só exige `needs_review` zerado, E4-a por arrasto; FIX separou timing pós-rollover × qualidade de dado ESPN na D8/pré-condições/microcopy do passo 6, sem mudança de lógica) |
+| OFF26-9 | Acoplamento das fases da intertemporada × dependência do ESPN definitivo: o rollover (e a abertura da janela de cortes OFF26-1) depende mesmo do E4-a (ESPN definitivo, deliberadamente tardio) ou só de rollover + `needs_review` zerado? Suspeita do owner: E4-a entrou nas pré-condições por arrasto, atrasando indevidamente o início da intertemporada — investigação (F1 read-only) + correção de redação/microcopy — MAN-OFF26-PHASE-REG/F1/FIX | Alta | ⚠️ F1 confirmou (abertura só exige `needs_review` zerado, E4-a por arrasto) + FIX aplicado (D8/pré-condições/microcopy do passo 6 separam timing × qualidade de dado, sem mudança de lógica); **aguarda smoke do microcopy do passo 6 em prod** (texto lê bem + layout intacto) p/ ✅ |
 | F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | ⚠️ |
 | F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | ✅ 12/06/2026 (réplica eliminada + smoke prod OK: $157/$43/$38/5 spots conferido) |
 | M17 | Personalização por usuário logado: home + cap widget + 8 surfaces derivam de `current_user.team_rel` (fonte única `inject_user_team`; réplica JS do chip removida) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | ⚠️ |
@@ -1997,13 +1998,19 @@ validação/procedimento operacional não-código que dirige a UI do Sleeper).
 ---
 
 ### OFF26-9 — Acoplamento das fases da intertemporada × dependência do ESPN definitivo
-✅ **17/06/2026 — F1 confirmou a suspeita (abertura só exige `needs_review` zerado; E4-a por
+⚠️ **17/06/2026 — F1 confirmou a suspeita (abertura só exige `needs_review` zerado; E4-a por
 arrasto) + correção de redação/microcopy aplicada (D8 esclarecida, pré-condições separadas,
-microcopy do passo 6 ajustado). Sem mudança de lógica/gate.** — MAN-OFF26-PHASE-REG/F1/FIX —
-Prioridade **Alta**
+microcopy do passo 6 ajustado). Sem mudança de lógica/gate. Aguarda smoke do microcopy em
+prod.** — MAN-OFF26-PHASE-REG/F1/FIX — Prioridade **Alta**
 
-> **Convenção O3:** item ✅ — a seção detalhada será migrada para `improvements_archive.md` no
-> fechamento da sessão. Mantida aqui por ora para rastreabilidade imediata do desfecho.
+> **Pendente p/ ✅:** o FIX inclui um **artefato de runtime** — o microcopy do passo 6 em
+> `templates/offseason.html`, lido na tela em produção justamente no ponto de decisão que o fix
+> quer esclarecer. A regra "✅ só após smoke prod" se aplica: **clareza de UI + integridade de
+> layout** só se verificam na tela renderizada. ✅ vem após o owner abrir `/offseason` em prod
+> pós-deploy e conferir que o texto do passo 6 **lê bem e não estourou o layout**. As partes
+> docs-only do fix **permanecem aplicadas**; o ⚠️ reflete só a verificação de runtime pendente.
+> **O3:** a seção **NÃO** migra para o archive enquanto ⚠️ — migração ocorre no fechamento
+> quando virar ✅.
 
 **Descrição:** investigar se as **fases da intertemporada do Manager** (notadamente o
 Season Rollover, passo 4, e a abertura da **janela de cortes** [[OFF26-1]]) estão
@@ -2156,7 +2163,7 @@ da OFF26-1 (handoff + D8), que é **decisão do owner**, não mudança de códig
 código precisa mudar para a intertemporada começar antes do E4-a: o código **já** permite abrir
 a janela com só `needs_review` zerado.
 
-#### FIX — correção de redação/microcopy (MAN-OFF26-9, 17/06/2026) ✅ — sem mudança de lógica
+#### FIX — correção de redação/microcopy (MAN-OFF26-9, 17/06/2026) ⚠️ aguarda smoke do microcopy em prod — sem mudança de lógica
 
 Separados, nos pontos onde a redação os havia fundido, o **TIMING "pós-rollover"** (qualidade
 de dado: budget valorizado) da **QUALIDADE DE DADO "ESPN definitivo (E4-a)"** (exatidão de
