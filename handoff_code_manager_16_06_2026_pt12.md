@@ -28,9 +28,13 @@ pt5..pt11 cobrem cada fase; estão commitados.
    novos (`CutDeclaration`, `CutWindowAudit`); `create_all` cria as tabelas no
    `/data/dynasty.db` (aditivo, sem perda, mas é toque de schema em prod).
    `sqlite3 /data/dynasty.db ".backup '/data/dynasty_prod_backup_<data>_pre-off26.db'"`.
-2. **Dependência de dados (D8):** a janela pressupõe **E4-a (ESPN definitiva) + Season
-   Rollover (passo 4)** aplicados na season real, e **`needs_review` zerado** (gate de
-   abertura). Só dá para fazer o smoke real na intertemporada (~ago).
+2. **Pré-condições — distinção MAN-OFF26-9 (F1 17/06):** **abrir** a janela exige **só
+   `needs_review` zerado** (única trava de código — `admin_open_window`). **E4-a (ESPN
+   definitiva) + Season Rollover (passo 4)** são **qualidade de dado** (D8: o budget
+   não-projetado exibir salário **já valorizado**; E4-a = exatidão de valor + salário de rookie
+   no draft, posterior), **não travas de abertura**. Encadear rollover→janela é recomendação
+   para os valores aparecerem corretos no smoke; só dá para fazer o smoke real na intertemporada
+   (~ago).
 3. **Roteiro do smoke:** abrir `/cuts` (admin) → owner declara cortes → admin lock+verify
    hash → abrir `/cuts/keeper_sheet` → conferir keepers/salário/budget por time → baixar CSV
    (paridade) → só então marcar OFF26-1 e OFF26-2 ✅.
