@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 17/06/2026-pt4 (sessão MAN-OFF26-SMOKE-REG: **registro docs-only** do **smoke PARCIAL em prod** de **OFF26-1/2** (17/06, antes dos passos 3-ESPN/4-Rollover; backup `dynasty_prod_backup_17_06_2026_pre-off26.db` 540K). Validado: deploy live, tabelas `CutDeclaration`/`CutWindowAudit` criadas no schema de prod, tela `/cuts` "Fechada — 0/12" + roster + budget + cap soft, gate `needs_review` zerado, fluxo de 7 passos coerente com a F1. **Não validado (owner optou por não travar):** abertura+cortes reais, lock/reveal+hash, budget definitivo da keeper sheet → **tudo para o [[OFF26-7]]**. **Ambos permanecem ⚠️** — sem ✅.)
 > Atualizado em: 17/06/2026-pt3 (sessão MAN-OFF26-9: **OFF26-9 ✅ — correção de redação/microcopy** (sem mudança de lógica). Separado o **timing "pós-rollover"** (qualidade de dado: budget valorizado) da **qualidade de dado "ESPN definitivo (E4-a)"** nos pontos que os fundiram: microcopy do **passo 6** do `offseason.html` (abertura = só `needs_review` zerado; rollover = recomendação), **D8** da OFF26-1 (esclarecimento anexo, decisão intacta), linha "Dependências" + nota do OFF26-7 na OFF26-1, e item 2 das pré-condições de smoke no handoff de fechamento (pt12). Nenhum gate/rota/schema/salary_engine/sync/D1–D11 tocado. Migração O3 (seção → archive) no fechamento.)
 > Atualizado em: 17/06/2026-pt2 (sessão MAN-OFF26-PHASE-F1: **diagnose read-only ✅** — suspeita do owner **CONFIRMADA**. Abertura da janela de cortes (`admin_open_window`, cuts.py) checa **só** `needs_review` zerado — **NÃO** E4-a, **NÃO** rollover. Rollover (do_rollover) é gated na flag **manual** `espn_values_updated` (passo 3, set por `confirm_espn`), **não** pelo import E4-a; lê `Player.espn_ref_value` (qualquer) → roda sobre ESPN preliminar. `offseason_mode` só liga no rollover e gateia cosmético (banners). E4-a entrou como pré-condição **por arrasto** da D8/handoff (bundle "ESPN definitiva + valorização"). **Sem F2 de código** — desfecho é revisão de redação D8/pré-condição de smoke da OFF26-1, decisão do owner. Zero mutação.)
 > Atualizado em: 17/06/2026 (sessão MAN-OFF26-PHASE-REG: **registro docs-only** — novo item **OFF26-9** (Alta, 🔲): investigação do acoplamento entre as fases da intertemporada (rollover/abertura da janela de cortes) e a dependência do ESPN definitivo (E4-a, deliberadamente tardio). Suspeita do owner: E4-a entrou nas pré-condições da abertura por arrasto; gate real seria rollover + `needs_review` zerado (D3 da OFF26-1). Natureza: investigação com F1 read-only (despacho em prompt separado), sem F2 garantido. Nenhum item OFF26 existente alterado; D1–D11 da OFF26-1 não reabertas.)
@@ -48,8 +49,8 @@
 | M15 | Lottery com 6 seeds (inclusão do 7º colocado com 1 bolinha; pool 96) — MAN-M15-REG | Média | ✅ 05/06/2026 |
 | M15-FIX | Editor de pesos do lottery: pool/legenda não re-renderizam ao editar + legenda /picks pós-sorteio lê canônico, não o audit | Média | ✅ 05/06/2026 |
 | M16 | Lottery aplica ordem sorteada a R2/R3 (deveria ser standings invertido) — corrompe ordem + valores dynasty de R2/R3 — MAN-M16-REG | Alta | ✅ 05/06/2026 |
-| OFF26-1 | Janela de cortes selada no Manager (declaração privada de cortes + budget ao vivo não-projetado + lock/revelação simultânea admin-manual, snapshot M8) — MAN-OFF26-REG/F1/REFINE/F2 | Alta | ⚠️ F2 implementado + e2e localhost 23/23; aguarda smoke prod (lição E1) |
-| OFF26-2 | Keeper sheet consolidada (12 times pós-revelação: keeper+salário+budget FA usable via porta projected:false+status declared, tabela+CSV) — insumo do Cowork — MAN-OFF26-REG/F1/REFINE/F2 | Alta | ⚠️ F2 implementado + e2e localhost 20/20; aguarda smoke prod |
+| OFF26-1 | Janela de cortes selada no Manager (declaração privada de cortes + budget ao vivo não-projetado + lock/revelação simultânea admin-manual, snapshot M8) — MAN-OFF26-REG/F1/REFINE/F2/SMOKE | Alta | ⚠️ F2 + e2e localhost 23/23; **smoke PARCIAL prod 17/06** (infra+abertura OK: deploy live, tabelas criadas, "Fechada — 0/12", gate `needs_review` zerado, cap soft); lock/hash + cortes reais ficam p/ OFF26-7 |
+| OFF26-2 | Keeper sheet consolidada (12 times pós-revelação: keeper+salário+budget FA usable via porta projected:false+status declared, tabela+CSV) — insumo do Cowork — MAN-OFF26-REG/F1/REFINE/F2/SMOKE | Alta | ⚠️ F2 + e2e localhost 20/20; **smoke PARCIAL prod 17/06** (deploy live, `CutWindowAudit` criada); sheet depende da revelação (não travada) → validação completa no OFF26-7 |
 | OFF26-3 | Importador de drafts de liga fantasma (rookie linear + FA auction via API, match por sleeper_player_id, preview + helper atômico) — MAN-OFF26-REG | Alta | ✅ 05/06/2026 |
 | OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only) — MAN-OFF26-REG | Média | 🔲 |
 | OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG | Média | 🔲 (doc) |
@@ -1550,6 +1551,33 @@ faz o budget não-projetado ler salário **já valorizado** (D8); o E4-a dá **e
 **Pendente (smoke prod):** abrir a janela em prod com `needs_review` real zerado; um owner
 declarar; admin lock + verify hash; conferir contagem agregada e a revelação. Só então ✅.
 
+#### Smoke PARCIAL em prod (MAN-OFF26-SMOKE-REG, 17/06/2026) — ⚠️ permanece (não vira ✅)
+
+Smoke parcial executado pelo owner em produção **antes da intertemporada real** e **antes dos
+passos 3 (ESPN) e 4 (Rollover)** do fluxo de offseason. Objetivo: validar **infraestrutura +
+mecânica de abertura** sem criar snapshot canônico de teste no banco real. **Backup feito
+antes:** `dynasty_prod_backup_17_06_2026_pre-off26.db` (540K). O owner optou por **NÃO travar
+(lock)** a janela — a validação completa (lock/hash + cortes reais + budget definitivo) fica
+para o **[[OFF26-7]]** (dry run E2E).
+
+**Validado em prod (17/06):**
+- Deploy do código OFF26-1/2 **live** — `/cuts` e o fluxo `/offseason` carregam sem erro.
+- Tabelas novas (`CutDeclaration`, `CutWindowAudit`) **criadas no schema de prod** via
+  `create_all` sem erro (toque de schema aditivo confirmado).
+- Tela da janela renderiza: estado **"Fechada — 0/12"**, roster, budget **bruto/usável**,
+  **alerta de cap soft** (não trava — D10), checkboxes de corte.
+- **Gate `needs_review` zerado confirmado** (tela de Revisão de Jogadores) — pré-condição
+  única de abertura (D3) satisfeita.
+- Fluxo de 7 passos **coerente com o mapa da F1**.
+
+**NÃO validado — fica para o [[OFF26-7]]:**
+- Abertura efetiva da janela + declaração de **cortes reais**.
+- **Lock/reveal** escrevendo o snapshot canônico + **verificação de hash** em prod.
+- Conferência de budget da keeper sheet com **valores definitivos pós-ESPN/rollover**.
+
+**Status:** **⚠️ mantido** — o smoke completo (com lock) ficou pendente; só vira ✅ após a
+validação E2E na intertemporada real (OFF26-7).
+
 #### F1 — Diagnose read-only do terreno (MAN-OFF26-1-F1, 16/06/2026)
 
 Diagnose estritamente read-only (zero mutação). Mapeou os 5 terrenos que a janela
@@ -1743,6 +1771,25 @@ janela locked antes).
 
 **Pendente (smoke prod):** com janela revelada numa season real, abrir `/cuts/keeper_sheet`,
 conferir keepers/salário/budget por time, baixar CSV e validar paridade. Só então ✅.
+
+#### Smoke PARCIAL em prod (MAN-OFF26-SMOKE-REG, 17/06/2026) — ⚠️ permanece (não vira ✅)
+
+Coberto pelo mesmo smoke parcial do [[OFF26-1]] em produção (17/06, **antes dos passos 3 ESPN
+e 4 Rollover**; backup `dynasty_prod_backup_17_06_2026_pre-off26.db` 540K; owner optou por
+**não travar** a janela).
+
+**Validado em prod (17/06):** deploy OFF26-1/2 **live**; tabela **`CutWindowAudit`** (fonte da
+keeper sheet) **criada no schema de prod** via `create_all` sem erro; fluxo `/offseason`
+coerente.
+
+**NÃO validado — depende da revelação, fica para o [[OFF26-7]]:** a keeper sheet só é exercível
+**com janela revelada** (snapshot canônico), e o lock **não foi disparado** neste smoke. Logo
+ficam pendentes: `/cuts/keeper_sheet` com dados reais, conferência de **keepers = roster −
+cortes**, **budget de FA** com valores **definitivos pós-ESPN/rollover**, e **paridade
+tabela×CSV** em prod.
+
+**Status:** **⚠️ mantido** — a sheet depende da revelação do OFF26-1, que não ocorreu neste
+smoke parcial; validação completa no OFF26-7.
 
 #### F1 — Diagnose read-only do terreno (MAN-OFF26-2-F1, 16/06/2026)
 
