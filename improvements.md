@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 17/06/2026-pt6 (sessão MAN-OFF26-6: **OFF26-6 ✅ (op)** — PoC do Cowork montando a liga fantasma executado em liga de teste descartável (17/06). **Validado:** Cowork cria a liga (wizard 12 times + Auction) e seta keeper com salário sozinho (Draft Settings → SET KEEPERS), conferindo nome+time NFL (anti-homônimo). **Decisões de design:** liga fantasma **PERMANENTE** (redraft fixa, owners reais — placeholders sem dono não são gerenciáveis); reset de roster é automático (redraft), trabalho anual = só popular keepers; config de roster **espelha a real** (3WR etc.); mapa owner↔time por **`sleeper_owner_id`** (não nome). **Achados → [[OFF26-4]]:** cap = budget do auction ($200 global), restante só visível ao vivo → auditoria **calcula** ($200 − Σ keepers), não lê; keepers são designação de board → lê designações, não roster; ponte de owner já resolvida (`Team.sleeper_owner_id`, M12), resta só a ponte de jogador. GATE da FA auction Cowork passou. Sem código.)
 > Atualizado em: 17/06/2026-pt5 (sessão MAN-OFF26-9-STATUS: **rebaixado OFF26-9 ✅ → ⚠️**. Revisão de planejamento: o FIX inclui um **artefato de runtime** — o microcopy do passo 6 em `templates/offseason.html`, lido na tela em prod no ponto de decisão que o fix esclarece. Regra "✅ só após smoke prod" aplica: clareza de UI + layout só se verificam na tela renderizada. Pendência p/ ✅: abrir `/offseason` em prod pós-deploy, conferir texto do passo 6 (lê bem + layout intacto). Partes docs-only permanecem aplicadas; microcopy **não** revertido; seção **não** migrada ao archive (O3 só no ✅). Sem mudança de código.)
 > Atualizado em: 17/06/2026-pt4 (sessão MAN-OFF26-SMOKE-REG: **registro docs-only** do **smoke PARCIAL em prod** de **OFF26-1/2** (17/06, antes dos passos 3-ESPN/4-Rollover; backup `dynasty_prod_backup_17_06_2026_pre-off26.db` 540K). Validado: deploy live, tabelas `CutDeclaration`/`CutWindowAudit` criadas no schema de prod, tela `/cuts` "Fechada — 0/12" + roster + budget + cap soft, gate `needs_review` zerado, fluxo de 7 passos coerente com a F1. **Não validado (owner optou por não travar):** abertura+cortes reais, lock/reveal+hash, budget definitivo da keeper sheet → **tudo para o [[OFF26-7]]**. **Ambos permanecem ⚠️** — sem ✅.)
 > Atualizado em: 17/06/2026-pt3 (sessão MAN-OFF26-9: **OFF26-9 ✅ — correção de redação/microcopy** (sem mudança de lógica). Separado o **timing "pós-rollover"** (qualidade de dado: budget valorizado) da **qualidade de dado "ESPN definitivo (E4-a)"** nos pontos que os fundiram: microcopy do **passo 6** do `offseason.html` (abertura = só `needs_review` zerado; rollover = recomendação), **D8** da OFF26-1 (esclarecimento anexo, decisão intacta), linha "Dependências" + nota do OFF26-7 na OFF26-1, e item 2 das pré-condições de smoke no handoff de fechamento (pt12). Nenhum gate/rota/schema/salary_engine/sync/D1–D11 tocado. Migração O3 (seção → archive) no fechamento.)
@@ -55,7 +56,7 @@
 | OFF26-3 | Importador de drafts de liga fantasma (rookie linear + FA auction via API, match por sleeper_player_id, preview + helper atômico) — MAN-OFF26-REG | Alta | ✅ 05/06/2026 |
 | OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only) — MAN-OFF26-REG | Média | 🔲 |
 | OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG | Média | 🔲 (doc) |
-| OFF26-6 | PoC de viabilidade do Cowork montando a liga fantasma no Sleeper (validação operacional NÃO-código: roteiro de experimento + registro do resultado; gate antes de confiar a FA auction real ao procedimento) — MAN-OFF26-6-7-REG | Alta | 🔲 (op) |
+| OFF26-6 | PoC de viabilidade do Cowork montando a liga fantasma no Sleeper (validação operacional NÃO-código: roteiro de experimento + registro do resultado; gate antes de confiar a FA auction real ao procedimento) — MAN-OFF26-6-7-REG/PoC | Alta | ✅ 17/06/2026 (op — GATE passou: Cowork cria liga + seta keeper/salário sozinho; decisões: liga PERMANENTE redraft, config espelha real 3WR, mapa por `sleeper_owner_id`; achados → OFF26-4 calcula budget/lê designações) |
 | OFF26-7 | Dry run E2E da intertemporada: ensaio da cadeia inteira encadeada, foco nas costuras entre módulos (OFF26-6 ⊂ OFF26-7); depende de OFF26-1/2/4 existirem; decisão em aberto (gate único vs. por etapas) — MAN-OFF26-6-7-REG | Alta | 🔲 (op) |
 | OFF26-8 | Agente Cowork aplica os cortes do OFF26-1 no roster real do Sleeper (capability operacional NÃO-código: dirige a UI para dropar os cortados de cada time; irmão de OFF26-6, ⊂ OFF26-7); depende de OFF26-1 (fonte da lista) — MAN-OFF26-8-REG | Média | 🔲 (op) |
 | OFF26-9 | Acoplamento das fases da intertemporada × dependência do ESPN definitivo: o rollover (e a abertura da janela de cortes OFF26-1) depende mesmo do E4-a (ESPN definitivo, deliberadamente tardio) ou só de rollover + `needs_review` zerado? Suspeita do owner: E4-a entrou nas pré-condições por arrasto, atrasando indevidamente o início da intertemporada — investigação (F1 read-only) + correção de redação/microcopy — MAN-OFF26-PHASE-REG/F1/FIX | Alta | ⚠️ F1 confirmou (abertura só exige `needs_review` zerado, E4-a por arrasto) + FIX aplicado (D8/pré-condições/microcopy do passo 6 separam timing × qualidade de dado, sem mudança de lógica); **aguarda smoke do microcopy do passo 6 em prod** (texto lê bem + layout intacto) p/ ✅ |
@@ -1906,8 +1907,12 @@ para fazer sentido completo.
 ---
 
 ### OFF26-6 — PoC de viabilidade do Cowork montando a liga fantasma
-🔲 **Registrado 16/06/2026** — MAN-OFF26-6-7-REG — Prioridade **Alta** — **validação
-operacional (NÃO é código do Manager)** — **GATE**
+✅ **17/06/2026 — PoC executado em liga de teste descartável; mecânica central validada +
+decisões de design arbitradas** — MAN-OFF26-6-7-REG/PoC — Prioridade **Alta** — **validação
+operacional (NÃO é código do Manager)** — **GATE PASSOU**
+
+> **Critério de ✅:** validação operacional com resultado documentado — **sem código, sem smoke
+> prod aplicável** (a prova é o experimento na UI do Sleeper, registrado abaixo).
 
 **Descrição:** prova de conceito, em liga de **teste descartável** e com antecedência,
 de que **Cowork + Claude in Chrome** conseguem, dirigindo a UI do Sleeper, montar a liga
@@ -1932,6 +1937,64 @@ pura** da montagem, isolada das demais peças.
 OFF26-5:** o resultado do PoC é o **insumo** do runbook (o runbook documenta o caminho
 **comprovado** pelo PoC). **Relação com OFF26-7:** é um **subconjunto** dele (a etapa "Cowork
 monta a liga" dentro do ensaio E2E maior).
+
+#### Resultado do PoC (MAN-OFF26-6-PoC, 17/06/2026) — ✅ GATE passou
+
+PoC executado pelo owner em **liga de teste descartável**. A **mecânica central foi validada**
+e emergiram **decisões de design** que reformulam a estratégia da liga fantasma. Sem código.
+
+**(a) Validado (Cowork + Claude in Chrome dirige a UI sozinho):**
+- **Cria a liga no Sleeper** via wizard: Fantasy Football → nome → 12 times → Redraft →
+  **Auction no Step 4**.
+- **Seta keeper com salário**, descobrindo o mecanismo sozinho: Settings → Draft Settings →
+  **"SET KEEPERS/DYNASTY PLAYERS"** → SET PLAYERS → draft board → slot do time → Set Player →
+  busca jogador → define salário → **SET PLAYER**.
+- **Confere nome completo + time NFL antes de adicionar** (comportamento anti-homônimo;
+  ex.: Mahomes QB-KC, Bijan RB-ATL confirmados) — mesma higiene da classe "Brown" na camada de
+  operação manual.
+
+**(b) Decisões de design (arbitradas pelo owner a partir do PoC):**
+- **Liga fantasma passa a ser PERMANENTE** (redraft fixa, com os 12 owners reais dentro), **não
+  recriada a cada ano**. Motivo empírico: times **sem dono** (placeholders) **não são
+  renomeáveis/gerenciáveis** pela UI — bloqueio observado no PoC. Liga permanente com owners
+  reais elimina o bloqueio.
+- **Reset de roster NÃO é trabalho do Cowork:** o formato **redraft reseta rosters
+  automaticamente** na virada de season. O trabalho **anual** do Cowork = **apenas popular o
+  pré-draft com os keepers**.
+- **Config de roster da liga fantasma DEVE espelhar a liga real:** **1QB, 2RB, 3WR, 1TE, 1 FLEX
+  (RB/WR/TE), 1DEF, 1K** (+ banco/IR conforme a liga real). Achado: a liga de teste nasceu com
+  **2 WR** (padrão Sleeper) ≠ **3 WR** da liga real — **config exata é requisito**.
+- **Mapeamento owner↔time ancorado em `sleeper_owner_id`** (chave canônica), **NUNCA no nome do
+  time** (mutável). Mesma família de risco do "Brown" (id canônico vs. nome), aplicada à camada
+  de **owner**.
+
+**(c) Achados técnicos (impacto a jusante — ver [[OFF26-4]] / [[OFF26-5]] / [[OFF26-8]]):**
+- **"Salary cap" no Sleeper não é toggle separado:** é o **budget do auction** (Draft Settings →
+  Budget, **$200 global**). O cap individual **emerge** dos salários dos keepers consumindo o
+  budget global.
+- **Cap restante por time só é visível AO VIVO durante o auction;** no estado pré-draft **não há
+  número de budget restante na tela**. → **Impacto [[OFF26-4]]:** a auditoria deve **CALCULAR**
+  (`$200 − Σ salários dos keepers`), **não ler** um número pronto da liga fantasma.
+- **Keepers ficam como designação de board no pré-draft;** só **populam o roster quando o draft
+  roda**. → **Impacto [[OFF26-4]]:** a auditoria lê **designações de keeper**, não o roster.
+- **Ponte de identidade de OWNER já existe no Manager:** `Team.sleeper_owner_id` (populado pelo
+  Sleeper sync; vínculo **M12** ✅). → **Impacto [[OFF26-4]]:** a ponte de **owner está
+  resolvida**; resta investigar na F1 **apenas a ponte de JOGADOR** (se
+  `/api/cuts/keeper_sheet` expõe `sleeper_player_id`).
+
+**Cross-refs de desfecho:**
+- **[[OFF26-4]]** (auditoria de keepers pré-leilão): a auditoria **calcula** o budget (não lê),
+  **lê designações de keeper** (não roster); **ponte de owner resolvida** via `sleeper_owner_id`;
+  **resta a ponte de jogador** (escopo da F1 do OFF26-4).
+- **[[OFF26-5]]** (runbook): documentar o caminho **comprovado** acima — incl. a config de roster
+  espelhando a real (3 WR etc.), o modelo de **liga permanente** e o trabalho anual reduzido a
+  **popular keepers no pré-draft**.
+- **[[OFF26-8]]** (Cowork aplica cortes no Sleeper): mesma natureza operacional (dirigir a UI);
+  o anti-homônimo (nome+time NFL) validado aqui vale para a aplicação de cortes.
+
+**Status:** ✅ — GATE de viabilidade **passou** (a FA auction real pode ser confiada ao
+procedimento Cowork, observadas as decisões de design acima). Sem smoke prod aplicável (a prova
+é o experimento operacional registrado).
 
 ---
 
