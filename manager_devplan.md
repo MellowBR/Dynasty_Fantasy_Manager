@@ -1708,3 +1708,53 @@ Sessão longa (Opus 4.8 1M). Pipeline REG-before-IMPL em cada item: F1 (diagnose
   **OFF26-7** encadeia revelação → sheet → Cowork → auditoria. **Smoke prod** dos dois itens
   depende de **E4-a (ESPN definitiva) + rollover** aplicados numa season real (~ago) com
   `needs_review` zerado; só então ✅. Candidato natural de F1 restante do pacote: OFF26-4.
+
+### 17/06/2026 — Fechamento OFF26: OFF26-9 (acoplamento de fase) + OFF26-6/5 ✅ + smoke parcial (docs-only, pushed)
+
+Sessão **docs-only** (microcopy + registros + runbook); zero mudança de lógica/gate/schema.
+6 commits (`173d444`…`f861fb4`), todos em `origin/main`.
+
+- **OFF26-9 — acoplamento intertemporada × ESPN definitivo ✅** (registro → F1 → FIX → smoke).
+  Suspeita do owner: o E4-a (ESPN definitivo, deliberadamente tardio) entrou nas pré-condições
+  de abertura **por arrasto**. **F1 (read-only) confirmou contra o código:**
+  - **Abertura da janela (`admin_open_window`, cuts.py) exige SÓ `needs_review` zerado** — não
+    checa E4-a nem `rollover_done`. O "pós-rollover" (D8) e "E4-a+rollover" (handoff) são
+    **qualidade de dado** (budget valorizado / exatidão), **não trava de abertura**.
+  - **Rollover (`do_rollover`)** é gated na flag **manual** `espn_values_updated` (passo 3, set
+    por `confirm_espn`), **não** pelo import E4-a; lê `Player.espn_ref_value` (qualquer) → roda
+    sobre ESPN preliminar.
+  - **`offseason_mode`** só liga no rollover e gateia **cosmético** (banners). Gates funcionais
+    reais = só rollover + abertura de cortes; resto é label.
+  - **FIX (sem mudança de lógica):** separou **timing pós-rollover × qualidade de dado ESPN** no
+    microcopy do **passo 6** (`offseason.html` — abertura = só `needs_review`; rollover =
+    recomendação), na **D8** (esclarecimento anexo, decisão intacta), na linha "Dependências" da
+    OFF26-1 e no handoff pt12. Rebaixado a ⚠️ até o **smoke do microcopy** (artefato de runtime);
+    smoke **conferido em prod** (texto lê bem + layout intacto) → **✅ + migração O3** (seção →
+    `improvements_archive.md`).
+
+- **OFF26-6 — PoC do Cowork ✅ (op, GATE passou).** Em liga de teste descartável, Cowork + Claude
+  in Chrome **cria a liga** (wizard 12 times + Auction) e **seta keeper com salário sozinho**
+  (Draft Settings → SET KEEPERS), conferindo nome+time NFL (anti-homônimo). **Decisões de
+  design:** liga fantasma **PERMANENTE** (redraft, owners reais — placeholders sem dono não são
+  gerenciáveis); reset de roster automático (redraft) → trabalho anual = só popular keepers;
+  config de roster **espelha a real** (3 WR, não 2); mapa owner↔time por **`sleeper_owner_id`**
+  (não nome). **Achados → OFF26-4:** cap = budget do auction ($200 global), restante só visível ao
+  vivo → auditoria **calcula** ($200 − Σ keepers), não lê; keepers = designação de board → lê
+  designações, não roster; ponte de owner já resolvida (`Team.sleeper_owner_id`, M12), resta só a
+  ponte de jogador.
+
+- **OFF26-5 — runbook ✅ (doc).** Criado **`runbook_cowork_liga_fantasma.md`** (raiz) a partir do
+  conteúdo-base escrito pelo Cowork pós-PoC, **preservando** detalhes operacionais (Ctrl+A no
+  preço, anti-homônimo por sigla NFL, conexão da extensão, anatomia do board, TL;DR). **3
+  reconciliações** com o OFF26-6: roster espelha a real (WR 2→3 obrigatório); liga PERMANENTE +
+  mapa por `sleeper_owner_id`; **setup único × trabalho anual** separados, reset automático,
+  gatilho da auditoria OFF26-4 ao término.
+
+- **OFF26-1/2 — smoke PARCIAL em prod (17/06), seguem ⚠️.** Antes dos passos 3-ESPN/4-Rollover;
+  backup `dynasty_prod_backup_17_06_2026_pre-off26.db` (540K). **Validado:** deploy live, tabelas
+  `CutDeclaration`/`CutWindowAudit` criadas no schema de prod, tela `/cuts` "Fechada — 0/12" +
+  budget + cap soft, gate `needs_review` zerado. **Não validado (owner não travou):** abertura+
+  cortes reais, lock/reveal+hash, budget definitivo da keeper sheet → **OFF26-7**.
+
+- **Sync de docs:** `CLAUDE.md` atualizado — blueprints **10→11** (linha `cuts`), models **17→19**
+  (`CutDeclaration`/`CutWindowAudit`), runbook na estrutura; este devplan atualizado.

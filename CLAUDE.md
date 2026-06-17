@@ -65,7 +65,7 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 
 **Nota de propagação (DOC1):** `run_sync` e `_backfill_player_history` **não** rodam em todo boot — só quando `run_import` semeia dados frescos. Não assumir "o sync roda no startup" ao diagnosticar dados stale em prod (onde o CSV ausente já zera o `fresh_import`).
 
-### Route Blueprints (10)
+### Route Blueprints (11)
 
 | Blueprint | URL | Purpose |
 |-----------|-----|---------|
@@ -78,11 +78,12 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 | admin | `/admin`, `/admin/users`, `/admin/review` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1), PlayerHistory canonical rebuild (F8), dynasty values refresh (T2), revisão admin auditável Cat A/B (M2) |
 | offseason | `/offseason` | 7-step offseason workflow com lottery auditável (M8), 6 seeds via fonte única (M15), editor de pesos reativo com render single-source JS (M15-FIX) |
 | draft_import | `/draft_import` | OFF26-3: importa drafts de liga fantasma (rookie linear / FA auction) via API read-only — preview→confirm, match por sleeper_player_id, idempotente, escreve só via `record_acquisition` |
+| cuts | `/cuts`, `/cuts/keeper_sheet` | OFF26-1: janela de cortes selada — declaração privada por owner (escopo `current_user.team_id`, sigilo D6) + budget ao vivo via porta canônica não-projetada (D9) + lock/revelação simultânea admin-manual com snapshot auditável molde M8 (`CutWindowAudit`); gate de abertura = `needs_review` zerado (D3, único gate — ver OFF26-9). OFF26-2: keeper sheet consolidada (leitora, keepers = roster − cortes; tabela + CSV) |
 | league | `/league`, `/team/<id>` | League Hub (L1): grid de 12 times com cap/picks/dynasty/record + detalhe por time (roster, picks, cap breakdown) |
 
 ### Models (models.py)
 
-17 SQLAlchemy models. Key ones: **User** (email, team_id, is_admin), Team, Player, SalaryHistory, Pick, AuctionLog, Trade, ESPNValue, AppConfig (key-value global state), SeasonStandings, DraftLotteryResult, PlayerHistory, **TradeProposal** (T1 — UUID + assets JSON + TTL 7d), **LotteryAudit** (M8 — seed + weights_json + pool_json + result_hash + is_canonical + previous_audit_id), **F8PlayerBackup** (rollback do F8a).
+19 SQLAlchemy models. Key ones: **User** (email, team_id, is_admin), Team, Player, SalaryHistory, Pick, AuctionLog, Trade, ESPNValue, AppConfig (key-value global state), SeasonStandings, DraftLotteryResult, PlayerHistory, **TradeProposal** (T1 — UUID + assets JSON + TTL 7d), **LotteryAudit** (M8 — seed + weights_json + pool_json + result_hash + is_canonical + previous_audit_id), **F8PlayerBackup** (rollback do F8a), **CutDeclaration** (OFF26-1 — declaração privada/editável de cortes por `(season, team_id)`, `cut_ids_json`; keepers = complemento), **CutWindowAudit** (OFF26-1 — snapshot canônico molde M8: `declarations_json` + `is_canonical` + `previous_audit_id` + `reason` + `result_hash`).
 
 ### Salary Cap Rules
 
@@ -180,6 +181,7 @@ fantasy_manager/
   manager_vision.md                 # Motivação e casos de uso
   improvements.md                   # Backlog ATIVO (🔲/⚠️) + Status Rápido completo
   improvements_archive.md           # Histórico de itens ✅ (detalhe movido verbatim — O3)
+  runbook_cowork_liga_fantasma.md   # OFF26-5: runbook operacional Cowork (montar/popular a liga fantasma na UI do Sleeper)
 ```
 
 **Esquema de dois arquivos do backlog (item O3, 11/06/2026 — Manager-only):**
