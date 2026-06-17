@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 17/06/2026-pt7 (sessão MAN-OFF26-5: **OFF26-5 ✅ (doc)** — criado o runbook **`runbook_cowork_liga_fantasma.md`** (raiz) a partir do conteúdo-base escrito pelo Cowork pós-PoC, com detalhes operacionais preservados (Ctrl+A no preço, anti-homônimo por sigla NFL, conexão da extensão, anatomia do board, TL;DR). **3 reconciliações** com as decisões do [[OFF26-6]]: (1) roster espelha a liga real — **WR 2→3 obrigatório**; (2) liga **PERMANENTE** + mapa por **`sleeper_owner_id`** (não nome/"Team N"); (3) **setup único × trabalho anual** separados, reset automático (redraft), **gatilho [[OFF26-4]]** ao término. Cross-refs OFF26-2/4/6. Sem código.)
 > Atualizado em: 17/06/2026-pt6 (sessão MAN-OFF26-6: **OFF26-6 ✅ (op)** — PoC do Cowork montando a liga fantasma executado em liga de teste descartável (17/06). **Validado:** Cowork cria a liga (wizard 12 times + Auction) e seta keeper com salário sozinho (Draft Settings → SET KEEPERS), conferindo nome+time NFL (anti-homônimo). **Decisões de design:** liga fantasma **PERMANENTE** (redraft fixa, owners reais — placeholders sem dono não são gerenciáveis); reset de roster é automático (redraft), trabalho anual = só popular keepers; config de roster **espelha a real** (3WR etc.); mapa owner↔time por **`sleeper_owner_id`** (não nome). **Achados → [[OFF26-4]]:** cap = budget do auction ($200 global), restante só visível ao vivo → auditoria **calcula** ($200 − Σ keepers), não lê; keepers são designação de board → lê designações, não roster; ponte de owner já resolvida (`Team.sleeper_owner_id`, M12), resta só a ponte de jogador. GATE da FA auction Cowork passou. Sem código.)
 > Atualizado em: 17/06/2026-pt5 (sessão MAN-OFF26-9-STATUS: **rebaixado OFF26-9 ✅ → ⚠️**. Revisão de planejamento: o FIX inclui um **artefato de runtime** — o microcopy do passo 6 em `templates/offseason.html`, lido na tela em prod no ponto de decisão que o fix esclarece. Regra "✅ só após smoke prod" aplica: clareza de UI + layout só se verificam na tela renderizada. Pendência p/ ✅: abrir `/offseason` em prod pós-deploy, conferir texto do passo 6 (lê bem + layout intacto). Partes docs-only permanecem aplicadas; microcopy **não** revertido; seção **não** migrada ao archive (O3 só no ✅). Sem mudança de código.)
 > Atualizado em: 17/06/2026-pt4 (sessão MAN-OFF26-SMOKE-REG: **registro docs-only** do **smoke PARCIAL em prod** de **OFF26-1/2** (17/06, antes dos passos 3-ESPN/4-Rollover; backup `dynasty_prod_backup_17_06_2026_pre-off26.db` 540K). Validado: deploy live, tabelas `CutDeclaration`/`CutWindowAudit` criadas no schema de prod, tela `/cuts` "Fechada — 0/12" + roster + budget + cap soft, gate `needs_review` zerado, fluxo de 7 passos coerente com a F1. **Não validado (owner optou por não travar):** abertura+cortes reais, lock/reveal+hash, budget definitivo da keeper sheet → **tudo para o [[OFF26-7]]**. **Ambos permanecem ⚠️** — sem ✅.)
@@ -55,7 +56,7 @@
 | OFF26-2 | Keeper sheet consolidada (12 times pós-revelação: keeper+salário+budget FA usable via porta projected:false+status declared, tabela+CSV) — insumo do Cowork — MAN-OFF26-REG/F1/REFINE/F2/SMOKE | Alta | ⚠️ F2 + e2e localhost 20/20; **smoke PARCIAL prod 17/06** (deploy live, `CutWindowAudit` criada); sheet depende da revelação (não travada) → validação completa no OFF26-7 |
 | OFF26-3 | Importador de drafts de liga fantasma (rookie linear + FA auction via API, match por sleeper_player_id, preview + helper atômico) — MAN-OFF26-REG | Alta | ✅ 05/06/2026 |
 | OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only) — MAN-OFF26-REG | Média | 🔲 |
-| OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG | Média | 🔲 (doc) |
+| OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG/MAN-OFF26-5 | Média | ✅ 17/06/2026 (doc — `runbook_cowork_liga_fantasma.md`; reconciliado c/ OFF26-6: roster espelha real 3WR obrigatório, liga permanente + mapa por `sleeper_owner_id`, setup único × trabalho anual, gatilho OFF26-4) |
 | OFF26-6 | PoC de viabilidade do Cowork montando a liga fantasma no Sleeper (validação operacional NÃO-código: roteiro de experimento + registro do resultado; gate antes de confiar a FA auction real ao procedimento) — MAN-OFF26-6-7-REG/PoC | Alta | ✅ 17/06/2026 (op — GATE passou: Cowork cria liga + seta keeper/salário sozinho; decisões: liga PERMANENTE redraft, config espelha real 3WR, mapa por `sleeper_owner_id`; achados → OFF26-4 calcula budget/lê designações) |
 | OFF26-7 | Dry run E2E da intertemporada: ensaio da cadeia inteira encadeada, foco nas costuras entre módulos (OFF26-6 ⊂ OFF26-7); depende de OFF26-1/2/4 existirem; decisão em aberto (gate único vs. por etapas) — MAN-OFF26-6-7-REG | Alta | 🔲 (op) |
 | OFF26-8 | Agente Cowork aplica os cortes do OFF26-1 no roster real do Sleeper (capability operacional NÃO-código: dirige a UI para dropar os cortados de cada time; irmão de OFF26-6, ⊂ OFF26-7); depende de OFF26-1 (fonte da lista) — MAN-OFF26-8-REG | Média | 🔲 (op) |
@@ -1887,7 +1888,12 @@ keeper sheet; relatório de divergências como gate pré-leilão.
 ---
 
 ### OFF26-5 — Runbook do procedimento Cowork
-🔲 **Pendente** — Prioridade **Média** — **item de documentação (não é código)**
+✅ **17/06/2026 — runbook criado (`runbook_cowork_liga_fantasma.md`), reconciliado com as
+decisões do OFF26-6** — MAN-OFF26-6-7-REG/MAN-OFF26-5 — Prioridade **Média** — **item de
+documentação (não é código)**
+
+> **Critério de ✅:** documento de runbook criado no local/convenção do projeto, com os detalhes
+> operacionais do PoC preservados — **sem código, sem smoke prod aplicável**.
 
 **Descrição:** passo a passo operacional da transcrição supervisionada da keeper
 sheet para a liga fantasma via **Cowork + Claude in Chrome**, incluindo pré-requisitos
@@ -1903,6 +1909,28 @@ workflow → execução → gatilho da auditoria OFF26-4).
 
 **Dependências:** documentação; depende conceitualmente de **OFF26-2** e **OFF26-4**
 para fazer sentido completo.
+
+#### Entrega (MAN-OFF26-5, 17/06/2026) — ✅ runbook criado
+
+Arquivo **`runbook_cowork_liga_fantasma.md`** (raiz, convenção `manager_*.md`/`*_*.md` do
+projeto). Conteúdo-base escrito pelo **Cowork** logo após o PoC ([[OFF26-6]]), com detalhes
+operacionais fiéis **preservados** (edição do preço com **Ctrl+A**, anti-homônimo por **sigla
+NFL** — dois Josh Allen, conexão da **extensão** Claude in Chrome, anatomia do **board**,
+**SET PLAYERS** → board, **não clicar START DRAFT**, checklist **TL;DR**).
+
+**3 reconciliações aplicadas (decisões do [[OFF26-6]]), sem perder detalhe operacional:**
+1. **Config de roster espelha a liga real** — ajuste **WR 2→3 marcado como OBRIGATÓRIO** (não
+   opcional); alvo 1QB/2RB/3WR/1TE/1FLEX/1DEF/1K (+ banco/IR reais); preservado o "como" (+/–).
+2. **Liga PERMANENTE + mapa por owner** — liga criada **uma vez** com os 12 owners reais;
+   identidade por **`sleeper_owner_id`/handle**, nunca por nome nem "Team N = roster N"; o
+   bloqueio "times sem dono não renomeáveis" rebaixado a **nota histórica do PoC** (não-aplicável
+   na liga permanente).
+3. **SETUP ÚNICO × TRABALHO ANUAL separados** — Fase A (criar liga, roster, Auction+Budget,
+   convidar owners) vs. Fase B (só popular keepers da [[OFF26-2]] no board); **reset de rosters é
+   automático** (redraft); **gatilho da auditoria [[OFF26-4]] ao término**, antes do auction.
+
+**Cross-refs:** [[OFF26-2]] (keeper sheet — fonte dos keepers/salários), [[OFF26-4]] (auditoria —
+gatilho ao término), [[OFF26-6]] (PoC que originou o runbook). **Sem código.**
 
 ---
 
