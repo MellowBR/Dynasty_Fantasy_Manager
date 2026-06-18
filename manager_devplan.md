@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 15/06/2026-pt2 (fechamento docs-only: 5 itens ✅ — UX8, UX9, F11-FIX-UX, DP2, F12 — + migração O3 das seções p/ o archive)  
+> Última atualização: 18/06/2026 (MAN-OFF26-4-F1: diagnose read-only da auditoria pré-leilão — achados na entrada OFF26-4, próxima fase REFINE)  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -1758,3 +1758,31 @@ Sessão **docs-only** (microcopy + registros + runbook); zero mudança de lógic
 
 - **Sync de docs:** `CLAUDE.md` atualizado — blueprints **10→11** (linha `cuts`), models **17→19**
   (`CutDeclaration`/`CutWindowAudit`), runbook na estrutura; este devplan atualizado.
+
+### MAN-OFF26-4-F1 — Diagnose read-only da auditoria pré-leilão ✅ (18/06/2026, Opus, docs-only)
+
+Diagnose Fase 1 do OFF26-4 (auditoria de keepers pré-leilão). Read-only puro — sem código,
+schema ou implementação. Achados gravados na entrada OFF26-4 do `improvements.md` (status
+segue 🔲; descrição assentada intocada). Pontos-chave confirmados contra o código:
+
+- **League ID** é constante hard-coded (`models.py:15 LEAGUE_ID`), assume uma só liga.
+  **Precedente para ler outra liga já existe:** `draft_import.py` (OFF26-3) recebe `draft_id`
+  do admin e deriva `league_id = draft.get("league_id")` via `ss._get` (URL arbitrária). Caminho
+  limpo = parâmetro/AppConfig, não constante. → decisão de produto (REFINE).
+- **GAP maior:** todo consumo de `/draft/{id}/picks` exige `status=="complete"`; **nada lê o
+  estado pré-draft** (designações de keeper de board). O que a API expõe pré-draft é **questão
+  empírica → probe na F2**, não assertável do código.
+- Ponte de **owner** ✅ resolvida por `Team.sleeper_owner_id` (populado todo sync,
+  `sync_sleeper.py:157,167`; casamento em `draft_import.py:48`). Ressalva: `Team.name` ainda é
+  mutado pelo sync e exibido na sheet → casar **só por owner_id**, nunca por nome.
+- Ponte de **jogador**: `/api/cuts/keeper_sheet` **NÃO** expõe `sleeper_player_id` (só `id` local);
+  resolução via `Player.sleeper_player_id` / `find_player_by_sleeper_id` (Brown-safe).
+- **Budget:** auditoria CALCULA os dois lados (confirmado). **Refutação:** `fa_budget` da sheet é
+  `usable_draft_budget` (= `$200 − Σ keepers − $1/slot vazio`) ≠ budget de auction do Sleeper
+  (`raw_budget` = `$200 − Σ keepers`). Comparar Σ salários de keeper ou `raw_budget`, **não**
+  `fa_budget`. → decisão de produto.
+- **Réplica:** `salary_engine.draft_budget` é porta única (sem réplica client-side); o diff
+  Manager×Sleeper é greenfield. Recomendado extrair `_team_by_roster` (hoje em `draft_import.py`)
+  para helper compartilhado em vez de recriar.
+
+**Próxima fase: Opus modo REFINE** (2 decisões de produto + 1 probe empírico bloqueador).

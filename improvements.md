@@ -1888,6 +1888,50 @@ keeper sheet; relatório de divergências como gate pré-leilão.
 
 ---
 
+#### Diagnose F1 (MAN-OFF26-4-F1, 18/06/2026 — read-only, Opus) — terreno confirmado contra o código
+
+**1. Como apontar para a liga fantasma (league ID).**
+- Hoje o league ID é **constante hard-coded**: `models.py:15` `LEAGUE_ID = "1316547584378048512"` (+ `MY_OWNER_ID`, `MY_TEAM_NAME`, `CURRENT_SEASON`). `sync_sleeper.run_sync()` importa e usa `LEAGUE_ID` direto em **todas** as chamadas (`sync_sleeper.py:101,108,123,294,307`). **Assume uma só liga = a real.** Não é parametrizável e não há `AppConfig` de league.
+- **Precedente já existente para ler outra liga:** `routes/draft_import.py` (OFF26-3) **não** usa `LEAGUE_ID` — recebe um **`draft_id`** do admin, lê `ss._get(.../draft/{draft_id})` e **deriva** `league_id = draft.get("league_id")` (`draft_import.py:36,101,106`). Ou seja, o caminho mais limpo já é codificado: **parâmetro de chamada (draft_id/league_id passado pelo admin), não constante global.** `ss._get(url)` (`sync_sleeper.py:35`) é o primitivo read-only que aceita URL arbitrária.
+- **Opções de terreno (sem decidir — provável REFINE):** (a) parâmetro de chamada (admin cola o `league_id` ou `draft_id` da fantasma, molde OFF26-3); (b) `AppConfig` novo `phantom_league_id` (estado persistido, reusável ano a ano); (c) coluna em Team. Recomendação de terreno: (a)/(b) — a fantasma é **permanente** (OFF26-6), então (b) tem apelo de reuso anual.
+
+**2. Leitura pré-draft da liga fantasma via API.**
+- Já reusável: `ss._get` (URL arbitrária), `_team_by_roster(league_id)` (`draft_import.py:43` — lê `/league/{lid}/rosters`, casa por `sleeper_owner_id`), `/league/{lid}/drafts` + `/draft/{did}/picks` (`sync_sleeper.py:762,769`).
+- **GAP crítico (designações de keeper pré-draft):** **todo** consumo de `/draft/{id}/picks` no código hoje exige `status == "complete"` (`draft_import.py:94-96`; `_classify_draft` em `sync_sleeper.py:733`). **Nada lê o estado PRÉ-draft.** As designações de keeper de board (SET KEEPERS, achado do OFF26-6) **não são lidas em lugar nenhum** — o código só conhece picks de draft completo. Se a API expõe keepers pré-draft (ex.: `is_keeper`/`metadata.amount` em `/draft/{id}/picks` antes de `complete`, ou no objeto `/draft/{id}`) é **questão empírica** — exige **probe na F2** contra a fantasma real; **não é assertável a partir do código** e não deve ser assumido. Este é o maior gap.
+- **GAP de salário do keeper:** no código atual o salário/`amount` vem de `pk.metadata.amount` apenas em picks completos. Para o pré-draft, mesmo gap acima.
+
+**3. Ponte de identidade de jogador — `/api/cuts/keeper_sheet` expõe id canônico? → NÃO.**
+- `_build_keeper_sheet` (`routes/cuts.py:420-423`) emite por keeper apenas `{id (Player.id local), name, position, salary}`. **Grep confirma:** `sleeper_player_id` **não aparece** em `routes/cuts.py`. A sheet **não** expõe o id do Sleeper.
+- **Caminho de resolução disponível:** `Player.sleeper_player_id` existe e é populado pelo sync (`sync_sleeper.py:238,263` — link por sleeper_id ou nome normalizado). A ponte canônica é `player_lookup.find_player_by_sleeper_id(sid)` (`player_lookup.py:53`, Brown-safe). A auditoria resolve via `Player.query.get(keeper["id"]).sleeper_player_id` ou re-derivando a sheet com o campo incluído. (Decisão de F2: incluir `sleeper_player_id` no payload da sheet vs. re-query.)
+
+**4. Ponte de identidade de owner/time — `sleeper_owner_id` resolve? → SIM.**
+- `Team.sleeper_owner_id` (`models.py:84`) é populado **a cada sync** (`sync_sleeper.py:157,167` — sempre setado de `roster.owner_id`, em update e create). O precedente de casamento já existe: `_team_by_roster` faz `Team.query.filter_by(sleeper_owner_id=oid)` (`draft_import.py:48`). Consumível diretamente para casar time do Manager ↔ time da fantasma.
+- **Ressalva (nome mutável como chave):** o sync **ainda muta `Team.name`** de fontes do Sleeper (`sync_sleeper.py:148-156`, cascateando `Player.fantasy_team`). O nome **não** é usado como chave de identidade (a chave é `sleeper_owner_id`/`sleeper_roster_id`), mas a keeper sheet **exibe e ordena por `team_name`** (`cuts.py:405`) e a fantasma é uma sala separada — o `team_name` na fantasma **pode divergir** do real. A auditoria deve casar por `sleeper_owner_id`, **nunca** por nome.
+
+**5. Origem do budget no diff — auditoria CALCULA os dois lados? → SIM, confirmado.**
+- Lado Manager: a sheet **já entrega** `fa_budget` por time (`cuts.py:418`), fonte canônica `_team_fa_budget → salary_engine.draft_budget(roster)["usable_draft_budget"]` (`cuts.py:387-392`; `salary_engine.py:216-236`). `$200` = `SALARY_CAP` (`salary_engine.py:39`). Não há número pronto no Sleeper pré-draft (achado OFF26-6 confirmado: nada no código lê budget restante da API).
+- **REFUTAÇÃO IMPORTANTE (descasamento de fórmula):** o `fa_budget` da sheet é `usable_draft_budget` = `$200 − Σ keeper_salaries − (slots_vazios × $1)` (`salary_engine.py:221-224,233`). O budget de auction que o Sleeper mostraria é `raw_budget` = `$200 − Σ keeper_salaries` (`salary_engine.py:223`), **sem** o desconto `$1/slot vazio` (regra interna do Manager, inexistente no Sleeper). **A auditoria NÃO pode comparar `fa_budget` da sheet contra o budget do Sleeper como like-for-like** — tem de comparar `raw_budget` × budget Sleeper, ou comparar **Σ salários de keeper** dos dois lados (mais robusto). Decisão de produto p/ F2/REFINE.
+
+**6. RÉPLICA (consumo — diff/identidade/budget já replicados?).**
+- **Aritmética de budget:** porta única `salary_engine.draft_budget` — consumida por `cuts._team_fa_budget` (`cuts.py:392`), `draft_import._budget_alerts` (`draft_import.py:77`), `salary.py:186`. **Nenhuma réplica client-side:** `keeper_sheet.html` só renderiza `t.fa_budget` server-side (`:39,52`); sem JS de budget. Invariante F10 respeitada — a auditoria **reusa** `draft_budget`, não recria.
+- **Ponte de owner:** `_team_by_roster` (`draft_import.py:43`) é o padrão a reusar/extrair — risco de a auditoria **recriar** essa função em vez de fatorar. Recomendo extrair para helper compartilhado em F2.
+- **Identidade de jogador:** porta única `player_lookup.find_player_by_sleeper_id`. Sem réplica.
+- **Diff/comparação Manager × Sleeper:** **não existe em lugar nenhum** (grep `diff/divergen/audit` em templates só acha o lottery_audit, não-relacionado). Greenfield — nada a recriar por engano aqui.
+
+**7. REFUTAÇÃO DE PREMISSAS (MAN-METH-REG).**
+- *(a-falsa)* "o Manager conhece o league ID da liga real" — **verdade**, mas é **constante única hard-coded** (`models.py:15`), não config; ler outra liga é parâmetro novo, não toggle. → **premissa parcialmente falsa / gap de design**.
+- *(a-falsa)* premissa implícita "ler a config = ler o roster" — **falsa**: o código só lê picks de draft **completo**; pré-draft (designações de keeper) **não é lido em lugar nenhum**. → **perda não-intencional / gap maior**.
+- *(b-ausente)* a sheet **não expõe `sleeper_player_id`** apesar de o Player tê-lo — ausência no enquadramento da ponte de jogador. → **perda não-intencional** (corrigível em F2).
+- *(b-ausente)* `fa_budget` (`usable_draft_budget`) ≠ budget de auction do Sleeper (`raw_budget`) — o enquadramento "budget = `$200 − Σ keepers`" bate com `raw_budget`, **não** com o que a sheet entrega. → **deslocamento** (a sheet entrega outro número; auditoria precisa escolher a base de comparação).
+- *(b-ausente)* `Team.name` ainda é mutado pelo sync e exibido/ordenado na sheet — risco se a fantasma tiver nomes diferentes. → **premissa de robustez**: casar só por `sleeper_owner_id`.
+- *(intencional)* "keeper" removido do vocabulário de aquisição (F6) mas vivo no `draft_budget` como "roster ativo pré-FA" — **remoção intencional**, sem impacto na auditoria.
+
+**Resumo dos gaps p/ F2:** (1) como parametrizar o league/draft id da fantasma (REFINE provável); (2) **probe empírico** do que a API expõe pré-draft (designações + salário de keeper) — bloqueador; (3) incluir `sleeper_player_id` na sheet ou re-query; (4) escolher a base de comparação de budget (`raw_budget`/Σ salários, **não** `fa_budget`); (5) extrair helper de ponte de owner em vez de recriar.
+
+**Modelo recomendado p/ próxima fase: Opus, modo REFINE** — a diagnose revela ≥2 decisões de produto pendentes (parametrização do league id + base de comparação do budget) e 1 bloqueador empírico (o que a API expõe pré-draft) que precisa de probe antes de F2 de implementação.
+
+---
+
 ### OFF26-5 — Runbook do procedimento Cowork
 ✅ **17/06/2026 — runbook criado (`runbook_cowork_liga_fantasma.md`), reconciliado com as
 decisões do OFF26-6** — MAN-OFF26-6-7-REG/MAN-OFF26-5 — Prioridade **Média** — **item de
