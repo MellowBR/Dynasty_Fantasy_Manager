@@ -584,6 +584,10 @@ existia **só** para cobrir esse fetch).
   $1)").
 - **Caminho de escrita inalterado:** resolução explícita a um veterano ainda grava via
   `_save_espn_value` (a F2 só impede confirm-por-inércia, não muda o que a escrita faz).
+- **Smoke prod 23/06 (via [[E4-a]] PRODF1):** o default neutro + gate **confirmados em
+  produção** — mesmo com a sugestão fuzzy espúria de D/ST (Texans D/ST → Stefon Diggs),
+  nenhum valor é gravado por inércia. O E2-RISK (camada de tela) **passou**; o resíduo da
+  sugestão aparecer é do matcher (Eixo A → F2 do [[E4-a]]), não desta camada.
 - **Validação localhost (test_client, DB copiado):** review renderiza sem pré-select
   (option neutra `selected`, nenhum candidato `selected`); confirm **sem ação** NÃO altera
   o `espn_ref_value` do veterano (32.4→32.4 — Mooney não recebe o valor de Tate); confirm
@@ -845,6 +849,24 @@ só o mínimo de tela).
 **DEPENDÊNCIAS**
 - Fatia de **[[E4]]**. Fecha a raiz do **[[E2-RISK]]** (cujo F2 foi paliativo de tela).
   Não depende de [[E4-b]]/[[E4-c]].
+
+**Diagnose PRODF1 (MAN-E4a-PRODF1, 23/06/2026 — read-only, Opus) — por que o review ainda mostra fuzzy espúrio em prod**
+
+Contexto: import ESPN real do owner (cheat sheet PPR Top 300) mostrou D/ST recebendo skill como candidato (Texans D/ST → Stefon Diggs; Rams D/ST → Raheim Sanders) e rookies 2026 em "Não Encontrados (76)", com similaridade colapsando em 52.2%/50.0%. Suspeita do owner: prod estaria em **modo legado** (fuzzy contra roster). **Refutada pela evidência.**
+
+- **H1 (resolver inativo / fallback legado por pool vazio) → REFUTADA.** O wiring que liga o legado existe (`admin.py:630` `_sid_resolver = ... if _pool_idx else None` → pool vazio cai em `match_players` modo legado, auto-match 0.82/0.65). **Mas não foi acionado.** Prova: no modo legado o threshold de approximate é **`>= 0.65`** (`espn_pdf_parser.py:262`); no modo resolver é **`>= 0.5`** (`:239`). As sugestões observadas estão em **0.50/0.522 — abaixo de 0.65**, logo só podem vir do modo resolver. Reforço: rookies caem em not_found **com `resolved_sid`** (`:204`), comportamento exclusivo do resolver. **O resolver ESTÁ ativo; o pool carregou.**
+- **H2 (código E4-a ausente/divergente em prod) → REFUTADA** (sujeito a confirmar o commit deployado no Render, que não é lível daqui). A assinatura comportamental (threshold 0.5 + rookie→not_found com sid limpo + select default neutro do E2-RISK em `espn_review.html:64`) é a do E4-a/E2-RISK, não a do legado.
+- **H3 (lógica de sugestão replicada fora do matcher) → REFUTADA.** A similaridade/candidatos são computados **só** em `match_players` (`espn_pdf_parser.py:226,244`), persistidos em `.espn_review_pending.json` (`admin.py:644-652`) e **apenas renderizados** por `espn_review.html:56,67`. Nenhum recálculo em template/JS/rota. A lógica que produz o candidato espúrio **mora no próprio matcher** — no ramo resolver-mode de fallback (`:236-251`), fonte única, não replicada.
+
+**Causa-raiz (CÓDIGO, não dado/ambiente):** no modo resolver, toda entrada que **não resolve a um sid** (D/ST sempre — são excluídas do índice em `admin.py:508`; rookie eventual que erre o pool) cai no ramo `:236-251`, que monta candidatos por **fuzzy `>= 0.5` SEM filtro de posição/identidade**. O bônus de posição (`:228-231`) só soma +0.05, **não filtra** cross-position. Logo uma D/ST recebe skill como sugestão. Gap de desenho do E4-a presente desde a F2 (não regressão, não degradação) — não pego no smoke localhost (sheet/roster local não cruzou D/ST > 0.5).
+
+**Eixos:**
+- **Eixo A (D/ST + K com sugestão skill espúria) = BUG DE UI/SUGESTÃO (residual do E4-a).** A exclusão de D/ST do índice e do store (`:508`, `:550`) é **intencional**; o resíduo é só a tela oferecer candidato skill (falta filtro de posição no ramo `:236-251`). **Severidade baixa/cosmética:** o confirm é gated por default neutro (E2-RISK) e o `_resolve_not_found_to_store` pula K/DST (`:550`) — sem risco de corrupção, só ruído.
+- **Eixo B (rookies skill 2026 em not_found) = COMPORTAMENTO INTENCIONAL (E4-a funcionando).** Rookie resolve a sid → não-rosterado → not_found → store no confirm (reproduz o caso-âncora Carnell Tate de localhost). A premissa "rookie em not_found = bug" é **falsa**. A única anomalia adjacente seria a sugestão fuzzy aparecer junto (mesmo mecanismo do Eixo A) caso um rookie erre o pool.
+
+**Refutação de premissas (DEV_METHODOLOGY):** (a) "parece modo legado/fuzzy contra roster" → **premissa falsa** (threshold 0.5 = resolver); "rookie em not_found = bug" → **premissa falsa** (E4-a correto); "ausência de âncora de posição" → **deslocamento** (o bônus existe em `:228-231`, mas é nudge, não filtro). (b) ausentes do report: o gate de confirm do E2-RISK e o skip K/DST do store **mitigam** a severidade (sem corrupção) — **comportamentos existentes não creditados**.
+
+**Veredito final:** problema de **CÓDIGO** (gap de desenho no ramo resolver-mode), não de dado/ambiente. **Próxima fase = F2 do E4-a** (não item novo, não só re-smoke): guardar o fallback de candidatos por **filtro de posição/identidade** (entrada D/ST/K nunca recebe skill; idealmente nenhuma entrada recebe candidato de posição incompatível). O núcleo do E4-a/E2-RISK **passou** no smoke de prod (resolver ativo, rookie→store, zero corrupção por inércia) — candidato a destravar o ⚠️→✅ desses claims, com o Eixo A como resíduo rastreado na F2.
 
 ---
 

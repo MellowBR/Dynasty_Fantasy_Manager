@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 18/06/2026 (MAN-OFF26-4-F1: diagnose read-only da auditoria pré-leilão — achados na entrada OFF26-4, próxima fase REFINE)  
+> Última atualização: 23/06/2026 (MAN-E4a-PRODF1: diagnose read-only do fuzzy espúrio no import ESPN em prod — H1/H2/H3 refutadas, causa = gap de desenho no ramo resolver-mode do matcher, próxima fase F2 do E4-a)  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -1786,3 +1786,29 @@ segue 🔲; descrição assentada intocada). Pontos-chave confirmados contra o c
   para helper compartilhado em vez de recriar.
 
 **Próxima fase: Opus modo REFINE** (2 decisões de produto + 1 probe empírico bloqueador).
+
+### MAN-E4a-PRODF1 — Diagnose read-only do fuzzy espúrio no import ESPN em prod ✅ (23/06/2026, Opus, docs-only)
+
+Owner rodou import ESPN real (cheat sheet PPR Top 300) e viu D/ST recebendo skill como
+candidato (Texans D/ST → Stefon Diggs) + rookies 2026 em "Não Encontrados (76)", sim.
+52.2%/50.0%. Suspeita: prod em modo legado. **Refutada.** Read-only puro; achados na entrada
+E4-a do `improvements.md` (+ nota no E2-RISK); status segue ⚠️.
+
+- **H1 (resolver inativo/legado) REFUTADA.** Threshold de approximate é 0.65 no legado
+  (`espn_pdf_parser.py:262`) vs **0.5** no resolver (`:239`). As sugestões a **0.50/0.522**
+  só vêm do resolver. Reforço: rookie→not_found com `resolved_sid` (`:204`) é exclusivo do
+  resolver. Pool carregou; resolver ativo.
+- **H2 (código ausente/divergente) REFUTADA** (sujeito a confirmar commit deployado).
+  Assinatura = E4-a/E2-RISK, não legado.
+- **H3 (réplica fora do matcher) REFUTADA.** Similaridade só em `match_players`
+  (`:226,244`), persistida em `.espn_review_pending.json`, **só renderizada** em
+  `espn_review.html:56,67`. Bug mora no ramo resolver-mode `:236-251`, fonte única.
+- **Causa-raiz (CÓDIGO):** entrada que não resolve a sid (D/ST sempre — excluída do índice
+  `admin.py:508`) cai no fuzzy `>=0.5` **sem filtro de posição** (`:236-251`); bônus de
+  posição `:228-231` só soma +0.05, não filtra. Gap de desenho do E4-a desde a F2.
+- **Eixo A (D/ST+K com skill espúrio) = BUG DE UI residual** (severidade baixa: confirm
+  gated por E2-RISK + store pula K/DST `:550` → zero corrupção). **Eixo B (rookies em
+  not_found) = INTENCIONAL** (E4-a correto; premissa "bug" é falsa).
+
+**Próxima fase: F2 do E4-a** (filtro de posição/identidade no fallback de candidatos), não
+item novo. Núcleo do E4-a/E2-RISK passou no smoke prod → candidato a ⚠️→✅ desses claims.
