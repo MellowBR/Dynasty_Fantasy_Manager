@@ -3367,3 +3367,229 @@ gate (`{% if %}` de trava) ligada ao texto alterado — a mudança é puramente 
 demais edições são documentais. **Comportamento de fluxo inalterado.**
 
 ---
+
+### E4-a — Matcher do import ESPN resolve por `sleeper_id` (Brown-safe)
+✅ **Concluído (23/06/2026) — smoke prod do import real OK** — Prioridade **Alta** — fatia de **[[E4]]** (MAN-E4-F1/F2/PRODF1/F2-EixoA/DONE) — **absorve o conserto do matcher ex-[[E2-RISK]]; fecha a raiz que o F2 do E2-RISK só paliou**
+
+> **Fechamento (MAN-E4a-DONE, 23/06/2026):** filtro de posição (commit 97b90ed) deployado em prod e validado com import ESPN real (cheat sheet PPR Top 300, Temporada 2026). **Eixo A fechado:** D/ST só recebem candidato de posição compatível (Broncos D/ST → só Denver Broncos DEF); as demais D/ST sem entrada no índice caem limpas em "Não Encontrados", sem skill (sem Stefon Diggs / Tank Dell / Calvin Austin). **Sem regressão:** ramo skill intacto (Antonio Williams ainda recebe candidatos skill); rookies skill 2026 (Carnell Tate, Jeremiah Love, Jadarian Price…) seguem not_found → store. **Split de prod: 211 matched (por sleeper_id) / 5 aproximados (4 D/ST casando consigo) / 84 não encontrados (→ store) / 62 ausentes no PDF.** Gates de ✅ satisfeitos.
+
+> **Caminho p/ ✅ (gate explícito, sem inércia de localhost):** deploy do commit do filtro → import ESPN real em prod → no review, conferir (a) **nenhuma D/ST ou K exibe candidato skill** (Texans D/ST sem Diggs; Rams D/ST sem Sanders) e (b) colher o **split** (matched-por-id / approximate / not_found→store). Com (a)+(b) confirmados, **E4-a e E2-RISK → ✅** (flip viaja junto da confirmação de prod).
+
+**F2 — IMPLEMENTAÇÃO (09/06/2026, ⚠️ validado em localhost)**
+- **`espn_pdf_parser.match_players(parsed, db_players, sid_resolver=None)`** ganhou o
+  parâmetro injetável `sid_resolver`. Em modo resolver, a identidade é por **`sleeper_id`**:
+  sid → Player rosterado = **matched por id** (sem review); sid → não-rosterado =
+  **not_found** (vai p/ o store no confirm — **nunca oferecido como match de veterano**);
+  sem sid limpo = fallback **igualdade exata** de nome (matched) ou **review**
+  (approximate). **Sem auto-match silencioso por similaridade** no modo resolver. Modo
+  legado (`sid_resolver=None`) **preservado byte-a-byte** (testes/retrocompat).
+- **`routes/admin.py`:** extraídos `_build_pool_index()` + `_resolve_entry_sid(entry, idx)`
+  (fonte única Brown-safe nome+team, reusada pelo store E2 — `_resolve_not_found_to_store`
+  refatorado p/ usá-los). `espn_import_page` constrói o índice do pool e passa
+  `sid_resolver` ao matcher; pool indisponível → `None` → fallback gracioso (sem 500).
+- **Não toca** `salary_engine` (puro), camada de armazenamento (escrita segue em
+  `Player.espn_ref_value` via id — store canônico é [[E4-c]]), nem `SalaryHistory`/
+  `PlayerHistory`. **Sem schema.** Reversível (remover o resolver volta ao legado).
+- **Validação localhost (test_client + pool real, 11.810 nomes):** caso Tate/Mooney —
+  "Carnell Tate" resolve ao sid 13279, vai p/ **not_found**, **não** entra em matched nem
+  como candidato de approximate; **Mooney não recebe o valor**. Veterano (Jayden Daniels)
+  **matched por sleeper_id**. Typo ("Jayden Daneils") → **review**. Sobrenome isolado
+  ("Brown") **não resolve**. 2 nulos (Hollywood Brown, Cameron Ward) degradam sem match
+  espúrio. Reimport **idempotente**. Confirm de matched-by-id grava `espn_ref_value`
+  (=60.0); review renderiza 200. `salary_engine_test.py` 48/48.
+- **Relação com [[E2-RISK]]:** o E2-RISK (default neutro + gate) permanece como a **camada
+  de tela**; **E4-a é a raiz** (resolução por id) — juntos, o "Brown" não acontece nem por
+  inércia (tela) nem por similaridade contra lista pobre (matcher).
+- **Pendente:** smoke em prod com import ESPN real (medir split resolvidos-limpos vs.
+  review).
+
+**ESCOPO**
+Trocar a resolução de identidade do import ESPN de **fuzzy contra o roster local** (origem
+do hazard "Brown", `match_players`) por **resolução da entrada ESPN → `sleeper_id` contra
+o pool global do Sleeper**, reusando `_load_players_db` / `_norm_name` / desambiguação
+nome+team **Brown-safe** (sem substring/sobrenome) já existente em
+`_resolve_not_found_to_store`. Escrita continua em `Player.espn_ref_value` via
+`find_player_by_sleeper_id` (sem mudança de schema). `approximate`/review fica só para
+**ambiguidade genuína**.
+
+**POR QUÊ AGORA**
+Independente da reconciliação de tabelas; entrega a **eliminação do "Brown" na raiz** + a
+troca **corrupção→miss** (falha segura/visível). Reversível, sem schema, maior
+retorno/risco. Substitui o "conserto do matcher" que saíra do E2-RISK (cujo F2 entregou
+só o mínimo de tela).
+
+**INVARIANTES A PRESERVAR**
+- `salary_engine` puro (não tocar); idempotência do import/confirm; Brown-safety
+  (nome+team, nada de substring); `SalaryHistory`/`PlayerHistory` intactos.
+
+**DEPENDÊNCIAS**
+- Fatia de **[[E4]]**. Fecha a raiz do **[[E2-RISK]]** (cujo F2 foi paliativo de tela).
+  Não depende de [[E4-b]]/[[E4-c]].
+
+**Diagnose PRODF1 (MAN-E4a-PRODF1, 23/06/2026 — read-only, Opus) — por que o review ainda mostra fuzzy espúrio em prod**
+
+Contexto: import ESPN real do owner (cheat sheet PPR Top 300) mostrou D/ST recebendo skill como candidato (Texans D/ST → Stefon Diggs; Rams D/ST → Raheim Sanders) e rookies 2026 em "Não Encontrados (76)", com similaridade colapsando em 52.2%/50.0%. Suspeita do owner: prod estaria em **modo legado** (fuzzy contra roster). **Refutada pela evidência.**
+
+- **H1 (resolver inativo / fallback legado por pool vazio) → REFUTADA.** O wiring que liga o legado existe (`admin.py:630` `_sid_resolver = ... if _pool_idx else None` → pool vazio cai em `match_players` modo legado, auto-match 0.82/0.65). **Mas não foi acionado.** Prova: no modo legado o threshold de approximate é **`>= 0.65`** (`espn_pdf_parser.py:262`); no modo resolver é **`>= 0.5`** (`:239`). As sugestões observadas estão em **0.50/0.522 — abaixo de 0.65**, logo só podem vir do modo resolver. Reforço: rookies caem em not_found **com `resolved_sid`** (`:204`), comportamento exclusivo do resolver. **O resolver ESTÁ ativo; o pool carregou.**
+- **H2 (código E4-a ausente/divergente em prod) → REFUTADA** (sujeito a confirmar o commit deployado no Render, que não é lível daqui). A assinatura comportamental (threshold 0.5 + rookie→not_found com sid limpo + select default neutro do E2-RISK em `espn_review.html:64`) é a do E4-a/E2-RISK, não a do legado.
+- **H3 (lógica de sugestão replicada fora do matcher) → REFUTADA.** A similaridade/candidatos são computados **só** em `match_players` (`espn_pdf_parser.py:226,244`), persistidos em `.espn_review_pending.json` (`admin.py:644-652`) e **apenas renderizados** por `espn_review.html:56,67`. Nenhum recálculo em template/JS/rota. A lógica que produz o candidato espúrio **mora no próprio matcher** — no ramo resolver-mode de fallback (`:236-251`), fonte única, não replicada.
+
+**Causa-raiz (CÓDIGO, não dado/ambiente):** no modo resolver, toda entrada que **não resolve a um sid** (D/ST sempre — são excluídas do índice em `admin.py:508`; rookie eventual que erre o pool) cai no ramo `:236-251`, que monta candidatos por **fuzzy `>= 0.5` SEM filtro de posição/identidade**. O bônus de posição (`:228-231`) só soma +0.05, **não filtra** cross-position. Logo uma D/ST recebe skill como sugestão. Gap de desenho do E4-a presente desde a F2 (não regressão, não degradação) — não pego no smoke localhost (sheet/roster local não cruzou D/ST > 0.5).
+
+**Eixos:**
+- **Eixo A (D/ST + K com sugestão skill espúria) = BUG DE UI/SUGESTÃO (residual do E4-a).** A exclusão de D/ST do índice e do store (`:508`, `:550`) é **intencional**; o resíduo é só a tela oferecer candidato skill (falta filtro de posição no ramo `:236-251`). **Severidade baixa/cosmética:** o confirm é gated por default neutro (E2-RISK) e o `_resolve_not_found_to_store` pula K/DST (`:550`) — sem risco de corrupção, só ruído.
+- **Eixo B (rookies skill 2026 em not_found) = COMPORTAMENTO INTENCIONAL (E4-a funcionando).** Rookie resolve a sid → não-rosterado → not_found → store no confirm (reproduz o caso-âncora Carnell Tate de localhost). A premissa "rookie em not_found = bug" é **falsa**. A única anomalia adjacente seria a sugestão fuzzy aparecer junto (mesmo mecanismo do Eixo A) caso um rookie erre o pool.
+
+**Refutação de premissas (DEV_METHODOLOGY):** (a) "parece modo legado/fuzzy contra roster" → **premissa falsa** (threshold 0.5 = resolver); "rookie em not_found = bug" → **premissa falsa** (E4-a correto); "ausência de âncora de posição" → **deslocamento** (o bônus existe em `:228-231`, mas é nudge, não filtro). (b) ausentes do report: o gate de confirm do E2-RISK e o skip K/DST do store **mitigam** a severidade (sem corrupção) — **comportamentos existentes não creditados**.
+
+**Veredito final:** problema de **CÓDIGO** (gap de desenho no ramo resolver-mode), não de dado/ambiente. **Próxima fase = F2 do E4-a** (não item novo, não só re-smoke): guardar o fallback de candidatos por **filtro de posição/identidade** (entrada D/ST/K nunca recebe skill; idealmente nenhuma entrada recebe candidato de posição incompatível). O núcleo do E4-a/E2-RISK **passou** no smoke de prod (resolver ativo, rookie→store, zero corrupção por inércia) — candidato a destravar o ⚠️→✅ desses claims, com o Eixo A como resíduo rastreado na F2.
+
+**F2 do Eixo A — IMPLEMENTAÇÃO (MAN-E4a-F2-EixoA, 23/06/2026, ⚠️ validado localhost; pendente smoke prod):**
+- **`espn_pdf_parser.py`:** helper `_special_pos_compatible(entry_pos, cand_pos)` + ramo
+  especial no modo resolver de `match_players`. Entrada **D/ST ou K** recompõe best/candidatos
+  **só entre posições compatíveis** (D/ST → DEF/DST; K → K); sem candidato compatível ≥0.5 →
+  **not_found limpo**. O ramo **skill segue inalterado** (sem filtro skill×skill — fora do
+  escopo). **Modo legado (`sid_resolver=None`) intocado** (mudança 100% dentro de
+  `if sid_resolver is not None`). Não toca `salary_engine`/store/sync/schema/`SalaryHistory`/
+  `PlayerHistory`; gate de confirm + default neutro do [[E2-RISK]] **intactos** (só confirmados).
+- **Validação localhost (harness sintético + `salary_engine_test.py` 48/48):** Texans D/ST →
+  not_found (não oferece Diggs WR); Rams/Ravens D/ST → not_found (sem skill cruzado);
+  **sem regressão** — Carnell Tate (rookie) → not_found via `resolved_sid` (Eixo B intacto),
+  Jayden Daniels (vet rosterado) → matched por id. Modo legado reproduz o baseline.
+- **Pendente p/ ✅:** smoke em prod (ver gate acima) — confirmar filtro ativo na tela + colher
+  o split numérico (resolvidos / review / store) que o claim do E4-a deixou em aberto.
+
+---
+
+
+### E2-RISK — Fuzzy oferece rookie como match de veterano no review (classe "Brown")
+✅ **Concluído (23/06/2026) — smoke prod OK (via [[E4-a]])** — Prioridade **Média** — MAN-E2RISK-REG/F1/F1B/F2/DONE — **RE-ESCOPADO (híbrido): E2-RISK = só o mínimo de tela; conserto do matcher (raiz) → [[E4-a]]**
+
+> **Fechamento (MAN-E4a-DONE, 23/06/2026):** default neutro + gate de confirm confirmados em prod no mesmo import real — nenhum valor gravado por inércia; com a F2 do Eixo A do [[E4-a]] (commit 97b90ed) a sugestão espúria nem aparece mais na origem. Split de prod: 211 matched / 5 aproximados / 84 não encontrados / 62 ausentes no PDF. Gate satisfeito.
+
+**F2 — IMPLEMENTAÇÃO (09/06/2026, ⚠️ validado em localhost)**
+- **Mudança única (camada de tela):** `templates/espn_review.html` — o `<select>` de cada
+  approximate passa a iniciar **NEUTRO** (`<option value="" selected>— selecionar —`);
+  removido o `selected` que pré-escolhia o `best_player` (veterano). **Não toca** matcher,
+  `salary_engine`, `ESPNValue`, `RookieEspnValue`, sync nem schema.
+- **Gate de confirmação (já existente, agora ativado pelo default neutro):**
+  `getApproxResolutions` conta select vazio como não-resolvido e `updateStatus()` (no load
+  + a cada `change`) desabilita `#btn-confirm` enquanto houver pendência. Confirm só
+  habilita quando **toda** approximate tem escolha explícita (match ou "Nenhum (aplicar
+  $1)").
+- **Caminho de escrita inalterado:** resolução explícita a um veterano ainda grava via
+  `_save_espn_value` (a F2 só impede confirm-por-inércia, não muda o que a escrita faz).
+- **Smoke prod 23/06 (via [[E4-a]] PRODF1):** o default neutro + gate **confirmados em
+  produção** — mesmo com a sugestão fuzzy espúria de D/ST (Texans D/ST → Stefon Diggs),
+  nenhum valor é gravado por inércia. O E2-RISK (camada de tela) **passou**; o resíduo da
+  sugestão aparecer é do matcher (Eixo A → F2 do [[E4-a]]), não desta camada.
+- **F2 do Eixo A aplicada (23/06, no [[E4-a]]):** o filtro de posição no matcher remove a
+  sugestão espúria na origem; este item **→ ✅ junto do [[E4-a]]** assim que o smoke prod do
+  filtro confirmar (mesmo gate). Status segue ⚠️ até lá (sem flip por inércia de localhost).
+- **Validação localhost (test_client, DB copiado):** review renderiza sem pré-select
+  (option neutra `selected`, nenhum candidato `selected`); confirm **sem ação** NÃO altera
+  o `espn_ref_value` do veterano (32.4→32.4 — Mooney não recebe o valor de Tate); confirm
+  com resolução explícita grava normal (32.4→48.0); auto-matched/not_found intactos.
+  `salary_engine_test.py` 48/48. **Pendente:** smoke em prod com import ESPN real.
+
+**CONTEXTO**
+Achado durante o **[[E2]]**-F2 (08/06/2026), registrado como risco residual no E2 e no
+handoff, agora item próprio. No **review do import ESPN**, o matching fuzzy pode
+oferecer um **rookie** como candidato de match a um **veterano real do DB** por
+falso-positivo de similaridade. Caso observado: **"Carnell Tate"** (rookie) ~
+**"Darnell Mooney"** (veterano), similaridade **0.665**. A mitigação do E2 cobre apenas
+o caso em que o approximate é **pulado** (skip — o valor do rookie é capturado no store
+mesmo assim); **não** cobre o caso em que o admin **confirma** o match falso.
+
+**PROBLEMA / OPORTUNIDADE**
+Se o admin confirmar um match falso no review (aceitar "Carnell Tate" → "Darnell
+Mooney"), o valor ESPN do rookie **contamina o `espn_ref_value` de um veterano real**
+(Mooney receberia o valor de referência do Carnell Tate). É a **classe do incidente
+"Brown"** (Marquise / A.J. / Amon-Ra St. Brown com salários trocados por match
+parcial). Risco latente de corrupção de dado em prod, dependente de erro humano no
+review.
+
+**DISCUSSÃO**
+- O hazard é específico do **fluxo de confirmação do review** do import ESPN.
+- A entrada problemática é justamente uma que **já resolve para o `sleeper_id` de um
+  rookie** (via pool global do Sleeper) — o sistema tem como saber que aquele candidato
+  "é rookie" e mesmo assim o oferece como match contra um veterano.
+- Fix delineado no E2 (a confirmar/refinar na F1): **não oferecer** como fuzzy-match
+  contra veterano do DB uma entrada que já resolve para o `sleeper_id` de um rookie; ou
+  **rebaixar/sinalizar** esses candidatos no review para o admin não confirmar por
+  engano.
+
+**DECISÕES JÁ TOMADAS**
+- Item **próprio** (separado do E2), focado no caminho de **confirm errado** (o *skip*
+  já está mitigado).
+- O **matching canônico** (exato → case-insensitive → normalizado, sem substring/
+  sobrenome isolado) **não muda** — o foco é o que o review *oferece* como candidato
+  fuzzy.
+
+**QUESTÕES EM ABERTO** (F1)
+- Onde exatamente o review monta a lista de candidatos fuzzy de match contra o DB, e em
+  que ponto uma entrada rookie (resolvível a `sleeper_id` no pool) poderia ser
+  excluída/sinalizada?
+- Essa lógica de "oferecer candidato fuzzy" existe em mais de um lugar (rota, template,
+  JS do review)? (réplica)
+- O sinal "esta entrada é rookie" (resolve a `sleeper_id` de não-rosterado) está
+  disponível no momento em que os candidatos são montados, ou exigiria resolução
+  adicional?
+- Há outros consumidores do mesmo mecanismo de candidatos fuzzy além do confirm de
+  `espn_ref_value`?
+
+**F1 — ACHADOS (diagnose read-only)**
+- **Hazard nasce em `match_players`** (`espn_pdf_parser.py`): fuzzy via
+  `difflib.SequenceMatcher` **contra o roster local apenas**. Faixa `0.65 ≤ r < 0.82`
+  → `approximate` com `candidates[:5]` (qualquer DB player com `r ≥ 0.5`). Tate~Mooney
+  cruza 0.665 por **falta de candidato melhor local**.
+- **Sem réplica:** a lógica fuzzy é **fonte única server-side** (`match_players`); o
+  template `espn_review.html` só renderiza os candidatos no `<select>` e o JS
+  (`getApproxResolutions`) lê `sel.value` — **não recomputa nada no cliente**.
+- **Sem outros consumidores:** `match_players` tem um único caller
+  (`admin.py:610`); `/admin/review` (M2) é código distinto (`needs_review` do sync),
+  não candidatos fuzzy.
+- **Agravante:** o `<select>` **pré-seleciona o `best_player`** (veterano —
+  `espn_review.html:62` `selected if c.player_id == a.player_id`) e o JS trata
+  **qualquer `sel.value` truthy como resolvido** → **confirm sem interação** grava o
+  valor do rookie no `espn_ref_value` do veterano via `_save_espn_value`
+  (`admin.py:746-760`) — **escrita direta no confirm, NÃO passa por
+  `record_acquisition`**.
+
+**F1B — ACHADOS (diagnose complementar: `espn_ref_value` por `sleeper_id`?)**
+- `espn_ref_value` é lido como **atributo de Player** por `salary_engine`
+  (rollover/projeção — **puro, sem DB**), `models`, e templates. Virar "resolvido por
+  `sleeper_id`" **violaria a pureza da engine** ou exigiria **materializar no Player de
+  qualquer forma** (a coluna não sumiria).
+- **Três tabelas de valor ESPN** sob chaves distintas: `Player.espn_ref_value`
+  (player), `ESPNValue` (player_id+season, exige Player), `RookieEspnValue`
+  (**sleeper_id**+season, hoje transitório). Unificar exige **chave nova
+  `sleeper_id+season`** e **inverter o store de transitório→canônico**.
+- **`sleeper_id` não é confiável em todo Player** (`import_csv` cria Player sem ele;
+  preenchido só quando o sync casa) → **chave de junção furada hoje**.
+- **Ganho de segurança lateral:** resolver por id contra o pool (nome+team Brown-safe)
+  troca a classe de falha de **"corrupção/escrita errada"** por **"miss/não escreve"**
+  (ambíguo → não chuta) — estritamente mais seguro. Ressalva: pode **sub-resolver**
+  (miss) onde o roster acertava se o team da entrada estiver stale.
+- **Conclusão F1B:** a unificação é correta e elegante, mas é **redesenho de camada de
+  dados**, não fix de segurança → F2 no escopo menor; unificação como item à parte.
+
+**RE-ESCOPO + DECISÃO HÍBRIDA (owner, pós-F1B)**
+- **E2-RISK passa a ser SOMENTE o mínimo de tela:** remover o **pré-select do veterano**
+  no review do import ESPN, de modo que um **confirm sem interação não grave valor em
+  veterano** (default seguro). **Não toca** matcher, `salary_engine`, `ESPNValue` nem
+  schema. Risco quase nulo, para a corrupção **agora**.
+- **O conserto do matcher (resolução por `sleeper_id`) sai do escopo do E2-RISK** e passa
+  a fazer parte do item de design da estrutura ESPN — agora a fatia **[[E4-a]]** (o E4
+  foi fatiado na F1 de design), onde matcher (resolução por id) e armazenamento
+  **convergem para a chave certa**, em vez de mexer no matcher sobre fundação ainda não
+  decidida.
+
+**DEPENDÊNCIAS**
+- Relaciona-se com: **[[E2]]** (mesma área de resolução de import ESPN), **[[E3]]**
+  (limpeza da UI de import ESPN) e **[[E4-a]]** (recebe o conserto do matcher — fecha a
+  raiz que o F2 do E2-RISK só paliou).
+- Não bloqueia itens abertos.
+
+---
+

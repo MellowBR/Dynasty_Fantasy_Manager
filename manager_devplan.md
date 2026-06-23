@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 23/06/2026-pt2 (MAN-E4a-F2-EixoA: filtro de posição D/ST/K no fallback de candidatos do review ESPN — código aplicado + validado localhost; E4-a/E2-RISK seguem ⚠️ até smoke prod confirmar filtro + split)  
+> Última atualização: 23/06/2026-pt3 (MAN-E4a-DONE: E4-a ✅ + E2-RISK ✅ após smoke prod do import real — Eixo A fechado, split 211/5/84/62; seções migradas p/ o archive)  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -1831,3 +1831,18 @@ localhost; E4-a/E2-RISK seguem ⚠️ até smoke prod** (gate explícito, sem in
   localmente** — exigem deploy + import ESPN real em prod. Entregue o código + narrativa de
   status (⚠️); o flip ✅ de E4-a/E2-RISK aguarda o owner rodar o smoke prod (procedimento no
   handoff). **Não flipado por inércia de localhost** (restrição respeitada).
+
+### MAN-E4a-DONE — E4-a ✅ + E2-RISK ✅ após smoke prod do import real (23/06/2026-pt3, Opus, docs-only)
+
+O commit do filtro (97b90ed) nunca tinha subido — o deploy ativo era o docs-only 927831a
+(17/06). Após `git push` (`927831a..97b90ed`) e import ESPN real em prod, o smoke confirmou:
+
+- **Eixo A fechado:** D/ST só recebem candidato de posição compatível (Broncos D/ST → só
+  Denver Broncos DEF); demais D/ST sem entrada no índice → "Não Encontrados" limpo, sem skill.
+- **Sem regressão:** ramo skill intacto (Antonio Williams ainda recebe skill); rookies 2026
+  (Carnell Tate, Jeremiah Love, Jadarian Price…) seguem not_found → store.
+- **Split de prod: 211 matched / 5 aproximados (4 D/ST consigo) / 84 não encontrados→store /
+  62 ausentes no PDF.**
+
+Gates satisfeitos → **E4-a e E2-RISK → ✅** (23/06). Migração O3: seções detalhadas movidas
+verbatim p/ `improvements_archive.md` com nota de fechamento; Status Rápido mantém ✅. Sem código.
