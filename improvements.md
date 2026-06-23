@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 23/06/2026-pt2 (sessão MAN-PROC1-REG: **registro de processo** — novo item **PROC1** (🔲): fechamentos com gate de smoke de prod passam a exigir confirmação de que o **hash deployado live** é o commit validado (não basta commitado/pushado). Casos-âncora E1 (✅ prematuro) + E4-a (deploy live era 927831a docs-only, não 97b90ed do filtro). Sem código; nenhum item não relacionado alterado.)
 > Atualizado em: 23/06/2026 (sessão MAN-E4a-DONE: **E4-a ✅ + E2-RISK ✅** após smoke prod do import ESPN real (deploy do filtro de posição, commit 97b90ed). **Eixo A fechado** — D/ST só recebem candidato compatível (Broncos D/ST → só Denver Broncos DEF; demais D/ST → "Não Encontrados" limpo, sem skill); **sem regressão** do ramo skill nem dos rookies→store. **Split de prod: 211 matched / 5 aproximados / 84 não encontrados→store / 62 ausentes no PDF.** **Migração O3:** seções detalhadas de E4-a e E2-RISK movidas verbatim p/ `improvements_archive.md` (com nota de fechamento); Status Rápido mantém as linhas como ✅. Sem código.)
 > Atualizado em: 17/06/2026-pt8 (sessão MAN-OFF26-9-DONE: **OFF26-9 ✅** — smoke do microcopy do passo 6 (`/offseason`) conferido em prod pós-deploy (texto distingue abertura `needs_review` × recomendação de rollover; lê bem + layout intacto), satisfazendo o critério pendente. **Migração O3:** seção detalhada do OFF26-9 movida verbatim (estado ✅) para `improvements_archive.md`; Status Rápido mantido no ativo. Sem código. OFF26-1/2 seguem ⚠️.)
 > Atualizado em: 17/06/2026-pt7 (sessão MAN-OFF26-5: **OFF26-5 ✅ (doc)** — criado o runbook **`runbook_cowork_liga_fantasma.md`** (raiz) a partir do conteúdo-base escrito pelo Cowork pós-PoC, com detalhes operacionais preservados (Ctrl+A no preço, anti-homônimo por sigla NFL, conexão da extensão, anatomia do board, TL;DR). **3 reconciliações** com as decisões do [[OFF26-6]]: (1) roster espelha a liga real — **WR 2→3 obrigatório**; (2) liga **PERMANENTE** + mapa por **`sleeper_owner_id`** (não nome/"Team N"); (3) **setup único × trabalho anual** separados, reset automático (redraft), **gatilho [[OFF26-4]]** ao término. Cross-refs OFF26-2/4/6. Sem código.)
@@ -122,6 +123,7 @@
 | T3 | Valores redraft do FantasyCalc no Trade Manager (modelo 3 — duas barras independentes dynasty + redraft) | Média | ✅ 27/04/2026 |
 | T3-FIX-UX | Migrar barras dynasty + redraft de dual-fill (T2 pattern) para delta-pointing + corrigir overflow mobile + redraft no modal preview + descrição de trade em formato "de/para" 2-colunas + alinhamento vertical entre colunas (5 sub-iterações, owner-driven via screenshot mobile) | Média | ✅ 27-28/04/2026 |
 | AUD1 | Auditoria estrutural read-only do codebase: 6 lentes de incidentes históricos (F1-only — achados viram itens próprios; Lente 6 = test drive do MAN-METH-REG) — MAN-AUD1-REG/F1 | Alta | ✅ 11/06/2026 (achados absorvidos: F11, F12, E4-d, M19, M20, DOC1) |
+| PROC1 | Processo: gate de ✅ com smoke de prod exige confirmar que o hash deployado live é o commit validado (não basta commitado/pushado) — casos-âncora E1 + E4-a (927831a×97b90ed) — MAN-PROC1-REG | Média | 🔲 |
 | F11 | Rollover de season duplicado e divergente: `/api/admin/rollover/apply` (sem gate de etapas, sem check `rollover_done`, NÃO avança `current_season`) × `/api/offseason/rollover` (gated) — ambos vivos na UI; dupla execução incrementa contratos 2× — achado AUD1 Lente 2 | Alta | ✅ 12/06/2026 (prod LIMPO + fix Opção A + smoke prod OK) |
 | F11-FIX-UX | Microcopy do card "Season Rollover (preview)" e do passo 2 do fluxo pré-temporada no /admin: linguagem de owner (prévia × aplicação real na Intertemporada), link p/ /offseason, sem nº de step e sem season hardcoded — carona da sessão F10 (padrão N1-FIX/T3-FIX-UX) | Baixa | ✅ 15/06/2026 (fecha junto com o [[UX9]] — sintoma do passo 2 eliminado pela raiz) |
 | UX9 | Passo 2 do card "Ordem do Fluxo Pré-Temporada" (/admin) fragmenta em colunas. **F2 ✅ localhost:** body de cada passo envolto num `<span class="step-body">` (2 flex items: badge+body) → texto+link fluem inline em ordem; estrutural, não comprimento; local, zero blast radius; 48/48. Fecha o done do F11-FIX-UX quando passar em prod — MAN-UX9-REG/F1/F2 | Baixa | ✅ 15/06/2026 (smoke de prod) |
@@ -962,6 +964,38 @@ DP1 = premissa de leitura falsa; UX4-b = campo existente omitido. Ambos só vis�
 **Relaciona-se a** [[validate_prompt_premises_empirically]] (checar empiricamente premissas críticas
 do prompt antes do IMPL) e ao princípio de fonte única (T2-FIX-2 / [[F10]]): a refutação da premissa
 na F1 é o momento barato de pegar o gap, antes de o IMPL nascer sobre uma base falsa.
+
+---
+
+### PROC1 — Gate de ✅ exige confirmação do hash deployado live em prod
+🔲 **Registrado 23/06/2026** — MAN-PROC1-REG (**registro de processo** — não altera código nem fluxo
+automatizado) — **candidato a checklist/automação**; destino a decidir pelo owner (item de fim de
+sessão, hook de deploy, ou regra do `DEV_METHODOLOGY`).
+
+**Lição de processo** que emergiu **duas vezes**: **"o código foi commitado/validado" ≠ "o código
+está rodando em prod".** Para itens cujo ✅ depende de **smoke em produção**, o gate atual não exige
+confirmar que o **hash deployado live** é o commit que contém a mudança validada — deixando espaço
+para marcar ✅ (ou rodar um smoke "de prod") contra binário antigo.
+
+**REGRA CANDIDATA (forma a refinar):**
+> Para qualquer item cujo ✅ tenha **gate de smoke em produção**, o fechamento passa a exigir
+> **confirmação explícita de que o hash deployado live em prod é o commit que contém a mudança
+> validada** — não basta "commitado" nem "pushado". Confirmar no painel do Render (deploy live = hash
+> esperado) **antes** de confiar no resultado do smoke e antes de flipar ✅. **Escopo:** só
+> fechamentos com gate de prod; itens validáveis só em localhost (sem gate de prod) não são afetados.
+
+**CASOS-ÂNCORA (mesma família — validado ≠ deployado):**
+- **[[E1]] — ✅ prematuro pós-localhost → falha em prod.** Marcar ✅ por validação local, sem o
+  comportamento confirmado no binário de produção, levou a falha em prod.
+- **[[E4-a]] (23/06/2026) — smoke falho por hash divergente.** O primeiro teste de prod **reproduziu
+  o comportamento pré-fix** porque o deploy live no Render era um commit **docs-only anterior
+  (`927831a`, 17/06)**, e não o commit do filtro (`97b90ed`), que **nunca tinha sido pushado**. O
+  smoke só virou confiável depois de confirmar, no painel do Render, que o deploy live passou a ser
+  o hash correto (`927831a..97b90ed`). Sintoma da classe: **smoke reproduz o comportamento pré-fix
+  apesar de o código estar commitado/validado**, por divergência entre commit validado e hash live.
+
+**DEPENDÊNCIAS:** transversal a todo item com gate de prod ([[OFF26-1]]/[[OFF26-2]], futuros smokes).
+Não bloqueia itens abertos; absorvível como checklist de fim de sessão ou automação numa sessão futura.
 
 ---
 
