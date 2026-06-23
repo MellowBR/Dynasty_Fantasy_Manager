@@ -143,6 +143,26 @@ MATCH_EXACT = "MATCHED"
 MATCH_APPROX = "APPROXIMATE"
 MATCH_NONE = "NOT_FOUND"
 
+# E4a-F2 (23/06/2026): posições "especiais" (D/ST, K) ficam fora do índice de candidatos
+# por id e, no fallback de review, não devem receber candidato de posição skill. Sem este
+# filtro, uma entrada D/ST cai no fuzzy >=0.5 e recebe skill como sugestão (Texans D/ST →
+# Stefon Diggs — Eixo A da diagnose PRODF1). Filtro ESTREITO: só restringe entradas D/ST
+# e K; não toca o comportamento skill×skill.
+_SPECIAL_POS = {"DST", "DEF", "K"}
+
+
+def _special_pos_compatible(entry_pos: str, cand_pos: str) -> bool:
+    """True se um candidato `cand_pos` pode ser oferecido a uma entrada `entry_pos`.
+    Só restringe quando a entrada é especial: D/ST → só DEF/DST; K → só K. Entradas
+    skill retornam True (sem filtro nesta fatia)."""
+    ep = (entry_pos or "").upper()
+    cp = (cand_pos or "").upper()
+    if ep in ("DST", "DEF"):
+        return cp in ("DST", "DEF")
+    if ep == "K":
+        return cp == "K"
+    return True
+
 
 def match_players(parsed: list[dict], db_players: list, sid_resolver=None) -> dict:
     """
@@ -234,8 +254,39 @@ def match_players(parsed: list[dict], db_players: list, sid_resolver=None) -> di
                 best_player = p
 
         if sid_resolver is not None:
-            # E4-a: sem auto-match silencioso por similaridade. Fuzzy só monta candidatos
-            # para o review (sob o gate do E2-RISK); sem candidato → not_found (store).
+            entry_pos = (entry.get("position") or "").upper()
+            # E4a-F2: entrada D/ST ou K não recebe candidato de posição incompatível.
+            # Recomputa best/candidatos só entre posições compatíveis → degrada para
+            # not_found limpo em vez de sugerir skill p/ uma defesa (Eixo A da PRODF1).
+            # Escopo estreito: só especiais; o ramo skill abaixo segue inalterado.
+            if entry_pos in _SPECIAL_POS:
+                sp_best_ratio = 0.0
+                sp_best_player = None
+                sp_candidates = []
+                for nn, p in all_norms:
+                    if p.id in used_player_ids:
+                        continue
+                    if not _special_pos_compatible(entry_pos, p.position):
+                        continue
+                    r = difflib.SequenceMatcher(None, espn_norm, nn).ratio()
+                    if r >= 0.5:
+                        sp_candidates.append({"player_id": p.id, "name": p.name,
+                                              "position": p.position, "similarity": round(r, 3)})
+                        if r > sp_best_ratio:
+                            sp_best_ratio = r
+                            sp_best_player = p
+                if sp_best_player is not None:
+                    sp_candidates.sort(key=lambda x: -x["similarity"])
+                    approximate.append({**entry, "player_id": sp_best_player.id,
+                                        "db_name": sp_best_player.name,
+                                        "match_type": MATCH_APPROX,
+                                        "similarity": round(sp_best_ratio, 3),
+                                        "candidates": sp_candidates[:5]})
+                else:
+                    not_found.append({**entry, "match_type": MATCH_NONE})
+                continue
+            # E4-a: entradas skill — sem auto-match silencioso por similaridade. Fuzzy só
+            # monta candidatos para o review (sob o gate do E2-RISK); sem candidato → not_found.
             if best_player and best_ratio >= 0.5:
                 candidates = []
                 for nn, p in all_norms:

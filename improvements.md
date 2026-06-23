@@ -588,6 +588,9 @@ existia **só** para cobrir esse fetch).
   produção** — mesmo com a sugestão fuzzy espúria de D/ST (Texans D/ST → Stefon Diggs),
   nenhum valor é gravado por inércia. O E2-RISK (camada de tela) **passou**; o resíduo da
   sugestão aparecer é do matcher (Eixo A → F2 do [[E4-a]]), não desta camada.
+- **F2 do Eixo A aplicada (23/06, no [[E4-a]]):** o filtro de posição no matcher remove a
+  sugestão espúria na origem; este item **→ ✅ junto do [[E4-a]]** assim que o smoke prod do
+  filtro confirmar (mesmo gate). Status segue ⚠️ até lá (sem flip por inércia de localhost).
 - **Validação localhost (test_client, DB copiado):** review renderiza sem pré-select
   (option neutra `selected`, nenhum candidato `selected`); confirm **sem ação** NÃO altera
   o `espn_ref_value` do veterano (32.4→32.4 — Mooney não recebe o valor de Tate); confirm
@@ -797,7 +800,9 @@ a **leitura pré-roster (DP1)** for priorizada.
 ---
 
 ### E4-a — Matcher do import ESPN resolve por `sleeper_id` (Brown-safe)
-⚠️ **Implementado (F2) — validado em localhost; pendente smoke em prod com import real** — Prioridade **Alta** — fatia de **[[E4]]** (MAN-E4-F1/F2) — **absorve o conserto do matcher ex-[[E2-RISK]]; fecha a raiz que o F2 do E2-RISK só paliou**
+⚠️ **Núcleo validado em prod (23/06: resolver ativo, rookie→store, zero corrupção); F2 do Eixo A (filtro D/ST/K) aplicado + validado localhost; ⚠️ até smoke prod confirmar filtro + colher split** — Prioridade **Alta** — fatia de **[[E4]]** (MAN-E4-F1/F2/PRODF1/F2-EixoA) — **absorve o conserto do matcher ex-[[E2-RISK]]; fecha a raiz que o F2 do E2-RISK só paliou**
+
+> **Caminho p/ ✅ (gate explícito, sem inércia de localhost):** deploy do commit do filtro → import ESPN real em prod → no review, conferir (a) **nenhuma D/ST ou K exibe candidato skill** (Texans D/ST sem Diggs; Rams D/ST sem Sanders) e (b) colher o **split** (matched-por-id / approximate / not_found→store). Com (a)+(b) confirmados, **E4-a e E2-RISK → ✅** (flip viaja junto da confirmação de prod).
 
 **F2 — IMPLEMENTAÇÃO (09/06/2026, ⚠️ validado em localhost)**
 - **`espn_pdf_parser.match_players(parsed, db_players, sid_resolver=None)`** ganhou o
@@ -867,6 +872,21 @@ Contexto: import ESPN real do owner (cheat sheet PPR Top 300) mostrou D/ST receb
 **Refutação de premissas (DEV_METHODOLOGY):** (a) "parece modo legado/fuzzy contra roster" → **premissa falsa** (threshold 0.5 = resolver); "rookie em not_found = bug" → **premissa falsa** (E4-a correto); "ausência de âncora de posição" → **deslocamento** (o bônus existe em `:228-231`, mas é nudge, não filtro). (b) ausentes do report: o gate de confirm do E2-RISK e o skip K/DST do store **mitigam** a severidade (sem corrupção) — **comportamentos existentes não creditados**.
 
 **Veredito final:** problema de **CÓDIGO** (gap de desenho no ramo resolver-mode), não de dado/ambiente. **Próxima fase = F2 do E4-a** (não item novo, não só re-smoke): guardar o fallback de candidatos por **filtro de posição/identidade** (entrada D/ST/K nunca recebe skill; idealmente nenhuma entrada recebe candidato de posição incompatível). O núcleo do E4-a/E2-RISK **passou** no smoke de prod (resolver ativo, rookie→store, zero corrupção por inércia) — candidato a destravar o ⚠️→✅ desses claims, com o Eixo A como resíduo rastreado na F2.
+
+**F2 do Eixo A — IMPLEMENTAÇÃO (MAN-E4a-F2-EixoA, 23/06/2026, ⚠️ validado localhost; pendente smoke prod):**
+- **`espn_pdf_parser.py`:** helper `_special_pos_compatible(entry_pos, cand_pos)` + ramo
+  especial no modo resolver de `match_players`. Entrada **D/ST ou K** recompõe best/candidatos
+  **só entre posições compatíveis** (D/ST → DEF/DST; K → K); sem candidato compatível ≥0.5 →
+  **not_found limpo**. O ramo **skill segue inalterado** (sem filtro skill×skill — fora do
+  escopo). **Modo legado (`sid_resolver=None`) intocado** (mudança 100% dentro de
+  `if sid_resolver is not None`). Não toca `salary_engine`/store/sync/schema/`SalaryHistory`/
+  `PlayerHistory`; gate de confirm + default neutro do [[E2-RISK]] **intactos** (só confirmados).
+- **Validação localhost (harness sintético + `salary_engine_test.py` 48/48):** Texans D/ST →
+  not_found (não oferece Diggs WR); Rams/Ravens D/ST → not_found (sem skill cruzado);
+  **sem regressão** — Carnell Tate (rookie) → not_found via `resolved_sid` (Eixo B intacto),
+  Jayden Daniels (vet rosterado) → matched por id. Modo legado reproduz o baseline.
+- **Pendente p/ ✅:** smoke em prod (ver gate acima) — confirmar filtro ativo na tela + colher
+  o split numérico (resolvidos / review / store) que o claim do E4-a deixou em aberto.
 
 ---
 

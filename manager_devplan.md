@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 23/06/2026 (MAN-E4a-PRODF1: diagnose read-only do fuzzy espúrio no import ESPN em prod — H1/H2/H3 refutadas, causa = gap de desenho no ramo resolver-mode do matcher, próxima fase F2 do E4-a)  
+> Última atualização: 23/06/2026-pt2 (MAN-E4a-F2-EixoA: filtro de posição D/ST/K no fallback de candidatos do review ESPN — código aplicado + validado localhost; E4-a/E2-RISK seguem ⚠️ até smoke prod confirmar filtro + split)  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -1812,3 +1812,22 @@ E4-a do `improvements.md` (+ nota no E2-RISK); status segue ⚠️.
 
 **Próxima fase: F2 do E4-a** (filtro de posição/identidade no fallback de candidatos), não
 item novo. Núcleo do E4-a/E2-RISK passou no smoke prod → candidato a ⚠️→✅ desses claims.
+
+### MAN-E4a-F2-EixoA — Filtro de posição D/ST/K no fallback de candidatos do review ESPN (23/06/2026-pt2, Opus, código+docs)
+
+Fecha o Eixo A da PRODF1 na origem (matcher), não na tela. **Código aplicado + validado
+localhost; E4-a/E2-RISK seguem ⚠️ até smoke prod** (gate explícito, sem inércia de localhost).
+
+- **`espn_pdf_parser.py`:** helper `_special_pos_compatible` + ramo especial no modo resolver
+  de `match_players`. Entrada **D/ST ou K** só recebe candidato de posição compatível
+  (D/ST→DEF/DST; K→K); sem candidato compatível ≥0.5 → **not_found limpo**. Ramo skill
+  **inalterado**; modo legado (`sid_resolver=None`) **intocado** (mudança 100% dentro do
+  `if sid_resolver is not None`). Sem tocar salary_engine/store/sync/schema/SalaryHistory/
+  PlayerHistory; gate + default neutro do E2-RISK só confirmados.
+- **Validação localhost:** harness sintético — Texans D/ST → not_found (não oferece Diggs);
+  Rams/Ravens D/ST → not_found; **sem regressão** (Carnell Tate → not_found via sid; Jayden
+  Daniels → matched por id; legado reproduz baseline). `salary_engine_test.py` 48/48.
+- **Bloqueio honesto:** passos 2 (colher split de prod) e 3 (flip ✅) **não executáveis
+  localmente** — exigem deploy + import ESPN real em prod. Entregue o código + narrativa de
+  status (⚠️); o flip ✅ de E4-a/E2-RISK aguarda o owner rodar o smoke prod (procedimento no
+  handoff). **Não flipado por inércia de localhost** (restrição respeitada).
