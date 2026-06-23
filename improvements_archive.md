@@ -3593,3 +3593,36 @@ review.
 
 ---
 
+
+### PROC1 — Gate de ✅ exige confirmação do hash deployado live em prod
+✅ **Concluído (23/06/2026) — Forma 1 ancorada no `DEV_METHODOLOGY`** — MAN-PROC1-REG/F1/DONE — **registro de processo**; robustez extra (surfacear o hash no `/admin`) fica como **PROC2** (follow-up separado).
+
+> **Fechamento (MAN-PROC1, 23/06/2026):** F1 recomendou a **Forma 1** (afinar o gate existente, não criar checklist/automação nova). A regra foi **afinada no bullet de gate de ✅ da seção "Checklist de fim de sessão" do `DEV_METHODOLOGY.md`** (transversal manager+optimizer — ambos deployam no Render): fechamentos com gate de smoke em prod exigem confirmar que o **hash deployado live = o commit validado** (não basta commitado/pushado); escopo limitado a gates de prod (localhost não afetado). Reforçou o bullet existente, **sem seção paralela**. Ressalva da F1 (gate de disciplina não é à prova de falha — E1) endereçada por **PROC2** (surfacear `RENDER_GIT_COMMIT` no `/admin`), fora deste escopo.
+
+**Lição de processo** que emergiu **duas vezes**: **"o código foi commitado/validado" ≠ "o código
+está rodando em prod".** Para itens cujo ✅ depende de **smoke em produção**, o gate atual não exige
+confirmar que o **hash deployado live** é o commit que contém a mudança validada — deixando espaço
+para marcar ✅ (ou rodar um smoke "de prod") contra binário antigo.
+
+**REGRA CANDIDATA (forma a refinar):**
+> Para qualquer item cujo ✅ tenha **gate de smoke em produção**, o fechamento passa a exigir
+> **confirmação explícita de que o hash deployado live em prod é o commit que contém a mudança
+> validada** — não basta "commitado" nem "pushado". Confirmar no painel do Render (deploy live = hash
+> esperado) **antes** de confiar no resultado do smoke e antes de flipar ✅. **Escopo:** só
+> fechamentos com gate de prod; itens validáveis só em localhost (sem gate de prod) não são afetados.
+
+**CASOS-ÂNCORA (mesma família — validado ≠ deployado):**
+- **[[E1]] — ✅ prematuro pós-localhost → falha em prod.** Marcar ✅ por validação local, sem o
+  comportamento confirmado no binário de produção, levou a falha em prod.
+- **[[E4-a]] (23/06/2026) — smoke falho por hash divergente.** O primeiro teste de prod **reproduziu
+  o comportamento pré-fix** porque o deploy live no Render era um commit **docs-only anterior
+  (`927831a`, 17/06)**, e não o commit do filtro (`97b90ed`), que **nunca tinha sido pushado**. O
+  smoke só virou confiável depois de confirmar, no painel do Render, que o deploy live passou a ser
+  o hash correto (`927831a..97b90ed`). Sintoma da classe: **smoke reproduz o comportamento pré-fix
+  apesar de o código estar commitado/validado**, por divergência entre commit validado e hash live.
+
+**DEPENDÊNCIAS:** transversal a todo item com gate de prod ([[OFF26-1]]/[[OFF26-2]], futuros smokes).
+Não bloqueia itens abertos; absorvível como checklist de fim de sessão ou automação numa sessão futura.
+
+---
+

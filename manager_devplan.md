@@ -1,7 +1,7 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 23/06/2026-pt3 (MAN-E4a-DONE: E4-a ✅ + E2-RISK ✅ após smoke prod do import real — Eixo A fechado, split 211/5/84/62; seções migradas p/ o archive)  
+> Última atualização: 23/06/2026-pt4 (MAN-PROC1: PROC1 ✅ — gate de hash deployado afinado no DEV_METHODOLOGY (Forma 1, transversal); PROC2 🔲 registrado; edição do DEV_METHODOLOGY aplicada mas não commitada (repo umbrella sem commits))  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
 ---
@@ -1846,3 +1846,20 @@ O commit do filtro (97b90ed) nunca tinha subido — o deploy ativo era o docs-on
 
 Gates satisfeitos → **E4-a e E2-RISK → ✅** (23/06). Migração O3: seções detalhadas movidas
 verbatim p/ `improvements_archive.md` com nota de fechamento; Status Rápido mantém ✅. Sem código.
+
+### MAN-PROC1 — Gate de hash deployado ancorado no DEV_METHODOLOGY (23/06/2026-pt4, Opus)
+
+F1 recomendou **Forma 1** (afinar o gate existente, não criar artefato novo). Aplicado:
+
+- **`DEV_METHODOLOGY.md`** (parent `Fantasy/`, transversal): reforçado o bullet "✅ só em prod"
+  da seção **"Checklist de fim de sessão"** com o **gate de hash deployado** — fechamentos com
+  smoke de prod exigem confirmar que o **hash live = commit validado** (não basta commitado/
+  pushado); escopo só gates de prod; cita E1 + E4-a/927831a×97b90ed. **Sem seção paralela.**
+- **`improvements.md`:** **PROC1 ✅** (Status Rápido + migração O3 da seção p/ o archive com nota
+  de fechamento). Registrado **PROC2 🔲** (ressalva da F1 — surfacear `RENDER_GIT_COMMIT` no
+  `/admin`; é código, follow-up separado).
+- **Bloqueio honesto:** o parent `Fantasy/` é um **repo umbrella sem nenhum commit** (tudo staged
+  como Added: ambos os repos nested, pff_data, CSVs, MYPFF db). A edição do `DEV_METHODOLOGY.md`
+  fica **aplicada no arquivo mas não commitada** — pertence ao commit inicial do umbrella, que é
+  do owner. **Não disparei** esse commit. O commit desta sessão (manager repo) cobre só
+  `improvements.md`/archive/devplan/handoff.
