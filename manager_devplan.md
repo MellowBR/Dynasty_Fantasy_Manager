@@ -1923,3 +1923,22 @@ review mostra Jeremiyah Love e Carnell Tate sob "🟢 Entrantes → store" com s
 ($55/$14), e D/ST + entradas $0 sob "⚪ → $1"; soma dos dois = total de não-encontrados; (2)
 confirmar o import → resumo diz "N → store de rookie (salário projetado), M → $1" (não "com $1"
 genérico); (3) store recebe os mesmos upserts de antes (sem mudança de escrita).
+
+### MAN-E3-F2 — Import ESPN upload-only: remoção completa do caminho de URL (10/07/2026, Opus)
+
+Decisão do owner: opção (a) — remoção completa. A URL é inviável em prod (ESPN bloqueia IP do
+Render — E1); só gerava ruído na mesma UI cuja clareza o E5-F2 acabou de melhorar. **Escopo =
+porta de entrada; processamento intocado.**
+
+- **`routes/admin.py`:** removido o branch de download por URL (`requests.get`/`raise_for_status`/
+  flash anti-bot); POST agora exige upload (sem arquivo → flash). Guard `%PDF` **preservado**
+  (protege upload corrompido → flash, sem 500), mensagem reescrita p/ upload-only. Removidos a
+  constante morta `ESPN_DEFAULT_URL` e o `default_url` do render.
+- **`templates/espn_import.html`:** removido o bloco do input de URL; label/subtítulo/tooltip/botão
+  sem menção a URL ("Processar PDF"); card de formato intacto.
+- **Validação localhost:** salary_engine_test 48/48; admin.py compila; espn_import.html parseia;
+  grep confirma zero resquício de URL-download no fluxo (o `import requests` restante é do
+  offseason.py, não relacionado). **Pendente: smoke prod** (upload real → review → confirm;
+  inválido → flash sem 500).
+- **improvements.md:** E3 → ⚠️ (F2 localhost, gate smoke prod). Commit próprio (E5-F2 já commitado
+  em 642d447 antes da decisão do owner).

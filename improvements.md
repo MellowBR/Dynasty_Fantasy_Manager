@@ -71,7 +71,7 @@
 | M18 | Timestamps no fuso do usuário: fonte única (`timeutil.utc_iso` + macro `local_dt` + JS `formatLocalDT`); ~11 sites migrados; armazenamento UTC mantido — prompt MAN-M16-REG (ID remapeado: M16 ocupado) | Média | ✅ 09/06/2026 (validado em prod: sync 11:47 BRT → "11:47", não 14:47 UTC) |
 | E1 | Import ESPN robusto end-to-end no Render: upload manual do PDF + degradação graciosa (sem 500) + estado de review em FS gravável + parser 299→300 — MAN-E1-REG/F1/F2/FIX | Alta | ✅ 08/06/2026 (validado em prod: upload → review 300, sem 500) |
 | E2 | Camada de dados: store de valores ESPN de rookie keyed por `sleeper_id` (resolve not_found+approx via pool global do Sleeper, nome+team) — consumido pelo salário do rookie draft (OFF26-3) + board DP1; rejeita Sleeper-sync e stub-$1 — MAN-E2 REG/F1/REFINE/F2 | Alta | ⚠️ store implementado + validado em localhost (12/12); store validável em prod via import; aplicação no draft só e2e no rookie draft real (~ago) |
-| E3 | Import ESPN upload-only: remover a opção de URL (download inviável em prod — ESPN bloqueia IP do Render); remoção completa UI + fetch server-side + degradação graciosa associada — MAN-E3-REG (vai REG → F2 direto, sem F1) | Baixa/Média | 🔲 |
+| E3 | Import ESPN upload-only: remover a opção de URL (download inviável em prod — ESPN bloqueia IP do Render); remoção completa UI + fetch server-side + degradação graciosa associada — MAN-E3-REG/F2 (owner: opção a, remoção completa) | Baixa/Média | ⚠️ F2 localhost (48/48; UI/fetch/constante removidos, guard %PDF do upload preservado) — **aguarda smoke prod** (upload real → review → confirm; gate PROC1) |
 | E2-RISK | Review do import ESPN oferece rookie como match fuzzy de veterano (falso-positivo "Carnell Tate"~"Darnell Mooney" 0.665) → confirm errado contamina `espn_ref_value` do veterano (classe "Brown"). **F2: default neutro no select + confirm gated (sem confirm-por-inércia); raiz do matcher → E4-a** — MAN-E2RISK-REG/F1/F1B/F2/DONE | Média | ✅ 23/06/2026 (smoke prod via E4-a: default neutro + gate confirmados, nenhuma escrita por inércia; detalhe no archive) |
 | E4 | **Guarda-chuva** — redesenho da camada de valor ESPN (`espn_ref_value` por `sleeper_id`); F1 de design concluída → fatiado em E4-a/b/c — MAN-E4-F1 | — | 🔲 (fatiado) |
 | E4-a | Matcher do import ESPN resolve entrada → `sleeper_id` (pool global, nome+team Brown-safe), não fuzzy contra roster; escreve via id; sem schema. Elimina o "Brown" na raiz + troca corrupção→miss. **Absorve o conserto do matcher ex-E2-RISK** — MAN-E4-F1/F2/PRODF1/F2-EixoA/DONE | Alta | ✅ 23/06/2026 (smoke prod do import real: filtro D/ST/K ativo, Eixo A fechado sem regressão skill; split 211/5/84/62; commit 97b90ed; detalhe no archive) |
@@ -534,7 +534,7 @@ resolve para o `sleeper_id` de um rookie (rebaixar/sinalizar esses candidatos no
 ---
 
 ### E3 — Import ESPN upload-only: remover a opção de URL
-🔲 **Pendente** — Prioridade **Baixa/Média** — MAN-E3-REG (08/06/2026) — **vai REG → F2 direto (sem F1)**
+⚠️ **F2 implementado — validado em localhost; aguarda smoke em prod** — Prioridade **Baixa/Média** — MAN-E3-REG (08/06/2026) / F2 (10/07/2026) — **REG → F2 direto (sem F1)**
 
 **CONTEXTO**
 O import ESPN (passo 3 do offseason workflow) oferece hoje dois caminhos de entrada:
@@ -569,9 +569,22 @@ existia **só** para cobrir esse fetch).
 **ALTERNATIVAS DESCARTADAS**
 - Manter ambos como está: rejeitado — a URL é falsa escolha em prod (origem do item).
 
+**F2 — IMPLEMENTAÇÃO (10/07/2026, ⚠️ validado em localhost) — decisão owner: opção (a), remoção completa**
+
+*Escopo:* só a porta de entrada; parser/matching/store/confirm/salary_engine/schema intocados.
+
+*`routes/admin.py` (`espn_import_page`):*
+- Removido o branch `else` de download por URL (`requests.get` + `raise_for_status` + flash "Erro ao baixar" + flash anti-bot). O POST agora **exige upload**: sem arquivo → flash "Forneça um arquivo PDF (upload)".
+- **Guard `%PDF` preservado** (protege upload corrompido → flash, nunca 500); mensagem reescrita p/ o contexto upload-only (sem menção a download por URL).
+- Removida a constante morta `ESPN_DEFAULT_URL` e o `default_url` do render do GET.
+
+*`templates/espn_import.html`:* removido o bloco do input de URL; label "Upload do PDF" (sem "recomendado" — não há mais alternativa); subtítulo/tooltip/botão sem menção a URL ("Processar PDF"). Card "Formato Esperado" intacto.
+
+*Validação localhost:* `salary_engine_test` **48/48**; byte-compile de `admin.py` OK; `espn_import.html` parseia (Jinja); grep confirma **zero resquício** de `default_url`/`ESPN_DEFAULT_URL`/`name="url"`/fetch de download no fluxo de import (o `import requests` remanescente é do `offseason.py`, não relacionado). **Pendente:** smoke em prod (upload real → review → confirm; upload inválido → flash sem 500).
+
 **DEPENDÊNCIAS**
 - Depende de: **[[E1]]** (✅ — upload é o caminho funcional comprovado em prod).
-- Relaciona-se com: nada aberto. Bloqueia: nenhum.
+- Relaciona-se com: **[[E5]]** (mesma UI de import, melhorada nesta sessão). Bloqueia: nenhum.
 
 ---
 

@@ -482,8 +482,8 @@ def player_history_restore():
 
 
 # ── ESPN PDF Import ──────────────────────────────────────────────────────────
-
-ESPN_DEFAULT_URL = "https://g.espncdn.com/s/ffldraftkit/26/NFL26_CS_PPR300.pdf?adddata=2026CS_PPR300"
+# E3: import é upload-only. A constante ESPN_DEFAULT_URL e o caminho de download foram
+# removidos — a ESPN bloqueia o download automatizado do datacenter do Render (E1).
 
 
 def _espn_review_path():
@@ -589,43 +589,28 @@ def espn_import_page():
 
     if request.method == "GET":
         return render_template("espn_import.html",
-                               default_url=ESPN_DEFAULT_URL,
                                default_season=get_current_season() + 1,
                                last_import=last_import)
 
-    # POST: obter PDF (upload manual OU download por URL), parsear, guardar p/ review.
+    # POST: obter PDF por upload manual, parsear, guardar p/ review.
+    # E3: import é UPLOAD-ONLY. O download por URL foi removido — a ESPN bloqueia o
+    # acesso automatizado a partir do datacenter do Render (E1), então em prod a URL
+    # era sempre falha/ruído; o único caminho real é o upload do PDF baixado no navegador.
     season = int(request.form.get("season", get_current_season() + 1) or get_current_season() + 1)
     is_final = request.form.get("is_final") == "on"
 
-    # Entrada 1 — upload manual (preferido: não depende do IP do servidor; a ESPN
-    # bloqueia o download a partir do datacenter do Render — E1).
     uploaded = request.files.get("pdf_file")
-    if uploaded and uploaded.filename:
-        pdf_bytes = uploaded.read()
-        source = f"upload:{uploaded.filename}"
-    else:
-        # Entrada 2 — download por URL, com degradação graciosa.
-        url = request.form.get("url", ESPN_DEFAULT_URL).strip()
-        if not url:
-            flash("Forneça um arquivo PDF (upload) ou uma URL.", "error")
-            return redirect(url_for("admin.espn_import_page"))
-        import requests as req
-        try:
-            r = req.get(url, timeout=30)
-            r.raise_for_status()
-            pdf_bytes = r.content
-        except Exception as e:
-            flash(f"Erro ao baixar PDF: {e}", "error")
-            return redirect(url_for("admin.espn_import_page"))
-        source = url
+    if not (uploaded and uploaded.filename):
+        flash("Forneça um arquivo PDF (upload). Baixe o PDF da ESPN no navegador e suba aqui.", "error")
+        return redirect(url_for("admin.espn_import_page"))
+    pdf_bytes = uploaded.read()
+    source = f"upload:{uploaded.filename}"
 
-    # Guarda anti-500 (E1): exigir um PDF de verdade. A ESPN devolve um 200 NÃO-PDF
-    # (anti-bot) a IPs de datacenter — isso passava pelo raise_for_status e estourava
-    # PDFSyntaxError no parser não guardado. Agora falha gracioso.
+    # Guarda anti-500 (E1): exigir um PDF de verdade. Protege o upload de arquivo
+    # inválido/corrompido — sem isso, o parser não guardado estouraria PDFSyntaxError.
     if not pdf_bytes or pdf_bytes[:4] != b"%PDF":
-        flash("O conteúdo recebido não é um PDF válido. Se baixou por URL a partir do "
-              "servidor, a ESPN provavelmente bloqueou o acesso automatizado — baixe o "
-              "PDF no navegador e use o upload manual.", "error")
+        flash("O arquivo enviado não é um PDF válido. Baixe o PDF da ESPN no navegador "
+              "e faça o upload novamente.", "error")
         return redirect(url_for("admin.espn_import_page"))
 
     from espn_pdf_parser import parse_pdf_bytes, match_players

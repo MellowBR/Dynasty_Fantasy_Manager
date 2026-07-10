@@ -5,7 +5,7 @@
 {% block content %}
 <div class="page-header">
   <h1 class="page-title">📥 Importar ESPN Values (PDF)</h1>
-  <p class="page-subtitle">Baixa o PDF da ESPN PPR, extrai valores e faz matching com jogadores do banco.</p>
+  <p class="page-subtitle">Extrai valores do PDF da ESPN PPR (upload) e faz matching com jogadores do banco.</p>
 </div>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -21,15 +21,9 @@
   <form method="POST" action="/admin/espn_import" enctype="multipart/form-data">
     <div class="form-grid">
       <div class="form-group" style="grid-column: 1 / -1">
-        <label>📎 Upload do PDF (recomendado)</label>
+        <label>📎 Upload do PDF</label>
         <input type="file" name="pdf_file" accept="application/pdf,.pdf" class="input-full">
-        <span class="text-dim" style="font-size:.78rem">Baixe o PDF da ESPN no navegador e suba aqui. Mais confiável que a URL — a ESPN bloqueia o download automático a partir do servidor.</span>
-      </div>
-      <div class="form-group" style="grid-column: 1 / -1">
-        <label>…ou URL do PDF ESPN PPR (alternativa)</label>
-        <input type="url" name="url" value="{{ default_url }}" class="input-full"
-               placeholder="https://g.espncdn.com/...">
-        <span class="text-dim" style="font-size:.78rem">Usada só se nenhum arquivo for enviado. Se o download falhar/for bloqueado, você verá um aviso (sem erro 500).</span>
+        <span class="text-dim" style="font-size:.78rem">Baixe o PDF da ESPN no navegador e suba aqui. A ESPN bloqueia o download automático a partir do servidor, então o upload é o único caminho.</span>
       </div>
       <div class="form-group">
         <label>Temporada (aplica para)</label>
@@ -45,8 +39,8 @@
       </div>
     </div>
     <button type="submit" class="btn btn-primary" style="margin-top:1rem"
-            data-tooltip="Usa o arquivo enviado (ou baixa da URL), extrai jogadores e&#10;valores, e mostra a tela de revisao antes de salvar.">
-      📥 Processar PDF (upload ou URL)
+            data-tooltip="Usa o arquivo enviado, extrai jogadores e valores,&#10;e mostra a tela de revisao antes de salvar.">
+      📥 Processar PDF
     </button>
   </form>
 </div>
