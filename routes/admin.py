@@ -533,12 +533,31 @@ def _resolve_entry_sid(entry, idx):
     return None                                  # ambíguo → não chuta
 
 
+def _classify_not_found_entry(entry, idx):
+    """E5 — classifica UMA entrada not_found no seu destino REAL do confirm, read-only
+    (sem escrita). Fonte ÚNICA da decisão: usada tanto pela escrita do store
+    (_resolve_not_found_to_store) quanto pelo split do render (espn_review_page), para o
+    texto da tela não poder divergir do que o confirm de fato faz.
+    Retorna (dest, detail): dest ∈ {'store','excluded'}. Para 'store', detail = sid (str).
+    Para 'excluded', detail = motivo ('kdst' | 'zero' | 'ambiguous')."""
+    pos = (entry.get("position") or "").upper()
+    if pos in ("K", "DST"):                       # fora do foco (REFINE) — $1
+        return ("excluded", "kdst")
+    if float(entry.get("espn_raw") or 0) <= 0:    # $0 inócuo → $1
+        return ("excluded", "zero")
+    sid = _resolve_entry_sid(entry, idx)
+    if not sid:                                   # ambíguo no pool → não chuta → $1
+        return ("excluded", "ambiguous")
+    return ("store", sid)
+
+
 def _resolve_not_found_to_store(not_found_entries, season):
     """
     E2 — resolve cada entrada not_found (skill, valor>0) para um sleeper_player_id
     contra o POOL GLOBAL do Sleeper (nome+team Brown-safe) e faz upsert no store
     RookieEspnValue. Idempotente (upsert por sleeper_id+season). NÃO cria Player; NÃO
     calcula salário. Adiciona à sessão; o chamador faz commit.
+    E5: a decisão store×$1 sai do classificador único `_classify_not_found_entry`.
     Retorna {resolved, ambiguous, skipped}.
     """
     from models import upsert_rookie_espn
@@ -546,14 +565,14 @@ def _resolve_not_found_to_store(not_found_entries, season):
     idx = _build_pool_index()
     resolved = ambiguous = skipped = 0
     for e in not_found_entries:
-        pos = (e.get("position") or "").upper()
-        if pos in ("K", "DST"):              # fora do foco (REFINE)
-            skipped += 1; continue
-        if float(e.get("espn_raw") or 0) <= 0:   # $0 inócuo
-            skipped += 1; continue
-        sid = _resolve_entry_sid(e, idx)
-        if not sid:
-            ambiguous += 1; continue
+        dest, detail = _classify_not_found_entry(e, idx)
+        if dest == "excluded":
+            if detail == "ambiguous":
+                ambiguous += 1
+            else:                                 # 'kdst' | 'zero'
+                skipped += 1
+            continue
+        sid = detail
         team = (e.get("nfl_team") or "").upper()
         upsert_rookie_espn(season, sid, e.get("name", ""), e.get("position", ""),
                            team, float(e.get("espn_raw") or 0),
@@ -667,6 +686,28 @@ def espn_review_page():
 
     with open(review_path, encoding="utf-8") as f:
         data = json.load(f)
+
+    # E5: split de "Não Encontrados" pelo destino REAL, computado no servidor (read-only,
+    # sem escrita) reusando o classificador único do confirm. Entrantes que resolvem a sid
+    # vão ao store e recebem salário projetado floor(ESPN×1.2) no draft; os demais → $1. O
+    # salário projetado vem da fonte única (salary_engine.year1_salary), sem replicar a
+    # conta no template/JS. Pool indisponível → tudo cai em 'excluded' (degradação igual à
+    # do confirm).
+    from salary_engine import year1_salary
+    try:
+        _idx = _build_pool_index()
+    except Exception:
+        _idx = {}
+    nf_store, nf_excluded = [], []
+    for e in data.get("not_found", []):
+        dest, detail = _classify_not_found_entry(e, _idx)
+        if dest == "store":
+            proj = year1_salary("rookie_draft", 0, float(e.get("espn_adjusted") or 0))
+            nf_store.append({**e, "projected_salary": proj})
+        else:
+            nf_excluded.append({**e, "excluded_reason": detail})
+    data["nf_store"] = nf_store
+    data["nf_excluded"] = nf_excluded
     return render_template("espn_review.html", data=data)
 
 
@@ -713,7 +754,10 @@ def espn_import_confirm():
         else:
             total_notfound += 1
 
-    # Not found + absent → $1
+    # E5: `total_notfound` é contador de EXIBIÇÃO ("não-encontrados"), não uma escrita de
+    # $1. O destino real de cada not_found (store de rookie via floor(ESPN×1.2) vs. $1) é
+    # decidido logo abaixo por _resolve_not_found_to_store; os `absent` (Players do DB fora
+    # do Top-300) recebem referência $1 mais adiante, por regra de liga.
     total_notfound += len(review_data["not_found"])
 
     # E2: store = not_found + approximate NÃO resolvidos a um player do DB. Um rookie

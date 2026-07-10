@@ -79,6 +79,7 @@
 | E4-c | **Guarda-chuva** — store canônico de valor ESPN `(sleeper_id, season)`; F1 de migração concluída → sub-fatiado em E4-c-1/E4-c-2 — MAN-E4-c-F1 | — | 🔲 (sub-fatiado) |
 | E4-c-1 | Fundação do store (aditivo/reversível): tabela `espn_value_store (sleeper_id,season)[raw,adjusted,is_final]` via `db.create_all()` + backfill da coluna (Migration 7, season 2026 prelim) + helper único `set_espn_value` nos 8 escritores + badge PROV repontada ao store. **Entrega o store ao DP1.** — MAN-E4-c-F1/F2 | Alta | ✅ 09/06/2026 (backfill em prod: 273 linhas, schema ok, store==coluna, coluna intocada) |
 | E4-c-2 | Limpeza do store (destrutivo/isolado): DROP ESPNValue (vazio) + generalizar/migrar RookieEspnValue. Único passo irreversível-sem-backup; higiene após E4-c-1; **não bloqueia DP1** — MAN-E4-c-F1 | Baixa (higiene) | 🔲 |
+| E5 | Microcopy stale da tela de review do import ESPN: cabeçalho "Não Encontrados — todos receberão $1" contradiz o pipeline pós-E2 (not_found com valor>0 resolvido a sleeper_id → store, salário `floor(ESPN×1.2)`; "$1" só vale p/ subclasses excluídas). Travou operação real de co-admin em prod. Alinhar comunicação da tela ao pipeline real (destino por classe) — ciclo F1 read-only → F2 — MAN-E5-REG/F1/F2 | Média | ⚠️ F2 localhost (48/48; split server-side de "Não Encontrados" via classificador único; textos stale corrigidos; JS pós-confirm lê `rookie_store`; **comportamento intacto**) — **aguarda smoke prod** (tela de review + confirm com PDF real; gate PROC1: hash live = commit) |
 | DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — lê o **store canônico** — MAN-DP1-REG | A definir | 🔲 (desbloqueado: E4-c-1 ✅ em prod) |
 | DP2 | Cadeia única de planejamento no cap projector: board DP1 parte do cenário keep/corte (não mais roster integral) + summary sticky unificado refletindo cortes + rookies; estende o endpoint canônico do F10 com `rookie_sids` (1 fonte) — MAN-DP2-REG (revisão consciente da base do DP1-F2) | Média | ✅ 15/06/2026 (smoke de prod confirmado) |
 | WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG | Média | 🔲 |
@@ -756,6 +757,104 @@ junto.
 **DEPENDÊNCIAS**
 - Fatia de **[[E4-c]]**. Depende de **[[E4-c-1]]** (badge já repontada). **Não bloqueia
   [[DP1]].**
+
+---
+
+### E5 — Microcopy do review do import ESPN contradiz o pipeline do store ("todos receberão $1")
+⚠️ **F2 implementado — validado em localhost; aguarda smoke em prod** — Prioridade **Média** — MAN-E5-REG (09/07/2026) / F1 / F2 (10/07/2026)
+
+**CONTEXTO**
+O review do import ESPN exibe, no cabeçalho da seção "Não Encontrados", o texto
+**"todos receberão $1"**. Esse texto é **anterior ao [[E2]]**: desde o **E2-F2**,
+entradas `not_found` com valor > 0 resolvidas a `sleeper_id` vão para o store
+(`RookieEspnValue`) no confirm, e o salário no rookie draft é **`floor(ESPN×1.2)`** via
+fonte única (`year1_salary`), não $1. O caso de validação do E2-F2 foi o próprio
+**Jeremiyah Love** (adj 55 → salário $55, não $1). O "$1" só permanece verdadeiro para
+as subclasses **excluídas do store** ($0, K/DST, resolução ambígua). O texto stale
+comunica falha no **caminho feliz** e **travou uma operação real de co-admin em prod**
+(Rafa).
+
+**PROBLEMA / OPORTUNIDADE**
+A microcopy orienta a decisão do admin no **momento do confirm** — a superfície de maior
+dano para uma divergência docs×código. Ao afirmar "todos receberão $1", contradiz o
+pipeline real pós-E2 e faz o admin acreditar que rookies com valor ESPN serão zerados,
+quando na verdade vão para o store e recebem `floor(ESPN×1.2)`. Escopo do item: alinhar
+a comunicação da tela ao pipeline real — corrigir o microcopy stale e **comunicar o
+destino real de cada classe** de "Não Encontrados" (com valor>0 → store; $0 / K-DST /
+ambíguo → $1/excluído).
+
+**EVIDÊNCIA**
+- Screenshot de prod (09/07/2026, operação real do co-admin Rafa): cabeçalho
+  "**Não Encontrados (85) — todos receberão $1**"; **Jeremiyah Love ARI $46** listado.
+- Classe do problema: **divergência docs×código** (lente 6 do [[AUD1]]), na superfície
+  de maior dano (microcopy que orienta decisão do admin no confirm).
+
+**DISCUSSÃO / QUESTÕES EM ABERTO (F1)**
+- Onde vive o texto ("todos receberão $1") — template do review do import ESPN? Há
+  réplica?
+- O texto deve enumerar o destino por classe (valor>0→store vs. $0/K-DST/ambíguo→$1)?
+- A tela distingue hoje visualmente as subclasses de "Não Encontrados", ou lista tudo
+  num bloco único?
+
+**F1 — ACHADOS (diagnose read-only, 10/07/2026 — concluída)**
+
+**VEREDITO: problema de TEXTO PURO.** Nenhum bug de comportamento. O pipeline pós-E2 está
+correto no código; só a microcopy da tela mente. Escopo do F2 **não** muda.
+
+*1) Inventário de microcopy (todos os textos de destino de valor do fluxo import ESPN):*
+
+| # | Local | Texto | Veredito | Evidência (código) |
+|---|-------|-------|----------|--------------------|
+| 1 | `espn_review.html:84` | "Não Encontrados — **todos receberão $1**" | **STALE/FALSO** p/ skill valor>0 | `confirm` manda `not_found` p/ `_resolve_not_found_to_store` (admin.py:725,731); nenhum Player recebe $1 |
+| 2 | `espn_review.html:70` | opção skip "**Nenhum (aplicar $1)**" | **STALE/FALSO** p/ approximate-skip resolvível | approximate não-resolvido também vai ao store (admin.py:726-729); só cai em $1 se excluído do store |
+| 3 | `espn_review.html:190` (JS) | "`${total_notfound}` **com $1**" | **STALE** (superestima) | `total_notfound` = approx-unresolved + `len(not_found)` (admin.py:714,717); parte foi ao store |
+| 4 | `espn_review.html:101` | "Ausentes no PDF — **receberão $1**" | **CORRETO** (classe distinta) | `absent` são Players do DB → `_save_espn_value(pid, 0.0, 1.0)` (admin.py:736-738) grava `espn_ref_value=1.0` de fato |
+| 5 | `espn_import.html:93` | "Jogadores com **$0 recebem espn_adjusted=$1**" | **CORRETO** | parser: `espn_adjusted = max(1.0, int(raw*1.2))` (espn_pdf_parser.py:129) |
+| — | `admin.py:716` | comentário "`# Not found + absent → $1`" | **STALE** (comentário de código, não UI) | contradiz o store logo abaixo; fora do escopo de UI, mas registra a mesma confusão |
+
+*2) Destino REAL por subclasse de "Não Encontrados" (bucket é um MIX; o header achata tudo p/ $1):*
+
+| Subclasse | Vai ao store? | Salário se materializada no draft | Claim "$1"? |
+|-----------|---------------|-----------------------------------|-------------|
+| Skill, valor>0, sid resolvível | **SIM** (`RookieEspnValue`) | `floor(ESPN×1.2)` via `year1_salary("rookie_draft",...)` = `max(1,int(adj))` | **FALSO** (>$1 p/ valor>0) |
+| Valor $0 | Não (`espn_raw<=0` skip, admin.py:552) | $1 (`floor(0)`=max(1,0)) | Verdadeiro |
+| K/DST | Não (skip explícito, admin.py:550) | $1 se criado (fora do cap de qualquer forma) | Verdadeiro |
+| Ambíguo (sid não único) | Não (`_resolve_entry_sid`→None, admin.py:533,556) | $1 (sem valor no store) | Verdadeiro |
+| Pool Sleeper indisponível | Não (resolução falha → todos ambíguos/exceção, admin.py:732) | $1 | Verdadeiro (degradação) |
+
+**Jeremiyah Love (skill, ARI, raw $46, sid resolvível):** classificado **store** → adj `int(46×1.2)=55` → salário **$55** no draft, **NÃO $1**. Idem **Carnell Tate** (raw $12 → adj 14 → **$14**). Ambos sob o header "todos receberão $1" na evidência — exatamente o texto stale.
+
+*3) Existe caminho que aplica $1 a entrada coberta pelo store?* **NÃO.** No confirm, `not_found`/approx-skip **não escrevem Player nenhum** — só `upsert_rookie_espn` no store; `total_notfound` é **contador de exibição**, não escrita. No draft, `draft_import.py:132-135` e `record_acquisition` leem o store (`rookie_espn_adjusted`) → `floor(ESPN×1.2)`. $1 só surge quando o store está vazio p/ o sid (subclasses excluídas) — comportamento correto, não bug.
+
+*4) Réplicas (busca pelo padrão de saída "$1"/"receber"/"not_found"/"com $1" em templates+JS+routes):* a semântica de destino-de-valor do fluxo import ESPN vive em **4 pontos, todos em `espn_review.html`** (linhas 70, 84, 101, 190) — **sem réplica** em outro template, JS externo ou flash de rota. Demais hits de "$1" (salary.html, auction.html, admin_review.html) são regras de salário não relacionadas (waiver/FA ano1, min rookie, default unknown). O único eco fora da UI é o **comentário** `admin.py:716`.
+
+*5) Sinal já pronto p/ o F2 comunicar destino por classe (sem backend novo obrigatório):*
+- **Pós-confirm:** a resposta do `/confirm` **já retorna** `rookie_store: {resolved, ambiguous, skipped}` (admin.py:764) — o JS da linha 190 **ignora**. F2 pode mostrar o split real ("X → store de rookie, Y → $1") reusando o que já volta.
+- **Pré-confirm (render do review):** o split **não** é computado hoje (a resolução só roda no confirm). As entradas de `not_found` já carregam `name/nfl_team/position/espn_raw`; o classificador é **derivável no render** reusando os helpers **read-only** existentes (`_build_pool_index`/`_resolve_entry_sid`/regra `_resolve_not_found_to_store`) — pequeno acréscimo de backend, decisão do F2.
+
+*Observação (não infla o E5, não é item novo):* o texto #4 (absent→$1) é **CORRETO** mas revela que Players do DB **ausentes do Top-300 têm `espn_ref_value` sobrescrito p/ $1** a cada import (admin.py:738). É comportamento **pré-existente e plausivelmente intencional** (jogador saiu do ranking → valor ~$1); **não** é a classe "store recebe $1" do ponto 3. Registrado como observação p/ ciência do owner; sem criar item até ficar caracterizado como defeito.
+
+*Premissas do prompt contradichas pelo código:* **nenhuma.** Todas as premissas (not_found skill valor>0 → store → `floor(ESPN×1.2)`; "$1" só p/ excluídas; Love como caso feliz) batem com o código.
+
+**F2 — IMPLEMENTAÇÃO (10/07/2026, ⚠️ validado em localhost) — decisão owner: opção (b), tela auto-explicativa; só comunicação, comportamento intacto**
+
+*Classificador único (fonte da decisão store×$1, read-only):* novo `_classify_not_found_entry(entry, idx)` (`routes/admin.py`) retorna `('store', sid)` ou `('excluded', motivo∈{kdst,zero,ambiguous})`. `_resolve_not_found_to_store` foi **refatorado p/ consumi-lo** (contagens `resolved/ambiguous/skipped` idênticas às de antes — predicado preservado byte-a-byte: K/DST→skip, $0→skip, sid None→ambíguo, senão upsert). O mesmo classificador alimenta o split do render → **o texto da tela não pode divergir do que o confirm faz**.
+
+*Split server-side no render (`espn_review_page`):* computa `nf_store` (entrantes que resolvem a sid; cada um com `projected_salary` via **`salary_engine.year1_salary`** — fonte única, sem replicar a conta em template/JS) e `nf_excluded` ($0/K-DST/ambíguo/pool-indisponível). Sem novo caminho de escrita; pool indisponível → tudo em `nf_excluded` (mesma degradação do confirm).
+
+*Textos corrigidos (`templates/espn_review.html`):*
+1. Seção "Não Encontrados" agora **dividida por destino**: 🟢 "Entrantes → store de rookie (N)" com texto de salário projetado `floor(ESPN×1.2)` e tag `raw → $proj`; ⚪ "Sem valor aproveitável → $1 (N)" ($0/K-D-ST/ambíguo). Soma dos dois = total de não-encontrados.
+2. Opção de skip dos aproximados: "Nenhum (aplicar $1)" → "**Nenhum destes (→ store de rookie, ou $1 se sem valor)**".
+3. Resumo pós-confirm (JS): consome `d.rookie_store` → "`resolved` → store de rookie (salário projetado), `ambiguous+skipped` → $1" (era "`total_notfound` com $1", que superestimava).
+4. "Ausentes no PDF": header + parágrafo explicitando **regra de liga** (veterano fora do Top-300 → referência $1); **comportamento intacto** (`_save_espn_value(pid, 0.0, 1.0)`).
+5. Comentário stale `admin.py:716` reescrito (contador de exibição, não escrita de $1).
+
+*Validação localhost:* `salary_engine_test` **48/48**; ambos os templates parseiam (Jinja); byte-compile de `admin.py` OK; teste sintético do classificador — Jeremiyah Love (adj 55)→store **$55**, Carnell Tate (adj 14)→store **$14**, D/ST→$1 (kdst), $0→$1 (zero), ambíguo→$1; **soma store+excluded = total** (partição correta). **Pendente:** smoke em prod (render do review + confirm com PDF real).
+
+**DEPENDÊNCIAS**
+- Relaciona-se com: **[[E2]]** (store — ⚠️), **[[E2-RISK]]** (✅), **[[E4-a]]** (✅ —
+  split de referência 211/5/84/62), **[[E3]]** (limpeza da mesma UI de import — 🔲;
+  relaciona-se, **não bloqueia**). Não bloqueia itens abertos.
 
 ---
 

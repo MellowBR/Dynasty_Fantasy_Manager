@@ -1863,3 +1863,63 @@ F1 recomendou **Forma 1** (afinar o gate existente, não criar artefato novo). A
   fica **aplicada no arquivo mas não commitada** — pertence ao commit inicial do umbrella, que é
   do owner. **Não disparei** esse commit. O commit desta sessão (manager repo) cobre só
   `improvements.md`/archive/devplan/handoff.
+
+### MAN-E5-F1 — Diagnose read-only: microcopy do review ESPN × pipeline do store (10/07/2026, Opus)
+
+F1 read-only do E5 (texto "todos receberão $1" na tela de review do import ESPN). **Veredito:
+problema de TEXTO PURO** — o pipeline pós-E2 está correto no código; só a microcopy mente.
+Escopo do F2 não muda.
+
+- **Inventário (5 microcopy + 1 comentário):** 4 textos em `espn_review.html` — :84 ("Não
+  Encontrados — todos receberão $1", STALE), :70 (opção "Nenhum (aplicar $1)", STALE), :190 JS
+  ("X com $1", STALE/superestima), :101 ("Ausentes — receberão $1", **CORRETO**, classe distinta
+  = Players do DB → `espn_ref_value=1.0`). `espn_import.html:93` ($0→$1) CORRETO. `admin.py:716`
+  comentário stale (não-UI).
+- **Destino real por subclasse:** skill valor>0 sid-resolvível → **store** → `floor(ESPN×1.2)`
+  (Love $46→$55; Tate $12→$14, **não $1**); $0 / K-DST / ambíguo / pool-indisponível → excluídos
+  do store → $1 (claim verdadeiro só p/ essas). O bucket "Não Encontrados" é um MIX; o header
+  achata tudo p/ $1.
+- **Ponto 3 (bug de comportamento?):** **NÃO.** `not_found`/approx-skip não escrevem Player no
+  confirm (só `upsert_rookie_espn`); `total_notfound` é contador de exibição. No draft, lê o store
+  (`rookie_espn_adjusted`) → `floor(ESPN×1.2)`. $1 só quando store vazio (correto).
+- **Réplicas:** varredura ("$1"/receber/not_found/"com $1" em templates+JS+routes) → semântica de
+  destino vive em **4 pontos, todos em `espn_review.html`**; sem réplica externa. Único eco fora da
+  UI = comentário `admin.py:716`.
+- **Sinal p/ o F2:** pós-confirm a resposta **já retorna** `rookie_store{resolved,ambiguous,skipped}`
+  (admin.py:764) e o JS ignora; pré-confirm o split é derivável no render reusando helpers read-only
+  (`_build_pool_index`/`_resolve_entry_sid`) — decisão do F2.
+- **Observação (não é item novo):** absent→$1 sobrescreve `espn_ref_value` de veteranos fora do
+  Top-300 a cada import (admin.py:738) — pré-existente, plausivelmente intencional; ciência do owner.
+- **Premissas do prompt contradichas:** nenhuma.
+
+Absorvido na seção E5 do `improvements.md` (bloco "F1 — ACHADOS" + tabelas); Status Rápido atualizado
+(F1 ✅, texto puro). Sem código, sem F2. Docs-only — agrupa com o próximo commit.
+
+### MAN-E5-F2 — Review do import ESPN comunica destino real por subclasse (10/07/2026, Opus)
+
+Fix do "todos receberão $1" (E5). Decisão do owner: opção (b) — texto + split por subclasse,
+tela auto-explicativa. **Só comunicação — comportamento intacto** (matcher/store/confirm/
+salary_engine/schema inalterados).
+
+- **Classificador único (`routes/admin.py`):** novo `_classify_not_found_entry(entry, idx)` →
+  `('store', sid)` | `('excluded', {kdst|zero|ambiguous})`. `_resolve_not_found_to_store`
+  refatorado p/ consumi-lo (contagens `resolved/ambiguous/skipped` idênticas; predicado
+  preservado). Mesmo classificador alimenta o split do render → texto não diverge do confirm.
+- **Split server-side (`espn_review_page`):** computa `nf_store` (com `projected_salary` via
+  `salary_engine.year1_salary` — fonte única) e `nf_excluded`, read-only; pool indisponível →
+  tudo excluído (degradação = confirm).
+- **`templates/espn_review.html`:** seção "Não Encontrados" dividida em 🟢 entrantes→store
+  (texto floor(ESPN×1.2) + tag `raw→$proj`) e ⚪ sem valor→$1; opção skip reescrita; resumo
+  pós-confirm (JS) consome `d.rookie_store` (resolved→store, ambiguous+skipped→$1); "Ausentes
+  no PDF" ganha texto de regra de liga (comportamento intacto). Comentário stale `admin.py:716`
+  reescrito.
+- **Validação localhost:** salary_engine_test 48/48; templates parseiam; admin.py compila; teste
+  sintético do classificador — Love→$55, Tate→$14, D/ST/$0/ambíguo→$1, partição store+excluded=
+  total. **Pendente: smoke prod** (render + confirm com PDF real; gate PROC1 hash live=commit).
+- **improvements.md:** E5 → ⚠️ (F2 localhost, gate de smoke prod). Commit agrupa código + docs.
+
+**Smoke prod p/ o owner conferir:** (1) `/admin/espn_import` → upload de um PDF real → tela de
+review mostra Jeremiyah Love e Carnell Tate sob "🟢 Entrantes → store" com salário projetado
+($55/$14), e D/ST + entradas $0 sob "⚪ → $1"; soma dos dois = total de não-encontrados; (2)
+confirmar o import → resumo diz "N → store de rookie (salário projetado), M → $1" (não "com $1"
+genérico); (3) store recebe os mesmos upserts de antes (sem mudança de escrita).

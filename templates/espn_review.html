@@ -67,7 +67,7 @@
             {{ c.name }} ({{ c.position }}) — {{ (c.similarity * 100) | round(1) }}%
           </option>
           {% endfor %}
-          <option value="skip">Nenhum (aplicar $1)</option>
+          <option value="skip">Nenhum destes (→ store de rookie, ou $1 se sem valor)</option>
         </select>
       </div>
     </div>
@@ -76,19 +76,51 @@
 </div>
 {% endif %}
 
-{# ── Section 3: Not found ── #}
+{# ── Section 3: Não Encontrados — split pelo destino REAL (E5) ── #}
+{# Não estão no elenco (rookies/FA fora da liga). O destino NÃO é uniforme: entrantes que #}
+{# resolvem a um jogador do Sleeper vão ao store e recebem salário projetado no draft; só  #}
+{# os sem valor aproveitável recebem $1. O split é computado no servidor (nf_store /       #}
+{# nf_excluded), read-only. #}
 {% if data.not_found %}
 <div class="card">
   <h2 class="card-title" style="cursor:pointer" onclick="toggleSection('sec-notfound')">
-    ❌ Nao Encontrados ({{ data.not_found | length }})
-    <span class="text-dim" style="font-size:.8rem">— todos receberao $1</span>
+    ❌ Não Encontrados ({{ data.not_found | length }})
+    <span class="text-dim" style="font-size:.8rem">— clique para expandir · destino por classe abaixo</span>
   </h2>
   <div id="sec-notfound" style="display:none">
+
+    {# 3a — entrantes que resolvem a sid → store (salário projetado no rookie draft) #}
+    {% if data.nf_store %}
+    <h3 class="text-ok" style="font-size:.92rem;margin:.5rem 0 .25rem">
+      🟢 Entrantes → store de rookie ({{ data.nf_store | length }})
+    </h3>
+    <p class="text-dim" style="font-size:.78rem;margin:0 0 .5rem">
+      Não estão no elenco (rookies / FA fora da liga). O valor ESPN é guardado no store e vira
+      salário projetado <code>floor(ESPN×1.2)</code> quando forem criados no rookie draft —
+      <strong>não $1</strong>.
+    </p>
     <div class="tag-list">
-      {% for nf in data.not_found %}
+      {% for nf in data.nf_store %}
+      <span class="tag tag-ok">{{ nf.name }} ({{ nf.nfl_team }}, ${{ nf.espn_raw | int }} → <strong>${{ nf.projected_salary }}</strong>)</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# 3b — sem valor aproveitável → $1 #}
+    {% if data.nf_excluded %}
+    <h3 class="text-dim" style="font-size:.92rem;margin:.75rem 0 .25rem">
+      ⚪ Sem valor aproveitável → $1 ({{ data.nf_excluded | length }})
+    </h3>
+    <p class="text-dim" style="font-size:.78rem;margin:0 0 .5rem">
+      $0 no PDF, K / D-ST (fora do cap), ou nome ambíguo no pool do Sleeper. Não vão ao store;
+      se forem criados no draft, recebem $1.
+    </p>
+    <div class="tag-list">
+      {% for nf in data.nf_excluded %}
       <span class="tag">{{ nf.name }} ({{ nf.nfl_team }}, ${{ nf.espn_raw | int }})</span>
       {% endfor %}
     </div>
+    {% endif %}
   </div>
 </div>
 {% endif %}
@@ -98,9 +130,13 @@
 <div class="card">
   <h2 class="card-title" style="cursor:pointer" onclick="toggleSection('sec-absent')">
     📋 Ausentes no PDF ({{ data.absent | length }})
-    <span class="text-dim" style="font-size:.8rem">— receberao $1</span>
+    <span class="text-dim" style="font-size:.8rem">— fora do Top-300 → referência $1 (regra de liga)</span>
   </h2>
   <div id="sec-absent" style="display:none">
+    <p class="text-dim" style="font-size:.78rem;margin:0 0 .5rem">
+      Jogadores do elenco que <strong>não</strong> aparecem no PDF (caíram do ESPN Top-300).
+      Por regra de liga, o valor de referência ESPN deles é rebaixado para $1.
+    </p>
     <div class="tag-list">
       {% for ab in data.absent %}
       <span class="tag">{{ ab.name }} ({{ ab.position }})</span>
@@ -187,7 +223,13 @@ function confirmImport() {
     box.style.display = 'block';
     if (d.success) {
       box.className = 'result-box result-ok';
-      box.textContent = `✅ Importado: ${d.total_matched} matched, ${d.total_approximate} aproximados, ${d.total_notfound} com $1.`;
+      // E5: reporta o destino REAL dos não-encontrados a partir das contagens do store que
+      // o confirm já retorna (rookie_store), em vez de "N com $1" (que superestimava — parte
+      // vai ao store). resolved → store de rookie (salário projetado); ambiguous+skipped → $1.
+      const rs = d.rookie_store || { resolved: 0, ambiguous: 0, skipped: 0 };
+      const toOne = (rs.ambiguous || 0) + (rs.skipped || 0);
+      box.textContent = `✅ Importado: ${d.total_matched} matched, ${d.total_approximate} aproximados, `
+        + `${rs.resolved} → store de rookie (salário projetado floor(ESPN×1.2)), ${toOne} → $1.`;
       setTimeout(() => window.location.href = '/admin/espn_import', 2500);
     } else {
       box.className = 'result-box result-error';
