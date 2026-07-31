@@ -195,21 +195,28 @@ def cap_projector_budget(team_name):
 @login_required
 def cap_projector_rookies():
     """
-    DP1 — lista os rookies entrantes da season-alvo (get_current_season()+1) com o
+    DP1 + DP3 — lista a CLASSE ENTRANTE da season-alvo (get_current_season()+1) com o
     valor ESPN de referência (raw) e o salário projetado (floor(ESPN×1.2)).
 
-    Fonte = RookieEspnValue (store dos NÃO-rosterados), NÃO o store canônico
-    (espn_value_store): o backfill do canônico veio de `SELECT FROM players`, logo só
-    contém rosterados — ler o canônico aqui devolveria board vazio de entrantes
-    (F1/MAN-DP1; E4-c-2 não é pré-requisito). O salário vem da fonte única
-    `salary_engine.year1_salary` (modo rookie), sem row de Player e sem réplica do
-    cálculo (mesma invocação que o import de draft em draft_import.py).
+    DP3 (snapshot materializado): a membership vem de RookieEspnValue.in_class=True,
+    escrita pela captura admin (critério único is_entering_class_member — o endpoint
+    NÃO reavalia classe, só lê o snapshot). Rookies JÁ ROSTERADOS (draftados →
+    materializados como Player via record_acquisition) saem do board — sob a cadeia
+    keep/corte do DP2 eles entram pelo roster, e listá-los aqui seria dupla contagem.
+    Sem valor ESPN (fora do Top-300) → espn_adjusted=0 → year1_salary devolve $1
+    (regra da liga, D2) — a MESMA fonte única do import de draft, sem réplica.
+    Leitura pura: 2 queries indexadas, nada é escrito.
     """
-    from models import get_current_season, RookieEspnValue
+    from models import get_current_season, RookieEspnValue, Player
     from salary_engine import year1_salary
     season = get_current_season() + 1
+    rostered_sids = (db.session.query(Player.sleeper_player_id)
+                     .filter(Player.is_dropped == False,           # noqa: E712
+                             Player.sleeper_player_id.isnot(None)))
     rows = (RookieEspnValue.query
-            .filter_by(season=season)
+            .filter(RookieEspnValue.season == season,
+                    RookieEspnValue.in_class == True,              # noqa: E712
+                    ~RookieEspnValue.sleeper_player_id.in_(rostered_sids))
             .order_by(RookieEspnValue.espn_adjusted.desc(), RookieEspnValue.name.asc())
             .all())
     rookies = [{

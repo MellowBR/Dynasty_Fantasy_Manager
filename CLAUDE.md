@@ -71,7 +71,7 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 |-----------|-----|---------|
 | auth | `/login`, `/logout`, `/auth/callback` | Google OAuth authentication |
 | roster | `/`, `/player/<id>` | Team rosters, IR management, cap bar, página dedicada por jogador (M13), banner de cap estourado em offseason (M1) |
-| salary | `/salary`, `/salary_history`, `/cap_projector` | Salary calculator, cap projector, salary history com timeline clicável. **DP1:** board de planejamento de rookie draft no cap_projector — lista entrantes de `RookieEspnValue` (não o store canônico, que só tem rosterados) + simulação de cenário multi-pick calculada no backend (`/api/cap_projector/rookies` + `/api/cap_projector/simulate`), projeção pura sem escrever contrato |
+| salary | `/salary`, `/salary_history`, `/cap_projector` | Salary calculator, cap projector, salary history com timeline clicável. **DP1/DP2/DP3:** board de planejamento de rookie draft no cap_projector — lista a **classe entrante capturada** (`RookieEspnValue.in_class=True`, snapshot da captura admin DP3, menos já-rosterados; valorados ESPN no topo, massa a $1 atrás de busca/filtro) via `/api/cap_projector/rookies`; cenário keep/corte + rookies num único POST ao `/budget` canônico (DP2 — o antigo `/simulate` foi removido), projeção pura sem escrever contrato |
 | trades | `/trades`, `/trades/proposta/<uuid>` | Trade simulador puro (T1), preview com dynasty + redraft delta-pointing bars (T2/T3), descrição "de/para" 2-colunas, query params pré-seleção (M14), propostas compartilháveis |
 | picks | `/picks`, `/picks/lottery/<season>` | Grid navegável de picks (M9), auditoria pública do lottery (M8), legenda de odds audit-first — pesos do audit canônico, senão config (M15/M15-FIX), projeção do draft: R1 = lottery, R2/R3 = standings invertido (M16) |
 | auction | `/auction` | FA auction & rookie draft registration |
@@ -98,7 +98,12 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 
 1. Close Season → import standings from Sleeper or manual entry
 2. Lock Draft Order → weighted lottery for picks 1-6 (7th-12th place; M15: 7º com 1 bolinha, pool 96, fonte única `DEFAULT_LOTTERY_WEIGHTS`), fixed 7-12. O sorteio define só o R1; R2/R3 seguem standings invertido (M16)
-3. Update ESPN Values → bulk PDF import + player matching
+3. Update ESPN Values → bulk PDF import + player matching. **Inclui a captura da classe entrante
+   (DP3):** botão na tela do import ESPN → `POST /api/admin/capture_rookie_class` materializa a
+   membership da classe (`RookieEspnValue.in_class`) que o board do cap_projector lê;
+   re-executável/idempotente. A contagem varia com o calendário NFL (~288 com rosters de 90 em
+   julho; ~150 pós-corte de agosto) — comportamento esperado; recapturar após o corte se o board
+   seguir em uso
 4. Season Rollover → apply salary rules, increment contract years
 5-7. Informational: rookie draft, keepers/cuts, FA auction (manual via /auction)
 
@@ -129,11 +134,17 @@ Strict full-name matching to prevent the "3 Browns" bug. Never falls back to par
 `RookieEspnValue` (models.py) é a **camada de dados** dos valores ESPN de rookies/entrantes
 que ainda **não existem como Player** (caem em not_found/approximate no import ESPN, pois
 entram só no rookie draft). Keyed por `sleeper_player_id` (resolvido contra o **pool global do
-Sleeper** por nome+team, Brown-safe). Populado no confirm do import ESPN; consumido pelo
-importador de draft (OFF26-3) — que aplica `floor(ESPN×1.2)` via `year1_salary` ao criar o
-rookie — e pelo **board DP1** (cap_projector, F2 10/06/2026: lista entrantes + simulação
-multi-pick no backend; lê esta tabela, não o store canônico). Transitório: `clear_rookie_espn_store()` no fim do rookie
-draft. Helpers: `upsert_rookie_espn` / `rookie_espn_adjusted` / `clear_rookie_espn_store`.
+Sleeper** por nome+team, Brown-safe). **DP3 (31/07/2026):** a tabela também carrega a
+**membership da classe entrante** (`in_class`), escrita SÓ pela captura admin
+(`capture_rookie_class`, critério único `is_entering_class_member`: `years_exp==0` + skill +
+`active`+`status='Active'`); `upsert_rookie_espn` é porta única com dois donos por campo
+(import ESPN = valores; captura = membership; `None` = não tocar). Populado no confirm do
+import ESPN (valores) + captura (membership); consumido pelo importador de draft (OFF26-3) —
+que aplica `floor(ESPN×1.2)` via `year1_salary` ao criar o rookie — e pelo **board DP1/DP3**
+(cap_projector: lê `in_class=True` menos rosterados; sem valor ESPN → $1 via `year1_salary`).
+Transitório: `clear_rookie_espn_store()` no fim do rookie draft (esvazia o board — gate
+preservado). Helpers: `upsert_rookie_espn` / `rookie_espn_adjusted` / `clear_rookie_espn_store`
+/ `is_entering_class_member`.
 
 ### Acquisition (criação de contrato ano-1)
 

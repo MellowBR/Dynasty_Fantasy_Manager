@@ -401,6 +401,17 @@ def _run_migrations():
             db.session.commit()
             print(f"[migrate] E4-c-1: backfilled {n} rows into espn_value_store (season {bf_season})")
 
+    # Migration 8: DP3 — rookie_espn_value.in_class (membership da classe entrante,
+    # snapshot materializado pela captura admin). ALTER idempotente por checagem de
+    # coluna; default 0 = linhas pré-existentes do import ESPN ficam fora do board
+    # até a captura marcar a classe (comportamento correto: eram Top-300 cego a classe).
+    if "rookie_espn_value" in insp.get_table_names():
+        cols = [c["name"] for c in insp.get_columns("rookie_espn_value")]
+        if "in_class" not in cols:
+            db.session.execute(text("ALTER TABLE rookie_espn_value ADD COLUMN in_class BOOLEAN DEFAULT 0"))
+            db.session.commit()
+            print("[migrate] DP3: added in_class to rookie_espn_value")
+
 
 def _seed_app_config():
     """Seed default app_config values if missing."""

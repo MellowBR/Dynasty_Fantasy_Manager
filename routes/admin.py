@@ -581,6 +581,78 @@ def _resolve_not_found_to_store(not_found_entries, season):
     return {"resolved": resolved, "ambiguous": ambiguous, "skipped": skipped}
 
 
+@admin_bp.route("/api/admin/capture_rookie_class", methods=["POST"])
+@admin_required
+def capture_rookie_class():
+    """
+    DP3 — CAPTURA da classe entrante (snapshot materializado, postura P3 da REFINE).
+    Varre o pool global do Sleeper, aplica o critério único `is_entering_class_member`
+    (D1: years_exp==0; D3: active+status 'Active'; skill) e materializa a membership
+    em RookieEspnValue via upsert idempotente por (sid, season) — SEM tocar valores
+    ESPN (o import ESPN é o dono desses campos; captura passa None → preservados).
+    Re-executável a qualquer momento: linhas que saíram do critério desde a captura
+    anterior são desmarcadas (in_class=False), não deletadas (preserva valor ESPN).
+    Única superfície de escrita nova do DP3; nada de salário/contrato/roster é tocado.
+    Pool indisponível → erro gracioso (sem 500). Retorna {added, updated, removed,
+    total_in_class, season}.
+    """
+    from sync_sleeper import _load_players_db
+    from models import RookieEspnValue, is_entering_class_member, upsert_rookie_espn
+
+    data = request.get_json(silent=True) or {}
+    try:
+        season = int(data.get("season") or (get_current_season() + 1))
+    except (TypeError, ValueError):
+        season = get_current_season() + 1
+
+    try:
+        pool = _load_players_db() or {}
+    except Exception:
+        pool = {}
+    if not pool:
+        return jsonify({"error": "Pool global do Sleeper indisponível — "
+                                 "tente novamente mais tarde."}), 503
+
+    # Classe entrante do pool (sids numéricos; DST tem sid de texto e já cai fora)
+    members = {}
+    for sid, info in pool.items():
+        if not str(sid).isdigit():
+            continue
+        if is_entering_class_member(info):
+            members[str(sid)] = info
+
+    existing = {r.sleeper_player_id: r for r in
+                RookieEspnValue.query.filter_by(season=season).all()}
+
+    added = updated = removed = 0
+    for sid, info in members.items():
+        name = (info.get("full_name") or
+                f"{info.get('first_name', '')} {info.get('last_name', '')}".strip())
+        pos = (info.get("position") or "").upper()
+        team = (info.get("team") or "").upper()
+        row = existing.get(sid)
+        if row is None:
+            upsert_rookie_espn(season, sid, name, pos, team, in_class=True)
+            added += 1
+        else:
+            if not row.in_class:
+                added += 1      # linha de valor pré-existente entrando na classe agora
+            else:
+                updated += 1    # já era membro — refresh de identidade (nome/pos/team)
+            upsert_rookie_espn(season, sid, name, pos, team, in_class=True)
+
+    # Saíram do critério desde a captura anterior (ex.: cortado + recaptura, D3)
+    for sid, row in existing.items():
+        if row.in_class and sid not in members:
+            row.in_class = False
+            removed += 1
+
+    db.session.commit()
+    total = RookieEspnValue.query.filter_by(season=season, in_class=True).count()
+    return jsonify({"season": season, "added": added, "updated": updated,
+                    "removed": removed, "total_in_class": total})
+
+
 @admin_bp.route("/admin/espn_import", methods=["GET", "POST"])
 @admin_required
 def espn_import_page():

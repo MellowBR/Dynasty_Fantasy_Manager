@@ -446,13 +446,17 @@ class ESPNValue(db.Model):
 
 
 class RookieEspnValue(db.Model):
-    """E2 — store de valores ESPN de rookies/entrantes que ainda NÃO existem como
+    """E2 + DP3 — store de valores ESPN de rookies/entrantes que ainda NÃO existem como
     Player no DB (caem em not_found no import ESPN, pois entram só no rookie draft).
     Keyed por sleeper_player_id (resolvido contra o pool global do Sleeper).
     Camada de dados transitória do ciclo de draft — limpa pós-rookie-draft.
-    Consumido por: OFF26-3 (salário no draft) + DP1 (board de planejamento de cap).
+    Consumido por: OFF26-3 (salário no draft) + DP1/DP3 (board de planejamento de cap).
     NÃO é Player (não polui roster/cap); `espn_adjusted` = raw×1.2 (mesma semântica de
-    Player.espn_ref_value). O salário (floor) é derivado por salary_engine no draft."""
+    Player.espn_ref_value). O salário (floor) é derivado por salary_engine no draft.
+    DP3 (snapshot materializado, postura P3): `in_class` marca a MEMBERSHIP da classe
+    entrante, escrita SÓ pela captura admin (varre o pool via is_entering_class_member).
+    O board lê in_class=True; linhas do import ESPN sem captura (ex.: veterano
+    não-rosterado do Top-300) ficam in_class=False — servem só de camada de valor."""
     __tablename__ = "rookie_espn_value"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -463,6 +467,7 @@ class RookieEspnValue(db.Model):
     nfl_team = db.Column(db.String(10), default="")
     espn_raw = db.Column(db.Float, default=0.0)
     espn_adjusted = db.Column(db.Float, default=0.0)  # raw × 1.2 (ref value, não salário)
+    in_class = db.Column(db.Boolean, default=False)   # DP3: membership da classe entrante
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (db.UniqueConstraint("sleeper_player_id", "season",
@@ -477,24 +482,61 @@ class RookieEspnValue(db.Model):
             "nfl_team": self.nfl_team,
             "espn_raw": self.espn_raw,
             "espn_adjusted": self.espn_adjusted,
+            "in_class": self.in_class,
         }
 
 
+# DP3 — posições elegíveis da classe entrante (K/DST seguem fora do board, mesma
+# semântica do store E2: _classify_not_found_entry já exclui K/DST → $1 no confirm).
+ENTERING_CLASS_POSITIONS = {"QB", "RB", "WR", "TE"}
+
+
+def is_entering_class_member(info) -> bool:
+    """DP3 — CRITÉRIO ÚNICO de "rookie da classe entrante" (D1+D3), aplicado a uma
+    entrada do pool global do Sleeper. Primeiro predicado de classe do codebase —
+    NÃO replicar (nem em JS/template): o único consumidor é a captura admin que
+    materializa a membership em RookieEspnValue (postura P3 da REFINE).
+    - `years_exp == 0`: único sinal do pool que captura a classe mais nova (F1:
+      metadata.rookie_year atrasa uma classe; age/college/nfl_team nulos nos stubs).
+    - posição skill (QB/RB/WR/TE): K/DST seguem excluídos (semântica E2 do store).
+    - `active is True` E `status == 'Active'` (D3, conjunção deliberada): cada flag
+      isolada tem um modo de falha — status='Active' com active=False são stubs
+      fantasmas antigos cujo years_exp nunca avançou (falsos entrantes, ex. classe
+      2017-18); active=True com status='Inactive' são cortados/limbo. A conjunção
+      exclui ambos (148 skill entrantes no pool de referência, vs. 289 sem D3)."""
+    if not isinstance(info, dict):
+        return False
+    return (info.get("years_exp") == 0
+            and (info.get("position") or "").upper() in ENTERING_CLASS_POSITIONS
+            and info.get("active") is True
+            and info.get("status") == "Active")
+
+
 def upsert_rookie_espn(season, sleeper_player_id, name, position, nfl_team,
-                       espn_raw, espn_adjusted):
-    """E2 — upsert idempotente no store por (sleeper_id, season). Adiciona à sessão;
-    o CHAMADOR faz commit. NÃO calcula salário (só guarda o ref value)."""
+                       espn_raw=None, espn_adjusted=None, in_class=None):
+    """E2 + DP3 — upsert idempotente no store por (sleeper_id, season). Adiciona à
+    sessão; o CHAMADOR faz commit. NÃO calcula salário (só guarda o ref value).
+    Porta ÚNICA de escrita da tabela, com dois donos por campo (None = não tocar):
+    - valores ESPN (import ESPN passa ambos; captura passa None → preserva o import);
+    - `in_class` (captura passa True; import passa None → preserva a membership)."""
     sid = str(sleeper_player_id)
     row = RookieEspnValue.query.filter_by(
         sleeper_player_id=sid, season=season).first()
     if row:
         row.name, row.position, row.nfl_team = name or row.name, position or row.position, nfl_team or row.nfl_team
-        row.espn_raw, row.espn_adjusted = espn_raw, espn_adjusted
+        if espn_raw is not None:
+            row.espn_raw = espn_raw
+        if espn_adjusted is not None:
+            row.espn_adjusted = espn_adjusted
+        if in_class is not None:
+            row.in_class = in_class
     else:
-        db.session.add(RookieEspnValue(
+        row = RookieEspnValue(
             season=season, sleeper_player_id=sid, name=name or "",
             position=position or "", nfl_team=nfl_team or "",
-            espn_raw=espn_raw, espn_adjusted=espn_adjusted))
+            espn_raw=espn_raw or 0.0, espn_adjusted=espn_adjusted or 0.0,
+            in_class=bool(in_class))
+        db.session.add(row)
     return row
 
 

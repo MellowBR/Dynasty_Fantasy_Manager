@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 31/07/2026 (sessão MAN-DP3 REG→F1→REFINE→F2→COMMIT: **DP3 ⚠️** — board de rookies do cap_projector refeito sob D1–D5: classe entrante por **snapshot materializado** (`RookieEspnValue.in_class`, captura admin idempotente por `(sid,season)` na tela do import ESPN, critério único `is_entering_class_member` = `years_exp==0`+skill+`active`+`status='Active'`), board lê membership − rosterados ($1 da fonte única p/ sem-ESPN), tela alt. A (valorados topo + massa atrás de busca/filtro). Smoke local 27/27 + 48/48; **✅ só após smoke prod (PROC1)**. Registrados: **F13 🔲** (versionamento do cache do pool, achado colateral) + nota de reescopo no E4-c-2 + comportamento sazonal da contagem (~288 julho / ~150 pós-corte NFL) + captura como passo 3 da intertemporada no CLAUDE.md.)
 > Atualizado em: 23/06/2026-pt3 (sessão MAN-PROC1: **PROC1 ✅** — Forma 1 ancorada: o gate de hash deployado foi afinado no bullet de ✅ da seção "Checklist de fim de sessão" do **`DEV_METHODOLOGY.md`** (transversal manager+optimizer), sem seção paralela. **Migração O3:** seção do PROC1 movida p/ o archive com nota de fechamento. Registrado **PROC2 🔲** (follow-up da ressalva F1: surfacear `RENDER_GIT_COMMIT` no `/admin` — é código). ⚠️ A edição do `DEV_METHODOLOGY.md` (repo umbrella `Fantasy/`, ainda sem commits) fica aplicada no arquivo mas **não commitada** — pertence ao commit inicial do umbrella, do owner.)
 > Atualizado em: 23/06/2026-pt2 (sessão MAN-PROC1-REG: **registro de processo** — novo item **PROC1** (🔲): fechamentos com gate de smoke de prod passam a exigir confirmação de que o **hash deployado live** é o commit validado (não basta commitado/pushado). Casos-âncora E1 (✅ prematuro) + E4-a (deploy live era 927831a docs-only, não 97b90ed do filtro). Sem código; nenhum item não relacionado alterado.)
 > Atualizado em: 23/06/2026 (sessão MAN-E4a-DONE: **E4-a ✅ + E2-RISK ✅** após smoke prod do import ESPN real (deploy do filtro de posição, commit 97b90ed). **Eixo A fechado** — D/ST só recebem candidato compatível (Broncos D/ST → só Denver Broncos DEF; demais D/ST → "Não Encontrados" limpo, sem skill); **sem regressão** do ramo skill nem dos rookies→store. **Split de prod: 211 matched / 5 aproximados / 84 não encontrados→store / 62 ausentes no PDF.** **Migração O3:** seções detalhadas de E4-a e E2-RISK movidas verbatim p/ `improvements_archive.md` (com nota de fechamento); Status Rápido mantém as linhas como ✅. Sem código.)
@@ -82,6 +83,7 @@
 | E5 | Microcopy stale da tela de review do import ESPN: cabeçalho "Não Encontrados — todos receberão $1" contradiz o pipeline pós-E2 (not_found com valor>0 resolvido a sleeper_id → store, salário `floor(ESPN×1.2)`; "$1" só vale p/ subclasses excluídas). Travou operação real de co-admin em prod. Alinhar comunicação da tela ao pipeline real (destino por classe) — ciclo F1 read-only → F2 — MAN-E5-REG/F1/F2 | Média | ⚠️ F2 localhost (48/48; split server-side de "Não Encontrados" via classificador único; textos stale corrigidos; JS pós-confirm lê `rookie_store`; **comportamento intacto**) — **aguarda smoke prod** (tela de review + confirm com PDF real; gate PROC1: hash live = commit) |
 | DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — lê o **store canônico** — MAN-DP1-REG | A definir | 🔲 (desbloqueado: E4-c-1 ✅ em prod) |
 | DP2 | Cadeia única de planejamento no cap projector: board DP1 parte do cenário keep/corte (não mais roster integral) + summary sticky unificado refletindo cortes + rookies; estende o endpoint canônico do F10 com `rookie_sids` (1 fonte) — MAN-DP2-REG (revisão consciente da base do DP1-F2) | Média | ✅ 15/06/2026 (smoke de prod confirmado) |
+| DP3 | Composição da lista do board de rookie draft: hoje lista `RookieEspnValue` (não-rosterados ESPN-valorados, Top-300) → mostra veteranos/rookies de classes antigas e omite rookies fora do Top-300; owner decidiu listar só rookies da classe entrante (D1) via pool global do Sleeper, ESPN quando houver e $1 quando não (D2), só status ativo NFL (D3), snapshot materializado (D4), tela alt. A (D5) — MAN-DP3-REG/F1/REFINE/F2 | Alta | ⚠️ F2 localhost (smoke 27/27 em DB temp + 48/48; captura idempotente `in_class` por (sid,season), board lê membership − rosterados, $1 da fonte única, tela valorados/busca; classe viva 31/07 = 288 de 436, D3 exclui 148) — **aguarda smoke prod** (captura real + board + gate PROC1); E4-c-2 reescopa depois |
 | WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG | Média | 🔲 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
@@ -131,6 +133,7 @@
 | F11-FIX-UX | Microcopy do card "Season Rollover (preview)" e do passo 2 do fluxo pré-temporada no /admin: linguagem de owner (prévia × aplicação real na Intertemporada), link p/ /offseason, sem nº de step e sem season hardcoded — carona da sessão F10 (padrão N1-FIX/T3-FIX-UX) | Baixa | ✅ 15/06/2026 (fecha junto com o [[UX9]] — sintoma do passo 2 eliminado pela raiz) |
 | UX9 | Passo 2 do card "Ordem do Fluxo Pré-Temporada" (/admin) fragmenta em colunas. **F2 ✅ localhost:** body de cada passo envolto num `<span class="step-body">` (2 flex items: badge+body) → texto+link fluem inline em ordem; estrutural, não comprimento; local, zero blast radius; 48/48. Fecha o done do F11-FIX-UX quando passar em prod — MAN-UX9-REG/F1/F2 | Baixa | ✅ 15/06/2026 (smoke de prod) |
 | F12 | `run_import` sobrescreve salary/contract_year a cada boot com CSV presente (dev local), sem SalaryHistory — reverte silenciosamente rollover/correções locais; coluna `salary_2025` hardcoded — achado AUD1 Lente 2 | Média | ✅ 15/06/2026 (bootstrap one-shot via flag `csv_bootstrap_done`; critério dev-local, sem smoke de prod) |
+| F13 | Versionamento do cache do pool Sleeper (`.sleeper_players_cache.json`, ~15 MB, trackeado no git): mtime pós-deploy reinicia o TTL de 168h (frescor enganoso), cada refresh commitado incha a história, e em prod a raiz read-only (doutrina E1) faz a gravação do cache falhar silenciosamente → pós-TTL, todo load re-baixa ~15 MB da API. Avaliar gitignore × cache em `dirname(DYNASTY_DB)` — achado colateral do smoke DP3-F2 — MAN-DP3-COMMIT | Baixa | 🔲 |
 | E4-d | Matching frouxo nas portas do /auction: single-entry FA/rookie matcha player por nome exato sem resolver sid (guard E4-b ausente — classe órfão) + upload Excel matcha Team por substring `%name%` — achado AUD1 Lente 4 | Baixa/Média | 🔲 |
 | M19 | Validação de pesos do lottery só existe no client (JS floor/mín-1); `_normalize_weights` aceita float/zero/negativo — POST direto exclui time do pool silenciosamente — achado AUD1 Lente 1 | Baixa | 🔲 |
 | M20 | Descomissionar write-side da flag single-user: sync escreve `is_my_team` via `MY_OWNER_ID`; record_acquisition/bulk_register propagam; colunas + to_dict + check_team.py + mapeamento standings (offseason.py:312) — fora do escopo M17 (só consumidores); **bloqueado: depende de M17, hoje ⚠️ (aguardando smoke prod)** — achado AUD1 Lente 3 | Baixa | 🔲 (bloqueado) |
@@ -770,6 +773,12 @@ junto.
 **DEPENDÊNCIAS**
 - Fatia de **[[E4-c]]**. Depende de **[[E4-c-1]]** (badge já repontada). **Não bloqueia
   [[DP1]].**
+- **⚠️ NOTA DP3 (31/07/2026): reescopo pendente.** A REFINE do [[DP3]] concluiu que a metade
+  "generalizar/migrar `RookieEspnValue`" **colide** com a natureza nova da tabela pós-DP3-F2
+  (membership da classe entrante via `in_class` + valor opcional — semântica sem casa no
+  `EspnValueStore`, que é `(sid, season, valor)` puro). Sequenciamento decidido: **este item é
+  reescopado DEPOIS do DP3** — mantém-se o DROP do `ESPNValue` legado; a metade RookieEspnValue
+  é reenquadrada/cancelada em sessão própria. Escopo acima ainda **não** foi reescrito.
 
 ---
 
@@ -1031,6 +1040,391 @@ a regra 8.2.7 não depende do slot, então o board não modela picks (enriquecim
 no DB — confirma fonte correta); spot-check `$46→$55` e `$3→$3`; cenário 2 picks → soma `+$58` no
 backend; cenário vazio → budget atual sem alteração; nada escrito (store + cap intactos). **Falta:**
 smoke em prod (depende de import ESPN da season popular `RookieEspnValue`) → manter ⚠️ até lá.
+
+---
+
+### DP3 — Composição da lista de rookies do board de cap projector
+⚠️ **F2 implementada + validada em localhost (31/07/2026) — aguarda smoke em prod (gate PROC1)** — MAN-DP3-REG/F1/REFINE/F2 — F1 + REFINE (diagnose/arquitetura) concluídas; **F2 entregue sob D1–D5** (snapshot materializado, postura P3). Smoke 27/27 em DB temporário + `salary_engine_test` 48/48. **✅ só após smoke prod** (captura real + board na tela + hash live = commit).
+
+**CONTEXTO**
+O board "🏈 Planejamento de Rookie Draft" do cap projector (entregue no [[DP1]]-F2, revisado pelo
+[[DP2]]) lista hoje as entradas de `RookieEspnValue` da season alvo. Essa tabela **não é uma lista
+de rookies**: ela é populada no confirm do import ESPN com as entradas do Top-300 que **não
+casaram com nenhum Player rosterado**, excluindo K/DST e valor $0. A F1 do DP1 (09/06/2026) já
+havia registrado a nuance — "entrante ESPN-valorado não-rosterado, não estritamente rookie" — como
+ressalva semântica aceita na época.
+
+**PROBLEMA / OPORTUNIDADE**
+Em smoke de produção (31/07/2026) o owner constatou que a ressalva vira **ruído na tela**:
+(a) aparecem jogadores que **não são rookies da classe entrante** — veteranos não-rosterados e
+rookies de classes anteriores; (b) **faltam rookies da classe**, porque quem está fora do Top-300
+da ESPN nunca entra na tabela e portanto não existe para o board. O critério de inclusão vigente
+("não-rosterado com valor ESPN") **não é** o critério que o header da seção promete.
+
+**DECISÕES DO OWNER (tomadas — NÃO reabrir na F1)**
+- **D1 — critério de inclusão:** o board deve listar **apenas rookies da classe entrante** — a
+  classe draftada pela NFL mais recentemente. Após a realização do nosso rookie draft, a classe
+  alvo passa a ser a seguinte. O **ponto de corte** entre uma classe e outra é questão aberta
+  (ver Q1).
+- **D2 — cobertura:** a lista deixa de ser limitada ao Top-300 da ESPN. A classe passa a vir do
+  **pool global do Sleeper**, com valor ESPN quando houver e **$1 quando não houver** — este $1 é
+  a regra vigente da liga para jogadores ausentes do Top-300, **não é dado inventado**.
+- **D3 — filtro de status (REFINE, 31/07/2026):** entram na lista **apenas jogadores com status
+  ativo na NFL**, excluindo os cortados. No pool atual: `active==True` → **151** dos 289 skill
+  entrantes; acrescentando `status=='Active'` → **148** (3 com status diverso). O predicado exato
+  (`active` vs. `active`+`status`) é detalhe de F2; a decisão é: **cortado não aparece**.
+
+**QUESTÕES EM ABERTO (destino F1 — não responder no REG)**
+1. Qual sinal define o corte da classe alvo, e quando ele vira.
+2. Como ordenar a massa de entradas a $1, sem inventar dado.
+3. Qual passa a ser o efeito de `clear_rookie_espn_store` se a lista não depender mais dela.
+4. Se e como excluir do board rookies já draftados/rosterados.
+5. Se K/DST seguem excluídos sob o critério novo.
+6. Volume e custo de leitura do pool global no endpoint atual.
+
+**REFERÊNCIAS (só citar, não alterar)**
+- [[DP1]] — fonte da lista (`RookieEspnValue` por season) + ressalva semântica da F1.
+- [[DP2]] — cadeia única de planejamento keep/corte + rookies.
+- [[E2]] — store de valor ESPN + resolução via pool global do Sleeper (nome+team).
+- [[E4-a]] — matcher por `sleeper_id`.
+
+**F1 — ACHADOS (diagnose read-only, MAN-DP3-F1, 31/07/2026; sem alteração de código/schema/DB/template)**
+
+*Base empírica:* pool global cacheado `.sleeper_players_cache.json` (11.578 entradas, snapshot
+12/06/2026) + FantasyCalc `data/.dynasty_values_cache.json` (keyed por `sleeperId`, fetch
+09/06/2026). Os 7 nomes citados foram inspecionados nominalmente nesse pool.
+
+**Q1 — Fonte atual + os 7 nomes.** Caminho completo: import ESPN PDF (`admin.espn_import_page`) →
+`match_players` → entradas `not_found` (não bateram com Player rosterado) → no confirm,
+`_resolve_not_found_to_store(not_found, season)` (`admin.py:554`) filtra via
+`_classify_not_found_entry` (exclui K/DST, valor≤0, sid ambíguo) e resolve o sid por
+`_resolve_entry_sid` (pool global, nome+team **Brown-safe**) → `upsert_rookie_espn(season, …)` →
+`RookieEspnValue`. O board lê `/api/cap_projector/rookies` (`salary.py:194`) =
+`RookieEspnValue.filter_by(season=get_current_season()+1)` ordenado por `espn_adjusted desc, name asc`.
+**Critério de inclusão VIGENTE:** "entrada do Top-300 ESPN que (a) não casou com Player rosterado,
+(b) é skill (≠K/DST), (c) valor ESPN>0, (d) resolve a um sid **único** no pool". É **cego a classe**.
+Os 7 entram pelo **mesmo** critério; o campo que os separaria sob D1 é `years_exp` no pool:
+- Calvin Ridley (sid 4981, `years_exp=8`) → **veterano, NÃO-entrante** (FA não-rosterado no Top-300).
+- Braelon Allen (sid 11576, `years_exp=2`) → **classe 2024, NÃO-entrante**.
+- Terrance Ferguson (sid 12487, `years_exp=1`) → **classe 2025, NÃO-entrante**.
+- Germie Bernard (sid 13274, `years_exp=0`) → **classe entrante 2026 ✓**.
+- Antonio Williams (`years_exp=0` sid 13301 **✓** / homônimo `years_exp=2` sid 7203) → entrante, mas
+  homônimo (o entrante tem `team=None` → risco de desambiguação por team falhar).
+- Jeremiyah Love (sid 13287, `years_exp=0`) → **entrante ✓**.
+- Carnell Tate (sid 13279, `years_exp=0`) → **entrante ✓**.
+→ 3 dos 7 (Ridley/Allen/Ferguson) **não são da classe entrante** = exatamente o defeito (a). Mesmo
+critério p/ os dois grupos, confirmado.
+
+**Q2 — Identificação de classe (campos do pool).** Disponíveis por jogador: `full_name`,
+`first/last_name`, `team`, `position`, `fantasy_positions`, `age`, `college`, `birth_date`,
+`years_exp`, `search_rank`, `status`, `active`, `number`, `depth_chart_*`, `metadata{rookie_year,
+years_exp_shift,…}`, ids externos. Veredito de estabilidade p/ identificar classe entrante:
+- **`years_exp` (int) — ÚNICO sinal viável.** `0` = classe entrante; estável dentro da season (a
+  classe 2025 já está em `1` no snapshot de jun/2026, a 2026 em `0`). Vira `0→1` no rollover de
+  league-year do Sleeper (~março, evidência: classe 2025 já em 1 em jun/2026) — **depois** do nosso
+  draft (ago) e **antes** do próximo draft NFL (abr). É o único campo que captura a classe **mais
+  nova**.
+- **`metadata.rookie_year` — NÃO serve p/ a entrante.** Populado p/ classes passadas (2024=840,
+  2025=714 entradas) mas **ausente na classe 2026**: os 4 rookies entrantes checados têm metadata só
+  com `source_id`, sem `rookie_year`; **não existe bucket '2026'**. **Atrasa uma classe** — falha
+  justamente na população-alvo.
+- **`age`/`college`/`birth_date` — sparse/nulos** nos stubs da classe entrante (os 4 entrantes têm
+  `age=None`, `college=None`). Não confiáveis p/ a entrante.
+- **`search_rank` — NULO na classe entrante** (os 4 entrantes = `None`). Inútil p/ ela (ver Q7).
+- **`status`/`active` — não são class-specific.**
+Ressalva: os entrantes carregam **metadata pobre** no pool cacheado (sem team/age/college/rank).
+
+**Q3 — Ponto de corte da classe alvo (sinais internos).** 
+- `rookie_draft_done` (AppConfig; `offseason.py:714`) — toggle **MANUAL** do admin (passo 5);
+  dispara `clear_rookie_espn_store()`. **Confiável como intenção** "nosso draft acabou", mas manual.
+- `current_season` (AppConfig; `get_current_season`) — avança **automático** no rollover (passo 4,
+  `offseason.py:691`), **antes** do rookie draft. É o relógio **da liga**, não o do draft NFL.
+- `espn_values_updated` / `rollover_done` / `season_closed` / `season_locked` / `offseason_mode` —
+  flags do workflow de intertemporada; rollover é auto, `offseason_mode` **desliga manual**.
+- Importador OFF26-3 materializa o rookie draftado como Player rosterado — sinal **implícito** de
+  saída da classe "por draftar" (ver Q5).
+**Descompasso NFL × liga:** draft NFL ~fim de abril → 2026 vira `years_exp=0`; nosso rookie draft
+~agosto; Sleeper vira `years_exp 0→1` ~março (próximo league-year), **depois** do nosso draft e
+**antes** do próximo draft NFL. Logo `years_exp==0` = classe 2026 de ~abr/2026 a ~fev/2027. No
+intervalo **ago/2026 → abr/2027** "classe entrante do NOSSO próximo draft" é ambígua: já draftamos a
+2026 (que o Sleeper ainda marca `0`) e a 2027 NFL ainda não existe. **Implicação:** `years_exp==0`
+sozinho **não avança** o alvo após o nosso draft — exige gate separado (`rookie_draft_done` + excluir
+draftados, ou limitar o board à janela pré-draft).
+
+**Q4 — Réplicas (grep reportado).** 
+- **Critério da lista:** **1 sítio** — `cap_projector_rookies` (`salary.py:194-224`) lendo
+  `RookieEspnValue`. O JS de `cap_projector.html:234-263` só **exibe** o payload (`$${r.projected_salary}`),
+  **0 cálculo**.
+- **Salário `floor(ESPN×1.2)`:** fonte única `salary_engine.year1_salary`; consumidores `salary.py:222`,
+  `draft_import.py:135/143/259`, `record_acquisition`. **0 réplica** JS/template.
+- **Critério "é rookie":** **não existe** como predicado de classe hoje. `draft_import.py:100`
+  (`is_rookie = acquisition_type=="rookie_draft"`) é **tipo de draft**, não classe do jogador;
+  `auction.html` "rookie" = aba de registro do rookie draft (nomes digitados à mão), **sem lista de
+  classe**. **⚠️ p/ F2:** o predicado `years_exp==0` do D1 seria o **primeiro** critério de classe do
+  codebase — nascer como **helper único** p/ não semear réplica.
+
+**Q5 — Rookies já draftados.** Pós-draft o rookie vira Player rosterado (`record_acquisition`/
+`draft_import`, `is_dropped=False`, `team_id` setado). Hoje o board lê `RookieEspnValue` (nunca
+Player) e o store é **limpo em bloco** no `rookie_draft_done` → board esvazia inteiro; **não há
+exclusão por jogador**. Sob D2 (lista do pool), o draftado **continuaria** listado (segue `years_exp=0`
+no pool) sem exclusão. Sinal p/ excluir: **sid já existe como Player não-dropado**
+(`find_player_by_sleeper_id`). **Interação DP2:** draftado é membro de roster **sujeito a corte** na
+cadeia keep/corte unificada → tem de **sair da lista de draftáveis e entrar no cenário de roster**,
+senão é **contado em dobro** (uma vez como rookie $1 no board, outra como jogador no roster).
+
+**Q6 — Volume e custo (número concreto).** Classe entrante (`years_exp==0`): **718 no total, 289
+skill (QB/RB/WR/TE), 151 ativos** — vs. hoje o board = só o subconjunto Top-300 não-rosterado (~dezenas).
+D2 cresce a lista **~1 ordem de grandeza** (dezenas → **289** skill, ou **151** se filtrar ativos). O
+endpoint atual **não carrega o pool** (só 1 query indexada em `RookieEspnValue`). Sob D2 precisaria
+carregar/varrer o pool (`_load_players_db` = parse de **~15 MB**, `.sleeper_players_cache.json`, TTL
+semanal) + scan das 11,5k entradas por request — o `_build_pool_index` já faz isso no import ESPN, mas
+seria **novo custo por request** neste endpoint (parse cold ~centenas de ms; aceitável se o pool for
+carregado 1× e filtrado, mas não é gratuito como hoje).
+
+**Q7 — Ordenação (sem inventar dado).** 
+- **Valor ESPN ajustado:** só p/ o subconjunto ~Top-300; o resto → $1 (empate). É o sort atual.
+- **FantasyCalc dynasty `value` + `redraft_value` + `overall_rank`** (`data/.dynasty_values_cache.json`,
+  keyed por `sleeperId`, TTL 24h, **já usado** por trades/league/picks): cobre **70 dos 289** skill
+  entrantes → **219 sem valor dynasty**. Ordena bem o topo, deixa 219 empatados.
+- **`search_rank`:** **NULO p/ a classe entrante** (os 4 entrantes = `None`) → inútil **exatamente**
+  nessa população; nem como desempate serve aqui. (Registrado: é proxy **fraco** de ADP — rank de
+  popularidade, não posição de draft — **e** ausente nos entrantes.)
+Conclusão: **nenhuma chave única** ordena a classe inteira. Melhor combinação sem inventar dado =
+ESPN (topo) → FantasyCalc dynasty (~70 seguintes) → nome/posição (os **219** residuais). O grosso do $1
+fica **inordenável além de alfabético/posicional**.
+
+**Q8 — Efeito da limpeza pós-draft.** Hoje `clear_rookie_espn_store()` (no `rookie_draft_done`)
+**esvazia** `RookieEspnValue` → board vazio pós-draft (correto p/ a janela). Sob D2 (lista do pool),
+limpar o store **não esvazia mais** o board — ele ficaria **permanentemente populado a $1** (classe
+inteira do pool), inclusive pós-draft. **D2 exige gate próprio:** (a) limitar o board à janela
+pré-draft via `rookie_draft_done` (esconder quando `true`), e/ou (b) excluir draftados (Q5) p/ encolher
+naturalmente a zero conforme a classe é draftada. O join de **valor ESPN** seguiria lendo o store
+season-keyed; limpá-lo derruba todos p/ $1 — aceitável sob D2 **só se** o board também estiver fechado.
+`clear_rookie_espn_store` **deixa de ser o "interruptor"** do board.
+
+**Q9 — Gap assumido×real / existe×proposto.** 
+(a) *Premissas do prompt que o código contradiz:*
+- "pool tem sinal de classe (rookie_year)" → **`premissa falsa`**: `rookie_year` atrasa uma classe,
+  ausente na 2026; só `years_exp==0` serve.
+- "$1 sem ESPN é fácil de ordenar" → **`premissa falsa`**: 219/289 sem dynasty value, `search_rank`
+  nulo → ordenação não-resolvida.
+- "entrante tem `nfl_team` p/ exibir" → **`premissa falsa`**: só **2/289** têm team no cache; team/age
+  em geral nulos nos stubs entrantes.
+(b) *Campos/comportamentos de hoje que somem sob D1/D2:*
+- Veteranos/2ª-3ª-ano não-rosterados do Top-300 (Ridley/Allen/Ferguson) exibidos hoje →
+  **`remoção intencional`** (D1 restringe à entrante; aceito pelo owner).
+- Ordenação primária por valor ESPN (funciona hoje pois lista=Top-300) → insuficiente sob D2 →
+  **`deslocamento`** (precisa de estratégia de sort nova).
+- `clear_rookie_espn_store` como interruptor do board → **`deslocamento`** (precisa de gate novo).
+- `RookieEspnValue` season-keyed como fonte única da lista → substituída por scan do pool →
+  **`deslocamento`**.
+- Exibir `nfl_team`/`position` vindos do `RookieEspnValue` (populados no import) → nos $1 do pool esses
+  campos são esparsos/nulos → **`perda não-intencional`**.
+
+**PARECER (opções viáveis + custo) — decisão de escopo é do owner; F2 não iniciada**
+- **Opção A (D1+D2 pleno):** membership da classe = `years_exp==0` do pool (helper único) + excluir
+  draftados (Q5) + gate `rookie_draft_done` (Q8); valor ESPN via store, senão $1 (D2); sort ESPN →
+  FantasyCalc dynasty → nome. *Custo:* +load/scan do pool por request (Q6), +predicado de classe
+  single-source (Q4), +join de exclusão a Player, +integração FantasyCalc no endpoint. Cobre (a) e (b).
+- **Opção B (D1+D2, store como camada de valor):** igual A, mas o board faz **membership pelo pool** e
+  **LEFT-JOIN a `RookieEspnValue`** só p/ o valor ESPN ($1 default). Minimiza mudança no store; a limpeza
+  pós-draft zera valores (→ todos $1) e a visibilidade fica no gate. Mesmo custo de pool/sort de A.
+- **Opção C (parcial — NÃO cumpre D2):** só **filtrar a lista atual por `years_exp==0`** (remove
+  veteranos), sem trazer a massa $1. *Custo baixo* (1 lookup de pool por entrada existente, sem scan
+  total). Corrige (a), **não** corrige (b) [rookies fora do Top-300 seguem ausentes] → **não satisfaz
+  D2**; listada só p/ contraste de custo.
+
+**REFINE — ARQUITETURA DE FONTE (MAN-DP3-REFINE, 31/07/2026; read-only — decide COMO a classe
+chega ao board, antes da F2. Supera as opções A/B da F1, que assumiam pool ao vivo. Ordenação e
+layout ficam FORA — decisão visual separada do owner.)**
+
+*Evidência nova levantada:* (i) o pool `.sleeper_players_cache.json` (~15 MB, 11.578 entradas)
+**está trackeado no git** — vai no deploy; o mtime vira o do deploy, então o TTL de 168h
+(`PLAYER_CACHE_TTL_HOURS`, `sync_sleeper.py:32`) conta a partir dele; expirado, `_load_players_db`
+re-baixa ~15 MB da API Sleeper (gravação do cache na raiz do app é try/except-pass — em prod a raiz
+é tratada como read-only [doutrina E1], falha silenciosa ⇒ **re-download a cada load**). (ii) O app
+**não tem hoje nenhum cache em processo** — `dynasty_values` é file-cache relido a cada chamada;
+`_build_pool_index` re-parseia o pool a cada import. (iii) Medições: parse do pool ~**200 ms** na
+máquina dev (Render Starter ~2-4×: **0,4–0,8 s**); scan das 11,5k entradas **~4 ms**; payload
+filtrado da classe (D3) ~**10 KB**; deploy = gunicorn **1 worker** (Procfile sem `--workers`).
+
+*Comparação — 3 posturas × 6 eixos:*
+
+**P1 — pool por request** (opção B da F1):
+- *Custo/request:* 1 query (`RookieEspnValue`, valores) + open+parse de **15 MB** (~200 ms dev /
+  0,4–0,8 s Render) + scan 4 ms — **a cada carga do board**. Processo frio = igual (nada amortiza);
+  **pior caso** (TTL 168h vencido + raiz read-only): **download de ~15 MB da API Sleeper dentro do
+  request** (segundos, sujeito a timeout). Mobile: payload ~10 KB ok — o custo é latência do server.
+- *Frescor:* melhor das 3 — defasagem ≤ TTL 168h (7 dias) + lag do próprio Sleeper; automático.
+- *Gate:* limpeza existente **NÃO serve** (membership não vem mais do store) → exige check novo no
+  endpoint sobre `rookie_draft_done` (flag **manual** já existente; sinal novo = novo consumo dela).
+- *NFL×liga:* **herda** a ambiguidade (Q3) — `years_exp==0` segue apontando a classe já draftada até
+  ~março; mitigação = o mesmo gate manual.
+- *Draftados:* join por request sid→Player não-dropado (1 query `IN` sobre ~148 sids — barato).
+- *Escrita:* **zero** (postura só-leitura; trivialmente idempotente).
+
+**P2 — pool com cache em memória:**
+- *Custo/request:* warm = 1 query + filtro em memória ~4 ms (~10 KB). **Frio (1º request do
+  processo) = P1 inteiro** (parse 0,4–0,8 s ou download 15 MB). 1 worker gunicorn → 1 cache por
+  processo, zerado a cada deploy/restart. RAM: pool parseado ≈ **10× o JSON** (dict Python de 11,5k
+  entradas — ~centenas de MB) — relevante em instância pequena; mitigável guardando **só o índice
+  filtrado** (~148 entradas, poucos KB), o que já é meio caminho para a P3.
+- *Frescor:* = P1 **+ TTL do cache em memória** (pior caso soma os dois).
+- *Gate:* = P1 — exige check novo (limpeza não serve).
+- *NFL×liga:* = P1 — herda.
+- *Draftados:* = P1 (join por request).
+- *Escrita:* zero em DB, **mas** introduz o **primeiro estado global mutável de processo** do app
+  (hoje não existe — novidade arquitetural com custo de raciocínio em restart/multi-worker futuro).
+
+**P3 — snapshot materializado** (captura por ação de admin):
+- *Custo/request:* **1-2 queries indexadas** (~148 linhas + subquery de exclusão de draftados) —
+  ~1-5 ms, ~10 KB. **Idêntico ao board de hoje**; mobile e processo frio indiferentes (é DB local).
+  O parse do pool é pago **1× por captura** (ação admin), não por request.
+- *Frescor:* as-of última captura — defasagem máxima = intervalo entre capturas (controle do admin).
+  Stubs que o Sleeper adiciona tarde e mudanças de status (D3: cortado pós-captura) só entram/saem
+  na **recaptura** — mitigado por ela ser re-executável a qualquer momento (upsert idempotente).
+- *Gate:* **PRESERVA a rotina existente** — snapshot vivendo em `RookieEspnValue` (linhas da classe
+  com valor ESPN opcional; sem valor → $1 no read, D2), `clear_rookie_espn_store()` no
+  `rookie_draft_done` volta a esvaziar o board integralmente, como hoje. **Nenhum sinal novo.**
+- *NFL×liga:* **RESOLVE** — a captura é ato explícito no calendário DA LIGA (intertemporada);
+  pós-draft a limpeza esvazia; a classe seguinte só existe quando o admin capturar de novo (e aí o
+  Sleeper já virou o `years_exp`). A janela ambígua ago→abr não vaza para a tela.
+- *Draftados:* exclusão no read via subquery local (sid ∉ Player não-dropado) — SQL barato; sem
+  acoplamento de escrita com o draft import. (Sob DP2, o draftado sai da lista e entra no cenário
+  de roster — sem dupla contagem.)
+- *Escrita:* endpoint admin no fluxo de intertemporada, **upsert idempotente por `(sid, season)`** —
+  molde já provado no próprio store (`upsert_rookie_espn`, confirm do import ESPN) e na família M8
+  de ações admin re-executáveis. Re-executável N vezes; o import ESPN posterior segue preenchendo
+  **as mesmas linhas** com valores (captura = membership + $1 default; import = camada de valor).
+  Única postura que escreve — mas pelo caminho mais idempotente e auditável do codebase.
+
+*Conflito com [[E4-c-2]] — parecer explícito:* **colidem.** O E4-c-2 prevê "generalizar/migrar
+`RookieEspnValue` p/ o store canônico e aposentá-la" sob a premissa de que ela é **só valor ESPN
+órfão**. A P3 **redefine a natureza da tabela**: passa a ser *membership da classe entrante com
+valor opcional* (nome/pos/status/season + ESPN quando houver) — semântica que **não tem casa** no
+`EspnValueStore` (que é `(sid, season, valor)` puro, sem membership). **Recomendação de
+sequenciamento:** DP3-F2 **primeiro**; depois **reescopar** o E4-c-2 para a metade não-contestada
+(DROP do `ESPNValue` legado, vazio) e **cancelar/reenquadrar** a metade "subsumir RookieEspnValue"
+contra a natureza nova da tabela. Custo de esperar: zero — E4-c-2 é Baixa/higiene, 🔲, sem
+dependentes. *(Registro apenas — o item E4-c-2 não foi alterado.)*
+
+**D4 (owner, pós-REFINE):** fonte por snapshot materializado (P3). **D5 (owner):** tela na
+alternativa A — valorados ordenados por ESPN desc no topo; massa a $1 atrás de busca por nome +
+filtro de posição, com contagem visível.
+
+**RECOMENDAÇÃO (única): P3 — snapshot materializado.** Trade-off que a sustenta: paga-se o parse
+do pool 1× por captura (ação admin idempotente, molde já existente) para devolver ao board o custo
+de request de hoje (1-2 queries, ~10 KB, ~ms — inclusive mobile e processo frio), **preservar
+`clear_rookie_espn_store` como gate sem sinal novo** e **resolver** (não herdar) o descompasso
+NFL×liga, ancorando a virada de classe no calendário da liga. P1/P2 têm frescor melhor, mas pagam
+0,4 s–vários s por request (P1) ou introduzem o primeiro estado global de processo do app (P2), e
+ambas ainda exigem gate novo e herdam a ambiguidade de calendário. **Risco principal da P3,
+nomeado: frescor manual** — a classe exibida envelhece entre capturas (stub adicionado tarde pelo
+Sleeper fica fora; jogador cortado pós-captura segue listado, violando D3 até a recaptura). Mitigação
+natural: recaptura re-executável a qualquer momento + refresh do pool já semanal; residual aceito
+como decisão de F2 (ex.: botão de recaptura ao lado do import ESPN no fluxo de intertemporada).
+
+**F2 — IMPLEMENTADO (MAN-DP3-F2, 31/07/2026)** — ⚠️ validado em localhost; smoke em prod pendente.
+
+*Camada de dados (models.py):* coluna **`in_class`** em `RookieEspnValue` (Migration 8 no
+`app.py`, ALTER idempotente; default 0 → linhas pré-existentes do import ficam fora do board até a
+captura). `upsert_rookie_espn` estendido como **porta única com dois donos por campo** (None = não
+tocar): import ESPN é dono dos valores; captura é dona da membership — nenhum sobrescreve o outro.
+Predicado **`is_entering_class_member`** = o 1º critério de classe do codebase, helper único
+(grep: `years_exp` executável só em `models.py:509`; consumidor único = captura; **zero réplica**
+em JS/rotas).
+
+*Predicado D3 escolhido:* **`years_exp==0` AND posição skill AND `active is True` AND
+`status=='Active'`** (conjunção deliberada). Justificativa com evidência do pool: cada flag isolada
+tem um modo de falha — `status='Active'` com `active=False` são stubs fantasmas antigos cujo
+`years_exp` nunca avançou (falsos entrantes, ex. Dontre Wilson classe 2018); `active=True` com
+`status='Inactive'` são cortados/limbo. A conjunção exclui ambos. K/DST seguem fora (mesma
+semântica E2 do store; posições `ENTERING_CLASS_POSITIONS = {QB,RB,WR,TE}`).
+
+*Captura (admin.py):* `POST /api/admin/capture_rookie_class` (`@admin_required`) — varre o pool
+(`_load_players_db`), aplica o predicado, upsert idempotente por `(sid, season)`; quem saiu do
+critério é **desmarcado** (`in_class=False`), não deletado (preserva valor ESPN do import).
+Relatório `{added, updated, removed, total_in_class}`. Pool indisponível → 503 gracioso, sem 500.
+Botão na tela do **import ESPN** (`espn_import.html`, card próprio) — fluxo de intertemporada.
+
+*Leitura (salary.py):* `/api/cap_projector/rookies` lê `in_class=True` da season-alvo **excluindo
+sids já rosterados** (subquery Player não-dropado — sem double-count com a cadeia keep/corte DP2).
+Contrato de resposta preservado; salário segue da fonte única `year1_salary` (sem ESPN →
+`espn_adjusted=0` → **$1 sai do próprio engine**, zero código novo de salário). 2 queries
+indexadas, leitura pura.
+
+*Tela (cap_projector.html, D5 alt. A):* valorados (ESPN>0) no topo em tabela ordenada (ordem do
+server, ESPN desc); massa a $1 atrás de **busca por nome + filtro de posição** com contagem
+visível ("classe entrante: N — X com valor, Y a $1"); rookies já no cenário permanecem visíveis
+mesmo sem busca ativa. Renderer de linha único; controles montados 1× (foco da busca preservado);
+split valorado/massa é só display — **nenhuma** lógica de classe/salário/budget em JS; barra fixa
+segue no `/budget` canônico DP2 (intocado).
+
+*Validação (smoke 27/27, DB temporário — seed do git intocado; + 48/48):*
+- Captura 2× idempotente: 2ª = added 0/removed 0/total igual; zero duplicata por (sid,season).
+- 7 nomes da F1: Ridley/Allen/Ferguson **fora**; Love/Tate/Bernard/A.Williams **dentro**.
+- Caso de referência DP1: Love $46→**$55**; Makai Lemon $3→**$3**; 286 sem ESPN → todos **$1**.
+- Rosterado sai do board (Tate rosterizado → ausente); cenário 2 rookies → barra fixa +$58 exato
+  e 2 spots ocupados; rookie $1 no cenário custa $1; `salary_history` inalterado (0→0).
+- `clear_rookie_espn_store` → board vazio (gate preservado, rotina intocada).
+- Gates: captura sem login → 401; `GET /cap_projector` e `/admin/espn_import` → 200.
+- **Recalibragem de contagem (achado do smoke):** o TTL de 168h do cache do pool expirou e a
+  captura baixou o pool **vivo de 31/07**: classe entrante ativa = **288 de 436** ye0-skill (D3
+  exclui 148). O "~151" da REFINE era retrato do cache de 12/06 (pré-assinaturas de camp; rosters
+  NFL hoje em 90). Paridade exata captura×pool verificada (288==288). Efeito colateral: o
+  `.sleeper_players_cache.json` trackeado no git foi atualizado pelo download durante o smoke —
+  **restaurado antes do commit** (não é artefato do DP3); o achado do versionamento virou o item
+  **[[F13]]**.
+
+**COMPORTAMENTO ESPERADO — a contagem da classe varia com o calendário da NFL (não é bug).**
+O predicado D3 lê o status vivo do pool: em **julho/agosto** os rosters NFL estão em **90**
+jogadores (training camp) e a classe ativa fica em ~**288**; após o **corte de fim de agosto**
+(rosters a 53 + practice squads) o MESMO predicado devolve a ordem de ~**150**. Como o nosso
+rookie draft ocorre **antes** do corte, o board em uso real exibe a **contagem alta** — correto:
+naquele momento todos esses jogadores estão de fato em roster NFL. *Nota operacional:* se o board
+seguir em uso após o corte da NFL (ex.: consulta tardia pré-FA), **recapturar** — a recaptura
+desmarca os cortados (`removed` no relatório) e a lista encolhe para a ordem de ~150 sozinha.
+
+*Pendências de smoke em prod (gate do ✅, PROC1 — hash live = commit):*
+1. Captura real no Render (1ª execução baixa ~15 MB do pool na request — custo aceito na REFINE)
+   → relatório coerente; re-execução idempotente.
+2. Board na tela: valorados no topo pós-import ESPN; busca/filtro da massa $1 sem reload e com
+   foco preservado (interação JS validada por revisão de código + página 200 — comportamento real
+   só no navegador); contagem visível coerente com a captura.
+3. Cenário com rookie da massa $1 refletindo na barra fixa em prod.
+4. **Contagem de valorados × import real:** o smoke local exibiu só **2** valorados porque o DB
+   temporário partiu do seed (store vazio; os 2 foram semeados pelo harness — Love/Lemon). O
+   import real da season já gravou **84** entradas no store em prod (split E4-a). Confirmar em
+   prod que o nº de valorados no topo do board corresponde às entradas do import ESPN que são
+   membros da classe capturada (interseção in_class × valor>0 — não necessariamente os 84: os
+   não-membros do import, ex. veteranos não-rosterados, ficam `in_class=False` e fora do board).
+
+---
+
+### F13 — Versionamento do cache do pool Sleeper
+🔲 **Registrado 31/07/2026** — MAN-DP3-COMMIT (achado colateral do smoke DP3-F2; **registro
+apenas — não corrigir agora**) — Prioridade **Baixa**
+
+**PROBLEMA / OPORTUNIDADE**
+`.sleeper_players_cache.json` (~15 MB, 11,5k jogadores) está **trackeado no git**. Três efeitos
+colaterais, todos observados/derivados durante o DP3:
+1. **Frescor enganoso:** a cada deploy o mtime do arquivo vira o do checkout → o TTL de 168h
+   (`PLAYER_CACHE_TTL_HOURS`) reinicia contando de um dado que pode ter semanas/meses (o cache
+   commitado era de 12/06; em 31/07 o pool real divergia muito — 288 vs 151 na classe entrante).
+2. **Peso no repositório:** cada refresh commitado adiciona ~15 MB à história do git.
+3. **Gravação silenciosamente perdida em prod:** o cache é escrito na **raiz do app**, tratada
+   como read-only em produção (doutrina E1); `_load_players_db` engole a falha (try/except-pass)
+   → com TTL vencido, **todo** load re-baixa ~15 MB da API Sleeper (sync, captura DP3, imports).
+
+**CAMINHOS A AVALIAR (decisão do owner, não tomada)**
+- (a) **gitignore** + download no 1º uso (boot mais lento no 1º acesso; repo limpo).
+- (b) Mover o cache para **`dirname(DYNASTY_DB)`** (FS gravável em prod — mesmo padrão do estado
+  de review do import ESPN/E1), mantendo ou não o seed no git.
+- (c) Manter como está (aceitar re-download por load pós-TTL em prod).
+
+**DEPENDÊNCIAS**
+- Relaciona-se com: [[DP3]] (captura lê o pool), sync Sleeper (mesmo loader), E1 (doutrina do FS
+  gravável). Bloqueia: nada.
 
 ---
 

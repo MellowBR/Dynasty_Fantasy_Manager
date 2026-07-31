@@ -77,6 +77,22 @@
 {% endif %}
 
 <div class="card">
+  <h2 class="card-title">🏈 Classe de Rookies (board do Cap Projector)</h2>
+  <p class="text-dim">
+    Captura a <strong>classe entrante</strong> do pool global do Sleeper (rookies da última
+    classe draftada na NFL, com status ativo) e materializa a lista que o board de
+    Planejamento de Rookie Draft exibe. Os valores ESPN importados acima são preservados;
+    rookies fora do Top-300 aparecem no board a $1. Re-executável a qualquer momento
+    (idempotente) — rode de novo para refletir mudanças do pool (ex.: jogador cortado).
+  </p>
+  <button type="button" class="btn btn-secondary" id="capture-class-btn" onclick="captureRookieClass()"
+          data-tooltip="Varre o pool do Sleeper e atualiza a membership da classe.&#10;Não mexe em salários, contratos nem nos valores ESPN.">
+    📸 Capturar classe entrante ({{ default_season }})
+  </button>
+  <div id="capture-result" style="margin-top:.6rem"></div>
+</div>
+
+<div class="card">
   <h2 class="card-title">Formato Esperado do PDF</h2>
   <p class="text-dim">O parser espera linhas no formato padrao da ESPN PPR Rankings:</p>
   <pre class="code-block">1. (WR1) Ja'Marr Chase, CIN $57 10
@@ -87,4 +103,38 @@
     Jogadores com $0 recebem <code>espn_adjusted = $1</code>.
   </p>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// DP3 — captura da classe entrante (snapshot materializado). Só posta e exibe o
+// relatório do backend; nenhuma lógica de classe/salário no cliente.
+function captureRookieClass() {
+  const btn = document.getElementById('capture-class-btn');
+  const out = document.getElementById('capture-result');
+  btn.disabled = true;
+  out.innerHTML = '<div class="loading-msg">Capturando classe do pool do Sleeper...</div>';
+  fetch('/api/admin/capture_rookie_class', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({season: {{ default_season }}}),
+  })
+    .then(r => r.json())
+    .then(d => {
+      btn.disabled = false;
+      if (d.error) {
+        out.innerHTML = `<div class="alert alert-danger">${d.error}</div>`;
+        return;
+      }
+      out.innerHTML = `<div class="alert alert-ok">
+        ✅ Classe ${d.season} capturada: <strong>${d.total_in_class}</strong> na classe —
+        ${d.added} entraram, ${d.updated} atualizados, ${d.removed} saíram do critério
+        desde a captura anterior.</div>`;
+    })
+    .catch(() => {
+      btn.disabled = false;
+      out.innerHTML = '<div class="alert alert-danger">Falha na captura — tente novamente.</div>';
+    });
+}
+</script>
 {% endblock %}
