@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 31/07/2026 (MAN-DP3: board de rookies do cap_projector = classe entrante capturada (snapshot `in_class`, D1–D5); ⚠️ F2 localhost, aguarda smoke prod; commit `e12fdef` pushado; F13 🔲 registrado)  
+> Última atualização: 31/07/2026-pt2 (MAN-F13: cache do pool Sleeper descongelado — F1 diagnose + F2 (volume `/data` + carimbo por conteúdo, commit `2cd8de3`) + CLOSE ✅ com smoke prod (recaptura 287); DP3 ✅ fechado no mesmo dia (smoke prod `e12fdef`) com ressalva baixada pelo F13; F14 🔲 cosmético; regra nova de smoke local no DEV_METHODOLOGY)  
+> Anterior: 31/07/2026 (MAN-DP3: board de rookies do cap_projector = classe entrante capturada (snapshot `in_class`, D1–D5); ⚠️ F2 localhost, aguarda smoke prod; commit `e12fdef` pushado; F13 🔲 registrado)  
 > Anterior: 23/06/2026-pt4 (MAN-PROC1: PROC1 ✅ — gate de hash deployado afinado no DEV_METHODOLOGY (Forma 1, transversal); PROC2 🔲 registrado; edição do DEV_METHODOLOGY aplicada mas não commitada (repo umbrella sem commits))  
 > Status atual: Produção (Render: dynasty-fantasy-manager.onrender.com) | Tag: `manager-v1.0` | PythonAnywhere legacy
 
@@ -2004,3 +2005,42 @@ da classe fora do Top-300. Refeito para listar **só a classe entrante da NFL**.
 novo → `added=0, removed=0`; (2) `/cap_projector` → valorados no topo pós-import ESPN (conferir nº
 × import real — interseção `in_class` × valor>0), massa $1 atrás de busca/filtro sem reload; (3)
 cenário com rookie da massa $1 refletindo na barra fixa.
+
+
+### MAN-F13 — Cache do pool Sleeper descongelado: volume persistente + TTL por conteúdo (31/07/2026, Opus + Fable)
+
+Arco F1→F2→COMMIT→CLOSE no mesmo dia do fechamento do DP3 (o smoke do DP3 expôs o F13 em prod:
+captura devolveu 148 = snapshot de 12/06, contra 288 do pool vivo).
+
+- **F1 (diagnose read-only):** prod **nem tentava** escrever o cache — dupla trava estrutural:
+  (1) mtime do checkout renovado a cada deploy mantinha o TTL de 168h eternamente "fresco";
+  (2) checkout-revert — o deploy seguinte repunha o arquivo de junho mesmo que algo o atualizasse.
+  Dano real maior que "stale": **145 dos 287** da classe entrante viva **nem tinham sid** no pool
+  de junho (invisíveis p/ captura/resolver/sync); 108/142 com NFL team desatualizado (degrada o
+  desambiguador Brown-safe do import ESPN). Correção de premissa: no E1 a escrita na raiz era
+  hipótese preventiva, não falha confirmada; o que o E1 comprova é a gravabilidade de `/data`.
+  Recomendação: caminho (b) padrão E1 + complemento (d) carimbo por conteúdo (padrão
+  `dynasty_values`, já em casa).
+- **F2 (commit `2cd8de3`):** `_player_cache_path()` deriva de `DYNASTY_DB` → cache em
+  `dirname(DYNASTY_DB)` (volume `/data`; constante `PLAYER_CACHE_FILE` da raiz removida);
+  `git rm --cached` + cópia de junho fora da árvore (o `.gitignore` já cobria, mas o arquivo fora
+  committado antes); validade por envelope `{fetched_at, players}` **dentro** do arquivo (não
+  mtime) — formato antigo/sem carimbo/ilegível/corrompido → vencido, refresh, nunca lança; leitores
+  recebem o dict cru (envelope só na camada de disco). 6 consumidores e degradação graciosa
+  intactos. Smoke cache 21/21 + e2e real (boot + download → captura 287, envelope no volume) + 48/48.
+- **CLOSE (smoke prod, hash `2cd8de3` confirmado live; backup `/data/pre_f13.db`):** recaptura =
+  **287** — 145 entraram (exatamente os ausentes previstos pela F1), 142 atualizados, **6 saíram
+  por corte** (desmarcação `in_class=False` validada em condição real); 2ª captura **0/0 sem novo
+  download** (carimbo operou); board 287 com 12 do import ESPN (6 valorados); busca/filtro no
+  navegador. **Baixa da ressalva do DP3** anexada ao fechamento no archive (dos 84 do import, só
+  12 são da classe — os 72 restantes eram os não-rookies que motivaram o DP3). Pendência
+  remanescente (não impede ✅): frescor sobreviver ao **2º deploy** → verificação no próximo release.
+- **Colaterais da sessão:** **F14 🔲** (nomes do board sem sufixo de geração — cosmético, identidade
+  por sid intacta). **Regra nova no `DEV_METHODOLOGY.md`** ("Durante a implementacao"): smoke local
+  que dá boot na aplicação DEVE apontar `DYNASTY_DB` p/ **cópia temporária**, nunca o caminho
+  padrão — motivação: nesta sessão um boot caiu no default e rodou migrações contra o **seed
+  versionado** (consumido por optimizer/predictor); detectado no diff pré-commit do F13 e revertido
+  in-place (Windows recusou unlink). Edição do DEV_METHODOLOGY aplicada mas **não commitada**
+  (repo umbrella sem commits — precedente PROC1; commit inicial é do owner).
+- **Commits da sessão (todos pushados exceto o CLOSE):** `e12fdef` (DP3-F2) → `0f128c1` (docs
+  CLAUDE/devplan) → `5ae4dd4` (DP3-CLOSE) → `2cd8de3` (F13-F2) → `d565c91` (F13-CLOSE, docs).
