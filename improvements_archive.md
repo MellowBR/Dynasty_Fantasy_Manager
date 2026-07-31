@@ -3650,6 +3650,14 @@ a Alta com janela antes do rookie draft (agosto). Fecha o DP3 como ✅ porque a 
 (critério de classe, captura idempotente, board, gate) está correta e validada; o dado de entrada
 (frescor do pool) é problema separado, próprio do F13.
 
+**BAIXA DA RESSALVA (anexo — MAN-F13-CLOSE, 31/07/2026, hash `2cd8de3`):** o F13 foi **resolvido e
+validado em prod**. Com o pool descongelado, a recaptura devolveu **287** (não mais 148) e o board
+em prod passou a exibir a **classe entrante corrente e completa**. **A ressalva acima está baixada**:
+o board não mostra mais a classe de junho. Fecha também a pendência que ficara fraca no DP3 — dos
+**84** registros do import ESPN, apenas **12** pertencem à classe entrante (os 6 valorados + 6 a $1);
+os demais 72 eram os não-rookies/veteranos não-rosterados que motivaram o item, corretamente **fora**
+do board via `in_class`. (Registro anexado; o fechamento original do DP3 acima permanece intocado.)
+
 **NOTA DE ARQUIVAMENTO:** seção abaixo preservada íntegra (histórico REG→F1→REFINE→F2). As
 "Pendências de smoke em prod" listadas na F2 foram **satisfeitas** por este smoke, exceto a nº 4
 (contagem de valorados × import real), que permanece um follow-up amarrado ao F13 — quando o pool
@@ -4012,3 +4020,235 @@ desmarca os cortados (`removed` no relatório) e a lista encolhe para a ordem de
    prod que o nº de valorados no topo do board corresponde às entradas do import ESPN que são
    membros da classe capturada (interseção in_class × valor>0 — não necessariamente os 84: os
    não-membros do import, ex. veteranos não-rosterados, ficam `in_class=False` e fora do board).
+
+---
+### F13 — Versionamento do cache do pool Sleeper
+✅ **Concluído 31/07/2026 — smoke em prod OK sobre hash `2cd8de3` (PROC1 atendido)** —
+MAN-DP3-COMMIT (registro) / MAN-DP3-CLOSE (evidência de prod) / **MAN-F13-F1/F2/CLOSE** — Prioridade
+**Alta** — caminho **(b) padrão E1 + (d) carimbo por conteúdo**, validado em prod. Migrado verbatim
+do `improvements.md` (O3) no fechamento.
+
+**FECHAMENTO — SMOKE EM PRODUÇÃO (MAN-F13-CLOSE, 31/07/2026)**
+
+Smoke sobre o hash **`2cd8de3`**, confirmado live no painel do Render (PROC1). Backup pré-deploy em
+**`/data/pre_f13.db`**. Resultados:
+- **Recaptura sobre pool fresco = 287** (o board saiu de 148 congelado → 287 corrente). Decomposição:
+  **145 entraram** (exatamente os que não existiam no cache de junho — magnitude prevista pela F1),
+  **142 atualizados**, **6 saíram do critério** (cortados entre junho e julho) → confirma a
+  **desmarcação em condição real** (`in_class=False`, não delete).
+- **2ª captura imediata: 0 entraram / 0 saíram, total estável, sem novo download** → o carimbo por
+  conteúdo (`fetched_at` no envelope) operou: cache fresco não re-baixa. Valida o complemento (d) em
+  prod (o mtime de deploy não mais reinicia o TTL).
+- **Board em prod exibindo 287**, com **12 registros vindos do import ESPN**, dos quais **6 acima do
+  mínimo** (valorados no topo); busca por nome e filtro de posição validados em navegador.
+
+**PENDÊNCIA REMANESCENTE (não impede o ✅):** a 4ª pendência de smoke — o frescor **sobreviver a um
+2º deploy** (o cache em `/data` não recongelar, por não vir mais do checkout) — só é verificável no
+**próximo release**. Verificação vinculada ao próximo deploy: após ele, sem recaptura, a captura
+deve seguir devolvendo ~287 (não voltar a 148). É a diferença estrutural que o F13 promete; a
+mecânica já está provada (o arquivo saiu do git e o carimbo é por conteúdo), resta a observação no
+tempo.
+
+**NOTA DE ARQUIVAMENTO:** seção abaixo preservada íntegra (F1 diagnose + F2 implementação). As
+pendências de smoke 1-3 listadas na F2 foram **satisfeitas** por este smoke; a nº 4 (2º deploy)
+fica como verificação vinculada ao próximo release acima.
+
+---
+
+⚠️ **[registro histórico — status no fechamento da F2, antes do smoke prod]** —
+MAN-DP3-COMMIT (registro) / MAN-DP3-CLOSE (evidência de prod) / **MAN-F13-F1/F2** — Prioridade
+**Alta** — ⏳ **janela: antes do rookie draft (agosto)** — caminho **(b) padrão E1 + (d) carimbo por
+conteúdo** entregue; smoke cache 21/21 + e2e captura 287 + `salary_engine_test` 48/48. **✅ só após
+smoke prod** (recaptura da classe = 287, não 148; hash live = commit).
+
+**PROBLEMA / OPORTUNIDADE**
+`.sleeper_players_cache.json` (~15 MB, 11,5k jogadores) está **trackeado no git**. Três efeitos
+colaterais, todos observados/derivados durante o DP3:
+1. **Frescor enganoso:** a cada deploy o mtime do arquivo vira o do checkout → o TTL de 168h
+   (`PLAYER_CACHE_TTL_HOURS`) reinicia contando de um dado que pode ter semanas/meses (o cache
+   commitado era de 12/06; em 31/07 o pool real divergia muito — 288 vs 151 na classe entrante).
+2. **Peso no repositório:** cada refresh commitado adiciona ~15 MB à história do git.
+3. **Gravação silenciosamente perdida em prod:** o cache é escrito na **raiz do app**, tratada
+   como read-only em produção (doutrina E1); `_load_players_db` engole a falha (try/except-pass)
+   → com TTL vencido, **todo** load re-baixa ~15 MB da API Sleeper (sync, captura DP3, imports).
+
+**EVIDÊNCIA DE PRODUÇÃO (smoke DP3, 31/07/2026 — confirma o efeito 1 acima, não mais só derivado):**
+- A captura DP3 em **prod** retornou **148**; o smoke local contra o pool vivo retornou **288**.
+  O 148 é exatamente o snapshot do pool de **12/06/2026** (o arquivo versionado no git). Prod está
+  servindo o pool de junho **de forma indefinida**.
+- **Mecanismo do TTL que nunca vence:** o deploy do Render recria o arquivo a partir do git a cada
+  release → `os.path.getmtime` devolve a data do **deploy**, sempre recente → `age_hours < 168`
+  quase sempre verdadeiro → o conteúdo (junho) nunca é considerado vencido. O caminho de re-download
+  (efeito 3) só dispara se o arquivo faltar ou passar 168h sem deploy — com deploys frequentes,
+  **nunca**. Ou seja: em prod o pool é **congelado no commit**, não semanal como o código sugere.
+- **Alcance além do DP3:** o mesmo `_load_players_db` alimenta a resolução de `sleeper_id` do
+  **import ESPN** (`_build_pool_index` / E4-a) e o **sync**. Um pool de junho significa que rookies
+  assinados/movidos depois de 12/06 podem não resolver (ou resolver para time errado) no import — o
+  problema não é cosmético do board.
+- **Por que virou Alta + janela:** o **rookie draft ocorre em agosto** e o board precisa da classe
+  **completa e corrente** antes disso (hoje mostra a classe de junho, incompleta). Resolver o F13 é
+  pré-condição prática para o DP3 entregar valor real na janela de planejamento — daí a elevação.
+
+**CAMINHOS A AVALIAR (decisão do owner, não tomada — segue sem escolher)**
+- (a) **gitignore** + download no 1º uso (boot mais lento no 1º acesso; repo limpo).
+- (b) Mover o cache para **`dirname(DYNASTY_DB)`** (FS gravável em prod — mesmo padrão do estado
+  de review do import ESPN/E1), mantendo ou não o seed no git.
+- (c) Manter como está (aceitar re-download por load pós-TTL em prod).
+
+**DEPENDÊNCIAS**
+- Relaciona-se com: [[DP3]] (captura lê o pool; completude da lista **depende** deste item), import
+  ESPN / [[E4-a]] (resolução de `sleeper_id` pelo mesmo loader), sync Sleeper (mesmo loader), E1
+  (doutrina do FS gravável). Bloqueia: completude prática do board [[DP3]] antes do rookie draft.
+
+**F1 — ACHADOS (diagnose read-only, MAN-F13-F1, 31/07/2026; zero mutação — cache local intocado,
+pool vivo baixado só para o scratchpad p/ comparação)**
+
+**Q1 — Caminho de leitura/escrita + consumidores.** Loader único `_load_players_db`
+(`sync_sleeper.py:45`): arquivo existe **e** `getmtime` com idade <168h (`PLAYER_CACHE_TTL_HOURS`,
+linha 32) → lê; senão → download `_get(BASE_URL/players/nfl)` (**timeout 15s**) → tenta gravar na
+**raiz do app** (try/except-**pass**, linha 61) → retorna o dado mesmo sem gravar; download falho →
+`{}` (todos os consumidores degradam). **Consumidores (6 sítios — todos admin/boot, NENHUM caminho
+de owner comum;** o board DP3 lê o snapshot materializado, não o pool**):**
+1. `run_sync` (`sync_sleeper.py:98`) — boot condicional a `fresh_import` (prod: skip, sem CSV) +
+   `POST /api/admin/sync`. Sid do roster ausente do pool → Player criado com **nome = número do
+   sid** e posição vazia (`sync_sleeper.py:213-217`) — consequência observável direta.
+2. Matcher do import ESPN (`admin.py:703`, E4-a). 3. Confirm→store (`admin.py:565`, E2).
+4. Render do review E5 (`admin.py:755`). 5. Captura DP3 (`admin.py:609`).
+6. Guard E4-b no `import_csv.py:86` (lazy, só no 1º create; prod sem CSV → não roda).
+
+**Q2 — Comportamento em produção: veredito = NEM TENTA escrever.** Na cadência real de deploys
+(23/06, 10/07, 31/07…) o mtime do checkout mantém a idade <168h → o branch de download/escrita é
+**inalcançável**. Evidência: a captura de 31/07 devolveu 148 = conteúdo de 12/06, lido do arquivo
+do git no dia do deploy. Na única janela >168h sem deploy (30/06→10/07), se algum consumidor
+tivesse rodado, a escrita seria tentada e **silenciosa se falhasse** (try/except-pass — garantido
+pelo código); a gravabilidade da raiz do Render **não é verificável por diagnose read-only**. E há
+um **2º mecanismo, não registrado antes: checkout-revert** — mesmo um download+escrita
+bem-sucedidos são **desfeitos no deploy seguinte** (o checkout repõe o arquivo de junho). O
+congelamento é estrutural (mtime-renewal + checkout-revert), não acidental.
+
+**Q3 — Custo do congelamento (evidência: diff junho×vivo, 31/07).** Pool vivo **12.204** entradas ×
+junho **11.578** → **+626 sids novos**. Classe entrante D3 viva **287** × junho **148**; dos 287,
+**145 (50,5%) NEM EXISTEM no pool de junho** (ex.: Colbie Young/CIN, Kaden Wetjen/PIT) — não é
+status desatualizado, é **ausência**: a captura não os vê, `_resolve_entry_sid` devolve 0
+candidatos, o sync criaria stub numérico. **108 dos 142** membros presentes em ambos **mudaram de
+NFL team** desde junho (stubs de junho tinham team=None) → o desambiguador Brown-safe **nome+team**
+do import ESPN opera com team errado/ausente para metade da classe → homônimos caem em
+ambíguo→$1 (**miss, não corrupção** — a classe de erro E4-a é preservada, mas o miss cresce).
+**Retroativo pequeno:** o import real (23/06) usou pool de 11 dias (rookies do Top-300, draftados
+em abril, já estavam no pool). **Prospectivo grande:** captura/import/sync futuros seguem vendo
+junho até o F13 — o board DP3 hoje mostra 148 de 287, e um waiver de jogador pós-junho viraria
+Player "13XXX" needs_review.
+
+**Q4 — Padrão E1 aplica-se? SIM, quase direto — e resolve os dois mecanismos de uma vez.**
+Correção de registro sobre o precedente: no archive do E1, a escrita na raiz era **candidato
+secundário não confirmado** ("pode falhar em FS read-only → OSError **não tratado**" — falharia
+**barulhento**, 500, não silencioso); o fix foi **preventivo**. O que o E1 **comprova** é que
+`dirname(DYNASTY_DB)` (= `/data`) é **gravável em prod** — o estado de review vive lá desde 07/06,
+com imports reais em 08/06 e 23/06. Diferenças relevantes do cache vs review state: (i) **15 MB vs
+KB** — irrelevante para o disco (1 GB montado, `render.yaml`; dynasty.db 540 KB + backups → sobra
+~900 MB); (ii) "lido em caminho de request" — na prática **só requests de admin** (Q1: nenhum
+caminho de owner comum lê o pool) → tolera segundos; (iii) **bônus que o E1 não tinha:** em `/data`
+o arquivo **sobrevive ao deploy com mtime verdadeiro** → o TTL de 168h volta a valer o que o código
+promete, e o checkout-revert desaparece.
+
+**Q5 — Consequência de desversionar (números).** Boot pós-deploy sem o arquivo: **o boot não paga
+nada** em prod (`run_sync` só roda sob `fresh_import`, falso sem CSV; guard E4-b é lazy). Quem
+paga: **a 1ª ação de admin** que precisar do pool (sync manual / import ESPN / captura) —
+download de **14,6 MB medido em 1,5 s** (folga ~10× no timeout de 15 s; datacenter→datacenter
+tende a ≥). O admin vê a request ~2-5 s mais lenta, 1×. Download falho → **degradação graciosa já
+existente em todos os consumidores** (idx `{}` → fallback/needs_review; captura → 503; sync → erro
+no summary) — nenhum 500, nenhum caminho de owner exposto. **Porém**, desversionar SEM mover o
+caminho deixa a escrita pós-download na raiz **incerta**: se a raiz não gravar, paga-se 14,6 MB
+**por ação**; se gravar, perde-se no deploy seguinte — por isso (a) sozinho é inferior a (a)+(b).
+
+**Q6 — Réplicas: 1 sítio único, 0 réplicas.** Caminho+TTL definidos só em `sync_sleeper.py:31-32`
+(lógica 45-66); grep não encontra segundo sítio em código (menções restantes = docs/handoffs).
+*Contraste relevante:* `dynasty_values.py` é um **2º mecanismo de cache** independente no codebase
+com TTL **por conteúdo** (`fetched_at` dentro do JSON — imune a mtime-renewal) — o padrão mais
+robusto já existe em casa, candidato a **complemento** na F2.
+
+**Q7 — Comparação dos caminhos (5 eixos):**
+| Caminho | 1º boot | Por request | Frescor máx | Falha em prod | Operação manual |
+|---|---|---|---|---|---|
+| (a) só gitignore | 0 no boot; 1ª ação admin paga 14,6 MB/~1,5 s | 0 **se** a raiz gravar (até o próximo deploy); senão 14,6 MB/ação | 168h | escrita na raiz **incerta**; Sleeper down na 1ª ação (degrada gracioso) | nenhuma |
+| **(b) padrão E1: cache em `dirname(DYNASTY_DB)` + gitignore** | idem (a) na 1ª ação (seed-copy opcional) | **0** (arquivo persistente, mtime real) | **168h REAL** (renova ≤1×/semana na 1ª ação pós-vencimento) | **mínima** (/data gravável comprovado pelo E1; timeout coberto por degradação) | nenhuma |
+| (c) manter como está | 0 | 0 | = data do último commit do cache (**indefinido**) | zero técnica, 100% dado stale | recommit de ~15 MB a cada refresh desejado |
+| (d) TTL por conteúdo (`fetched_at`) sem mover | 0 | 0 até o 1º vencimento; depois = (a) | 168h | = (a) (raiz incerta; o arquivo de junho vence imediato → download na 1ª ação) | nenhuma |
+
+(d) foi revelado pela diagnose; sozinho equivale a (a) com o arquivo ainda pesando no git — serve
+como **complemento de robustez** do (b) (protege contra cópia de arquivo com mtime novo), não como
+caminho próprio.
+
+**Q8 — Gap assumido × real.**
+- *"Prod re-baixa 15 MB a cada load pós-TTL"* (efeito 3 do registro original) → **falsa na
+  prática**: o branch nunca é alcançado na cadência de deploys; prod **não re-baixa nada** — isso É
+  o congelamento.
+- *"A escrita falha em silêncio em produção"* → **não-observado/indeterminado**: a escrita nunca
+  foi tentada em prod; o código garante silêncio SE falhar, mas a gravabilidade da raiz não é
+  verificável read-only.
+- *"O E1 também falhava silenciosamente"* (premissa do prompt) → **imprecisa**: no registro do E1 a
+  escrita na raiz era hipótese secundária não confirmada e falharia **barulhenta** (OSError não
+  tratado → 500); o fix foi preventivo. O que o E1 comprova é a **gravabilidade de `/data`**.
+- **Mecanismo novo registrado:** checkout-revert (deploy desfaz qualquer refresh que prod consiga).
+- *O que some por caminho:* (a)/(b) eliminam o "refresh por recommit" — hoje o **único** mecanismo
+  (acidental) de atualizar o pool de prod; (c) mantém tudo, inclusive o freeze.
+
+**RECOMENDAÇÃO (única): caminho (b) — padrão E1: mover o cache para `dirname(DYNASTY_DB)` +
+gitignore do arquivo (absorve o (a)); complemento opcional (d) `fetched_at` no payload, a decidir
+na F2.** Trade-off que a sustenta: paga-se **1 download de 14,6 MB (~1,5-5 s) na 1ª ação de admin**
+pós-migração e depois ≤1×/semana, em troca de TTL real de 7 dias, eliminação dos **dois** mecanismos
+do congelamento, superfície de falha mínima (gravabilidade de `/data` comprovada pelo E1 +
+degradação graciosa já existente em todos os 6 consumidores) e repo sem ~15 MB por refresh. F2
+estimada pequena (1 constante de caminho + gitignore; consumidores intocados). **Risco principal,
+nomeado:** a 1ª ação de admin que precisar do pool (e cada renovação semanal) depende da API do
+Sleeper naquele momento — timeout de 15 s → pool `{}` → aquela ação degrada (captura 503, import em
+fallback) e o admin re-executa; sem 500, mas a ação não completa na hora. Residual aceitável dentro
+da janela de agosto.
+
+**F2 — IMPLEMENTADO (MAN-F13-F2, 31/07/2026)** — ⚠️ validado em localhost; smoke em prod pendente.
+Caminho **(b)** com complemento **(d)**, sem tocar a semântica dos 6 consumidores nem o formato do
+payload lido por eles (envelope só na camada de disco).
+
+- **Localização (b), sítio único:** novo `sync_sleeper._player_cache_path()` deriva de `DYNASTY_DB`
+  → `dirname` (volume persistente `/data` no Render; fallback dev = BASE_DIR, gravável) — mesmo
+  padrão do `_espn_review_path` (E1). Constante morta `PLAYER_CACHE_FILE` (raiz do app) **removida**;
+  grep confirma **0 outro sítio** de caminho.
+- **Desversionamento:** `git rm --cached .sleeper_players_cache.json` (já estava em `.gitignore:34`,
+  mas fora committado antes disso → seguia trackeado); cópia de junho **removida da árvore de
+  trabalho**. `git ls-files` não lista mais o arquivo; checkout limpo não o repõe. Em prod o deploy
+  deixa de trazer o arquivo → app root sem cópia; `/data` sem cópia (nunca escrito lá) → cache frio.
+- **Validade por conteúdo (d), sítio único:** `_load_players_db` passa a ler um **envelope**
+  `{"fetched_at": ISO, "players": {…}}` e valida pelo carimbo via `_cache_envelope_age_hours`
+  (espelha `dynasty_values._cache_age_hours`), **não** por `os.path.getmtime` — imune ao mtime
+  renovado por deploy. Devolve sempre o dict cru `{sid:…}` aos leitores (desembrulha na leitura;
+  embrulha na escrita). **Formato antigo** (dict cru sem `fetched_at`), **sem carimbo**, **carimbo
+  ilegível** (→ idade `inf`) ou **JSON corrompido** → tratado como vencido, dispara refresh, **nunca
+  lança**. Escrita = `{fetched_at: utcnow, players: data}` no novo caminho (try/except-pass mantém a
+  degradação; `makedirs` garante o dir).
+- **Migração:** primeiro boot pós-deploy encontra o novo local vazio → caminho normal de cache frio
+  (download + envelope), sem intervenção manual; consumidores intactos (todos já degradam a `{}`).
+  Removido `import time` (órfão após trocar mtime→carimbo).
+
+*Validação localhost:*
+- **Smoke de cache (21/21, dir isolado via `DYNASTY_DB` temp, `_get` stubado com o pool vivo da F1):**
+  caminho resolve p/ o volume (não a raiz); cache frio → 1 download + envelope carimbado no novo
+  local; carimbo fresco → 0 download; carimbo antigo (200h) → refresh; **formato antigo → vencido,
+  não lança**; sem carimbo → vencido; carimbo ilegível → idade `inf` → refresh; JSON corrompido →
+  não lança + refresh; **API down + vencido → `{}`, sem 500**; classe entrante sobre pool fresco =
+  **287** (não 148).
+- **E2E real (boot do app + DB temp + download real):** cache **inexistente antes** da captura →
+  `POST /api/admin/capture_rookie_class` → cache criado em `dirname(DYNASTY_DB)` como envelope com
+  `fetched_at`; captura retorna **287** (não 148). Confirma o caminho completo em contexto de app.
+- **Sítio único (grep):** caminho só em `_player_cache_path`; critério de validade só em
+  `_cache_envelope_age_hours` + o guard de `_load_players_db`; 0 réplica. `salary_engine_test` 48/48.
+
+*Pendências de smoke em prod (gate do ✅, PROC1 — hash live = commit):*
+1. Deploy: confirmar que o arquivo **não** vem no checkout (`/opt/render/.../src` sem a cópia de
+   junho) e que `/data` recebe o cache novo na 1ª ação de admin.
+2. **Recaptura da classe entrante (verificação ponta-a-ponta):** `/admin/espn_import` → capturar →
+   relatório em **ordem de 287** (não mais 148) — fecha o ciclo DP3+F13 (o board passa a exibir a
+   classe corrente e completa). Re-executar → idempotente.
+3. Frescor persistente: após um 2º deploy (sem recaptura), o cache em `/data` **sobrevive** com o
+   carimbo real (não recongela em junho) — a diferença central vs. o estado atual.
+4. Import ESPN sobre pool fresco: resolução de `sleeper_id` passa a ver os ~626 sids novos e os
+   times corrigidos (108/142 da classe) — conferir quando o import da season rodar.
