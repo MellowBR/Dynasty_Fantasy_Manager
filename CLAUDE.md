@@ -50,7 +50,7 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 3. Registra o filtro Jinja **`utc_iso`** (M18 — fonte única do "marcar UTC" nos templates; linhas 30-31)
 4. Dentro de `with app.app_context()` (linha 33), em ordem:
    1. `db.create_all()` → cria tabelas faltantes (linha 34)
-   2. `_run_migrations()` → ALTER/CREATE para schema existente (incl. tabela `users`; 7 migrações idempotentes — linha 35)
+   2. `_run_migrations()` → ALTER/CREATE para schema existente (incl. tabela `users`; 8 migrações idempotentes — linha 35)
    3. `_seed_app_config()` → semeia AppConfig default (linha 36)
    4. **Auto-seed users** → lê `data/users.csv` se existir, insere emails novos (pula existentes — linhas 37-57)
    5. `fresh_import = run_import()` → upsert de salary/contract de `data/dynasty_rosters_clean.csv`; **retorna flag** (linha 60). Em prod o CSV não está no git → skip com WARNING (`fresh_import` falsy)
@@ -83,7 +83,7 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 
 ### Models (models.py)
 
-19 SQLAlchemy models. Key ones: **User** (email, team_id, is_admin), Team, Player, SalaryHistory, Pick, AuctionLog, Trade, ESPNValue, AppConfig (key-value global state), SeasonStandings, DraftLotteryResult, PlayerHistory, **TradeProposal** (T1 — UUID + assets JSON + TTL 7d), **LotteryAudit** (M8 — seed + weights_json + pool_json + result_hash + is_canonical + previous_audit_id), **F8PlayerBackup** (rollback do F8a), **CutDeclaration** (OFF26-1 — declaração privada/editável de cortes por `(season, team_id)`, `cut_ids_json`; keepers = complemento), **CutWindowAudit** (OFF26-1 — snapshot canônico molde M8: `declarations_json` + `is_canonical` + `previous_audit_id` + `reason` + `result_hash`).
+21 SQLAlchemy models. Key ones: **User** (email, team_id, is_admin), Team, Player, SalaryHistory, Pick, AuctionLog, Trade, ESPNValue, AppConfig (key-value global state), SeasonStandings, DraftLotteryResult, PlayerHistory, **TradeProposal** (T1 — UUID + assets JSON + TTL 7d), **LotteryAudit** (M8 — seed + weights_json + pool_json + result_hash + is_canonical + previous_audit_id), **F8PlayerBackup** (rollback do F8a), **RookieEspnValue** (E2/DP3 — valor ESPN de entrante não-Player + `in_class` = membership da classe entrante, ver seção própria), **EspnValueStore** (E4-c — store canônico de valor ESPN por `(sleeper_id, season)`), **CutDeclaration** (OFF26-1 — declaração privada/editável de cortes por `(season, team_id)`, `cut_ids_json`; keepers = complemento), **CutWindowAudit** (OFF26-1 — snapshot canônico molde M8: `declarations_json` + `is_canonical` + `previous_audit_id` + `reason` + `result_hash`).
 
 ### Salary Cap Rules
 
