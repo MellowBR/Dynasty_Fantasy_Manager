@@ -121,7 +121,7 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 
 ### External Integrations
 
-- **Sleeper API** (`sync_sleeper.py`): rosters, team info, winners bracket, previous league, **trades via `/transactions/{leg}`** (S1 — `_sync_trades(league_id)`, idempotente via `sleeper_transaction_id`, trata N-way como placeholder row). Player DB cached weekly (~15MB `.sleeper_players_cache.json`). Startup sync wrapped in try/except for graceful degradation.
+- **Sleeper API** (`sync_sleeper.py`): rosters, team info, winners bracket, previous league, **trades via `/transactions/{leg}`** (S1 — `_sync_trades(league_id)`, idempotente via `sleeper_transaction_id`, trata N-way como placeholder row). Player DB cached ~semanal (~15MB `.sleeper_players_cache.json`). **F13:** o cache vive em `dirname(DYNASTY_DB)` (volume persistente `/data` no Render — padrão E1), **fora do git** (gitignore + untracked); validade por carimbo `fetched_at` **dentro** do arquivo (não mtime do FS — imune ao mtime renovado por deploy). Formato antigo/sem carimbo/vencido → re-baixa. Startup sync wrapped in try/except for graceful degradation.
 - **ESPN PDF** (`espn_pdf_parser.py`): parse draft value sheets, match to DB players with 3-tier matching (exact → case-insensitive → normalized). Import (E1): **upload manual do PDF** (preferido) ou download por URL com **degradação graciosa** (guarda magic-bytes `%PDF` + try/except → flash, nunca 500; a ESPN bloqueia o download do IP do Render). Estado de review gravado em `dirname(DYNASTY_DB)` (FS gravável), não na raiz do app
 - **Google OAuth**: OpenID Connect via Google's well-known endpoint
 

@@ -21,15 +21,24 @@ Flow:
 import json
 import os
 import re
-import time
 import requests
 from datetime import datetime
 from models import (db, Team, Player, Pick, SyncLog,
                     LEAGUE_ID, MY_TEAM_NAME, MY_OWNER_ID, CURRENT_SEASON)
 
 BASE_URL = "https://api.sleeper.app/v1"
-PLAYER_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".sleeper_players_cache.json")
 PLAYER_CACHE_TTL_HOURS = 168  # 1 week
+
+
+def _player_cache_path() -> str:
+    """F13 — caminho ÚNICO do cache do pool, em FS GRAVÁVEL: diretório do dynasty.db
+    (volume persistente /data no Render), nunca a raiz do app (read-only em produção).
+    Mesmo padrão do estado de review do import ESPN (E1, `_espn_review_path`). Derivado
+    de `DYNASTY_DB`; fallback = BASE_DIR/dynasty.db (dev local → raiz do app, gravável)."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.environ.get("DYNASTY_DB", os.path.join(base_dir, "dynasty.db"))
+    return os.path.join(os.path.dirname(os.path.abspath(db_path)),
+                        ".sleeper_players_cache.json")
 
 
 def _get(url: str, timeout: int = 15) -> dict | list | None:
@@ -42,24 +51,48 @@ def _get(url: str, timeout: int = 15) -> dict | list | None:
         return None
 
 
-def _load_players_db() -> dict:
-    """Load Sleeper's player DB (cached locally for 1 week)."""
-    if os.path.exists(PLAYER_CACHE_FILE):
-        mtime = os.path.getmtime(PLAYER_CACHE_FILE)
-        age_hours = (time.time() - mtime) / 3600
-        if age_hours < PLAYER_CACHE_TTL_HOURS:
-            try:
-                with open(PLAYER_CACHE_FILE, encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
+def _cache_envelope_age_hours(env: dict) -> float:
+    """F13 — idade do cache pelo carimbo `fetched_at` DENTRO do arquivo (não pelo mtime
+    do FS — imune ao mtime renovado por deploy). Carimbo ausente/ilegível → inf (vencido).
+    Mesmo critério do `dynasty_values._cache_age_hours`."""
+    ts = env.get("fetched_at")
+    if not ts:
+        return float("inf")
+    try:
+        dt = datetime.fromisoformat(ts)
+    except Exception:
+        return float("inf")
+    return (datetime.utcnow() - dt).total_seconds() / 3600
 
-    print("[sync] Downloading Sleeper player DB (~5MB)...")
+
+def _load_players_db() -> dict:
+    """Load Sleeper's player DB. F13: cache no volume persistente (`_player_cache_path`),
+    validade pelo carimbo `fetched_at` no próprio arquivo (não mtime). Arquivo ausente,
+    ilegível, no formato ANTIGO (dict cru de players, sem envelope), sem carimbo ou
+    vencido (≥TTL) → re-baixa. Retorna sempre o dict cru {sid: {...}} (formato consumido
+    pelos leitores — envelope só na camada de disco)."""
+    path = _player_cache_path()
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                raw = json.load(f)
+        except Exception:
+            raw = None
+        # Formato novo = envelope {fetched_at, players}. Formato antigo (dict cru de
+        # players) não tem 'fetched_at' → tratado como vencido, dispara refresh.
+        if (isinstance(raw, dict) and "fetched_at" in raw and "players" in raw
+                and _cache_envelope_age_hours(raw) < PLAYER_CACHE_TTL_HOURS
+                and isinstance(raw.get("players"), dict)):
+            return raw["players"]
+
+    print("[sync] Downloading Sleeper player DB (~15MB)...")
     data = _get(f"{BASE_URL}/players/nfl")
     if data:
         try:
-            with open(PLAYER_CACHE_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({"fetched_at": datetime.utcnow().isoformat(),
+                           "players": data}, f)
         except Exception:
             pass
         return data
