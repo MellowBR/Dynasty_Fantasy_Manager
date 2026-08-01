@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 01/08/2026 (sessão MAN-S2-REG: **registro docs-only** — novo item **S2** (🔲, Alta): o sync de trades ([[S1]]) ingeriu como trades reais as **trocas administrativas de picks** que o co-admin criou na UI do Sleeper só para montar a ordem do rookie draft 2026 (o Sleeper suporta uma ordem única para todos os rounds; o Manager já modela R1 = lottery e R2/R3 = standings invertido — [[M16]]). Sintoma em prod no rookie draft de 28/07: pick 2 do R1 2026 constava do time do Icaro, mas é do Fehl (Sleeper é a referência correta). **Risco de recorrência anual** — toda montagem de ordem de draft no Sleeper gera essas trocas. Diretriz vigente: **sync suspenso até o fix**. Sem código, sem dado; nenhum item existente alterado além da linha no Status Rápido.)
 > Atualizado em: 31/07/2026-pt4 (sessão MAN-F13-CLOSE: **F13 ✅** — smoke prod OK sobre hash `2cd8de3` (backup `/data/pre_f13.db`): recaptura = **287** (145 entraram = os ausentes do cache congelado, 142 atualizados, 6 saíram por corte → desmarcação real), 2ª captura 0/0 **sem novo download** (carimbo por conteúdo operou), board 287 c/ 12 do import ESPN (6 valorados), busca/filtro no navegador. **Migração O3:** F13 → archive com nota de fechamento. **Baixa da ressalva do DP3** anexada no archive (board não mostra mais junho; dos 84 do import, só 12 são da classe). **Pendência**: frescor sobreviver ao 2º deploy → próximo release. Registrados: **F14 🔲** (nomes sem sufixo de geração, cosmético) + **regra no `DEV_METHODOLOGY.md`** (smoke local aponta `DYNASTY_DB` p/ cópia temp, nunca o seed). Sem código.)
 > Atualizado em: 31/07/2026-pt3 (sessão MAN-F13-F1/F2: **F13 ⚠️** — cache do pool Sleeper descongelado. **F1:** prod **nem tenta** escrever (branch de download inalcançável por mtime de deploy + checkout-revert repõe junho); dano real > stale — classe viva 287 × 148 no cache, **145 sem sid** no pool de junho, 108/142 com team desatualizado. **F2 (caminho b + d):** cache movido p/ `dirname(DYNASTY_DB)` (volume, padrão E1), `git rm --cached` + removido da árvore (gitignore já cobria), validade por carimbo `fetched_at` **dentro** do arquivo (não mtime), formato antigo/ilegível→vencido sem lançar; sítio único de caminho e de validade; 6 consumidores intactos. Smoke cache 21/21 + e2e captura 287 (não 148) + 48/48. **✅ só após smoke prod.** CLAUDE.md sincronizado.)
 > Atualizado em: 31/07/2026-pt2 (sessão MAN-DP3-CLOSE: **DP3 ✅** — smoke em prod OK sobre hash `e12fdef` (PROC1: hash live confirmado no Render; backup `/data/pre_dp3.db`): captura idempotente 148→0, board ordenado (valorados no topo), não-rookies fora, busca/filtro sem reload, cenário na barra fixa. **Migração O3:** seção detalhada movida verbatim p/ `improvements_archive.md` com nota de fechamento; Status Rápido mantém a linha ✅. **Ressalva:** board em prod exibe a classe do snapshot de junho — não é defeito do DP3 (predicado/captura corretos sobre o pool entregue); completude depende do **F13**. **F13 elevado 🔲 Baixa→Alta** com evidência de prod (148×288; TTL nunca vence por mtime renovado a cada deploy sobre arquivo versionado; mesmo loader serve o import ESPN) + janela antes do rookie draft (agosto). Nota de dependência do E4-c-2 atualizada (reescopo desbloqueado). Sem código.)
@@ -41,6 +42,7 @@
 | X1c | Tabela `users` no dynasty.db + seed_users.py | Alta | ✅ 31/03/2026 |
 | X1d | Decorators `@login_required` / `@admin_required` nas rotas | Alta | ✅ 31/03/2026 |
 | S1 | Sync detecta trades do Sleeper e move contratos automaticamente | Alta | ✅ 22/04/2026 |
+| S2 | Sync ingere trocas administrativas de picks (as criadas na UI do Sleeper só para montar a ordem do rookie draft) como trades reais → dono de pick errado no Manager (sintoma: pick 2 do R1 2026 no time do Icaro, é do Fehl); recorrência anual a cada montagem de ordem — MAN-S2-REG | Alta | 🔲 |
 | T1 | Redesign Trade Manager: simulador multi-owner + link compartilhável | Alta | ✅ 22/04/2026 |
 | T2 | Integrar valores dynasty FantasyCalc no preview de trade | Média | ✅ 22/04/2026 |
 | Q1 | Script de simulação de temporada (validar salary rollover) | Média | 🔲 |
@@ -1065,6 +1067,76 @@ tela. Puramente cosmético.
 
 **DEPENDÊNCIAS**
 - Relaciona-se com: [[DP3]] (board), [[E2]] (store de nome). Bloqueia: nada.
+
+---
+
+### S2 — Sync ingere trocas administrativas de picks como trades reais
+🔲 **Registrado 01/08/2026** — MAN-S2-REG (**registro apenas** — nenhum código, nenhum dado do banco
+tocado) — Prioridade **Alta** — família [[S1]]
+
+**CONTEXTO**
+Para montar a ordem do rookie draft 2026 no Sleeper, o co-admin criou **trocas de picks na UI do
+Sleeper**. Elas **não são trades reais da liga** — são **artefato operacional**: o Sleeper só suporta
+**uma ordem única de draft** para todos os rounds, enquanto o Manager já modela nativamente
+**R1 = lottery** e **R2/R3 = standings invertido** ([[M16]]). Trocar picks no Sleeper é a única forma
+de fazer a ordem exibida lá bater com a ordem canônica do Manager para o round que está sendo
+draftado.
+
+**SINTOMA (produção, 28/07/2026 — durante o rookie draft 2026)**
+A **pick 2 do R1 2026** constava no Manager como do **time do Icaro**, quando pertence ao **time do
+Fehl**. O Sleeper é a referência correta neste caso: o dono lá está certo, o Manager é que registrou
+a troca administrativa como transferência de titularidade.
+
+**CAUSA SUSPEITA**
+O sync de trades do [[S1]] (`_sync_trades`, `sync_sleeper.py:528` — movimentação de picks em
+`sync_sleeper.py:648-649, "draft_picks"`) trata **toda** transação de tipo trade do
+`/transactions/{leg}` como trade real da liga e a aplica ao Manager, **sem distinguir** trade de
+verdade × troca administrativa de ordem de draft. O sync rodou **depois** da criação dessas trocas
+(confirmado pelo owner), então a titularidade das picks no Manager foi sobrescrita pelo artefato.
+
+**RISCO DE RECORRÊNCIA (anual, não pontual)**
+Não é incidente de uma vez: **toda intertemporada** que envolva montar a ordem do rookie draft no
+Sleeper vai gerar trocas administrativas de picks — enquanto o Sleeper mantiver ordem única por draft
+e o Manager mantiver R1 = lottery + R2/R3 = standings invertido ([[M16]]), o conflito se repete a cada
+ano. Sem um fix, a mitigação continua sendo operacional (suspender o sync na janela de draft), o que é
+frágil e depende de lembrança.
+
+**ESTADO DOS DADOS (a confirmar na F1 — não auditado nesta sessão)**
+- Correções manuais de dono de pick **podem** ter sido aplicadas pelo co-admin via edição admin no
+  `/picks` após o sintoma. O estado atual das picks 2026 em prod **não foi verificado** aqui.
+- Além do dono das picks, o sync pode ter criado **registros de `Trade`** (e histórico associado)
+  para essas transações — resíduo de auditoria a inventariar.
+
+**DIRETRIZ OPERACIONAL VIGENTE**
+**Sync suspenso até o fix** (decisão do owner). Rodar o sync antes do fix pode reverter as correções
+manuais de dono de pick.
+
+**QUESTÕES EM ABERTO** (F1 — diagnose read-only, sem mutação)
+1. **Distinguibilidade:** o payload da transação do Sleeper carrega algum sinal que separe troca
+   administrativa × trade real (tipo, `status`, autor/`creator`, ausência de contrapartida, conjunto
+   só-picks, timestamp dentro da janela de draft)? Se **não houver sinal confiável**, o fix não pode
+   ser heurístico — vira gate/allowlist manual.
+2. **Escopo do dano em prod:** quantas picks tiveram dono alterado por essas transações? Quais linhas
+   de `Trade`/`PlayerHistory` foram criadas? Quais já foram corrigidas manualmente pelo co-admin
+   (e quais correções o próximo sync reverteria)?
+3. **Idempotência × correção manual:** o sync é idempotente por `sleeper_transaction_id` — uma
+   transação já ingerida **volta a ser aplicada** em syncs futuros, ou o registro existente a torna
+   no-op? Disso depende se a correção manual sobrevive ao próximo sync.
+4. **Autoridade sobre picks:** o split de autoridade documentado ("Sleeper é autoritativo para traded
+   picks") ainda vale, dado que o Manager tem ordem canônica própria (M16) e o Sleeper é forçado a
+   distorcer a dele? Candidato a **inverter a autoridade de picks** para o Manager — decisão de
+   design, não de implementação.
+5. **Forma do fix (não decidir antes da F1):** ignorar transações de picks no sync × marcar como
+   `needs_review` em vez de aplicar × exigir confirmação admin para trades só-picks × janela de
+   bloqueio durante o draft. Cada uma tem custo diferente para trades **reais** de picks, que existem
+   e precisam continuar entrando.
+6. **Detecção:** existe hoje alguma superfície que mostre "picks cujo dono mudou no último sync"? Sem
+   isso, o sintoma só aparece quando alguém repara na tela do draft.
+
+**DEPENDÊNCIAS**
+- Relaciona-se com: [[S1]] (origem do sync de trades), [[M16]] (modelo R1 lottery / R2-R3 standings
+  invertido — a razão de o Sleeper e o Manager divergirem), [[MAN-S1-FIX]] (precedente de dano por
+  movimentação cega em `_sync_trades`). Bloqueia: uso normal do sync até o fix.
 
 ---
 
