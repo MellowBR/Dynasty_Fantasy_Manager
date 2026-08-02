@@ -149,17 +149,21 @@ def _build_default_draft_order(standings, weights=None):
     """Ordem completa picks 1-12 por standings, SEM sorteio real (fallback de
     projeção quando não há lottery). Picks 1..N = seeds (rank 13-seed, worst
     first); picks N+1..12 = fixos. Mesma fonte/fronteira do sorteio real.
-    Retorna [(pick_number, team_name), ...]."""
+
+    S3: retorna [(pick_number, team_id, team_name), ...] — o `team_id` é a chave
+    estável do join da projeção; o `team_name` fica só como rótulo. Não altera o
+    sorteio nem a auditoria (M8): `_build_lottery_pool`/`_build_fixed_picks`, que
+    alimentam o `pool_json` congelado, seguem intocados."""
     w = _normalize_weights(weights)
     by_rank = {s.rank: s for s in standings}
     order = []
     for seed_idx in sorted(w.keys()):
         s = by_rank.get(_seed_rank(seed_idx))
         if s:
-            order.append((seed_idx, s.team_name))
+            order.append((seed_idx, s.team_id, s.team_name))
     num_seeds = len(order) if order else len(w)
     for f in _build_fixed_picks(standings, num_seeds):
-        order.append((f["pick_number"], f["team_name"]))
+        order.append((f["pick_number"], f["team_id"], f["team_name"]))
     return order
 
 

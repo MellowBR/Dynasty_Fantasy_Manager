@@ -33,11 +33,12 @@
       <div class="picks-matrix-header">Round {{ rnd }}</div>
     {% endfor %}
 
-    {% for team_name in season_data.teams_ordered %}
-      <div class="picks-matrix-rowlabel" title="{{ team_name }}" data-team="{{ team_name }}">{{ team_name }}</div>
+    {# S3: a linha é chaveada pelo id do time; `row.name` é o nome vivo (rótulo). #}
+    {% for row in season_data.teams_ordered %}
+      <div class="picks-matrix-rowlabel" title="{{ row.name }}" data-team="{{ row.name }}">{{ row.name }}</div>
       {% for rnd in rounds %}
-        {% set pick = season_data.cells.get((team_name, rnd)) %}
-        {% set projection = season_data.projections.get((team_name, rnd)) %}
+        {% set pick = season_data.cells.get((row.id, rnd)) %}
+        {% set projection = season_data.projections.get((row.id, rnd)) %}
         {% if pick %}
           {% set is_mine = my_team_name and pick.current_team_name == my_team_name %}
           {# M9-FIX: toda pick é clicável quando o user tem time vinculado.

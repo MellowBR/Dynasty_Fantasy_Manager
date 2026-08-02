@@ -50,32 +50,37 @@ def picks_page():
 
     proj = _build_pick_projections()
 
-    # M9: organizar como matrix {season: {original_team_name: {round: pick}}} com
-    # ordem de linhas por projected_pick do R1 (ou alphabet fallback).
+    # M9: organizar como matrix {season: {team: {round: pick}}} com ordem de linhas
+    # por projected_pick do R1 (ou alphabet fallback).
+    # S3: linhas e células são chaveadas pelo **id** do time; o nome vem do Team vivo
+    # (rótulo). Antes o eixo era `original_team_name` — um rename criava uma segunda
+    # linha para o mesmo time, sem projeção.
+    teams_by_id = {t.id: t for t in teams}
     matrix = {}
     for season in PICK_SEASONS:
-        # Times únicos desta season (via original_team_name)
         season_picks = [p for p in all_picks if p.season == season]
         if not season_picks:
             continue
-        teams_in_season = sorted(set(p.original_team_name for p in season_picks))
+        tids_in_season = {p.original_team_id for p in season_picks if p.original_team_id}
+        rows = [{"id": tid, "name": teams_by_id[tid].name}
+                for tid in tids_in_season if tid in teams_by_id]
         # Ordenar por projected_pick do R1 quando disponível
-        teams_in_season.sort(key=lambda name: (
-            proj.get((season, 1, name), {}).get("pick_number", 999),
-            name,
+        rows.sort(key=lambda r: (
+            proj.get((season, 1, r["id"]), {}).get("pick_number", 999),
+            r["name"],
         ))
         matrix[season] = {
-            "teams_ordered": teams_in_season,
-            "cells": {},  # (team_name, round) → pick
-            "projections": {},  # (team_name, round) → {pick_number, locked}
+            "teams_ordered": rows,
+            "cells": {},  # (team_id, round) → pick
+            "projections": {},  # (team_id, round) → {pick_number, locked}
         }
         for p in season_picks:
-            matrix[season]["cells"][(p.original_team_name, p.round)] = p
-        for team_name in teams_in_season:
+            matrix[season]["cells"][(p.original_team_id, p.round)] = p
+        for r in rows:
             for rnd in PICK_ROUNDS:
-                key = (season, rnd, team_name)
+                key = (season, rnd, r["id"])
                 if key in proj:
-                    matrix[season]["projections"][(team_name, rnd)] = proj[key]
+                    matrix[season]["projections"][(r["id"], rnd)] = proj[key]
 
     # M9: meu time vinculado (ou None se admin sem time)
     my_team_name = (current_user.team_rel.name
@@ -103,7 +108,12 @@ def api_picks():
     if season:
         q = q.filter_by(season=season)
     if team_name:
-        q = q.filter_by(current_team_name=team_name)
+        # S3: o parâmetro segue sendo o nome (contrato público da API), mas o filtro
+        # roda sobre o id — resolve-se o Team uma vez em vez de casar string.
+        team = Team.query.filter_by(name=team_name).first()
+        if not team:
+            return jsonify([])
+        q = q.filter_by(current_team_id=team.id)
     picks = q.order_by(Pick.season, Pick.round).all()
 
     # Enrich with projected position and pre-resolved dynasty value.
@@ -115,7 +125,7 @@ def api_picks():
     result = []
     for p in picks:
         d = p.to_dict()
-        key = (p.season, p.round, p.original_team_name)
+        key = (p.season, p.round, p.original_team_id)  # S3: join por id estável
         pos_info = proj.get(key)
         if pos_info:
             d["projected_pick"] = pos_info["pick_number"]
@@ -132,9 +142,30 @@ def api_picks():
     return jsonify(result)
 
 
+def _resolve_tid(team_id, team_name, name_to_id):
+    """
+    S3 — id estável do time, com queda para o nome apenas em linhas legadas.
+
+    `DraftLotteryResult.team_id` e `SeasonStandings.team_id` são nullable; linhas
+    antigas podem não tê-lo. O nome é fallback de compatibilidade, nunca o caminho
+    principal — e não é atualizado em lugar nenhum (o `team_name` dessas tabelas é
+    congelado de propósito: é a referência da auditoria do M8).
+    """
+    if team_id:
+        return team_id
+    return name_to_id.get(team_name)
+
+
 def _build_pick_projections() -> dict:
     """
-    Build (season, round, original_team_name) → {pick_number, locked} map.
+    Build (season, round, original_team_id) → {pick_number, locked} map.
+
+    S3: a chave do join é o **id do time**, não o nome. `Team.name` é mutável (o
+    sync o reescreve em rename) e o join cruza três tabelas — `Pick`,
+    `DraftLotteryResult` e `SeasonStandings`. Casar por string fazia o time
+    renomeado perder a projeção (fallback 999). Refrescar o nome nas tabelas de
+    lottery/standings **não** era alternativa: quebraria o verify do M8, que
+    compara o `team_name` congelado no `pool_json` com o da tabela viva.
 
     Draft order for the draft_season with a lottery result:
       Picks 1..N:  from draft_lottery_result (weighted lottery; N = nº de seeds)
@@ -153,6 +184,7 @@ def _build_pick_projections() -> dict:
     season = get_current_season()
     draft_season = season + 1
     lottery_locked = get_config("season_locked", "false") == "true"
+    name_to_id = {t.name: t.id for t in Team.query.all()}
 
     # ── Draft season with lottery result ────────────────────────────────
     lottery = DraftLotteryResult.query.filter_by(season=draft_season).all()
@@ -161,10 +193,12 @@ def _build_pick_projections() -> dict:
         # M16: R1 = lottery; R2/R3 = standings invertido (fonte única).
         _apply_lottery_with_standings_tail(
             proj, lottery, standings_season=season,
-            draft_season=draft_season, tail_locked=lottery_locked)
+            draft_season=draft_season, tail_locked=lottery_locked,
+            name_to_id=name_to_id)
     else:
         # No lottery for draft_season: build order from standings
-        _apply_standings_order(proj, season, draft_season, lottery_locked)
+        _apply_standings_order(proj, season, draft_season, lottery_locked,
+                               name_to_id)
 
     # ── Future seasons (2027, 2028, ...) ────────────────────────────────
     for future_season in PICK_SEASONS:
@@ -176,16 +210,18 @@ def _build_pick_projections() -> dict:
             f_locked = future_lottery[0].locked
             _apply_lottery_with_standings_tail(
                 proj, future_lottery, standings_season=future_season - 1,
-                draft_season=future_season, tail_locked=f_locked)
+                draft_season=future_season, tail_locked=f_locked,
+                name_to_id=name_to_id)
         else:
             # Try standings from the season before this draft
-            _apply_standings_order(proj, future_season - 1, future_season, False)
+            _apply_standings_order(proj, future_season - 1, future_season, False,
+                                   name_to_id)
 
     return proj
 
 
 def _apply_standings_order(proj: dict, standings_season: int,
-                           draft_season: int, locked: bool):
+                           draft_season: int, locked: bool, name_to_id: dict):
     """
     Build pick order from standings when no lottery result exists.
     M15: delega à fonte única _build_default_draft_order (mesma config de seeds
@@ -197,16 +233,19 @@ def _apply_standings_order(proj: dict, standings_season: int,
     if not standings:
         return
 
-    for pick_num, team_name in _build_default_draft_order(standings):
+    for pick_num, team_id, team_name in _build_default_draft_order(standings):
+        tid = _resolve_tid(team_id, team_name, name_to_id)
+        if tid is None:
+            continue
         for rnd in PICK_ROUNDS:
-            proj[(draft_season, rnd, team_name)] = {
+            proj[(draft_season, rnd, tid)] = {
                 "pick_number": pick_num,
                 "locked": locked,
             }
 
 
 def _apply_lottery_with_standings_tail(proj, lottery_rows, standings_season,
-                                       draft_season, tail_locked):
+                                       draft_season, tail_locked, name_to_id):
     """
     M16: o lottery define APENAS o Round 1. R2/R3 revertem para a ordem
     standings-invertida (12º abre, campeão fecha), reusando a fonte única
@@ -216,7 +255,10 @@ def _apply_lottery_with_standings_tail(proj, lottery_rows, standings_season,
     from routes.offseason import _build_default_draft_order
     # R1 = ordem sorteada (data-driven do DraftLotteryResult)
     for lr in lottery_rows:
-        proj[(draft_season, 1, lr.team_name)] = {
+        tid = _resolve_tid(lr.team_id, lr.team_name, name_to_id)
+        if tid is None:
+            continue
+        proj[(draft_season, 1, tid)] = {
             "pick_number": lr.pick_number,
             "locked": lr.locked,
         }
@@ -224,9 +266,12 @@ def _apply_lottery_with_standings_tail(proj, lottery_rows, standings_season,
     standings = SeasonStandings.query.filter_by(season=standings_season)\
         .order_by(SeasonStandings.rank).all()
     tail_rounds = [r for r in PICK_ROUNDS if r != 1]
-    for pick_num, team_name in _build_default_draft_order(standings):
+    for pick_num, team_id, team_name in _build_default_draft_order(standings):
+        tid = _resolve_tid(team_id, team_name, name_to_id)
+        if tid is None:
+            continue
         for rnd in tail_rounds:
-            proj[(draft_season, rnd, team_name)] = {
+            proj[(draft_season, rnd, tid)] = {
                 "pick_number": pick_num,
                 "locked": tail_locked,
             }

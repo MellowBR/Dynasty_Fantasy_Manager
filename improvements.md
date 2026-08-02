@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 02/08/2026-pt5 (sessão MAN-S3-F2: **código** — picks casadas por **chave estável**, nome vira display. Desenho (A) da F1 em 4 pontos, **sem schema e sem migração** (os ids já existiam e já estavam corretos em 100% das linhas): (1) `_ensure_default_picks` indexa por `(season, round, original_team_id)`; (2) `_sync_traded_picks` casa por `original_team_id` — cópia literal do padrão de `_sync_trades:670`; (3) join da projeção migra para `team_id` (`_build_default_draft_order` passa a devolver `(pick_number, team_id, team_name)`; novo `_resolve_tid` cai no nome só em linha legada com id NULL) — **contrato do [[M8]] intacto por construção**: `_build_lottery_pool`/`_build_fixed_picks` não foram tocados e nenhum `team_name` de lottery/standings é reescrito; (4) `_refresh_pick_team_names` como passo 11b do `run_sync`, idempotente. **Ponto de costura do [[S2]]-F2 criado e documentado**: `_resolve_traded_pick_identity` (porta única `/traded_picks` → `Team` original/dono) — o S3 responde *como* se acha a pick, o desconto responderá *qual* pick é essa, entrando ali sobre id e nunca sobre string. **Validação 25/25 sobre cópia, sem rede** (harness sem `app.py`, que dispararia `run_sync()` real por causa do CSV local): regressão **byte-equivalente**, rename ingerido → **108 picks / 0 duplicatas** / time 9 com 9 e projeção #11 preservada, League Hub com contagens **idênticas à baseline**, dynasty por `DP_` sem fallback, grid e `/api/picks` OK, **M8 verify match+hash antes e depois**; `salary_engine_test` 48/48. Duas asserções minhas caíram e foram corrigidas (não existe invariante "≤12 picks por time" — Cangaceiros tem 16 e tinha 16 na baseline; o 17 da F1 era o valor inflado). **✅ só após smoke prod (PROC1); o sync permanece suspenso** — religar é decisão do owner. Sequência: **S3 smoke → sync liberado → S2-F2**.)
 > Atualizado em: 02/08/2026-pt4 (sessão MAN-S4-REG: **registro docs-only** — novo item **S4** (🔲, Média): `PlayerHistory` e `Trade` identificam time **só por nome**, sem chave estável no schema. O `team_name` participa do **índice UNIQUE de dedupe** do [[F8]]a (`app.py:361`: `player_id, season, event_type, team_name, sleeper_event_ref`) e é gravado do nome vivo (`models.py:232,237`) → após um rename de time, o mesmo evento **não colide** com a linha antiga e a **idempotência do histórico cai**. Segunda superfície: `Trade.team_a/team_b` são strings e `roster.py:245-250` resolve a contraparte comparando com o `team_name` da `PlayerHistory` → pós-rename o timeline do jogador perde a contraparte. **Distinção do [[S3]]**: lá a chave estável **já existia e já estava correta** (fix sem schema, nada a migrar); aqui **não existe** — exige coluna nova, migração de 1.151 linhas de histórico + 53 de `Trade`, e mexer no UNIQUE do F8a (a garantia de idempotência do rebuild). **Não bloqueia** S2 nem S3; o gatilho é o mesmo rename pendente do time 9. Sem código, sem dado; nenhum item existente alterado além da linha no Status Rápido e do cross-ref na questão aberta do S3.)
 > Atualizado em: 02/08/2026-pt3 (sessão MAN-S3-F1: **diagnose read-only ✅** — duplicação **reproduzida com o código real sobre cópia** (Flask mínimo apontando p/ `s3_sim.db`; **não** importa `app.py`, que dispararia `run_sync()` de verdade porque o CSV existe local). Resultado: **+9 picks** (3 seasons × 3 rounds) e **só `_ensure_default_picks` duplica** — roda antes (`:331`) e cria as linhas com o nome novo, que o `_sync_traded_picks` então acha e só atualiza → **dano 9, não 18** (corrige a F1b). Estado resultante é o pior dos dois mundos: linhas velhas guardam a projeção mas congelam a titularidade; linhas novas recebem a titularidade certa e **perdem a projeção**. Efeitos medidos: time renomeado **sem projeção** (fallback 999, desce no grid e aparece 2×), **League Hub inflado em 7 de 12 times** (Cangaceiros 9→17), valor dynasty caindo no fallback `FP_` ([[T2-FIX]]). **Sem mudança de schema**: `Pick.original_team_id` já existe e **nasce correto até nas duplicatas** (18 linhas com id=9) — e `_sync_trades:670` **já casa por id**, precedente canônico no mesmo arquivo. **Restrição forçada descoberta**: cascatear o rename para os nomes não fecha (a projeção casa `Pick` × `DraftLotteryResult` × `SeasonStandings` por string) e refrescar `DraftLotteryResult.team_name` **quebraria o verify do [[M8]]** → o join **tem** de migrar para `team_id`. Na fronteira de picks o **Sleeper nunca manda nome** (`/traded_picks` só tem `roster_id`/`owner_id`) — a string é auto-infligida. **Classe maior que picks**: `PlayerHistory` (`team_name` dentro do índice UNIQUE de dedupe do [[F8]]a) e `Trade` (`team_a`/`team_b`) **não têm chave estável nenhuma** → escopo separado. **F2: desenho (A)** — match por id nos 4 pontos, nome vira display derivado, **nada a migrar**; ponto de costura explícito p/ o [[S2]]-F2 se plugar. Sequência: **S3-F2 → sync liberado → S2-F2**.)
 > Atualizado em: 02/08/2026-pt2 (sessão MAN-S2-F1b: **diagnose analítica ✅** — read-only, zero escrita. **Mecanismo formalizado e provado nas 12 posições:** o Manager exibe **O(L(π(p)))** com **π = S⁻¹∘L** (S = board do Sleeper/standings invertido, L = lottery); π é um **4-ciclo puro em {2,3,4,5}** e as outras 8 posições são **imunes por construção** (lottery não moveu 1º nem 6º; 7–12 são fixas nos dois modelos) → teto de dano = nº de seeds deslocadas, **nunca 12**. **Correção da F1a: são 4 posições divergentes, não 3** — a pos. 2 passou por comparar contra um canônico que ainda tinha o rótulo errado da trade de 29/07. **Estado-alvo derivado** (com re-rótulo: o ativo é a pick da 3 peat, não a da Fazenda) e **verificado 12/12 contra a leitura direta do board** — o Sleeper já exibe a ordem certa; o Manager é que a re-permuta. **Fonte única × réplica:** a *posição* tem fonte única (`_build_pick_projections`, sem réplica JS); o *dono* é lido cru em ≥4 sítios; **"dono-na-posição" não existe como objeto** — é join no template. **"Não fazer a montagem" não é opção**: editar `draft_order` vazaria o lottery para R2/R3 e quebraria o [[M16]] — a permutação de picks é a técnica correta e vai se repetir todo ano. **Recomendação F2: desenho (b) — desconto determinístico** (re-chavear `/traded_picks` por `L(S⁻¹(x))` torna os 3 movimentos administrativos **no-ops** e re-rotula a trade real sozinha), em 3 fatias: corretiva auditável + desconto escopado a R1 da draft season + **tela que prescreve a permutação** (sem ela o desconto é heurística). (a) rejeitado (conserta a tela, deixa o dado errado p/ os ≥4 leitores diretos); (c) rejeitado (schema + disciplina anual por menos). [[OFF26-3]] é **indiferente** aos três (lê `roster_id` do draft real). **Novo item [[S3]] 🔲 Alta — BLOQUEIA o retorno do sync**: rename de time quebra o match de picks por string e o próximo sync cria duplicatas; time 9 já renomeado no Sleeper, ainda não ingerido. Ordem obrigatória: **S3 → sync → S2-F2**.)
@@ -48,7 +49,7 @@
 | S1 | Sync detecta trades do Sleeper e move contratos automaticamente | Alta | ✅ 22/04/2026 |
 | S2 | Sync ingere trocas administrativas de picks (as criadas no Sleeper só para montar a ordem do rookie draft) → dono de pick errado no Manager; recorrência anual a cada montagem de ordem — MAN-S2-REG/**F1a/F1b** | Alta | 🔲 (F1a+F1b ✅ 02/08/2026: causa **não** é `_sync_trades` — as trocas não geram transação; entram por `_sync_traded_picks` (`/traded_picks`), sem auditoria. Mecanismo formalizado: Manager exibe **O(L(π(p)))** com **π = S⁻¹∘L**, 4-ciclo em {2,3,4,5} — as outras 8 posições são **imunes por construção**. Dano corrigido para **4 de 12** posições do R1 2026 (a F1a dizia 3: a pos. 2 passou por causa do rótulo errado da trade de 29/07). Alvo derivado e verificado = **leitura direta do board do Sleeper**, 12/12. **Recomendação F2: desconto determinístico (b)** em 3 fatias — corretiva + desconto em `_sync_traded_picks` + tela que prescreve a permutação. **Bloqueado por [[S3]]**: o sync não pode voltar antes) |
 | S4 | `PlayerHistory` e `Trade` identificam time **só por nome** (sem chave estável no schema); o nome está **dentro do índice UNIQUE de dedupe** do [[F8]]a → pós-rename o mesmo evento não colide e a **idempotência do histórico cai**; `Trade.team_a/team_b` string também quebra a contraparte no timeline (`roster.py:245-250`) — achado colateral da **S3-F1** | Média | 🔲 |
-| S3 | Rename de time no Sleeper quebra o match de picks (`Pick` casada por `original_team_name` string; `Team.name` é renomeado e não cascateia) → próximo sync **cria picks duplicadas**; classe "Brown" (identidade por string). **Armado**: time 9 já renomeado no Sleeper, ainda não ingerido — MAN-S2-F1a/F1b + **MAN-S3-F1** | Alta (**bloqueia o retorno do sync** e a F2 do [[S2]]) | 🔲 (F1 ✅ 02/08/2026: duplicação reproduzida com o **código real sobre cópia** — **+9 picks** (3 seasons × 3 rounds), e **só `_ensure_default_picks` duplica** (roda antes; `_sync_traded_picks` acha as novas e só atualiza) → dano 9, não 18. **Sem mudança de schema**: `original_team_id` já existe e nasce **correto até nas duplicatas**; `_sync_trades:670` já é o precedente canônico no mesmo arquivo. **Restrição forçada**: refrescar `DraftLotteryResult.team_name` quebraria o verify do [[M8]] → o join da projeção **tem** de ir para `team_id`. Classe maior que picks: `PlayerHistory` (nome no índice UNIQUE do F8a) e `Trade` sem chave estável → item próprio. **F2: desenho (A)**, 4 pontos, 1 fatia; **nada a migrar**) |
+| S3 | Rename de time no Sleeper quebra o match de picks (`Pick` casada por `original_team_name` string; `Team.name` é renomeado e não cascateia) → próximo sync **cria picks duplicadas**; classe "Brown" (identidade por string). **Armado**: time 9 já renomeado no Sleeper, ainda não ingerido — MAN-S2-F1a/F1b + **MAN-S3-F1** | Alta (**bloqueia o retorno do sync** e a F2 do [[S2]]) | 🔲 (F1 ✅ 02/08/2026: duplicação reproduzida com o **código real sobre cópia** — **+9 picks** (3 seasons × 3 rounds), e **só `_ensure_default_picks` duplica** (roda antes; `_sync_traded_picks` acha as novas e só atualiza) → dano 9, não 18. **Sem mudança de schema**: `original_team_id` já existe e nasce **correto até nas duplicatas**; `_sync_trades:670` já é o precedente canônico no mesmo arquivo. **Restrição forçada**: refrescar `DraftLotteryResult.team_name` quebraria o verify do [[M8]] → o join da projeção **tem** de ir para `team_id`. Classe maior que picks: `PlayerHistory` (nome no índice UNIQUE do F8a) e `Trade` sem chave estável → item próprio. **F2: desenho (A)**, 4 pontos, 1 fatia; **nada a migrar**) — **F2 ⚠️ 02/08/2026**: match por id nos 2 sítios do sync + join da projeção por `team_id` (`_build_default_draft_order` devolve `team_id`) + nome vira display refrescado no passo 11b + `_resolve_traded_pick_identity` como ponto de costura do [[S2]]-F2. Sem schema, sem migração. **25/25 em cópia** (regressão byte-equivalente, rename → 108 picks/0 duplicatas, projeção e League Hub intactos, M8 verify match+hash antes e depois) + 48/48. **✅ só após smoke prod (PROC1); sync segue suspenso** |
 | T1 | Redesign Trade Manager: simulador multi-owner + link compartilhável | Alta | ✅ 22/04/2026 |
 | T2 | Integrar valores dynasty FantasyCalc no preview de trade | Média | ✅ 22/04/2026 |
 | Q1 | Script de simulação de temporada (validar salary rollover) | Média | 🔲 |
@@ -1716,6 +1717,70 @@ existem. Na ordem inversa, o desconto produziria um **nome** que cairia justamen
 | 5 | "mesma classe do incidente Brown" | **confirmada, e melhor** | O **precedente canônico está no mesmo arquivo**: `_sync_trades:670` já casa por `original_team_id`. A F2 é alinhar dois retardatários ao terceiro. |
 | 6 | (implícita) "o fix é local às picks" | **perda não-intencional** | Corrigir só o match **não basta**: o join da projeção casa `Pick` × `DraftLotteryResult` × `SeasonStandings` por string, e refrescar os nomes **quebraria o verify do M8**. O join tem de ir para id — restrição forçada, não opcional. |
 | 7 | (implícita) "picks são o alcance da classe" | **premissa falsa** | `PlayerHistory` (nome no índice UNIQUE de dedupe do F8a) e `Trade` (`team_a`/`team_b`) **não têm chave estável nenhuma**. Fora do escopo do S3 — item próprio. |
+
+#### F2 — Implementação (02/08/2026 — MAN-S3-F2) ⚠️ validado em cópia, **✅ só após smoke prod**
+
+Desenho **(A)** da F1, **sem mudança de schema**, em 4 pontos + 1 ponto de costura.
+
+**Ponto 1 — `_ensure_default_picks` (`sync_sleeper.py:381-406`)**
+`existing` passa a ser indexado por `(season, round, **original_team_id**)` e a chave de criação
+vira `(season, rnd, team.id)`. Era daqui que nasciam as 9 duplicatas.
+
+**Ponto 2 — `_sync_traded_picks` (`sync_sleeper.py:445-449`)**
+`filter_by(..., original_team_id=orig_team.id)` — **cópia literal do padrão de `_sync_trades:670`**.
+
+**Ponto 3 — join da projeção por id**
+`_build_pick_projections` e as duas appliers passam a chavear
+`(season, round, **team_id**)`. `_build_default_draft_order` (`routes/offseason.py:148`) passou a
+devolver `(pick_number, **team_id**, team_name)`. Novo helper `_resolve_tid` usa o id e **só cai no
+nome em linha legada** com `team_id` NULL (ambas as colunas são nullable).
+**O contrato do M8 ficou intacto por construção:** `_build_lottery_pool` e `_build_fixed_picks` —
+que alimentam o `pool_json` congelado — **não foram tocados**, e nenhum `team_name` de
+`DraftLotteryResult`/`SeasonStandings` é reescrito em lugar nenhum.
+Consumidores alinhados: `picks_page` (matrix chaveada por id, `teams_ordered` vira
+`[{id, name}]`), `api_picks` (join por id; `?team=` resolve o `Team` uma vez e filtra por
+`current_team_id`), `templates/picks.html` (linha usa `row.id`/`row.name`) e
+`trades.py:78-92` (posse comparada por id).
+
+**Ponto 4 — nome como display derivado**
+Novo `_refresh_pick_team_names` (`sync_sleeper.py:471`), chamado como **passo 11b** do `run_sync`
+(`:334-339`): reescreve `original_team_name`/`current_team_name` a partir de `Team.name` a cada
+sync. Idempotente — sem rename, 0 linhas mudam. **Não houve migração de dados**: os ids já estavam
+corretos em 100% das linhas, então não havia backfill de correção a fazer.
+
+**Ponto de costura para o [[S2]]-F2 — `_resolve_traded_pick_identity` (`sync_sleeper.py:407`)**
+Porta única "entrada de `/traded_picks` → `(season, round, Team original, Team dono)`", devolvendo
+**objetos `Team`**. O docstring documenta explicitamente: o S3 responde **como** se acha a `Pick`;
+o desconto do S2-F2 (`x → L(S⁻¹(x))`) responde **qual** pick é essa e entra **ali**, sobre
+`orig_team` — em id, nunca em string. Nenhum outro sítio precisa ser reaberto.
+
+**VALIDAÇÃO — 25/25 sobre cópia, sem rede**
+Isolamento herdado da F1 (**não importa `app.py`**: o CSV local torna `fresh_import` truthy e
+dispararia `run_sync()` real). Harness: Flask mínimo + blueprint de picks + `LOGIN_DISABLED` +
+filtro `utc_iso`, `traded_picks` do JSON capturado na F1a.
+
+| bloco | resultado |
+|---|---|
+| **regressão** (sync sem rename) | estado das 108 picks **byte-equivalente**; 0 nomes refrescados; 32 entradas processadas |
+| **rename ingerido** | **108 picks, 0 duplicatas**; time 9 com exatamente 9; 0 rótulos com o nome antigo; refresh atuou (10 campos) |
+| **projeção** | time 9 mantém **pick #11** (sem fallback 999); 12/12 times projetados no R1 2026 |
+| **League Hub** | contagens **idênticas à baseline** (o rename não move posse); soma 108 |
+| **rótulos** | coerentes com `Team.name` em **100%** das 108 linhas |
+| **dynasty** | picks 2026 do time 9 resolvem por `DP_`, **0** em fallback `FP_` |
+| **grid `/picks`** | HTTP 200; rowlabel novo **3×** (1 por season); nome antigo ausente |
+| **`/api/picks`** | 36 picks em 2026, **100%** com `projected_pick` e `dynasty_value`; `?team=` pelo nome novo OK |
+| **[[M8]] verify** | `match=true` + `hash=true` **antes e depois** do fix |
+| `salary_engine_test` | **48/48** |
+
+**Duas asserções da validação caíram — e o errado era o teste, não o código:**
+(1) "nenhum time com >12 picks" **não é invariante** — um time acumula picks alheias via trade
+(Cangaceiros tem 16, e tinha 16 na baseline). Substituída por "contagens idênticas à baseline".
+(2) O **17** que a F1 reportou para o Cangaceiros era o valor **inflado pela duplicação**, não a
+baseline real.
+
+**PENDENTE PARA ✅:** smoke em produção com gate [[PROC1]] (hash live no Render = commit validado).
+**O sync permanece suspenso** — religar é decisão do owner, após o smoke.
+**Sequência: S3 smoke → sync liberado → [[S2]]-F2.**
 
 **QUESTÕES EM ABERTO** (pós-F1 — as 4 originais foram respondidas em "1", "4", "5" e "6")
 - ~~**Escopo separado a registrar:** `PlayerHistory` e `Trade` sem chave estável de time (ver "6").~~

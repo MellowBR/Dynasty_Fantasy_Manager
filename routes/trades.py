@@ -73,8 +73,11 @@ def trades_page():
 
     # M9-FIX: aceita ?pick_a=<id>&pick_b=<id> para pré-marcar checkbox de pick.
     # Valida que pick existe E pertence ao team preset correspondente
-    # (pick_a → current_team_name == preset_a, idem pick_b).
+    # (pick_a → dono atual == preset_a, idem pick_b).
     # Ignora silenciosamente se inválido.
+    # S3: a comparação de posse é por **id** de time — `current_team_name` é rótulo.
+    team_ids_by_name = {t.name: t.id for t in teams}
+
     def _resolve_preset_pick(arg_name, team_name):
         pid_raw = request.args.get(arg_name)
         if not pid_raw or not team_name:
@@ -84,7 +87,7 @@ def trades_page():
         except (ValueError, TypeError):
             return None
         pick = Pick.query.get(pid)
-        if pick and pick.current_team_name == team_name:
+        if pick and pick.current_team_id == team_ids_by_name.get(team_name):
             return pid
         return None
 

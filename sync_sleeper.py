@@ -333,6 +333,11 @@ def run_sync() -> dict:
     # 11. Sync traded picks (overrides default ownership)
     summary["picks_updated"] = _sync_traded_picks(traded_picks, teams_by_roster)
 
+    # 11b. S3: renomes de time refletem nos rótulos das picks (display derivado).
+    renamed = _refresh_pick_team_names(list(teams_by_roster.values()))
+    if renamed:
+        summary["pick_names_refreshed"] = renamed
+
     db.session.commit()
 
     # 12. Sync trades (S1) — completed trades from the current league
@@ -378,15 +383,20 @@ def _ensure_default_picks(teams: list, traded_seasons: set):
         print(f"[sync] Removed {past_deleted} picks from past seasons")
 
     # Create missing picks for active seasons
+    # S3: a identidade da pick é (season, round, original_team_id) — NUNCA o nome.
+    # `Team.name` é mutável (o próprio sync o reescreve quando o owner renomeia no
+    # Sleeper, ver :181-189) e não cascateia para `Pick`. Casar por nome fazia o
+    # rename não encontrar a linha existente e cair no ramo de criação abaixo,
+    # gerando 9 picks duplicadas por time renomeado (3 seasons × 3 rounds).
     existing = set()
     for p in Pick.query.all():
-        existing.add((p.season, p.round, p.original_team_name))
+        existing.add((p.season, p.round, p.original_team_id))
 
     added = 0
     for season in active_seasons:
         for rnd in PICK_ROUNDS:
             for team in teams:
-                key = (season, rnd, team.name)
+                key = (season, rnd, team.id)
                 if key not in existing:
                     pick = Pick(
                         season=season,
@@ -404,24 +414,43 @@ def _ensure_default_picks(teams: list, traded_seasons: set):
         print(f"[sync] Created {added} default picks for seasons {active_seasons}")
 
 
+def _resolve_traded_pick_identity(tp: dict, teams_by_roster: dict):
+    """
+    S3 — porta única de tradução "entrada de /traded_picks → identidade da pick".
+
+    Retorna (season, round, orig_team, cur_team) com **objetos Team**, nunca nomes.
+    O payload do Sleeper nesta fronteira só traz `roster_id`/`owner_id`; o nome é
+    introduzido pelo próprio Manager, e por isso nunca deve virar chave.
+
+    ── PONTO DE COSTURA PARA O S2-F2 ────────────────────────────────────────────
+    O S3 responde "COMO se acha a Pick" (por id estável). O S2-F2 vai responder
+    "QUAL pick é essa": durante a janela em que o board do Sleeper está espelhado
+    para o rookie draft, o time original precisa ser re-chaveado de `x` para
+    `L(S⁻¹(x))` (desconto da permutação administrativa), e esse desconto entra
+    **aqui**, sobre `orig_team` — operando em Team/id, jamais em string de nome.
+    Nenhum outro sítio precisa ser reaberto para isso.
+    """
+    season = tp.get("season")
+    round_num = tp.get("round")
+    orig_team = teams_by_roster.get(str(tp.get("roster_id", "") or ""))  # dono original
+    cur_team = teams_by_roster.get(str(tp.get("owner_id", "") or ""))    # dono atual
+    return season, round_num, orig_team, cur_team
+
+
 def _sync_traded_picks(traded_picks: list, teams_by_roster: dict) -> int:
     updated = 0
     for tp in traded_picks:
-        season = tp.get("season")
-        round_num = tp.get("round")
-        owner_rid = str(tp.get("owner_id", "") or "")
-        roster_id = str(tp.get("roster_id", "") or "")  # original owner
-
-        orig_team = teams_by_roster.get(roster_id)
-        cur_team = teams_by_roster.get(owner_rid)
+        season, round_num, orig_team, cur_team = _resolve_traded_pick_identity(
+            tp, teams_by_roster)
 
         if not orig_team or not cur_team or not season or not round_num:
             continue
 
+        # S3: casa por id estável, alinhado ao precedente de `_sync_trades` (:670).
         pick = Pick.query.filter_by(
             season=season,
             round=round_num,
-            original_team_name=orig_team.name,
+            original_team_id=orig_team.id,
         ).first()
 
         if pick:
@@ -442,6 +471,28 @@ def _sync_traded_picks(traded_picks: list, teams_by_roster: dict) -> int:
         updated += 1
 
     return updated
+
+
+def _refresh_pick_team_names(teams: list) -> int:
+    """
+    S3 — `Pick.original_team_name` / `current_team_name` são **display derivado**
+    do time vivo, não chave. Reescreve os dois a partir de `Team.name` a cada sync,
+    no mesmo espírito do cascade já existente para `Player.fantasy_team` (:186-187).
+
+    Idempotente: sem rename, nenhuma linha muda (retorna 0).
+    """
+    by_id = {t.id: t.name for t in teams}
+    fixed = 0
+    for p in Pick.query.all():
+        orig_name = by_id.get(p.original_team_id)
+        cur_name = by_id.get(p.current_team_id)
+        if orig_name and p.original_team_name != orig_name:
+            p.original_team_name = orig_name
+            fixed += 1
+        if cur_name and p.current_team_name != cur_name:
+            p.current_team_name = cur_name
+            fixed += 1
+    return fixed
 
 
 def _log_sync(summary: dict, had_errors: bool = False):
