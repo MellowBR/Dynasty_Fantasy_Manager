@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 02/08/2026-pt4 (MAN-S2-DONE: **S2 ✅** — smoke prod sobre o hash `9b4bcf1` (backup `/data/dynasty_pre_s2_smoke_2026-08-02.db`): as 4 posições convergiram para o alvo da F1b (pos. 2 = Fazenda sem troca, pos. 5 = 3 peat → Cangaceiros), cruzamento com o board do Sleeper confere, **2ª execução sem alteração** (idempotência em prod), verify do lottery conferindo. Migração O3 feita; fatia F2-3 desmembrada como **S5 🔲**. Arco S2/S3 ✅; ativos S4 e S5, nenhum bloqueante. Nota de método: a correção do critério de validação do prompt partiu do Code contra a tabela-alvo da F1b)  
+> Última atualização: 02/08/2026-pt5 (MAN-OFF26-10-11-REG: **registro docs-only** — o calendário real da intertemporada 2026 (17/08 rookie draft · 18/08 congelamento ESPN · 20/08 cortes · **22/08 late drop** · 24/08 FA auction) expôs 2 gaps inéditos: **OFF26-10 🔲** (late drop altera keepers **dois dias após o lock**; sheet de 20/08 é provisória p/ quem fechou acima do cap) e **OFF26-11 🔲** (importador não distingue **keeper de arremate novo**; a porta canônica é de **contrato ano 1** → ingerir keeper zera a idade do contrato). Duas questões empíricas registradas como **probe, não fato**; duas **decisões em aberto** deixadas com o owner. **Emenda de premissa:** o **rookie draft NÃO roda em liga fantasma** — existe **uma** liga fantasma permanente (a da FA auction), não duas. Sem código)  
+> Anterior: 02/08/2026-pt4 (MAN-S2-DONE: **S2 ✅** — smoke prod sobre o hash `9b4bcf1` (backup `/data/dynasty_pre_s2_smoke_2026-08-02.db`): as 4 posições convergiram para o alvo da F1b (pos. 2 = Fazenda sem troca, pos. 5 = 3 peat → Cangaceiros), cruzamento com o board do Sleeper confere, **2ª execução sem alteração** (idempotência em prod), verify do lottery conferindo. Migração O3 feita; fatia F2-3 desmembrada como **S5 🔲**. Arco S2/S3 ✅; ativos S4 e S5, nenhum bloqueante. Nota de método: a correção do critério de validação do prompt partiu do Code contra a tabela-alvo da F1b)  
 > Anterior: 02/08/2026-pt3 (MAN-S2-F2: desconto determinístico da permutação do board — novo `board_mirror.py` (π derivado das fontes canônicas, bijeção obrigatória), armamento por **season** em AppConfig (rollover desarma sozinho) + gate de audit canônica, ligado em `_resolve_traded_pick_identity` **e** no loop de picks do `_sync_trades`, card de armar/desarmar no `/admin`. **F2-1 = redundante**: o próprio sync reescreve as 4 posições. 24/24 em cópia + 48/48. ⚠️ **✅ só após smoke prod (PROC1)**)  
 > Anterior: 02/08/2026-pt2 (MAN-S3-DONE: **S3 ✅** — smoke prod aprovado sobre o hash `89dc08d` (gate PROC1; backup `/data/dynasty_pre_s3_smoke_2026-08-02.db`): /picks 12 linhas/temporada e 108 picks, /league correto, verify do lottery conferindo, dynasty resolvendo no /trades. **Sync religado** e a 1ª execução real ingeriu o rename do time 9 **sem duplicação** (projeção #11 preservada) — suspensão encerrada. Migração O3 feita. **S2 segue 🔲**: posições 2–5 do R1 2026 no estado permutado até o S2-F2)  
 > Anterior: 02/08/2026 (MAN-S3-F2: picks casadas por **id de time**, nome vira display derivado — sem schema (os ids já existiam e já estavam corretos); join da projeção migrado para id porque refrescar `DraftLotteryResult.team_name` quebraria o verify do M8; `_resolve_traded_pick_identity` criado como ponto de costura do S2-F2. 25/25 em cópia + 48/48. ⚠️ **✅ só após smoke prod (PROC1)**; sync segue suspenso. Arco S2→S3→S4 registrado no improvements)  
@@ -2255,3 +2256,60 @@ por **string de nome** — com o time 9 já renomeado no Sleeper ("Tropa do Bica
 - **Commits do arco (8):** `03a1f5d` (S2 REG) → `1949ac0` (F1a) → `94ff868` (F1b) → `be16de1`
   (S3-F1) → `f4b1b40` (S4 REG) → `89dc08d` (S3-F2, código) → `e5677d9` (S3 DONE) → `9b4bcf1`
   (S2-F2, código) → este fechamento.
+
+### MAN-OFF26-10-11-REG — dois gaps de intertemporada + emenda da premissa "ligas fantasmas" (02/08/2026, Opus)
+
+- **Sessão de registro puro** (docs-only, sem código, sem diagnose, sem arbitragem de produto). O
+  calendário real da intertemporada 2026 foi fixado com o comissário — **17/08** rookie draft ·
+  **18/08** congelamento ESPN · **20/08** prazo de cortes · **22/08 late drop** (máx. **1** jogador
+  por time) · **24/08** FA auction — e percorrê-lo expôs **dois gaps que não existiam em lugar
+  nenhum do backlog**.
+
+- **OFF26-10 🔲 Alta (caminho crítico 22/08) — late drop pós-lock na janela selada.** A janela do
+  [[OFF26-1]] foi desenhada com **deadline único, lock e revelação simultânea**; o late drop altera
+  o conjunto de keepers **dois dias depois do lock**, e keeper sheet, budget de FA e board da liga
+  fantasma derivam **todos** do snapshot selado. Consequência já identificada: **a sheet de 20/08 é
+  provisória** para os times que fecharam os cortes acima do cap, virando definitiva só após 22/08 —
+  um artefato provisório circulando com cara de definitivo no exato ponto em que o Cowork o
+  transcreve. **Registrado como questão empírica (probe, não fato):** o Sleeper pode **recusar**
+  designação de keepers acima do budget do auction — se recusar, a população do board teria de ser
+  **fatiada por time**, não feita de uma vez e remendada. Registrada também a **assimetria de
+  limite**: o Sleeper só conhece o budget global, a regra da liga reserva $1/slot vazio → um time
+  pode **passar lá e estar ilegal aqui**. **Decisão deixada em aberto com o owner:** segunda
+  mini-janela selada × correção administrativa pós-lock (determina se há novo lock/hash, se a
+  revelação é simultânea de novo, e o que a trilha registra).
+
+- **OFF26-11 🔲 Alta (caminho crítico 24/08) — importador distingue keeper de arremate novo.** Os
+  keepers **precisam** estar designados no board (o Sleeper não tem cap por time: o cap **emerge**
+  do budget global consumido pelos keepers), logo os picks do auction virão **misturados**. O
+  importador [[OFF26-3]] escreve pela **porta canônica de aquisição**, que é porta de **contrato
+  ano 1** — ingerir um keeper **zera a idade do contrato** de quem nunca saiu do time. **Dano
+  silencioso, visível só anos depois, na renovação.** Caso canônico do owner: $50 dropado, leiloado
+  e **recomprado pelo mesmo time por $50** — valor idêntico, **natureza diferente** (o contrato
+  antigo morreu, nasceu um ano 1). O cenário nunca foi exercitado: o importador foi validado contra
+  os drafts reais de 2025, cujas salas **não tinham keeper no board**. **Probe pendente** (o mesmo
+  que o [[OFF26-4]] aguarda): os picks vêm marcados, ou o discriminador sai da keeper sheet como
+  lista de exclusão? **Decisão em aberto:** importar só arremates × reconciliar e reportar
+  divergência de salário (virando uma segunda auditoria).
+
+- **Emenda de premissa — o rookie draft NÃO roda em liga fantasma.** O registro do pacote OFF26
+  (05/06/2026) afirma, numa frase, que rookie draft e FA auction rodam **ambos** em ligas fantasmas.
+  É falso, e a metade do rookie draft **nunca foi justificada item a item** — entrou por arrasto,
+  colada no motivo real da FA auction. Evidência: o [[OFF26-3]] foi validado contra o **rookie draft
+  real de 2025**, lido da chain da **liga real**; e todo o arco [[S2]]/[[S3]], fechado hoje, trata do
+  **board de R1 2026 da liga real** — a permutação administrativa, o espelhamento e a tela
+  prescritiva ([[S5]]) só fazem sentido ali. O motivo próprio da sala separada da **FA auction**
+  permanece válido: a liga real é **dynasty com rosters cheios**, e o auction pressupõe **rosters
+  vazios preenchidos por lance**. **Consequência propagada: existe UMA liga fantasma permanente,
+  não duas.** Texto histórico **preservado verbatim** com bloco EMENDA anexo (precedente de correção
+  de premissa do [[DP1]]); ajustados o título da seção do pacote, a descrição do [[OFF26-7]] e a
+  linha do `draft_import` no `CLAUDE.md`. **Deixadas intactas de propósito** (registro histórico +
+  restrição do prompt de não mexer no Status Rápido além das duas linhas novas): a linha do
+  [[OFF26-3]] no Status Rápido e sua seção no `improvements_archive.md`, que rotulam o item como
+  "importador de drafts de liga fantasma" — rótulo de nomeação de item fechado, não premissa viva.
+
+- **Cross-refs estabelecidos:** OFF26-10 depende de OFF26-1 e afeta OFF26-2/OFF26-4; OFF26-11
+  depende de OFF26-3 (✅) e do mesmo probe do OFF26-4. **Ambos entram como etapas do [[OFF26-7]]**
+  (dry run E2E) — são **costuras**, exatamente o objeto daquele ensaio.
+
+- **Nenhum item existente teve status alterado.** Sem código, sem schema, sem rotas, sem testes.

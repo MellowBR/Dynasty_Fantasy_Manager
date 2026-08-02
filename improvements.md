@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 02/08/2026-pt9 (sessão MAN-OFF26-10-11-REG: **registro docs-only** — calendário real da intertemporada 2026 fixado com o comissário (**17/08** rookie draft · **18/08** congelamento ESPN · **20/08** cortes · **22/08 late drop** (máx. 1 jogador/time) · **24/08** FA auction) expôs **2 gaps inéditos**, ambos 🔲 Alta. **OFF26-10** — o late drop altera os keepers **dois dias depois do lock** da janela selada, e sheet/budget/board derivam do snapshot: a sheet de 20/08 é **provisória** p/ quem fechou acima do cap. Registrados como **questão empírica (probe, não fato)**: o Sleeper pode **recusar** designação de keepers acima do budget (então a população do board teria de ser **fatiada por time**), e a **assimetria de limite** (Sleeper só conhece o budget global; a regra da liga reserva $1/slot vazio → passa lá, ilegal aqui). **Decisão em aberto:** 2ª mini-janela selada × correção administrativa pós-lock. **OFF26-11** — keepers **precisam** estar no board (o cap emerge do budget consumido), logo os picks virão **misturados**; o importador [[OFF26-3]] escreve pela porta de **contrato ano 1** → ingerir keeper **zera a idade do contrato** (dano silencioso, visível só na renovação; caso canônico: $50 dropado e recomprado por $50 — valor igual, natureza diferente). Probe pendente: os picks vêm marcados, ou o discriminador sai da keeper sheet como lista de exclusão? **Decisão em aberto:** importar só arremates × reconciliar e reportar divergência. **EMENDA de premissa:** o **rookie draft NÃO roda em liga fantasma** — a frase do registro do pacote (05/06) colou as duas salas sem justificar o rookie draft item a item; o [[OFF26-3]] foi validado contra o **rookie draft real de 2025** (chain da liga real) e todo o arco [[S2]]/[[S3]] trata do **board de R1 2026 da liga real**. O motivo da sala separada da **FA auction** permanece válido e é outro (dynasty com rosters cheios × auction que pressupõe rosters vazios). **Existe UMA liga fantasma permanente, não duas.** Texto histórico preservado verbatim + bloco EMENDA anexo (precedente [[DP1]]); título da seção e descrição do [[OFF26-7]] ajustados; `CLAUDE.md` sincronizado. Sem código; nenhum item existente teve status alterado.)
 > Atualizado em: 02/08/2026-pt8 (sessão MAN-S2-DONE: **S2 ✅** — smoke em produção aprovado sobre o hash **`9b4bcf1`** (gate [[PROC1]]; backup `/data/dynasty_pre_s2_smoke_2026-08-02.db`): desconto armado para 2026 via `/admin` → sync rodado → **as 4 posições divergentes convergiram para o alvo da F1b** — pos. **2 = Fazenda Pederasta sem troca**, pos. **5 = 3 peat → Cangaceiros** (**re-rótulo da trade de 29/07 confirmado em prod**), pos. 3 e 4 com donas originais corretas; **cruzamento com o board do Sleeper confere** (`1.05` via `fernandoxmf` visível no roster MellowBR); **2ª execução do sync sem nenhuma alteração** (idempotência confirmada **em produção**); verify do lottery 2026 conferindo; pos. 1 e 6–12, R2/R3 e seasons futuras **intactos**. O alvo era, desde a derivação da F1b, "o que o board já exibia" — e é o que o Manager agora exibe. **Estado operacional:** sync liberado com o desconto **armado para 2026**; desarme no rollover **por construção** (armamento por season). **Migração O3:** seção detalhada do S2 (REG + F1a + F1b + F2 + smoke) movida **verbatim** para `improvements_archive.md`. **Fatia F2-3 desmembrada como [[S5]] 🔲** (tela que prescreve a permutação ao co-admin) para não se perder na migração — não iniciada, não bloqueia. Sem código.)
 > Atualizado em: 02/08/2026-pt7 (sessão MAN-S2-F2: **código** — desconto determinístico da permutação administrativa. Novo **`board_mirror.py`**: π = S⁻¹∘L derivado das fontes canônicas (`DraftLotteryResult` × `_build_default_draft_order`, a mesma fonte única do M15/M16), **sem tabela hardcoded**, e **exige bijeção** — board meio-montado desliga o desconto em vez de corromper em silêncio. **Armamento guarda a SEASON, não um booleano** (decisão do Code): o **rollover desarma sozinho**, porque `draft_season` muda e o valor guardado deixa de casar — um booleano dispararia o desconto no ano seguinte sobre board não-montado. 2º gate: audit canônica de lottery. **Toggle explícito, não detecção automática** — a montagem não deixa rastro, e montagem parcial + desconto ligado = corrupção silenciosa. Ligado em `_resolve_traded_pick_identity` (a costura que o [[S3]] deixou pronta) **e**, por extensão deliberada, no **loop de picks do `_sync_trades`** — sem isso o passo 12 sobrescreveria com rótulo errado o que o passo 11 gravou certo, para trades reais fechadas na janela. Card mínimo de armar/desarmar no `/admin` (não é a tela prescritiva da F2-3). **F2-1 respondida: rota corretiva é REDUNDANTE** — as 4 entradas re-chaveadas formam **bijeção** sobre exatamente as 4 linhas divergentes, então o próprio sync as reescreve; implementar a rota seria código morto. **24/24 em cópia**: desarmado byte-equivalente, armado → **as 12 posições batem com o alvo da F1b**, idempotente na 2ª execução, 96 linhas fora do R1 2026 intocadas, trade real na janela move só a posição negociada, 3 gates, **M8 verify match+hash antes e depois**, `/admin` render+endpoint; 48/48. **Premissa do prompt contradita**: o critério "posição 2 → Cangaceiros" contradiz a tabela-alvo da própria F1b — o alvo é **pos. 2 → Fazenda** e **pos. 5 → Cangaceiros**; "Cangaceiros na 2" é o estado permutado atual, não o alvo. **✅ só após smoke prod (PROC1)**.)
 > Atualizado em: 02/08/2026-pt6 (sessão MAN-S3-DONE: **S3 ✅** — smoke em produção aprovado sobre o hash **`89dc08d`** (gate [[PROC1]] cumprido: hash live no Render confirmado pelo owner; backup `/data/dynasty_pre_s3_smoke_2026-08-02.db`): `/picks` com **12 linhas por temporada e 108 picks**, `/league` com contagens corretas por time, **verify do lottery 2026 conferindo** (a migração do join para `team_id` não tocou a auditoria do [[M8]]), valores dynasty de picks resolvendo no `/trades`. **O caso concreto passou limpo:** o owner **religou o sync** e a **primeira execução real ingeriu o rename do time 9 ("Tropa do Jarra") sem duplicação**, com projeção **#11** preservada e display atualizado — o rename que criaria 9 picks duplicadas foi absorvido sem incidente. **Suspensão do sync ENCERRADA**; a diretriz na seção do [[S2]] foi atualizada (o bloqueio era do S3). **Migração O3:** seção detalhada do S3 movida **verbatim** para `improvements_archive.md` com nota de fechamento; Status Rápido mantém a linha como ✅. **[[S2]] segue 🔲** — posições **2–5 do R1 2026 permanecem no estado permutado** até o S2-F2, esperado e documentado. Sem código.)
@@ -82,6 +83,8 @@
 | OFF26-7 | Dry run E2E da intertemporada: ensaio da cadeia inteira encadeada, foco nas costuras entre módulos (OFF26-6 ⊂ OFF26-7); depende de OFF26-1/2/4 existirem; decisão em aberto (gate único vs. por etapas) — MAN-OFF26-6-7-REG | Alta | 🔲 (op) |
 | OFF26-8 | Agente Cowork aplica os cortes do OFF26-1 no roster real do Sleeper (capability operacional NÃO-código: dirige a UI para dropar os cortados de cada time; irmão de OFF26-6, ⊂ OFF26-7); depende de OFF26-1 (fonte da lista) — MAN-OFF26-8-REG | Média | 🔲 (op) |
 | OFF26-9 | Acoplamento das fases da intertemporada × dependência do ESPN definitivo: o rollover (e a abertura da janela de cortes OFF26-1) depende mesmo do E4-a (ESPN definitivo, deliberadamente tardio) ou só de rollover + `needs_review` zerado? Suspeita do owner: E4-a entrou nas pré-condições por arrasto, atrasando indevidamente o início da intertemporada — investigação (F1 read-only) + correção de redação/microcopy — MAN-OFF26-PHASE-REG/F1/FIX | Alta | ✅ 17/06/2026 (F1 confirmou: abertura só exige `needs_review` zerado, E4-a por arrasto; FIX separou timing × qualidade de dado na D8/pré-condições/microcopy; **smoke do microcopy do passo 6 em prod conferido** — texto lê bem + layout intacto; detalhe no archive) |
+| OFF26-10 | **Late drop pós-lock** na janela selada: o late drop de **22/08** altera o conjunto de keepers **dois dias depois do lock** de 20/08, e keeper sheet, budget de FA e board da liga fantasma derivam todos do snapshot selado → a sheet de 20/08 é **provisória** para quem fechou os cortes acima do cap. Decisão em aberto: 2ª mini-janela selada × correção administrativa pós-lock sobre o snapshot existente — MAN-OFF26-10-11-REG | Alta | 🔲 |
+| OFF26-11 | Importador (OFF26-3) **não distingue keeper de arremate novo**: com keepers designados no board da liga fantasma, os picks do auction vêm misturados, e a porta canônica de aquisição é porta de **contrato ano 1** → ingerir um keeper **zera a idade do contrato** de quem nunca saiu do time (dano silencioso, visível só na renovação). Decisão em aberto: importar só arremates × reconciliar e reportar divergência — MAN-OFF26-10-11-REG | Alta | 🔲 |
 | F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | ⚠️ |
 | F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | ✅ 12/06/2026 (réplica eliminada + smoke prod OK: $157/$43/$38/5 spots conferido) |
 | M17 | Personalização por usuário logado: home + cap widget + 8 surfaces derivam de `current_user.team_rel` (fonte única `inject_user_team`; réplica JS do chip removida) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | ⚠️ |
@@ -1505,8 +1508,15 @@ Decisão aguarda o owner; **nada implementado nesta fase**.
 
 ---
 
-## Offseason 2026 — pacote OFF26 (cuts selados + ligas fantasmas)
+## Offseason 2026 — pacote OFF26 (cuts selados + liga fantasma)
 🔲 **Registrado 05/06/2026** — MAN-OFF26-REG (registro apenas; nenhuma implementação)
+
+> **Emenda de premissa (02/08/2026 — MAN-OFF26-10-11-REG):** o parágrafo de contexto abaixo é
+> o registro **da época** e carrega uma premissa **factualmente errada** — a de que o rookie
+> draft também roda em liga fantasma. O texto original fica **preservado verbatim** (precedente
+> de correção de premissa do [[DP1]], que manteve a frase e anexou a correção); a correção está
+> no bloco **EMENDA** logo após o parágrafo. Único ajuste no texto histórico: o título da seção,
+> que passou de "ligas fantasmas" para "liga fantasma" (ver consequência na emenda).
 
 **Contexto do pacote (sessão com o comissário, 05/06/2026):** o formato da liga
 (keeper + dynasty + salary cap) não cabe nativamente no Sleeper e a API do Sleeper
@@ -1518,8 +1528,35 @@ auditoria da config da liga fantasma, import dos resultados dos drafts). A
 transcrição da keeper sheet para o Sleeper é feita via **Cowork + Claude in Chrome**
 (procedimento operacional supervisionado, fora do código do Manager).
 
+**EMENDA — o rookie draft NÃO roda em liga fantasma (02/08/2026, MAN-OFF26-10-11-REG).**
+A frase acima ("**ligas fantasmas** — rookie draft em draft linear e FA Auction em draft
+auction") é falsa na metade do **rookie draft**, e essa metade **nunca foi justificada item a
+item** — entrou por arrasto, colada no motivo real da FA auction. Evidência:
+- o importador [[OFF26-3]] foi validado contra o **rookie draft real de 2025**, lido da **chain
+  de ligas da liga real** — não de sala separada;
+- todo o arco [[S2]]/[[S3]], fechado em 02/08/2026, trata do **board de R1 2026 da liga real**:
+  a permutação administrativa de picks, o espelhamento do board e a tela prescritiva pendente
+  ([[S5]]) **só fazem sentido ali**.
+
+O motivo pelo qual a **FA auction** exige sala separada é **outro** e **permanece válido**: a
+liga real é **dynasty com rosters cheios**, e o auction pressupõe **rosters vazios sendo
+preenchidos por lance**, com o cap individual **emergindo** do budget global do auction
+consumido pelos keepers designados no board (achado do [[OFF26-6]]).
+
+→ **Consequência a propagar: existe UMA liga fantasma permanente — a da FA auction —, não
+duas.** O rookie draft roda na **liga real**. Ajustados por esta emenda: o título desta seção
+e a descrição do [[OFF26-7]]. **Ocorrências deixadas intactas de propósito** (registro
+histórico / restrição do prompt de registro): a linha do [[OFF26-3]] no Status Rápido e sua
+seção no `improvements_archive.md`, ambas rotulando o item como "importador de drafts de liga
+fantasma" — o rótulo é artefato de nomeação do item fechado, não premissa viva.
+
 **Dependências do pacote:** OFF26-1 → OFF26-2 → OFF26-4; OFF26-3 independente e
 paralelizável; OFF26-5 é documentação (depende conceitualmente de 2 e 4).
+**Gaps de intertemporada (REG 02/08/2026):** **OFF26-10** (late drop pós-lock) depende de
+**OFF26-1** (é o snapshot que ele altera) e **afeta OFF26-2 e OFF26-4** (sheet e auditoria
+derivam do snapshot); **OFF26-11** (keeper × arremate no importador) depende de **OFF26-3**
+(✅, é a porta que ingere) e do **mesmo probe empírico que o OFF26-4 aguarda** (o que a API do
+Sleeper expõe sobre designações de keeper). **Ambos entram como etapas do OFF26-7.**
 **Validação operacional (REG 16/06/2026):** OFF26-6 (PoC do Cowork montando a liga) roda
 **cedo e isolado** (mecânica pura com dados fake) e é **gate** de OFF26-5/FA auction real;
 OFF26-6 é **subconjunto** de OFF26-7 (dry run E2E), que ensaia a cadeia inteira e depende
@@ -2204,9 +2241,19 @@ operacional (não-código)**
 
 **Descrição:** ensaio geral do **processo inteiro encadeado** em ambiente de teste,
 exercitando a cadeia completa: **rookie draft de teste → import (OFF26-3) → ESPN
-parcial+definitivo (E4-a) → janela selada (OFF26-1) → keeper sheet (OFF26-2) → Cowork monta
-a liga fantasma (OFF26-6) → auditoria (OFF26-4) → FA auction de teste → import do resultado
-(OFF26-3)**.
+parcial+definitivo (E4-a) → janela selada (OFF26-1) → late drop pós-lock (OFF26-10) →
+keeper sheet (OFF26-2) → Cowork popula a liga fantasma permanente (OFF26-6) → auditoria
+(OFF26-4) → FA auction de teste → import do resultado, separando keeper de arremate
+(OFF26-3 + OFF26-11)**.
+
+> **Emenda (02/08/2026 — MAN-OFF26-10-11-REG), dois ajustes na cadeia acima:**
+> (1) **o rookie draft roda na liga real, não em liga fantasma** — a sala separada existe só
+> para a **FA auction** (ver bloco EMENDA no registro do pacote); "Cowork monta a liga
+> fantasma" virou "**popula**", porque a liga fantasma é **permanente** ([[OFF26-6]]) e o
+> trabalho anual é só o board de keepers.
+> (2) **duas etapas novas entraram na cadeia** — [[OFF26-10]] (late drop de 22/08, entre o lock
+> e a sheet definitiva) e [[OFF26-11]] (importador separando keeper de arremate no import do
+> resultado do auction). Ambas são **costuras**, exatamente o objeto deste dry run.
 
 **Motivação:** cada item OFF26 tem validação própria, mas as **COSTURAS** entre eles nunca
 foram exercitadas juntas: a keeper sheet sai num formato que o Cowork transcreve? a liga
@@ -2257,6 +2304,101 @@ pelo navegador).
 **Relação OFF26-8 ⊂ OFF26-7:** é um **subconjunto operacional** do dry run E2E — entra como
 a etapa "aplicar cortes no Sleeper" da cadeia. **Irmão de OFF26-6** (mesma natureza:
 validação/procedimento operacional não-código que dirige a UI do Sleeper).
+
+---
+
+### OFF26-10 — Late drop pós-lock na janela selada
+🔲 **Registrado 02/08/2026** — MAN-OFF26-10-11-REG — Prioridade **Alta** (caminho crítico
+**22/08**)
+
+**Calendário da intertemporada 2026, confirmado pelo comissário (02/08/2026):** **17/08**
+rookie draft · **18/08** congelamento ESPN · **20/08** prazo de cortes · **22/08 late drop**
+(cada time pode dropar **no máximo um** jogador) · **24/08** FA auction.
+
+**Descrição:** a janela de cortes do [[OFF26-1]] foi desenhada com **deadline único, lock e
+revelação simultânea**. O **late drop de 22/08** altera o conjunto de keepers **dois dias
+depois do lock**, e keeper sheet ([[OFF26-2]]), budget de FA e board da liga fantasma derivam
+**todos** do snapshot selado (`CutWindowAudit`). O item registra esse descompasso entre o
+desenho vigente e o calendário real.
+
+**Motivação:** consequência operacional **já identificada** — a keeper sheet emitida em 20/08 é
+**provisória** para os times que fecharam os cortes **acima do cap**, tornando-se definitiva só
+**após 22/08**. Sem tratamento explícito, um artefato provisório circula com cara de definitivo
+no exato ponto em que o Cowork o transcreve para o board.
+
+**Fundamentos registrados (descrição do terreno, não decisão):**
+- O late drop existe como **válvula** para o time que fecha os cortes ainda acima do cap e se
+  ajusta antes do leilão.
+- **Achado do owner, NÃO verificado — questão empírica, destino de probe:** o Sleeper pode
+  **recusar** a designação de keepers cuja soma ultrapasse o budget do auction — o cap não é
+  campo, é o **budget sendo consumido** ([[OFF26-6]]). **Se** recusar, a população do board não
+  pode ser feita de uma vez em 20/08 e remendada depois; teria de ser **fatiada por time** (quem
+  já está enquadrado entra na primeira leva; quem está estourado, só após o late drop). **Não é
+  assertável a partir do código** e não deve ser assumido — mesmo probe pendente do [[OFF26-4]].
+- **Assimetria de limite:** o Sleeper conhece apenas o **budget global**; o regulamento da liga é
+  **mais apertado** (reserva de **$1 por slot vazio** — `usable_draft_budget` × `raw_budget`, ver
+  §5 da F1 do [[OFF26-4]]). Um time pode **passar no Sleeper e estar ilegal na regra da liga**.
+
+**Escopo resumido:** registro apenas. Definir como a janela selada acomoda uma alteração de
+keepers posterior ao lock, e o que isso implica para a emissão da keeper sheet, para o budget
+de FA e para a ordem de população do board.
+
+**DECISÃO EM ABERTO (pendente do owner — NÃO arbitrada):** o late drop é uma **segunda
+mini-janela selada**, ou uma **correção administrativa pós-lock** sobre o snapshot existente? A
+escolha determina se há **novo lock/hash**, se a **revelação é simultânea de novo**, e o que a
+**trilha de auditoria** registra. Registrar a decisão antes de iniciar a F1 do item.
+
+**Dependências:** depende do **[[OFF26-1]]** (é o snapshot que o late drop altera); **afeta
+[[OFF26-2]]** (a sheet passa a ter versão provisória × definitiva) e **[[OFF26-4]]** (a
+auditoria compara contra qual versão?). Entra como **etapa do [[OFF26-7]]**, entre o lock e a
+sheet definitiva.
+
+---
+
+### OFF26-11 — Importador distingue keeper de arremate novo
+🔲 **Registrado 02/08/2026** — MAN-OFF26-10-11-REG — Prioridade **Alta** (caminho crítico
+**24/08**)
+
+**Descrição:** os keepers **precisam** estar designados no board da liga fantasma — **não é
+opcional**: o Sleeper não tem cap por time, e o cap individual **emerge** dos salários dos
+keepers consumindo o budget global do auction ([[OFF26-6]]). Logo, quando o auction rodar, os
+picks do draft conterão **keepers e arremates misturados**. O importador [[OFF26-3]] escreve
+pela **porta canônica de aquisição** (`record_acquisition`), que é porta de **contrato ano 1**
+— se ingerir um keeper, **zera a idade de contrato** de um jogador que **nunca saiu do time**.
+
+**Motivação:** **dano silencioso**, com efeito visível só **anos depois**, na renovação (o
+contrato de 4 anos reinicia a contagem). Nada no cap do ano corrente denuncia o erro.
+
+**Caso canônico (owner):** jogador com contrato de **$50** é dropado na janela, vai a leilão e é
+**recomprado pelo mesmo time por $50**. **Valor idêntico, natureza diferente** — o contrato
+antigo **morreu** e nasceu um **contrato ano 1**. Tratar como continuidade é o erro simétrico:
+perde-se a distinção nos dois sentidos (keeper tratado como aquisição **e** re-arremate tratado
+como continuidade).
+
+**Por que o cenário nunca foi exercitado:** o importador foi validado contra os **drafts reais
+de 2025**, cujas salas **não tinham keeper designado no board**. O caminho
+board-com-keepers é **novo** em 2026.
+
+**Questão empírica pendente (destino de probe, NÃO suposição):** os picks pós-draft vêm marcados
+de forma que permita **separar keeper de arremate** (ex.: flag `is_keeper` / `metadata` no
+payload de `/draft/{id}/picks`), ou o discriminador terá de vir da **keeper sheet do próprio
+Manager**, usada como **lista de exclusão**? Mesmo probe que o [[OFF26-4]] aguarda (§2 da sua
+F1: **nada no código lê o estado pré-draft** hoje).
+
+**Escopo resumido:** registro apenas. Definir como o importador reconhece, no payload do draft
+da liga fantasma, o que é arremate novo (contrato ano 1) e o que é keeper (contrato em
+andamento, a **não** re-criar).
+
+**DECISÃO EM ABERTO (pendente do owner — NÃO arbitrada):** o **Manager permanece fonte única da
+verdade** sobre keepers e o importador ingere **apenas os arremates**? Ou o importador
+**reconcilia os dois lados** e **reporta divergência de salário de keeper**, virando uma
+**segunda auditoria** (sobreposta ao [[OFF26-4]], que audita o mesmo par **antes** do leilão)?
+Registrar a decisão antes de iniciar a F1 do item.
+
+**Dependências:** depende do **[[OFF26-3]]** (✅ — é a porta que ingere) e do **mesmo probe
+empírico que o [[OFF26-4]] aguarda**. Entra como **etapa do [[OFF26-7]]** (import do resultado
+do auction). Toca `record_acquisition` **apenas na leitura** (o que se decide ingerir), não na
+porta em si.
 
 ---
 
