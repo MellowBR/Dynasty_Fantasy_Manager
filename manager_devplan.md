@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 02/08/2026 (MAN-S3-F2: picks casadas por **id de time**, nome vira display derivado — sem schema (os ids já existiam e já estavam corretos); join da projeção migrado para id porque refrescar `DraftLotteryResult.team_name` quebraria o verify do M8; `_resolve_traded_pick_identity` criado como ponto de costura do S2-F2. 25/25 em cópia + 48/48. ⚠️ **✅ só após smoke prod (PROC1)**; sync segue suspenso. Arco S2→S3→S4 registrado no improvements)  
+> Última atualização: 02/08/2026-pt2 (MAN-S3-DONE: **S3 ✅** — smoke prod aprovado sobre o hash `89dc08d` (gate PROC1; backup `/data/dynasty_pre_s3_smoke_2026-08-02.db`): /picks 12 linhas/temporada e 108 picks, /league correto, verify do lottery conferindo, dynasty resolvendo no /trades. **Sync religado** e a 1ª execução real ingeriu o rename do time 9 **sem duplicação** (projeção #11 preservada) — suspensão encerrada. Migração O3 feita. **S2 segue 🔲**: posições 2–5 do R1 2026 no estado permutado até o S2-F2)  
+> Anterior: 02/08/2026 (MAN-S3-F2: picks casadas por **id de time**, nome vira display derivado — sem schema (os ids já existiam e já estavam corretos); join da projeção migrado para id porque refrescar `DraftLotteryResult.team_name` quebraria o verify do M8; `_resolve_traded_pick_identity` criado como ponto de costura do S2-F2. 25/25 em cópia + 48/48. ⚠️ **✅ só após smoke prod (PROC1)**; sync segue suspenso. Arco S2→S3→S4 registrado no improvements)  
 > Anterior: 31/07/2026-pt2 (MAN-F13: cache do pool Sleeper descongelado — F1 diagnose + F2 (volume `/data` + carimbo por conteúdo, commit `2cd8de3`) + CLOSE ✅ com smoke prod (recaptura 287); DP3 ✅ fechado no mesmo dia (smoke prod `e12fdef`) com ressalva baixada pelo F13; F14 🔲 cosmético; regra nova de smoke local no DEV_METHODOLOGY)  
 > Anterior: 31/07/2026 (MAN-DP3: board de rookies do cap_projector = classe entrante capturada (snapshot `in_class`, D1–D5); ⚠️ F2 localhost, aguarda smoke prod; commit `e12fdef` pushado; F13 🔲 registrado)  
 > Anterior: 23/06/2026-pt4 (MAN-PROC1: PROC1 ✅ — gate de hash deployado afinado no DEV_METHODOLOGY (Forma 1, transversal); PROC2 🔲 registrado; edição do DEV_METHODOLOGY aplicada mas não commitada (repo umbrella sem commits))  
@@ -2118,3 +2119,33 @@ por **string de nome** — com o time 9 já renomeado no Sleeper ("Tropa do Bica
 - **Estado:** ⚠️ validado em cópia local; **✅ só após smoke em produção** com gate PROC1 (hash
   live no Render = commit validado). **O sync permanece suspenso** — religar é decisão do owner,
   após o smoke. Sequência: **S3 smoke → sync liberado → S2-F2**.
+
+### MAN-S3-DONE — S3 fechado com smoke em produção; sync religado (02/08/2026, Opus)
+
+- **S3 ✅ (02/08/2026), gate PROC1 cumprido.** Hash live no Render confirmado pelo owner =
+  **`89dc08d`** — o commit efetivamente validado, não um docs-only posterior. Backup pré-smoke:
+  `/data/dynasty_pre_s3_smoke_2026-08-02.db`. Verificado em produção: `/picks` com **12 linhas por
+  temporada e 108 picks**; `/league` com contagens corretas por time; **verify do lottery 2026
+  conferindo** (a migração do join para `team_id` não tocou a auditoria do M8, como o desenho
+  previa); valores dynasty de picks resolvendo no `/trades`.
+
+- **O caso concreto que motivou o item passou limpo — em condição real.** O owner religou o sync e
+  a **primeira execução** ingeriu o rename do time 9 ("Tropa do Jarra") **sem duplicação**, com a
+  projeção **#11** preservada e as referências de display atualizadas. A cópia previu 0 duplicatas
+  e a produção entregou 0 duplicatas: o rename que teria criado 9 picks duplicadas foi absorvido
+  sem incidente.
+
+- **Suspensão do sync encerrada.** O bloqueio operacional era do S3, não do S2 — a diretriz na
+  seção do S2 foi corrigida para refletir isso. **O S2 segue 🔲**: as posições **2–5 do R1 2026
+  permanecem no estado permutado** e o sync **reingere a permutação a cada execução**, então
+  correção manual de dono de pick continua não sobrevivendo. Estado conhecido e documentado, não
+  defeito novo — só o S2-F2 (desconto determinístico) fecha.
+
+- **Migração O3:** seção detalhada do S3 movida **verbatim** para `improvements_archive.md` com
+  nota de fechamento; o Status Rápido do ativo mantém a linha como ✅. O S4 (histórico sem chave
+  estável) segue 🔲 no ativo, fora do caminho crítico.
+
+- **Arco da sessão (S2 → S3 → S4), 6 commits:** `03a1f5d` (S2 REG) → `1949ac0` (S2-F1a, refuta a
+  premissa: as trocas não são transações) → `94ff868` (S2-F1b, formaliza π = S⁻¹∘L e deriva o
+  alvo) → `be16de1` (S3-F1, reproduz a duplicação) → `f4b1b40` (S4 REG) → `89dc08d` (S3-F2,
+  código) → este fechamento. **Próximo passo: S2-F2.**
