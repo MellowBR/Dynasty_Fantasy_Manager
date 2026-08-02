@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 02/08/2026-pt3 (MAN-S2-F2: desconto determinístico da permutação do board — novo `board_mirror.py` (π derivado das fontes canônicas, bijeção obrigatória), armamento por **season** em AppConfig (rollover desarma sozinho) + gate de audit canônica, ligado em `_resolve_traded_pick_identity` **e** no loop de picks do `_sync_trades`, card de armar/desarmar no `/admin`. **F2-1 = redundante**: o próprio sync reescreve as 4 posições. 24/24 em cópia + 48/48. ⚠️ **✅ só após smoke prod (PROC1)**)  
+> Última atualização: 02/08/2026-pt4 (MAN-S2-DONE: **S2 ✅** — smoke prod sobre o hash `9b4bcf1` (backup `/data/dynasty_pre_s2_smoke_2026-08-02.db`): as 4 posições convergiram para o alvo da F1b (pos. 2 = Fazenda sem troca, pos. 5 = 3 peat → Cangaceiros), cruzamento com o board do Sleeper confere, **2ª execução sem alteração** (idempotência em prod), verify do lottery conferindo. Migração O3 feita; fatia F2-3 desmembrada como **S5 🔲**. Arco S2/S3 ✅; ativos S4 e S5, nenhum bloqueante. Nota de método: a correção do critério de validação do prompt partiu do Code contra a tabela-alvo da F1b)  
+> Anterior: 02/08/2026-pt3 (MAN-S2-F2: desconto determinístico da permutação do board — novo `board_mirror.py` (π derivado das fontes canônicas, bijeção obrigatória), armamento por **season** em AppConfig (rollover desarma sozinho) + gate de audit canônica, ligado em `_resolve_traded_pick_identity` **e** no loop de picks do `_sync_trades`, card de armar/desarmar no `/admin`. **F2-1 = redundante**: o próprio sync reescreve as 4 posições. 24/24 em cópia + 48/48. ⚠️ **✅ só após smoke prod (PROC1)**)  
 > Anterior: 02/08/2026-pt2 (MAN-S3-DONE: **S3 ✅** — smoke prod aprovado sobre o hash `89dc08d` (gate PROC1; backup `/data/dynasty_pre_s3_smoke_2026-08-02.db`): /picks 12 linhas/temporada e 108 picks, /league correto, verify do lottery conferindo, dynasty resolvendo no /trades. **Sync religado** e a 1ª execução real ingeriu o rename do time 9 **sem duplicação** (projeção #11 preservada) — suspensão encerrada. Migração O3 feita. **S2 segue 🔲**: posições 2–5 do R1 2026 no estado permutado até o S2-F2)  
 > Anterior: 02/08/2026 (MAN-S3-F2: picks casadas por **id de time**, nome vira display derivado — sem schema (os ids já existiam e já estavam corretos); join da projeção migrado para id porque refrescar `DraftLotteryResult.team_name` quebraria o verify do M8; `_resolve_traded_pick_identity` criado como ponto de costura do S2-F2. 25/25 em cópia + 48/48. ⚠️ **✅ só após smoke prod (PROC1)**; sync segue suspenso. Arco S2→S3→S4 registrado no improvements)  
 > Anterior: 31/07/2026-pt2 (MAN-F13: cache do pool Sleeper descongelado — F1 diagnose + F2 (volume `/data` + carimbo por conteúdo, commit `2cd8de3`) + CLOSE ✅ com smoke prod (recaptura 287); DP3 ✅ fechado no mesmo dia (smoke prod `e12fdef`) com ressalva baixada pelo F13; F14 🔲 cosmético; regra nova de smoke local no DEV_METHODOLOGY)  
@@ -2205,3 +2206,52 @@ por **string de nome** — com o time 9 já renomeado no Sleeper ("Tropa do Bica
 - **Estado:** ⚠️ validado em cópia; **✅ só após smoke em produção** com gate PROC1. Roteiro do
   smoke: backup → deploy + conferir hash live → `/admin` **Armar para 2026** → rodar o sync →
   conferir as 4 posições no `/picks` contra o board do Sleeper.
+
+### MAN-S2-DONE — S2 fechado com smoke em produção; arco S2→S5 encerrado (02/08/2026, Opus)
+
+- **S2 ✅ (02/08/2026), gate PROC1 cumprido.** Hash live no Render confirmado pelo owner =
+  **`9b4bcf1`**; backup prévio `/data/dynasty_pre_s2_smoke_2026-08-02.db`. Sequência do smoke:
+  desconto **armado para 2026** via `/admin` → sync executado → conferência. Resultado: as **4
+  posições divergentes do R1 2026 convergiram para o alvo derivado na F1b** — pos. **2 = Fazenda
+  Pederasta sem troca**, pos. **5 = 3 peat → Cangaceiros** (o re-rótulo da trade de 29/07,
+  confirmado em produção), pos. **3 e 4** com donas originais corretas. Pos. 1 e 6–12, R2/R3 e
+  seasons futuras intactos.
+
+- **A verificação que fecha o ciclo: cruzamento com o board do Sleeper.** O owner conferiu `1.05`
+  via `fernandoxmf` visível no roster MellowBR. O alvo era, desde a derivação da F1b, **"o que o
+  board já exibia"** — o Sleeper sempre esteve certo na *sequência*, errado na *titularidade*, e o
+  Manager era quem re-permutava ao projetar. Agora os dois contam a mesma história.
+
+- **Idempotência confirmada em produção**, não só em cópia: a 2ª execução do sync não alterou nada.
+  É a propriedade que torna o desconto seguro de conviver com um Sleeper permanentemente "errado" —
+  a montagem administrativa segue viva lá e é aniquilada a cada leitura.
+
+- **Nota de método — a F1 refutando premissas operou também sobre o prompt, não só sobre o código.**
+  O prompt da F2 trazia como critério de validação "posição 2 → Cangaceiros via pick da 3 peat".
+  Isso **contradizia a tabela-alvo da própria F1b**, que o mesmo prompt citava como autoridade: o
+  alvo é **pos. 2 → Fazenda** e **pos. 5 → Cangaceiros** ("Cangaceiros na 2" era o estado
+  **permutado**, ou seja, o defeito). A correção **partiu do Code**, conferindo o critério contra a
+  tabela derivada antes de implementar — e o smoke em produção confirmou a leitura corrigida.
+  É a terceira família de ocorrência do [[MAN-METH-REG]]: até aqui a regra candidata falava em
+  refutar premissas do prompt **contra o código**; este caso mostra que ela vale também **contra
+  artefatos derivados em fases anteriores** (a tabela-alvo). Aceitar o critério como dado teria
+  produzido um fix "validado" contra o alvo errado.
+
+- **Migração O3:** seção detalhada do S2 (REG + F1a + F1b + F2 + smoke) movida **verbatim** para
+  `improvements_archive.md`. Sanidade da migração verificada por marcadores de fase antes de
+  escrever.
+
+- **Fatia F2-3 desmembrada como item próprio [[S5]] 🔲** — tela que **prescreve** a permutação ao
+  co-admin. **Why desmembrar no fechamento:** a F1b recomendou 3 fatias e só 2 foram entregues; se a
+  terceira ficasse descrita apenas dentro da seção do S2, sumiria do backlog ativo junto com a
+  migração O3. Não bloqueia nada — o desconto já exige bijeção e **desliga** diante de board
+  meio-montado. O que ela remove é o **conhecimento tácito**: hoje o Manager torce para que a
+  montagem tenha seguido π; com a tela, ele prescreve e portanto sabe o que vai ler.
+
+- **Estado do arco:** **S2 ✅**, **S3 ✅** (ambos com smoke em prod). Ativos: **S4 🔲** (histórico
+  sem chave estável de time) e **S5 🔲** (tela prescritiva) — nenhum dos dois bloqueia operação.
+  Sync liberado e com o desconto armado para 2026; o rollover desarma sozinho.
+
+- **Commits do arco (8):** `03a1f5d` (S2 REG) → `1949ac0` (F1a) → `94ff868` (F1b) → `be16de1`
+  (S3-F1) → `f4b1b40` (S4 REG) → `89dc08d` (S3-F2, código) → `e5677d9` (S3 DONE) → `9b4bcf1`
+  (S2-F2, código) → este fechamento.
