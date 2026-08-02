@@ -18,6 +18,9 @@ def admin_page():
     teams_count  = Team.query.count()
     playoffs = get_config("playoffs_started", "false") == "true"
     f8_rebuilt = get_config("f8_rebuilt", "false") == "true"
+    from board_mirror import get_mirrored_season, build_permutation
+    mirrored = get_mirrored_season()
+    draft_season = get_current_season() + 1
     return render_template("admin.html",
                            last_sync=last_sync,
                            player_count=player_count,
@@ -25,7 +28,43 @@ def admin_page():
                            current_season=get_current_season(),
                            playoffs_started=playoffs,
                            f8_rebuilt=f8_rebuilt,
-                           f8_snapshot=_snapshot_info())
+                           f8_snapshot=_snapshot_info(),
+                           draft_season=draft_season,
+                           board_mirrored_season=mirrored,
+                           board_perm_size=len(build_permutation(draft_season)))
+
+
+# ── S2-F2: espelhamento do board do Sleeper ──────────────────────────────────
+
+@admin_bp.route("/api/admin/board_mirror", methods=["POST"])
+@admin_required
+def toggle_board_mirror():
+    """
+    Arma/desarma o desconto da permutação administrativa do board (S2).
+
+    Armar declara: "o board do rookie draft desta draft season JÁ foi montado no
+    Sleeper". Enquanto armado, o sync interpreta as picks de R1 dessa season
+    descontando a permutação (ver `board_mirror.py`). O rollover desarma sozinho —
+    a season guardada deixa de casar com `current_season + 1`.
+    """
+    from board_mirror import set_mirrored_season, build_permutation, get_mirrored_season
+    data = request.get_json() or {}
+    armed = bool(data.get("armed"))
+    draft_season = get_current_season() + 1
+    if armed:
+        perm = build_permutation(draft_season)
+        if not perm:
+            return jsonify({
+                "success": False,
+                "error": f"Permutação indisponível para {draft_season}: exige lottery "
+                         f"canônico e standings da season anterior, e precisa ser bijetiva."
+            }), 400
+        set_mirrored_season(draft_season)
+    else:
+        set_mirrored_season(None)
+    return jsonify({"success": True,
+                    "board_mirrored_season": get_mirrored_season(),
+                    "draft_season": draft_season})
 
 
 # ── Sleeper Sync ──────────────────────────────────────────────────────────────

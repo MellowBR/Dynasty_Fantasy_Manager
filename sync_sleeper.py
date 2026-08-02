@@ -331,7 +331,17 @@ def run_sync() -> dict:
     _ensure_default_picks(list(teams_by_roster.values()), traded_seasons)
 
     # 11. Sync traded picks (overrides default ownership)
-    summary["picks_updated"] = _sync_traded_picks(traded_picks, teams_by_roster)
+    # S2-F2: desconta a permutação administrativa do board (no-op quando desarmado).
+    from board_mirror import load_board_discount
+    discount = load_board_discount(list(teams_by_roster.values()))
+    summary["picks_updated"] = _sync_traded_picks(traded_picks, teams_by_roster, discount)
+    if discount.active:
+        summary["board_discount"] = {
+            "draft_season": discount.draft_season,
+            "picks_rekeyed": discount.applied,
+        }
+    elif discount.reason:
+        summary["board_discount_off"] = discount.reason
 
     # 11b. S3: renomes de time refletem nos rótulos das picks (display derivado).
     renamed = _refresh_pick_team_names(list(teams_by_roster.values()))
@@ -342,7 +352,7 @@ def run_sync() -> dict:
 
     # 12. Sync trades (S1) — completed trades from the current league
     try:
-        trades_result = _sync_trades(LEAGUE_ID)
+        trades_result = _sync_trades(LEAGUE_ID, discount=discount)
         summary["trades_imported"] = trades_result["imported"]
         summary["trades_skipped"] = trades_result["skipped"]
         if trades_result.get("warnings"):
@@ -414,7 +424,7 @@ def _ensure_default_picks(teams: list, traded_seasons: set):
         print(f"[sync] Created {added} default picks for seasons {active_seasons}")
 
 
-def _resolve_traded_pick_identity(tp: dict, teams_by_roster: dict):
+def _resolve_traded_pick_identity(tp: dict, teams_by_roster: dict, discount=None):
     """
     S3 — porta única de tradução "entrada de /traded_picks → identidade da pick".
 
@@ -422,26 +432,28 @@ def _resolve_traded_pick_identity(tp: dict, teams_by_roster: dict):
     O payload do Sleeper nesta fronteira só traz `roster_id`/`owner_id`; o nome é
     introduzido pelo próprio Manager, e por isso nunca deve virar chave.
 
-    ── PONTO DE COSTURA PARA O S2-F2 ────────────────────────────────────────────
-    O S3 responde "COMO se acha a Pick" (por id estável). O S2-F2 vai responder
+    ── COSTURA S3 × S2-F2 (ambos ligados) ───────────────────────────────────────
+    O S3 responde "COMO se acha a Pick" (por id estável). O **S2-F2** responde
     "QUAL pick é essa": durante a janela em que o board do Sleeper está espelhado
-    para o rookie draft, o time original precisa ser re-chaveado de `x` para
-    `L(S⁻¹(x))` (desconto da permutação administrativa), e esse desconto entra
-    **aqui**, sobre `orig_team` — operando em Team/id, jamais em string de nome.
-    Nenhum outro sítio precisa ser reaberto para isso.
+    para o rookie draft, o time original é re-chaveado de `x` para `L(S⁻¹(x))`
+    (desconto da permutação administrativa — ver `board_mirror.py`), operando em
+    Team/id, jamais em string de nome. Fora da janela `discount.apply` é a
+    identidade e esta função se comporta exatamente como antes do S2-F2.
     """
     season = tp.get("season")
     round_num = tp.get("round")
     orig_team = teams_by_roster.get(str(tp.get("roster_id", "") or ""))  # dono original
     cur_team = teams_by_roster.get(str(tp.get("owner_id", "") or ""))    # dono atual
+    if discount is not None:
+        orig_team = discount.apply(season, round_num, orig_team)
     return season, round_num, orig_team, cur_team
 
 
-def _sync_traded_picks(traded_picks: list, teams_by_roster: dict) -> int:
+def _sync_traded_picks(traded_picks: list, teams_by_roster: dict, discount=None) -> int:
     updated = 0
     for tp in traded_picks:
         season, round_num, orig_team, cur_team = _resolve_traded_pick_identity(
-            tp, teams_by_roster)
+            tp, teams_by_roster, discount)
 
         if not orig_team or not cur_team or not season or not round_num:
             continue
@@ -576,7 +588,7 @@ def _compute_cap_alerts(affected_team_ids: set) -> list[dict]:
     return alerts
 
 
-def _sync_trades(league_id: str, league_season: int | None = None) -> dict:
+def _sync_trades(league_id: str, league_season: int | None = None, discount=None) -> dict:
     """
     Sync completed trades from a Sleeper league. Idempotent via sleeper_transaction_id.
     2-way trades: normal Trade row.
@@ -706,6 +718,13 @@ def _sync_trades(league_id: str, league_season: int | None = None) -> dict:
                 orig_team = team_by_roster.get(str(orig_rid))
                 dst_team = team_by_roster.get(str(dst_rid))
                 src_team = team_by_roster.get(str(src_rid))
+                # S2-F2: uma trade REAL fechada dentro da janela de espelhamento é
+                # registrada pelo Sleeper contra o rótulo do slot no board. O ativo que
+                # de fato mudou de mão é o direito de escolher naquela posição, então o
+                # mesmo desconto de `_sync_traded_picks` vale aqui — sem isso a trade
+                # entraria com o rótulo errado e desfaria a correção até o sync seguinte.
+                if discount is not None:
+                    orig_team = discount.apply(p_season_raw, p_round, orig_team)
                 if not orig_team or not dst_team:
                     result["warnings"].append(
                         f"tx={tx_id}: pick {p_season_raw} R{p_round} com teams não mapeados"

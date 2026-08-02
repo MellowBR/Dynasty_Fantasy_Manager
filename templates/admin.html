@@ -58,6 +58,36 @@
     <div id="sync-result" class="result-box" style="display:none;margin-top:.75rem"></div>
   </div>
 
+  <!-- S2: espelhamento do board do rookie draft no Sleeper -->
+  <div class="card">
+    <h2 class="card-title">🎯 Board do Rookie Draft espelhado no Sleeper</h2>
+    <p class="text-dim" style="margin-bottom:.6rem">
+      O Sleeper só tem <strong>uma ordem de draft</strong> para todos os rounds, então a ordem do
+      lottery ({{ draft_season }}) só chega ao board do R1 permutando picks na UI do Sleeper.
+      Essa permutação é <strong>artefato operacional, não trade</strong>. Ligue aqui
+      <strong>depois</strong> de montar o board, para o sync descontá-la ao ler as picks do R1
+      {{ draft_season }}.
+    </p>
+    {% if board_mirrored_season == draft_season %}
+    <div class="alert" style="margin-bottom:.75rem;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.35);color:#86efac">
+      ✅ <strong>Armado para {{ draft_season }}</strong> — o sync está descontando a permutação no R1.
+    </div>
+    <button class="btn btn-secondary" onclick="setBoardMirror(false)">Desarmar</button>
+    {% else %}
+    <p class="text-dim" style="margin-bottom:.75rem">
+      Estado: <strong>desarmado</strong>{% if board_mirrored_season %}
+      (valor guardado: {{ board_mirrored_season }} — não é a draft season corrente){% endif %}.
+      Permutação derivável: <strong>{{ board_perm_size }}/12</strong> posições.
+    </p>
+    <button class="btn btn-primary" onclick="setBoardMirror(true)"
+            {% if board_perm_size == 0 %}disabled{% endif %}
+            data-tooltip="Exige lottery canônico da draft season + standings da anterior.&#10;O rollover desarma sozinho.">
+      Armar para {{ draft_season }}
+    </button>
+    {% endif %}
+    <div id="board-mirror-result" class="result-box" style="display:none;margin-top:.75rem"></div>
+  </div>
+
   <!-- Pre-season workflow order -->
   <div class="card workflow-card">
     <h2 class="card-title">📋 Ordem do Fluxo Pré-Temporada</h2>
@@ -218,6 +248,28 @@ function togglePlayoffs(undo) {
     res.textContent = d.ok ? ('✅ ' + d.message) : ('❌ Erro');
     if (d.ok) setTimeout(() => location.reload(), 1000);
   });
+}
+
+// S2: arma/desarma o desconto da permutação do board (recarrega p/ refletir o estado)
+function setBoardMirror(armed) {
+  const res = document.getElementById('board-mirror-result');
+  fetch('/api/admin/board_mirror', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({armed: armed})
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) { location.reload(); return; }
+      res.style.display = 'block';
+      res.className = 'result-box result-error';
+      res.textContent = '❌ ' + (d.error || 'Falha ao alterar o estado.');
+    })
+    .catch(e => {
+      res.style.display = 'block';
+      res.className = 'result-box result-error';
+      res.textContent = '❌ ' + e;
+    });
 }
 
 function triggerSync() {
