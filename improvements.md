@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 02/08/2026 (sessão MAN-S2-F1a: **levantamento read-only ✅** — retrato do estado, zero escrita. **Premissa central do S2 REFUTADA:** as trocas administrativas **não são transações** (ferramenta de comissário) → `_sync_trades` nunca as viu; a porta é **`_sync_traded_picks`** (`sync_sleeper.py:407`), que reescreve o dono de toda pick de `/traded_picks` **em todo sync**, sem `Trade`, sem `PlayerHistory`, sem trilha. **Não existe trade só-picks em lugar nenhum da chain** (1.123 tx, 53 trades; as 6 de 2026 têm jogadores). **4 movimentos administrativos**, todos em **R1 2026** (1 mascarado por trade posterior), datados em **08/06/2026** pela série `sync_log.picks_updated` (18→**21**→32, aritmética fecha) — ~7 semanas antes do draft, não na véspera. **Intenção confirmada 12/12 slots**: a montagem faz o board do Sleeper (ordem = standings 2025 invertido, conferida em `slot_to_roster_id`) exibir a mesma sequência de donos que a ordem do lottery ([[M16]]) — tradução correta entre modelos incompatíveis, não erro do co-admin. **Dano hoje: 3 de 12 posições do R1 2026** (pos. 3/4/5); R2/R3/2027/2028 intactos; **0** `Trade`, **0** `PlayerHistory`, **0** divergência Manager × Sleeper → **nenhuma correção manual sobreviveu**. Pick 2 = pick da Fazenda Pederasta (`fernandoxmf`) — bate com o sintoma, pendente o owner confirmar "Fehl"=`fernandoxmf`. **Complicação p/ o fix:** a trade real de 29/07 foi registrada sobre a ficção → exige **re-rotulagem**, não só desfazer. Ressalva: base auditada = snapshot de prod do commit `326324a` (31/07), **não** `/data/dynasty.db` (Render Shell indisponível). Colateral: `_sync_traded_picks` casa pick por **string** de nome de time e o time 9 foi renomeado no Sleeper → risco de linha duplicada, candidato a item próprio.)
 > Atualizado em: 01/08/2026 (sessão MAN-S2-REG: **registro docs-only** — novo item **S2** (🔲, Alta): o sync de trades ([[S1]]) ingeriu como trades reais as **trocas administrativas de picks** que o co-admin criou na UI do Sleeper só para montar a ordem do rookie draft 2026 (o Sleeper suporta uma ordem única para todos os rounds; o Manager já modela R1 = lottery e R2/R3 = standings invertido — [[M16]]). Sintoma em prod no rookie draft de 28/07: pick 2 do R1 2026 constava do time do Icaro, mas é do Fehl (Sleeper é a referência correta). **Risco de recorrência anual** — toda montagem de ordem de draft no Sleeper gera essas trocas. Diretriz vigente: **sync suspenso até o fix**. Sem código, sem dado; nenhum item existente alterado além da linha no Status Rápido.)
 > Atualizado em: 31/07/2026-pt4 (sessão MAN-F13-CLOSE: **F13 ✅** — smoke prod OK sobre hash `2cd8de3` (backup `/data/pre_f13.db`): recaptura = **287** (145 entraram = os ausentes do cache congelado, 142 atualizados, 6 saíram por corte → desmarcação real), 2ª captura 0/0 **sem novo download** (carimbo por conteúdo operou), board 287 c/ 12 do import ESPN (6 valorados), busca/filtro no navegador. **Migração O3:** F13 → archive com nota de fechamento. **Baixa da ressalva do DP3** anexada no archive (board não mostra mais junho; dos 84 do import, só 12 são da classe). **Pendência**: frescor sobreviver ao 2º deploy → próximo release. Registrados: **F14 🔲** (nomes sem sufixo de geração, cosmético) + **regra no `DEV_METHODOLOGY.md`** (smoke local aponta `DYNASTY_DB` p/ cópia temp, nunca o seed). Sem código.)
 > Atualizado em: 31/07/2026-pt3 (sessão MAN-F13-F1/F2: **F13 ⚠️** — cache do pool Sleeper descongelado. **F1:** prod **nem tenta** escrever (branch de download inalcançável por mtime de deploy + checkout-revert repõe junho); dano real > stale — classe viva 287 × 148 no cache, **145 sem sid** no pool de junho, 108/142 com team desatualizado. **F2 (caminho b + d):** cache movido p/ `dirname(DYNASTY_DB)` (volume, padrão E1), `git rm --cached` + removido da árvore (gitignore já cobria), validade por carimbo `fetched_at` **dentro** do arquivo (não mtime), formato antigo/ilegível→vencido sem lançar; sítio único de caminho e de validade; 6 consumidores intactos. Smoke cache 21/21 + e2e captura 287 (não 148) + 48/48. **✅ só após smoke prod.** CLAUDE.md sincronizado.)
@@ -42,7 +43,7 @@
 | X1c | Tabela `users` no dynasty.db + seed_users.py | Alta | ✅ 31/03/2026 |
 | X1d | Decorators `@login_required` / `@admin_required` nas rotas | Alta | ✅ 31/03/2026 |
 | S1 | Sync detecta trades do Sleeper e move contratos automaticamente | Alta | ✅ 22/04/2026 |
-| S2 | Sync ingere trocas administrativas de picks (as criadas na UI do Sleeper só para montar a ordem do rookie draft) como trades reais → dono de pick errado no Manager (sintoma: pick 2 do R1 2026 no time do Icaro, é do Fehl); recorrência anual a cada montagem de ordem — MAN-S2-REG | Alta | 🔲 |
+| S2 | Sync ingere trocas administrativas de picks (as criadas no Sleeper só para montar a ordem do rookie draft) → dono de pick errado no Manager; recorrência anual a cada montagem de ordem — MAN-S2-REG/**F1a** | Alta | 🔲 (F1a ✅ 02/08/2026: causa **não** é `_sync_trades` — as trocas não geram transação; entram por `_sync_traded_picks` (`/traded_picks`), sem auditoria. **4 movimentos administrativos**, todos em R1 2026, feitos em **08/06** (não na véspera do draft); intenção confirmada 12/12 slots. Dano hoje: **3 de 12 posições** do R1 2026 (pos. 3/4/5); **0** `Trade`, **0** `PlayerHistory`, **0** correção manual sobrevivente. Complicação: a trade real de 29/07 foi registrada sobre a ficção → exige **re-rotulagem**, não só desfazer) |
 | T1 | Redesign Trade Manager: simulador multi-owner + link compartilhável | Alta | ✅ 22/04/2026 |
 | T2 | Integrar valores dynasty FantasyCalc no preview de trade | Média | ✅ 22/04/2026 |
 | Q1 | Script de simulação de temporada (validar salary rollover) | Média | 🔲 |
@@ -1087,12 +1088,14 @@ A **pick 2 do R1 2026** constava no Manager como do **time do Icaro**, quando pe
 Fehl**. O Sleeper é a referência correta neste caso: o dono lá está certo, o Manager é que registrou
 a troca administrativa como transferência de titularidade.
 
-**CAUSA SUSPEITA**
-O sync de trades do [[S1]] (`_sync_trades`, `sync_sleeper.py:528` — movimentação de picks em
+**CAUSA SUSPEITA (registro original — ⚠️ REFUTADA pela F1a, mantida para rastro)**
+~~O sync de trades do [[S1]] (`_sync_trades`, `sync_sleeper.py:528` — movimentação de picks em
 `sync_sleeper.py:648-649, "draft_picks"`) trata **toda** transação de tipo trade do
-`/transactions/{leg}` como trade real da liga e a aplica ao Manager, **sem distinguir** trade de
-verdade × troca administrativa de ordem de draft. O sync rodou **depois** da criação dessas trocas
-(confirmado pelo owner), então a titularidade das picks no Manager foi sobrescrita pelo artefato.
+`/transactions/{leg}` como trade real da liga e a aplica ao Manager.~~
+**Causa real (F1a):** as trocas administrativas **não geram transação alguma** (ferramenta de
+comissário) — `_sync_trades` nunca as viu. Entram por **`_sync_traded_picks`**
+(`sync_sleeper.py:407`), que reescreve o dono de toda pick de `/traded_picks` **em todo sync**, sem
+auditoria. Ver F1a, seções "1" e "10".
 
 **RISCO DE RECORRÊNCIA (anual, não pontual)**
 Não é incidente de uma vez: **toda intertemporada** que envolva montar a ordem do rookie draft no
@@ -1111,32 +1114,212 @@ frágil e depende de lembrança.
 **Sync suspenso até o fix** (decisão do owner). Rodar o sync antes do fix pode reverter as correções
 manuais de dono de pick.
 
-**QUESTÕES EM ABERTO** (F1 — diagnose read-only, sem mutação)
-1. **Distinguibilidade:** o payload da transação do Sleeper carrega algum sinal que separe troca
-   administrativa × trade real (tipo, `status`, autor/`creator`, ausência de contrapartida, conjunto
-   só-picks, timestamp dentro da janela de draft)? Se **não houver sinal confiável**, o fix não pode
-   ser heurístico — vira gate/allowlist manual.
-2. **Escopo do dano em prod:** quantas picks tiveram dono alterado por essas transações? Quais linhas
-   de `Trade`/`PlayerHistory` foram criadas? Quais já foram corrigidas manualmente pelo co-admin
-   (e quais correções o próximo sync reverteria)?
-3. **Idempotência × correção manual:** o sync é idempotente por `sleeper_transaction_id` — uma
-   transação já ingerida **volta a ser aplicada** em syncs futuros, ou o registro existente a torna
-   no-op? Disso depende se a correção manual sobrevive ao próximo sync.
+#### F1a — Retrato do estado (levantamento read-only, 02/08/2026 — MAN-S2-F1a)
+
+**Nada foi escrito.** Toda leitura de banco correu sobre **cópia**; a referência externa veio da API
+pública do Sleeper (só GET). Nenhum código, schema ou comportamento do sync tocado.
+
+**RESSALVA DE ACESSO — a base auditada NÃO é `/data/dynasty.db`**
+O banco vivo de produção só é alcançável pelo **Render Shell**, indisponível nesta sessão. O
+levantamento correu sobre o **snapshot de prod commitado em 31/07** (`dynasty.db` da raiz, commit
+`326324a` "Update dynasty.db seed com estado de prod (31/07, trades via Sleeper sync)"), copiado para
+`scratchpad/s2_f1a_work.db` (598.016 bytes, original intocado). O snapshot é **posterior ao último
+sync registrado** (30/07 12:05, `sync_log` id 23) e à diretriz de suspensão, então cobre o estado
+relevante — mas **qualquer escrita em prod após 31/07 não está aqui**. Backup de prod que o owner
+deve rodar antes de qualquer F2 que escreva:
+`sqlite3 /data/dynasty.db ".backup '/data/dynasty_prod_backup_2026-08-02_pre-s2.db'"`.
+
+**1 — AS "TRANSAÇÕES ADMINISTRATIVAS" NÃO SÃO TRANSAÇÕES**
+Varredura da chain inteira de ligas (2026 `1316547584378048512` → 2025 `1224848075609100288` →
+2024 `1107510813394341888`): **1.123 transações**, das quais **53 do tipo trade**. Na liga 2026 há
+**6 trades**, e **todas as 6 carregam jogadores** (`adds`/`drops` não vazios). **Não existe uma única
+trade só-picks em lugar nenhum da chain.**
+
+As trocas administrativas foram feitas por **ferramenta de comissário**, que altera
+`/traded_picks` **sem gerar transação**. Elas não têm `transaction_id`, não aparecem em
+`/transactions/{leg}` e portanto **`_sync_trades` nunca as viu**. A porta de entrada no Manager é
+**`_sync_traded_picks`** (`sync_sleeper.py:407`), que varre `/traded_picks` e sobrescreve
+`Pick.current_team_id/current_team_name/traded_away` **in place, a cada sync, sem
+`Trade`, sem `PlayerHistory`, sem `notes`, sem trilha de auditoria nenhuma**.
+
+**2 — ORDEM DO BOARD DO SLEEPER (confirmada na API, não inferida)**
+`GET /draft/1316547584390627328` (2026, snake, 3 rounds, `pre_draft`) — `slot_to_roster_id` e
+`draft_order` são idênticos e batem **exatamente com o standings 2025 invertido**:
+
+| slot | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| board Sleeper | Miller | mongoloides | 3 peat | Trust | Fazenda | Alex | ESPN | rafael | Cangaceiros | achane | Tropa | Pitbull |
+| lottery (canônico R1) | Miller | **Fazenda** | **Trust** | **mongoloides** | **3 peat** | Alex | ESPN | rafael | Cangaceiros | achane | Tropa | Pitbull |
+
+Os slots 2–5 divergem — é exatamente o buraco que a montagem tentou tapar.
+
+**3 — A MONTAGEM: 4 MOVIMENTOS, TODOS EM R1 2026, INTENÇÃO CONFIRMADA 12/12**
+Reconstruindo o dono canônico de cada pick **só por transações** e comparando com `/traded_picks`:
+
+| # | pick original de | dono canônico | virou (Sleeper) | tem transação? |
+|---|---|---|---|---|
+| 1 | mongoloides | mongoloides | Fazenda Pederasta | **nenhuma** |
+| 2 | Trust The Process | Trust The Process | mongoloides | **nenhuma** |
+| 3 | 3 peat… of pain | mongoloides | Trust The Process | **nenhuma** |
+| 4 | Fazenda Pederasta | Fazenda Pederasta | mongoloides | **nenhuma** (ver 4-bis) |
+
+O nº 4 ficou **mascarado**: a trade real de 29/07 02:10 UTC (`tx 1388014829050040320`,
+mongoloides→Cangaceiros) o sobrescreveu, e o `previous_owner_id` que o Sleeper reporta para essa pick
+é *mongoloides* — mas **nenhuma transação da chain jamais entregou a pick da Fazenda a mongoloides**.
+A chegada é administrativa; só a saída é real.
+
+**Teste da intenção** (estado pré-29/07, montagem recém-aplicada): para cada slot do board, o dono da
+pick daquele slot no Sleeper × o dono exigido pela ordem do lottery → **OK nos 12 slots**. A montagem
+é **coerente e completa**: faz o board do Sleeper exibir a mesma sequência de donos que a ordem
+canônica do Manager. Não foi erro do co-admin — foi tradução correta entre dois modelos incompatíveis.
+
+**4 — DATAÇÃO: a montagem é de 08/06, não da véspera do draft**
+A série `sync_log.picks_updated` é o tamanho de `/traded_picks` a cada sync:
+
+| sync | data | picks | Δ |
+|---|---|---|---|
+| 1–10 | 25/03 → 08/06 00:25 | 18 | — |
+| **11** | **08/06/2026 21:38** | **21** | **+3 ← montagem entra aqui** |
+| 12–17 | 09/06 → 28/07 23:03 | 21 | 0 |
+| 18–23 | 29/07 02:07 → 30/07 12:05 | 23 → 32 | +11 (as 6 trades reais) |
+
+Fecha na aritmética: **18** keys movidas por transação antes de 28/07 + **3 linhas novas** da montagem
+(picks próprias de mongoloides, Trust e **Fazenda** — a da 3 peat já tinha linha, virou update) = **21**,
+o número exato do sync de 08/06; + **11** linhas novas das 6 trades de julho = **32**, o total de hoje
+(`/traded_picks` = 32, confirmado). O `+3` do dia 08/06 é, por si só, a **prova independente do 4º
+movimento** — sem a pick da Fazenda a conta daria 20, não 21.
+
+A montagem entrou no Sleeper **entre 08/06/2026 00:25 e 08/06/2026 21:38** e foi ingerida **no mesmo
+dia**, ~7 semanas antes do rookie draft.
+
+**5 — R1 2026: DONO ATUAL × DONO CANÔNICO** (posição = ordem do lottery, modelo M16)
+
+| pos | pick original de | dono no Manager (=Sleeper) | dono canônico (só trades) | |
+|---|---|---|---|---|
+| 1 | Miller Time! | Miller Time! | Miller Time! | OK |
+| 2 | Fazenda Pederasta | Cangaceiros da Colina | Cangaceiros da Colina | OK *(coincidência — ver 8)* |
+| 3 | Trust The Process | **mongoloides** | Trust The Process | **DIVERGE** |
+| 4 | mongoloides | **Fazenda Pederasta** | mongoloides | **DIVERGE** |
+| 5 | 3 peat… of pain | **Trust The Process** | mongoloides | **DIVERGE** |
+| 6 | AlexTheDawg | Miller Time! | Miller Time! | OK |
+| 7 | ESPN FANTASY LEAGUE | ESPN FANTASY LEAGUE | ESPN FANTASY LEAGUE | OK |
+| 8 | rafaelferreirap | rafaelferreirap | rafaelferreirap | OK |
+| 9 | Cangaceiros da Colina | mongoloides | mongoloides | OK |
+| 10 | 🕯️ achane 🕯️ | 🕯️ achane 🕯️ | 🕯️ achane 🕯️ | OK |
+| 11 | Tropa | 3 peat… of pain | 3 peat… of pain | OK |
+| 12 | Pitbull do Samba | Tropa | Tropa | OK |
+
+**3 de 12 posições divergentes hoje** (3, 4 e 5). R2/R3 2026 e todas as picks de 2027/2028: **zero**
+divergência — a montagem tocou **só R1 2026**.
+
+**6 — CONTABILIDADE DE EFEITOS PERSISTIDOS**
+
+| efeito | atribuível às trocas administrativas |
+|---|---|
+| linhas de `Pick` com dono alterado | **4** (3 ainda divergentes; 1 sobrescrita por trade real) |
+| linhas de `Trade` criadas | **0** — as 53 do Manager casam 1:1 com as 53 trades reais da chain; 0 órfãs |
+| linhas de `PlayerHistory` criadas | **0** — as 138 de tipo `trade` têm `sleeper_event_ref` válido; 0 sem ref, 0 com ref inexistente |
+| `SalaryHistory` / `AuctionLog` | **0** (tabelas vazias no snapshot) |
+
+O dano é **estreito e cirúrgico**: 4 linhas de `Pick`, nenhum resíduo de auditoria. Contrapartida
+ruim: como não há resíduo, **não há rastro nenhum** de que a alteração aconteceu.
+
+**7 — SYNC × EDIÇÃO MANUAL: nenhuma correção manual sobreviveu**
+Divergência Manager × Sleeper em **todas as 108 picks: ZERO**. O Manager é espelho fiel do
+`/traded_picks` — inclusive da ficção. Como uma correção manual produziria necessariamente
+divergência (o Sleeper segue com a montagem), **não há correção manual viva neste snapshot**: ou não
+foi feita, ou um sync posterior a reverteu (houve 6 syncs entre 28/07 e 30/07).
+
+Não é possível separar sync × edição manual pelos registros: `PATCH /api/picks/<id>`
+(`routes/picks.py:235`) altera `current_team_name`/`notes` **in place**, a tabela `picks` **não tem
+`updated_at`**, e a rota **não grava auditoria**. As únicas evidências indiretas possíveis são
+`notes` preenchida (**0 de 108**) e divergência vs. Sleeper (**0**). Os 108 `created_at` são todos do
+mesmo instante (25/03/2026 18:49:02, criação inicial).
+
+**8 — O CASO DA PICK 2, RESOLVIDO**
+Posição 2 do R1 2026 = pick **originalmente da Fazenda Pederasta** (`fernandoxmf`), sorteada para o
+2º overall. O movimento administrativo nº 4 (Fazenda→mongoloides) fez o Manager exibi-la como do
+**mongoloides = `icarocosta1` = Icaro** ✓, quando o dono canônico era a **própria Fazenda Pederasta**.
+Bate com o sintoma relatado — assumindo **"Fehl" = `fernandoxmf` (Fazenda Pederasta)**, mapeamento
+que **não é confirmável pelos dados** (nenhum campo do banco ou do Sleeper carrega esse apelido) e
+que o owner precisa confirmar.
+
+Cronologia: o rookie draft foi em **28/07**; a trade real mongoloides→Cangaceiros é de **29/07 02:10
+UTC** (23:10 BRT de 28/07). Ou seja, **no momento do sintoma a posição 2 era do Icaro**; depois dela,
+passou a ser do Cangaceiros **nos dois sistemas**. **O sintoma originalmente relatado já não é
+visível** — o dano residual migrou para as posições 3, 4 e 5.
+
+**9 — COMPLICAÇÃO REAL PARA O FIX (não resolver aqui)**
+A trade real `tx 1388014829050040320` foi **registrada contra uma pick que mongoloides só possuía por
+causa da ficção administrativa** (a da Fazenda). Em termos de *board*, o negócio é legítimo:
+mongoloides cedeu o direito de escolher **no 5º overall**, que ele de fato tinha (pick da 3 peat,
+adquirida em trade real de 30/09/2025). Só o **rótulo** de "qual pick original" está errado.
+Qualquer reconstrução do estado canônico terá de **re-rotular essa trade** (o certo seria "pick da
+3 peat → Cangaceiros"), não apenas desfazer os 4 movimentos. Desfazer cegamente devolveria a pick da
+Fazenda à Fazenda **e apagaria o que o Cangaceiros comprou**.
+
+**10 — PREMISSAS DESTE PROMPT / DO REGISTRO CONTRADITAS PELOS DADOS**
+| # | premissa | veredito |
+|---|---|---|
+| 1 | "o **sync de trades** ([[S1]] `_sync_trades`) ingeriu as trocas" | **FALSA.** As trocas não são transações; entram por `_sync_traded_picks` (`/traded_picks`). `_sync_trades` nunca as viu. Muda a superfície inteira do fix. |
+| 2 | "transações de trade **envolvendo apenas picks**" | **FALSA.** Não existe trade só-picks na chain; as 6 trades de 2026 têm jogadores. Filtrar "trade só-picks" **não pega nada** e **quebraria trades reais** de picks. |
+| 3 | "trocas criadas **pouco antes** do rookie draft de 28/07" | **FALSA.** Entraram em **08/06/2026**, ingeridas no mesmo dia, ~7 semanas antes. |
+| 4 | "correções manuais **podem ter sido aplicadas** pelo co-admin" | **SEM SUSTENTAÇÃO.** 0 divergências vs. Sleeper, 0 `notes`. Se houve, foi revertida por sync posterior. |
+| 5 | "o sync pode ter criado **linhas de `Trade`/histórico**" | **FALSA.** 0 linhas atribuíveis; auditoria 100% conciliada com transações reais. |
+| 6 | "**suspender o sync** protege o estado" | **PARCIAL.** Protege contra novas reversões, mas o estado **já está corrompido** (3 posições) e **fica** corrompido enquanto suspenso. Suspensão não é mitigação — é congelamento. |
+| 7 | "o **Sleeper é a referência correta**" (registro) | **PARCIAL/PERIGOSA.** O Sleeper está certo na *sequência do board*, mas **errado na titularidade** — é a fonte da ficção. Copiar o Sleeper é justamente o que produz o bug. |
+
+**OBSERVAÇÃO COLATERAL (não é S2 — candidata a item próprio na F1b)**
+O time `id=9` chama-se **"Tropa do Bicampeonato 🏆"** no banco e **"Tropa do Jarra 🏆"** no Sleeper
+hoje — foi renomeado. `_sync_traded_picks` casa pick por **`original_team_name` (string)**
+(`sync_sleeper.py:421-425`): se o nome do `Team` for atualizado pelo sync enquanto as linhas de
+`Pick` guardam a string antiga, o lookup falha e o ramo `else` **insere linha duplicada** em vez de
+atualizar. Hoje ainda são 108 picks (12 × 9, sem duplicata), então **não disparou** — mas é a mesma
+classe do incidente "Brown" (identidade por string em vez de id).
+
+**QUESTÕES EM ABERTO** (F1b — a F1a acima **fechou as de nº 2, 3 e 6** e **refutou a premissa da
+nº 1**; ver vereditos em "10". As reformuladas ficam abaixo como **1', 2', 3', 6'**)
+
+*Fechadas pela F1a:*
+- ~~2. Escopo do dano~~ → **4 linhas de `Pick`** (3 divergentes hoje), **0** `Trade`, **0**
+  `PlayerHistory`, **0** correção manual sobrevivente. Só R1 2026.
+- ~~3. Idempotência × correção manual~~ → **não há idempotência a invocar**: `_sync_traded_picks`
+  não consulta `sleeper_transaction_id` (não existe transação); ele **reescreve o dono de toda pick
+  de `/traded_picks` em todo sync**. Correção manual **não sobrevive ao próximo sync**, sempre.
+- ~~6. Detecção~~ → **nenhuma superfície** mostra mudança de dono de pick; `picks` não tem
+  `updated_at`, a rota PATCH não audita e `notes` está vazia nas 108. O sintoma só aparece na tela.
+
+*Abertas / reformuladas:*
+1'. **Distinguibilidade sem transação:** já que a troca administrativa chega por `/traded_picks`
+   **sem payload de transação**, o único sinal disponível é **estrutural** — uma mudança de dono que
+   **nenhuma transação da chain explica** (foi exatamente assim que a F1a achou as 4). Isso é
+   computável a cada sync. Vale como gate automático (`needs_review`), ou o custo de varrer a chain
+   inteira em todo sync é proibitivo? Há alternativa (cachear o conjunto explicado)?
+2'. **Estratégia de reconstrução:** desfazer os 4 movimentos **não basta** — a trade real de 29/07
+   precisa ser **re-rotulada** (ver "9"). O alvo é um estado canônico derivado **só de transações**,
+   e ele é integralmente computável (a F1a já o computou). Reconstruir tudo por derivação × corrigir
+   as 3 linhas divergentes à mão?
+3'. **Reincidência dentro do mesmo ciclo:** a montagem de 08/06 continua **viva no Sleeper**. Qualquer
+   sync futuro a reingere. O fix precisa ser **idempotente contra um Sleeper permanentemente
+   "errado"**, não uma limpeza de uma vez.
+6'. **Superfície de detecção:** vale expor "picks cujo dono mudou no último sync" / divergência
+   Manager × canônico no `/admin`, no espírito do [[PROC2]]?
 4. **Autoridade sobre picks:** o split de autoridade documentado ("Sleeper é autoritativo para traded
    picks") ainda vale, dado que o Manager tem ordem canônica própria (M16) e o Sleeper é forçado a
    distorcer a dele? Candidato a **inverter a autoridade de picks** para o Manager — decisão de
    design, não de implementação.
-5. **Forma do fix (não decidir antes da F1):** ignorar transações de picks no sync × marcar como
-   `needs_review` em vez de aplicar × exigir confirmação admin para trades só-picks × janela de
-   bloqueio durante o draft. Cada uma tem custo diferente para trades **reais** de picks, que existem
-   e precisam continuar entrando.
-6. **Detecção:** existe hoje alguma superfície que mostre "picks cujo dono mudou no último sync"? Sem
-   isso, o sintoma só aparece quando alguém repara na tela do draft.
+5. **Forma do fix (não decidir antes da F1b):** as opções mudaram com a F1a — o alvo é
+   `_sync_traded_picks`, não `_sync_trades`, e "filtrar trade só-picks" está **descartado** (não
+   existe nenhuma). Restam: derivar picks **só de transações** e parar de ler `/traded_picks` ×
+   aplicar `/traded_picks` só quando explicado por transação, senão `needs_review` × inverter a
+   autoridade de picks para o Manager (ver nº 4) × janela de bloqueio na intertemporada. Todas
+   precisam preservar as trades **reais** de picks, que existem e continuam entrando.
 
 **DEPENDÊNCIAS**
-- Relaciona-se com: [[S1]] (origem do sync de trades), [[M16]] (modelo R1 lottery / R2-R3 standings
-  invertido — a razão de o Sleeper e o Manager divergirem), [[MAN-S1-FIX]] (precedente de dano por
-  movimentação cega em `_sync_trades`). Bloqueia: uso normal do sync até o fix.
+- Relaciona-se com: [[S1]] (família do sync — mas a porta é `_sync_traded_picks`, não `_sync_trades`;
+  ver F1a "10"), [[M16]] (modelo R1 lottery / R2-R3 standings invertido — a razão de o Sleeper e o
+  Manager divergirem), [[MAN-S1-FIX]] (precedente de dano por movimentação cega no sync), [[PROC2]]
+  (superfície de detecção no `/admin`). Bloqueia: uso normal do sync até o fix.
 
 ---
 
