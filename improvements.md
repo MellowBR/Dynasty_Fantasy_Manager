@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 02/08/2026-pt10 (sessão MAN-OFF26-10-11-REG, 2ª parte: **achados empíricos da liga fantasma** — a sala foi **criada de fato** (**Dynasty SB FA Auction**: Redraft, 12 times, Auction, budget $200, 22 rodadas, 3 WR; **2 times populados, RESET DRAFT pendente**; `league_id`/`draft_id` **não fornecidos**, pendência p/ o [[OFF26-4]]) e submetida a experimento manual. **§5 da F1 do [[OFF26-4]] REFUTADO:** a reserva de **$1 por vaga não é regra só do Manager — o Sleeper aplica a mesma**. Fórmula confirmada `teto = 200 − gasto − (vagas_restantes − 1)`: time com $150 e 21 vagas → teto **$29** ($40/$33/$32 recusados com *"The specified slot does not have enough budget."*, **$29 aceito**; sem falso positivo — 10 keepers de $140 passaram calados). → base de comparação correta é **`usable_draft_budget`**, não `raw_budget`; **decisão de produto 2 do OFF26-4 = RESOLVIDA POR EVIDÊNCIA**. Ressalva pendente (aritmética, não experimento): o Sleeper reserva sobre as **22 rodadas**, a regra 8.3.4 conta slots pelo **regulamento** — se divergirem, os limites não coincidem. **[[OFF26-10]]:** a suspeita virou **fato** — time acima do teto **não entra no board**, logo a **população escalonada é OBRIGATÓRIA** (enquadrados em 20/08, estourados só após o late drop de 22/08); o Manager pode **pré-calcular os bloqueados**. **[[OFF26-11]]:** **indício forte** (não fato) — a designação carrega **`is_keeper: false`** e a UI toca som de lance vencedor → o Sleeper trata keeper como **pick forçado de leilão**; se confirmado **pós-draft** (ainda não observado), o discriminador terá de ser a keeper sheet como **lista de exclusão**. **Runbook [[OFF26-5]] corrigido (status ✅ mantido): o caminho da Fase B NÃO EXISTE** — o board já está em modo de designação (clicar direto na célula); +7 correções ("+" da linha nunca o nome, K/DEF abaixo da dobra via seta ▼, filtro de posição p/ K/DEF, preço já vem $1, Ctrl+A rebaixado a nota, homônimo suavizado — pool só de ofensivos elegíveis, nome da liga) + seção nova do teto de lance. **Esforço MEDIDO:** 1 time/10 keepers = **20min32s** (~9 min de overhead único) → **~75 s/jogador ≈ 2,5 h p/ 12 times** (vs. uma tarde inteira manual). **Decisão:** 2026 via **Cowork**; **script determinístico = melhoria p/ 2027** (o argumento da janela de 48 h **cai**); **API interna descartada** (sem contrato, provável violação de ToS, expõe a conta de comissário). Sem código.)
 > Atualizado em: 02/08/2026-pt9 (sessão MAN-OFF26-10-11-REG: **registro docs-only** — calendário real da intertemporada 2026 fixado com o comissário (**17/08** rookie draft · **18/08** congelamento ESPN · **20/08** cortes · **22/08 late drop** (máx. 1 jogador/time) · **24/08** FA auction) expôs **2 gaps inéditos**, ambos 🔲 Alta. **OFF26-10** — o late drop altera os keepers **dois dias depois do lock** da janela selada, e sheet/budget/board derivam do snapshot: a sheet de 20/08 é **provisória** p/ quem fechou acima do cap. Registrados como **questão empírica (probe, não fato)**: o Sleeper pode **recusar** designação de keepers acima do budget (então a população do board teria de ser **fatiada por time**), e a **assimetria de limite** (Sleeper só conhece o budget global; a regra da liga reserva $1/slot vazio → passa lá, ilegal aqui). **Decisão em aberto:** 2ª mini-janela selada × correção administrativa pós-lock. **OFF26-11** — keepers **precisam** estar no board (o cap emerge do budget consumido), logo os picks virão **misturados**; o importador [[OFF26-3]] escreve pela porta de **contrato ano 1** → ingerir keeper **zera a idade do contrato** (dano silencioso, visível só na renovação; caso canônico: $50 dropado e recomprado por $50 — valor igual, natureza diferente). Probe pendente: os picks vêm marcados, ou o discriminador sai da keeper sheet como lista de exclusão? **Decisão em aberto:** importar só arremates × reconciliar e reportar divergência. **EMENDA de premissa:** o **rookie draft NÃO roda em liga fantasma** — a frase do registro do pacote (05/06) colou as duas salas sem justificar o rookie draft item a item; o [[OFF26-3]] foi validado contra o **rookie draft real de 2025** (chain da liga real) e todo o arco [[S2]]/[[S3]] trata do **board de R1 2026 da liga real**. O motivo da sala separada da **FA auction** permanece válido e é outro (dynasty com rosters cheios × auction que pressupõe rosters vazios). **Existe UMA liga fantasma permanente, não duas.** Texto histórico preservado verbatim + bloco EMENDA anexo (precedente [[DP1]]); título da seção e descrição do [[OFF26-7]] ajustados; `CLAUDE.md` sincronizado. Sem código; nenhum item existente teve status alterado.)
 > Atualizado em: 02/08/2026-pt8 (sessão MAN-S2-DONE: **S2 ✅** — smoke em produção aprovado sobre o hash **`9b4bcf1`** (gate [[PROC1]]; backup `/data/dynasty_pre_s2_smoke_2026-08-02.db`): desconto armado para 2026 via `/admin` → sync rodado → **as 4 posições divergentes convergiram para o alvo da F1b** — pos. **2 = Fazenda Pederasta sem troca**, pos. **5 = 3 peat → Cangaceiros** (**re-rótulo da trade de 29/07 confirmado em prod**), pos. 3 e 4 com donas originais corretas; **cruzamento com o board do Sleeper confere** (`1.05` via `fernandoxmf` visível no roster MellowBR); **2ª execução do sync sem nenhuma alteração** (idempotência confirmada **em produção**); verify do lottery 2026 conferindo; pos. 1 e 6–12, R2/R3 e seasons futuras **intactos**. O alvo era, desde a derivação da F1b, "o que o board já exibia" — e é o que o Manager agora exibe. **Estado operacional:** sync liberado com o desconto **armado para 2026**; desarme no rollover **por construção** (armamento por season). **Migração O3:** seção detalhada do S2 (REG + F1a + F1b + F2 + smoke) movida **verbatim** para `improvements_archive.md`. **Fatia F2-3 desmembrada como [[S5]] 🔲** (tela que prescreve a permutação ao co-admin) para não se perder na migração — não iniciada, não bloqueia. Sem código.)
 > Atualizado em: 02/08/2026-pt7 (sessão MAN-S2-F2: **código** — desconto determinístico da permutação administrativa. Novo **`board_mirror.py`**: π = S⁻¹∘L derivado das fontes canônicas (`DraftLotteryResult` × `_build_default_draft_order`, a mesma fonte única do M15/M16), **sem tabela hardcoded**, e **exige bijeção** — board meio-montado desliga o desconto em vez de corromper em silêncio. **Armamento guarda a SEASON, não um booleano** (decisão do Code): o **rollover desarma sozinho**, porque `draft_season` muda e o valor guardado deixa de casar — um booleano dispararia o desconto no ano seguinte sobre board não-montado. 2º gate: audit canônica de lottery. **Toggle explícito, não detecção automática** — a montagem não deixa rastro, e montagem parcial + desconto ligado = corrupção silenciosa. Ligado em `_resolve_traded_pick_identity` (a costura que o [[S3]] deixou pronta) **e**, por extensão deliberada, no **loop de picks do `_sync_trades`** — sem isso o passo 12 sobrescreveria com rótulo errado o que o passo 11 gravou certo, para trades reais fechadas na janela. Card mínimo de armar/desarmar no `/admin` (não é a tela prescritiva da F2-3). **F2-1 respondida: rota corretiva é REDUNDANTE** — as 4 entradas re-chaveadas formam **bijeção** sobre exatamente as 4 linhas divergentes, então o próprio sync as reescreve; implementar a rota seria código morto. **24/24 em cópia**: desarmado byte-equivalente, armado → **as 12 posições batem com o alvo da F1b**, idempotente na 2ª execução, 96 linhas fora do R1 2026 intocadas, trade real na janela move só a posição negociada, 3 gates, **M8 verify match+hash antes e depois**, `/admin` render+endpoint; 48/48. **Premissa do prompt contradita**: o critério "posição 2 → Cangaceiros" contradiz a tabela-alvo da própria F1b — o alvo é **pos. 2 → Fazenda** e **pos. 5 → Cangaceiros**; "Cangaceiros na 2" é o estado permutado atual, não o alvo. **✅ só após smoke prod (PROC1)**.)
@@ -1557,6 +1558,13 @@ paralelizável; OFF26-5 é documentação (depende conceitualmente de 2 e 4).
 derivam do snapshot); **OFF26-11** (keeper × arremate no importador) depende de **OFF26-3**
 (✅, é a porta que ingere) e do **mesmo probe empírico que o OFF26-4 aguarda** (o que a API do
 Sleeper expõe sobre designações de keeper). **Ambos entram como etapas do OFF26-7.**
+**Liga fantasma CRIADA (02/08/2026):** **Dynasty SB FA Auction** — Redraft, 12 times, draft
+**Auction**, budget **$200**, **22 rodadas**, roster espelhando a real (**3 WR**). Estado:
+**ambiente de teste com 2 times populados → RESET DRAFT pendente antes do uso real**. **`league_id`
+e `draft_id` ainda NÃO registrados** (não fornecidos nesta sessão) — são o insumo do [[OFF26-4]].
+Achados do experimento manual na sala: refutação do §5 da F1 do **OFF26-4**, teto de lance do
+**OFF26-10** e o indício `is_keeper:false` do **OFF26-11**. Método de população em 2026:
+**Cowork** (~2,5 h medidas para 12 times) — ver [[OFF26-5]].
 **Validação operacional (REG 16/06/2026):** OFF26-6 (PoC do Cowork montando a liga) roda
 **cedo e isolado** (mecânica pura com dados fake) e é **gate** de OFF26-5/FA auction real;
 OFF26-6 é **subconjunto** de OFF26-7 (dry run E2E), que ensaia a cadeia inteira e depende
@@ -2094,6 +2102,56 @@ keeper sheet; relatório de divergências como gate pré-leilão.
 
 **Modelo recomendado p/ próxima fase: Opus, modo REFINE** — a diagnose revela ≥2 decisões de produto pendentes (parametrização do league id + base de comparação do budget) e 1 bloqueador empírico (o que a API expõe pré-draft) que precisa de probe antes de F2 de implementação.
 
+#### ATUALIZAÇÃO EMPÍRICA (02/08/2026 — MAN-OFF26-10-11-REG): §5 da F1 acima está REFUTADO
+
+> A F1 de 18/06 **permanece preservada verbatim acima** como registro histórico (precedente de
+> correção de premissa do [[DP1]]). O que segue **não a reescreve** — corrige-a com evidência
+> obtida por **experimento manual na liga fantasma real**, criada em 02/08/2026.
+
+**A premissa refutada.** O §5 afirma que a reserva de **$1 por slot vazio** é "regra interna do
+Manager, **inexistente no Sleeper**", e conclui, em negrito, que a auditoria **NÃO** pode comparar
+`fa_budget` e deve usar `raw_budget` ou Σ salários. **Falso: o Sleeper aplica a mesma reserva.**
+
+**Fórmula do teto de lance, CONFIRMADA por experimento:**
+
+```
+teto = 200 − gasto − (vagas_restantes − 1)
+```
+
+Verificação (time com **$150 gastos** e **21 vagas livres** → teto **$29**):
+
+| tentativa | resultado |
+|---|---|
+| $40 | **rejeitado** — *"The specified slot does not have enough budget."* |
+| $33 | **rejeitado** — mesma mensagem |
+| $32 | **rejeitado** — mesma mensagem |
+| **$29** | **aceito** |
+
+Confirmado **no sentido oposto** (ausência de falso positivo): outro time recebeu **10 keepers
+somando $140** (folga de $49) **sem nenhum aviso**.
+
+**Consequência para a auditoria: a base de comparação correta é `usable_draft_budget`** — o
+`fa_budget` que a keeper sheet **já entrega** (`cuts.py`, via
+`salary_engine.draft_budget(...)["usable_draft_budget"]`), e **não** `raw_budget`. A **decisão de
+produto 2** listada no "Resumo dos gaps" ("escolher a base de comparação de budget") passa a
+**RESOLVIDA POR EVIDÊNCIA**, não por arbitragem — não há o que decidir: as duas plataformas usam a
+mesma fórmula.
+
+**⚠️ Ressalva registrada (conferência aritmética PENDENTE, não é experimento):** o Sleeper reserva
+sobre as **22 rodadas do draft** configuradas na sala; a regra **8.3.4** conta slots pelo
+**regulamento da liga**. **Se as contagens divergirem, os limites não coincidem apesar de a fórmula
+ser idêntica.** Isso é conferência de aritmética contra o regulamento — não precisa de novo
+experimento, mas **não foi feita**.
+
+**O que NÃO mudou da F1:** o gap de leitura pré-draft (§2 — nada no código lê o estado pré-draft)
+segue de pé, e é o **mesmo probe** que o [[OFF26-11]] aguarda. As pontes de owner (§4) e de jogador
+(§3) seguem como descritas.
+
+**Terreno novo para a auditoria (achado do [[OFF26-10]]):** times **acima do teto não conseguem ser
+populados no board** — a designação é recusada. Logo a auditoria não é só um diff pós-população:
+o Manager pode **calcular antecipadamente quais times ficarão bloqueados**, antes de o Cowork
+tentar.
+
 ---
 
 ### OFF26-5 — Runbook do procedimento Cowork
@@ -2141,6 +2199,59 @@ NFL** — dois Josh Allen, conexão da **extensão** Claude in Chrome, anatomia 
 **Cross-refs:** [[OFF26-2]] (keeper sheet — fonte dos keepers/salários), [[OFF26-4]] (auditoria —
 gatilho ao término), [[OFF26-6]] (PoC que originou o runbook). **Sem código.**
 
+#### Correção do runbook contra a UI real (02/08/2026 — MAN-OFF26-10-11-REG) — **status ✅ mantido**
+
+> Correção de **texto factual** de um item fechado: o runbook descrevia um caminho que **não existe**
+> na interface atual. **O status não é reaberto** — o documento existe e cumpre sua função; o que
+> mudou é o conteúdo, agora conferido contra uma transcrição real cronometrada.
+
+**Origem:** a liga fantasma permanente foi **criada de fato** em 02/08/2026 — **Dynasty SB FA
+Auction**, Redraft, 12 times, draft **Auction**, budget **$200**, **22 rodadas**, roster espelhando
+a real (**3 WR**). O Cowork então transcreveu **1 time completo (10 keepers)** e, no caminho,
+descobriu que a Fase B do runbook estava errada.
+
+**8 correções aplicadas em `runbook_cowork_liga_fantasma.md`:**
+1. **O caminho documentado NÃO EXISTE.** Não há engrenagem → Draft Settings → *SET
+   KEEPERS/DYNASTY PLAYERS* → *SET PLAYERS*. O board **já está em modo de designação** no
+   pré-draft; o fluxo real é clicar **direto na célula vazia** da coluna do time → menu → **Set
+   Player**.
+2. Dentro do Set Player, clicar no **"+" da linha, NUNCA no nome** — clicar no nome abre o perfil
+   do jogador, e fechar o perfil **cancela o fluxo inteiro** sem setar nada.
+3. **K e DEF ficam abaixo da dobra** do board; revelar pela **seta ▼** do canto direito — o
+   **scroll do mouse não move o board**.
+4. Para K e DEF, usar o **filtro de posição** em vez de digitar o nome.
+5. O campo de preço **já vem com $1** → para keepers de $1 **não é preciso editar**.
+6. **Ctrl+A antes de digitar funcionou em 100% dos casos** → rebaixado de **alerta** a **nota**.
+7. **Homônimo:** o pool de designação traz **apenas ofensivos elegíveis**, então o Josh Allen
+   **LB/JAX não aparece**. Alerta **suavizado, não removido** — dois ofensivos homônimos
+   continuariam ambíguos.
+8. Nome correto da liga: **Dynasty SB FA Auction**.
+
+**⚠️ Estado da liga:** ambiente de **teste** com **dois times populados** — **RESET DRAFT pendente
+antes do uso real**.
+
+**⚠️ Não registrados por ausência de dado:** `league_id` e `draft_id` da liga fantasma **não foram
+fornecidos** nesta sessão. Ficam como pendência — são o insumo do [[OFF26-4]] (parametrização do
+league/draft id, §1 da sua F1).
+
+#### Medição de esforço e decisão de método (02/08/2026 — MAN-OFF26-10-11-REG)
+
+**Medido, não estimado:** transcrição de **1 time (10 keepers)** pelo Cowork = **20 min 32 s**
+totais, dos quais **~9 min de overhead único** de descoberta do caminho. **Ritmo de regime:
+~75 s/jogador ≈ 12,5 min/time → ~2,5 h para os 12 times.** Comparação: a transcrição **manual** do
+ano anterior consumiu **uma tarde inteira**.
+
+**Decisão do owner (registrada):**
+- **2026 → via Cowork**, com o runbook corrigido.
+- **Script determinístico de transcrição → item de melhoria para 2027.** O argumento que o
+  justificaria — *"não cabe na janela de 48 h entre o late drop (22/08) e o leilão (24/08)"* —
+  **cai** diante dos **2,5 h medidos**. Registrado aqui, e **não** como linha do Status Rápido, por
+  restrição do prompt de registro (só OFF26-10/11 entram); **candidato natural a ID próprio** na
+  próxima sessão de registro.
+- **Caminho via API interna não documentada: DELIBERADAMENTE DESCARTADO.** Sem contrato → quebra
+  sem aviso; provável **violação de termos de uso**; e **expõe a conta de comissário da liga real**.
+  Registrado para que não seja re-proposto como "otimização óbvia" em 2027.
+
 ---
 
 ### OFF26-6 — PoC de viabilidade do Cowork montando a liga fantasma
@@ -2186,6 +2297,13 @@ e emergiram **decisões de design** que reformulam a estratégia da liga fantasm
 - **Seta keeper com salário**, descobrindo o mecanismo sozinho: Settings → Draft Settings →
   **"SET KEEPERS/DYNASTY PLAYERS"** → SET PLAYERS → draft board → slot do time → Set Player →
   busca jogador → define salário → **SET PLAYER**.
+  > **⚠️ Anexo (02/08/2026 — MAN-OFF26-10-11-REG):** este **caminho não existe mais** na UI atual.
+  > A transcrição real de 02/08 mostrou que o board **já está em modo de designação** no pré-draft —
+  > clica-se **direto na célula vazia** → menu → **Set Player**. O registro acima é **preservado como
+  > estado da UI em 17/06/2026**; o caminho vigente está no `runbook_cowork_liga_fantasma.md`
+  > (corrigido) e na seção do [[OFF26-5]]. **A conclusão do PoC — o Cowork consegue designar keeper
+  > com salário sozinho — permanece válida e agora está confirmada em escala** (10 keepers
+  > cronometrados).
 - **Confere nome completo + time NFL antes de adicionar** (comportamento anti-homônimo;
   ex.: Mahomes QB-KC, Bijan RB-ATL confirmados) — mesma higiene da classe "Brown" na camada de
   operação manual.
@@ -2329,15 +2447,28 @@ no exato ponto em que o Cowork o transcreve para o board.
 **Fundamentos registrados (descrição do terreno, não decisão):**
 - O late drop existe como **válvula** para o time que fecha os cortes ainda acima do cap e se
   ajusta antes do leilão.
-- **Achado do owner, NÃO verificado — questão empírica, destino de probe:** o Sleeper pode
-  **recusar** a designação de keepers cuja soma ultrapasse o budget do auction — o cap não é
-  campo, é o **budget sendo consumido** ([[OFF26-6]]). **Se** recusar, a população do board não
-  pode ser feita de uma vez em 20/08 e remendada depois; teria de ser **fatiada por time** (quem
-  já está enquadrado entra na primeira leva; quem está estourado, só após o late drop). **Não é
-  assertável a partir do código** e não deve ser assumido — mesmo probe pendente do [[OFF26-4]].
-- **Assimetria de limite:** o Sleeper conhece apenas o **budget global**; o regulamento da liga é
-  **mais apertado** (reserva de **$1 por slot vazio** — `usable_draft_budget` × `raw_budget`, ver
-  §5 da F1 do [[OFF26-4]]). Um time pode **passar no Sleeper e estar ilegal na regra da liga**.
+
+##### Achados empíricos (experimento manual na liga fantasma real, 02/08/2026)
+
+A suspeita registrada mais cedo nesta mesma sessão — "o Sleeper pode recusar designação acima do
+budget" — **deixou de ser probe: foi CONFIRMADA por experimento.**
+
+- **Fórmula do teto de lance, confirmada:** `teto = 200 − gasto − (vagas_restantes − 1)`. O Sleeper
+  reserva **$1 por vaga ainda não preenchida**. Time com **$150 gastos** e **21 vagas livres** →
+  teto **$29**: **$40, $33 e $32 rejeitados** (*"The specified slot does not have enough budget."*),
+  **$29 aceito**. Sem falso positivo no sentido oposto — outro time recebeu **10 keepers somando
+  $140** (folga de $49) **sem nenhum aviso**.
+- **Time acima do limite NÃO ENTRA no board** — a designação é **recusada**. Logo **a população
+  escalonada é OBRIGATÓRIA, não alternativa**: os times já enquadrados entram na primeira leva
+  (20/08) e os estourados **só depois do late drop** (22/08). Não existe "popular tudo em 20/08 e
+  remendar".
+- **Funcionalidade concreta que isso abre:** o Manager **pode calcular antecipadamente quais times
+  ficarão bloqueados** — antes de o Cowork tentar e apanhar da UI.
+- **Assimetria de limite — a premissa mudou de lado.** O que se supunha ser regra só do Manager
+  (reserva de $1/slot) é **a mesma dos dois lados**; ver a **refutação do §5 da F1 do [[OFF26-4]]**,
+  registrada nesta sessão. **Ressalva pendente:** o Sleeper reserva sobre as **22 rodadas** da sala;
+  a regra **8.3.4** conta slots pelo **regulamento**. Se as contagens divergirem, os limites não
+  coincidem apesar da fórmula idêntica — **conferência aritmética pendente, não experimento**.
 
 **Escopo resumido:** registro apenas. Definir como a janela selada acomoda uma alteração de
 keepers posterior ao lock, e o que isso implica para a emissão da keeper sheet, para o budget
@@ -2384,6 +2515,22 @@ de forma que permita **separar keeper de arremate** (ex.: flag `is_keeper` / `me
 payload de `/draft/{id}/picks`), ou o discriminador terá de vir da **keeper sheet do próprio
 Manager**, usada como **lista de exclusão**? Mesmo probe que o [[OFF26-4]] aguarda (§2 da sua
 F1: **nada no código lê o estado pré-draft** hoje).
+
+##### INDÍCIO FORTE — `is_keeper: false` na designação (02/08/2026, experimento manual)
+
+> **Registrado como indício, NÃO como fato assentado.** A verificação definitiva é o que os picks
+> expõem **pós-draft**, e isso **ainda não foi observado** — a liga fantasma está em estado de
+> teste, com o draft não rodado.
+
+A operação interna disparada ao **designar keeper no board** carrega o campo **`is_keeper` com
+valor `false`**: o Sleeper trata a designação como **pick forçado de leilão**, não como keeper.
+**Indício corroborante:** a UI **toca o som de lance vencedor** ao designar.
+
+**Se o indício se confirmar pós-draft, a questão empírica acima já tem resposta:** o campo **não
+serve de discriminador**, e o discriminador terá de vir da **keeper sheet do Manager como lista de
+exclusão**. Isso **inclina** — sem decidir — a decisão em aberto abaixo para o ramo "Manager é
+fonte única da verdade", porque o outro ramo (reconciliar os dois lados) pressupõe que o Sleeper
+tenha algo próprio a dizer sobre quem é keeper. **Não arbitrar antes do probe pós-draft.**
 
 **Escopo resumido:** registro apenas. Definir como o importador reconhece, no payload do draft
 da liga fantasma, o que é arremate novo (contrato ano 1) e o que é keeper (contrato em

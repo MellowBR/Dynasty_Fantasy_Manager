@@ -15,6 +15,21 @@
 > **Reconciliado** com as decisões de design arbitradas no OFF26-6 (liga permanente, config
 > espelhando a real, separação setup único × trabalho anual).
 >
+> **🔧 CORRIGIDO EM 02/08/2026 (MAN-OFF26-10-11-REG) contra a UI real.** A liga permanente
+> **Dynasty SB FA Auction** foi criada e **1 time completo (10 keepers) foi transcrito e
+> cronometrado** pelo Cowork. A transcrição revelou que **o caminho de entrada da FASE B
+> documentado na versão anterior NÃO EXISTE** na interface atual (ver §B.1). As correções estão
+> marcadas com **🔧 CORREÇÃO 02/08** ao longo do texto.
+>
+> **Esforço medido (não estimado):** **20 min 32 s** para 1 time de 10 keepers, dos quais **~9 min
+> de overhead único** de descoberta do caminho. **Ritmo de regime: ~75 s/jogador ≈ 12,5 min/time →
+> ~2,5 h para os 12 times.** (Referência: a transcrição **manual** do ano anterior consumiu **uma
+> tarde inteira**.) **Decisão:** 2026 roda **via Cowork** com este runbook; um **script
+> determinístico** fica como melhoria para **2027** — o argumento de "não caber na janela de 48 h
+> entre o late drop e o leilão" **cai** diante das 2,5 h medidas. O caminho por **API interna não
+> documentada** foi **deliberadamente descartado**: sem contrato, quebra sem aviso, provável
+> violação de termos de uso e **expõe a conta de comissário da liga real**.
+>
 > **Não duplicar conteúdo canônico:** a fonte dos **keepers + salários** é a **keeper sheet
 > ([[OFF26-2]])**; a **auditoria** pré-leilão é o **[[OFF26-4]]**; o PoC que originou este
 > runbook é o **[[OFF26-6]]**.
@@ -77,7 +92,8 @@ dentro) e **reutilizada todo ano**. Isso separa o trabalho em duas fases:
     18, 20, 22, 24, 32.
   - **LOGO (optional)** — botão de câmera (ignorável).
 - Ações:
-  1. Clique em **LEAGUE NAME** e digite o nome da liga fantasma permanente. Campo começa vazio.
+  1. Clique em **LEAGUE NAME** e digite o nome da liga fantasma permanente — **`Dynasty SB FA
+     Auction`** (🔧 **CORREÇÃO 02/08:** nome real da liga criada). Campo começa vazio.
   2. No dropdown **NUMBER OF TEAMS**, selecione **12**.
   3. Clique em **NEXT**.
 
@@ -154,8 +170,9 @@ real antes de seguir.**
   - **CPU AUTO PICK** — toggle.
   - **DRAFT ORDER** — **RANDOMIZE** / **RESET BUDGETS**; slots 1..12 com budget ($200);
     "UNASSIGNED MEMBERS"; banner amarelo quando há membros sem ordem.
-  - **SET KEEPERS/DYNASTY PLAYERS** — "Click below to go to draft lobby…" + botão **SET PLAYERS**.
-    ← **é por aqui que se setam keepers com salário** (FASE B).
+  - ~~**SET KEEPERS/DYNASTY PLAYERS** — "Click below to go to draft lobby…" + botão **SET
+    PLAYERS**.~~ 🔧 **CORREÇÃO 02/08: esta seção NÃO EXISTE na UI atual.** Não é por aqui que se
+    setam keepers — ver **§B.1** para o caminho real.
   - **AVAILABLE PLAYERS TO DRAFT** — dropdown (default "All").
   - **ALPHABETICAL SORT** — toggle.
   - **RESET DRAFT (CANNOT BE UNDONE)** — botão **RESET** (cuidado).
@@ -198,12 +215,17 @@ real antes de seguir.**
 > (fonte dos keepers + salários + budget). **NÃO** se mexe em roster manualmente — o **redraft já
 > resetou os rosters** na virada de season.
 
-## B.1 Entrar no modo de setar players
-1. engrenagem → **Draft Settings** → role até o fim → **SET KEEPERS/DYNASTY PLAYERS** → clique em
-   **SET PLAYERS**.
-2. Abre uma **NOVA ABA** com o draft board (`/draft/nfl/<DRAFT_ID>`). No topo: nome da liga, "2
-   Min Per Pick · 12 Teams · 15 Rounds · Invite Leaguemates" e botão **START DRAFT** (**NÃO
-   clicar**, a menos que queira iniciar o draft).
+## B.1 Entrar no board — 🔧 **CORRIGIDO EM 02/08/2026**
+
+> ⚠️ **O caminho da versão anterior NÃO EXISTE.** Não procure engrenagem → Draft Settings →
+> *SET KEEPERS/DYNASTY PLAYERS* → *SET PLAYERS*: **essa seção não está na UI atual**. Perder tempo
+> caçando esse caminho foi a maior parte dos ~9 min de overhead da transcrição cronometrada.
+
+**O board JÁ ESTÁ EM MODO DE DESIGNAÇÃO no pré-draft.** Basta abrir o draft board da liga
+(`/draft/nfl/<DRAFT_ID>`) e **clicar direto na célula vazia** da coluna do time (§B.3). Não há
+modo a ativar, nem botão a apertar antes.
+
+No topo do board: nome da liga, resumo do formato e o botão **START DRAFT** — **NÃO clicar**.
 
 ## B.2 Anatomia do board
 - **Colunas = times** (rótulos "Team 1" … "Team 12"); cada coluna é um roster.
@@ -211,6 +233,9 @@ real antes de seguir.**
     permanente os times têm dono e nome reais — case cada coluna ao owner correto da keeper sheet.
 - **Linhas = vagas do roster** na ordem (QB, RB, RB, WR, WR, WR…). ⚠️ Confirme que o board reflete
   a config **3 WR** etc. (FASE A.3).
+  - 🔧 **CORREÇÃO 02/08 — K e DEF ficam ABAIXO DA DOBRA.** As últimas linhas do board não aparecem
+    de saída. **Revele pela seta ▼ do canto direito** — o **scroll do mouse NÃO move o board**.
+    Esquecer isso faz parecer que o time está completo quando faltam 2 vagas.
 - Embaixo: lista de jogadores com busca **"Find player Ctrl + U"**, filtros (All / QB / RB / WR /
   TE / FLEX / K / DEF) com contadores (ex.: "All 0/15"), colunas de projeção ($PROJ, BYE, PROJ…).
 - No centro/topo: barra do leilão com seletor de preço **"–  $ 1  +"** e botão de ação.
@@ -223,17 +248,29 @@ real antes de seguir.**
 2. Clique em **Set Player**. A barra do topo muda para **"Make Manual Pick for Team N"** com
    **"Assign a player"** e o campo de busca.
 3. Clique no campo de busca e **digite o nome** do jogador (ex.: `Mahomes`).
-4. **VERIFICAÇÃO (passo crítico — anti-homônimo):** confira, na linha do resultado, **a posição e
-   a sigla do time da NFL** sob o nome (ex.: "QB **KC**", "RB **ATL**"). Use isso para não pegar
-   um homônimo. (Ver §B-armadilhas: dois Josh Allen.)
-5. Clique no **"+"** (círculo) à **esquerda** da linha do jogador. O topo passa a mostrar o
-   jogador + o seletor de preço **"–  $ 1  +"** e o botão **SET PLAYER**.
+   - 🔧 **CORREÇÃO 02/08 — para K e DEF, use o FILTRO DE POSIÇÃO** (K / DEF) em vez de digitar o
+     nome. Digitar nome de kicker/defesa é lento e errático; o filtro entrega a lista curta direto.
+4. **VERIFICAÇÃO (anti-homônimo):** confira, na linha do resultado, **a posição e a sigla do time
+   da NFL** sob o nome (ex.: "QB **KC**", "RB **ATL**").
+   - 🔧 **CORREÇÃO 02/08 — alerta SUAVIZADO, não removido.** O pool de designação traz **apenas
+     ofensivos elegíveis**, então o caso clássico do **Josh Allen LB/JAX simplesmente NÃO APARECE**
+     na busca. O risco residual é menor do que a versão anterior dava a entender — mas **dois
+     ofensivos homônimos continuariam ambíguos**, então **a conferência de posição + time NFL
+     segue valendo**.
+5. 🔧 **CORREÇÃO 02/08 — clique no "+" DA LINHA, NUNCA NO NOME.** O **"+"** (círculo) fica à
+   **esquerda** da linha do jogador. **Clicar no nome abre o perfil do jogador, e fechar o perfil
+   CANCELA O FLUXO INTEIRO** — volta ao board sem nada setado, e é preciso recomeçar da célula.
+   Feito certo, o topo passa a mostrar o jogador + o seletor de preço **"–  $ 1  +"** e o botão
+   **SET PLAYER**.
 6. **Definir o salário** (valor da keeper sheet):
-   - Clique sobre o número **"$ 1"** — ele vira editável (aparece cursor).
-   - Pressione **Ctrl+A** para selecionar e **digite o valor** (ex.: `40`). Digitar é muito mais
-     rápido que "+/–" (andam de 1 em 1).
-   - **Confira o valor** antes de confirmar (o cursor pode tapar o número — dê zoom/afaste o mouse
-     para ler "$ 40").
+   - 🔧 **CORREÇÃO 02/08 — o campo JÁ VEM COM $1.** Para keepers de **$1 não é preciso editar
+     nada**: vá direto ao **SET PLAYER**. (Como boa parte do roster tende a ser de $1, isso corta
+     bastante tempo.)
+   - Para os demais: clique sobre o número **"$ 1"** — ele vira editável (aparece cursor).
+   - **Ctrl+A** para selecionar e **digite o valor** (ex.: `40`). Digitar é muito mais rápido que
+     "+/–" (andam de 1 em 1). 🔧 **Nota 02/08:** o **Ctrl+A funcionou em 100% dos casos** na
+     transcrição cronometrada — era alerta na versão anterior, é **nota** agora.
+   - **Confira o valor** antes de confirmar (o cursor pode tapar o número).
 7. Clique em **SET PLAYER** para confirmar.
 8. A célula é preenchida (colorida) com jogador + salário, ex.: **"P. Mahomes $40 / QB - KC (5)"**.
    Os contadores embaixo atualizam (ex.: "All 1/15", "QB 1/1").
@@ -244,6 +281,30 @@ real antes de seguir.**
 - **Patrick Mahomes** — verificado **QB, KC (Kansas City)** — salário **$40**.
 - **Bijan Robinson** — verificado **RB, ATL (Atlanta)** — salário **$30**.
 - Total de salários: **$70**; cap restante esperado: **$200 − $70 = $130**.
+
+## B.3.2 🔧 **NOVO (02/08/2026) — o teto de lance bloqueia times estourados**
+
+> Não estava neste runbook e **vai aparecer na tela** em 2026. Descoberto por experimento na
+> própria liga; detalhe completo na seção do [[OFF26-10]] em `improvements.md`.
+
+O Sleeper **impõe um teto por designação** e **reserva $1 por vaga ainda não preenchida**:
+
+```
+teto = 200 − gasto − (vagas_restantes − 1)
+```
+
+Ultrapassar → a designação é **recusada** com a mensagem literal
+***"The specified slot does not have enough budget."*** (Verificado: time com $150 gastos e 21
+vagas livres tem teto **$29** — $40/$33/$32 recusados, $29 aceito. E não há falso positivo: 10
+keepers somando $140 passaram sem aviso.)
+
+**Consequência operacional — a população é ESCALONADA, não de uma vez:**
+1. Popular **primeiro** os times já enquadrados no cap.
+2. Times ainda **acima do limite NÃO ENTRAM no board** — esperam o **late drop (22/08)** e só então
+   são populados.
+
+**Se a designação for recusada, NÃO tente contornar** (não baixe o salário para "caber"): o
+salário vem da keeper sheet e é canônico. Registre o time como **bloqueado** e siga para o próximo.
 
 ## B.4 Ao terminar de popular — **gatilho da auditoria [[OFF26-4]]**
 
@@ -271,11 +332,20 @@ real antes de seguir.**
    identifique a coluna pelo OWNER real (handle Sleeper), não pelo rótulo "Team N".** (No PoC,
    como liga nova, "Team 1" era o roster do comissário; isso **não** é regra de identidade — é
    coincidência do setup descartável.)
-4. **Risco de homônimo (Josh Allen)** — Há **dois Josh Allen**: QB (Buffalo Bills) e LB/edge
-   (Jacksonville Jaguars). **Sempre confirmar a sigla do time da NFL** na busca antes de clicar no
-   "+". (Para Buffalo, escolher **QB, BUF**.)
-5. **Edição do campo de preço** — Ao clicar no "$ 1", o cursor pode tapar o número. Resolver com
-   **Ctrl+A → digitar → zoom para conferir** antes do SET PLAYER.
+4. **Risco de homônimo (Josh Allen)** — 🔧 **SUAVIZADO EM 02/08:** o pool de designação traz
+   **apenas ofensivos elegíveis**, então o Josh Allen **LB/JAX não aparece** na busca — o caso
+   clássico está fora de alcance. **O alerta permanece** em versão menor: **dois ofensivos
+   homônimos continuariam ambíguos**, então siga conferindo **posição + sigla NFL** antes do "+".
+5. **Edição do campo de preço** — 🔧 **REBAIXADO A NOTA EM 02/08:** o **Ctrl+A funcionou em 100%
+   dos casos** na transcrição cronometrada. Fluxo: clicar no "$ 1" → **Ctrl+A** → digitar →
+   conferir → SET PLAYER. E lembre: **para keepers de $1 não é preciso editar nada.**
+6. 🔧 **NOVO 02/08 — "cliquei no jogador e o fluxo sumiu"** — foi clique **no nome** em vez do
+   **"+"** da linha. O nome abre o perfil; fechar o perfil **cancela a designação inteira**.
+   Recomeçar da célula.
+7. 🔧 **NOVO 02/08 — "o time está completo mas faltam K e DEF"** — as linhas estão **abaixo da
+   dobra**; revele com a **seta ▼** (o scroll do mouse não move o board).
+8. 🔧 **NOVO 02/08 — "não consigo setar, diz que não tem budget"** — é o **teto de lance** (§B.3.2).
+   O time está estourado e **só entra no board após o late drop**. Não baixe o salário.
 
 ---
 
@@ -291,6 +361,11 @@ real antes de seguir.**
    comissário para "Team 2"/"Team 3". → **não-aplicável na liga permanente** (owners reais já
    dentro); nota histórica do PoC.
 5. **Conexão da extensão** — a automação exige o **Claude in Chrome conectado**; checar antes.
+6. 🔧 **NOVO 02/08 — teto de lance com reserva de $1/vaga** (`teto = 200 − gasto −
+   (vagas_restantes − 1)`): **times acima do limite não podem ser populados**. → **população
+   escalonada obrigatória** (ver §B.3.2 e [[OFF26-10]]).
+7. 🔧 **NOVO 02/08 — o board já está em modo de designação** no pré-draft; **não existe** a seção
+   *SET KEEPERS/DYNASTY PLAYERS* nas Draft Settings (ver §B.1).
 
 ---
 
@@ -307,11 +382,20 @@ real antes de seguir.**
    **obrigatório**.
 8. **Convidar os 12 owners reais** (link Invite) — identidade por **handle/`sleeper_owner_id`**.
 
-### Trabalho anual (a cada intertemporada)
+### Trabalho anual (a cada intertemporada) — 🔧 **atualizado 02/08/2026**
 9. (Reset de rosters é **automático** no redraft — **não fazer nada**.)
-10. Engrenagem → **Draft Settings → SET PLAYERS** (abre aba do draft board).
-11. Para cada keeper da **keeper sheet [[OFF26-2]]**: localizar a coluna **pelo OWNER** → clicar na
-    célula → **Set Player** → buscar → **conferir time NFL** → "+" → clicar no preço → **Ctrl+A** →
-    digitar salário → **SET PLAYER**.
-12. **Rodar a auditoria [[OFF26-4]]** (diff vs. keeper sheet) **ANTES** de iniciar o auction.
-13. **NÃO** clicar em **START DRAFT** até a auditoria bater e tudo estar populado.
+10. Abrir o **draft board** da liga (`/draft/nfl/<DRAFT_ID>`). **Não** procurar *SET
+    KEEPERS/DYNASTY PLAYERS* — **não existe**; o board já está em modo de designação.
+11. **Popular os times ENQUADRADOS primeiro.** Times acima do teto (§B.3.2) **não entram** — ficam
+    para depois do **late drop (22/08)**.
+12. Para cada keeper da **keeper sheet [[OFF26-2]]**: localizar a coluna **pelo OWNER** → clicar na
+    **célula vazia** → **Set Player** → buscar (**filtro de posição** para K/DEF) → **conferir
+    posição + time NFL** → **"+" da linha (nunca o nome)** → se salário > $1: clicar no preço →
+    **Ctrl+A** → digitar → **SET PLAYER**. Para **$1, não editar** — direto no SET PLAYER.
+13. **Revelar K e DEF com a seta ▼** antes de dar o time por completo.
+14. Após o late drop, **popular os times que faltaram**.
+15. **Rodar a auditoria [[OFF26-4]]** (diff vs. keeper sheet) **ANTES** de iniciar o auction.
+16. **NÃO** clicar em **START DRAFT** até a auditoria bater e tudo estar populado.
+
+> ⏱️ **Referência de tempo (medido 02/08/2026):** ~**75 s/jogador** ≈ **12,5 min/time** ≈
+> **2,5 h** para os 12 times, já descontado o overhead de descoberta.
