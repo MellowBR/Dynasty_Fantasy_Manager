@@ -1,6 +1,7 @@
 # improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 02/08/2026-pt4 (sessão MAN-S4-REG: **registro docs-only** — novo item **S4** (🔲, Média): `PlayerHistory` e `Trade` identificam time **só por nome**, sem chave estável no schema. O `team_name` participa do **índice UNIQUE de dedupe** do [[F8]]a (`app.py:361`: `player_id, season, event_type, team_name, sleeper_event_ref`) e é gravado do nome vivo (`models.py:232,237`) → após um rename de time, o mesmo evento **não colide** com a linha antiga e a **idempotência do histórico cai**. Segunda superfície: `Trade.team_a/team_b` são strings e `roster.py:245-250` resolve a contraparte comparando com o `team_name` da `PlayerHistory` → pós-rename o timeline do jogador perde a contraparte. **Distinção do [[S3]]**: lá a chave estável **já existia e já estava correta** (fix sem schema, nada a migrar); aqui **não existe** — exige coluna nova, migração de 1.151 linhas de histórico + 53 de `Trade`, e mexer no UNIQUE do F8a (a garantia de idempotência do rebuild). **Não bloqueia** S2 nem S3; o gatilho é o mesmo rename pendente do time 9. Sem código, sem dado; nenhum item existente alterado além da linha no Status Rápido e do cross-ref na questão aberta do S3.)
 > Atualizado em: 02/08/2026-pt3 (sessão MAN-S3-F1: **diagnose read-only ✅** — duplicação **reproduzida com o código real sobre cópia** (Flask mínimo apontando p/ `s3_sim.db`; **não** importa `app.py`, que dispararia `run_sync()` de verdade porque o CSV existe local). Resultado: **+9 picks** (3 seasons × 3 rounds) e **só `_ensure_default_picks` duplica** — roda antes (`:331`) e cria as linhas com o nome novo, que o `_sync_traded_picks` então acha e só atualiza → **dano 9, não 18** (corrige a F1b). Estado resultante é o pior dos dois mundos: linhas velhas guardam a projeção mas congelam a titularidade; linhas novas recebem a titularidade certa e **perdem a projeção**. Efeitos medidos: time renomeado **sem projeção** (fallback 999, desce no grid e aparece 2×), **League Hub inflado em 7 de 12 times** (Cangaceiros 9→17), valor dynasty caindo no fallback `FP_` ([[T2-FIX]]). **Sem mudança de schema**: `Pick.original_team_id` já existe e **nasce correto até nas duplicatas** (18 linhas com id=9) — e `_sync_trades:670` **já casa por id**, precedente canônico no mesmo arquivo. **Restrição forçada descoberta**: cascatear o rename para os nomes não fecha (a projeção casa `Pick` × `DraftLotteryResult` × `SeasonStandings` por string) e refrescar `DraftLotteryResult.team_name` **quebraria o verify do [[M8]]** → o join **tem** de migrar para `team_id`. Na fronteira de picks o **Sleeper nunca manda nome** (`/traded_picks` só tem `roster_id`/`owner_id`) — a string é auto-infligida. **Classe maior que picks**: `PlayerHistory` (`team_name` dentro do índice UNIQUE de dedupe do [[F8]]a) e `Trade` (`team_a`/`team_b`) **não têm chave estável nenhuma** → escopo separado. **F2: desenho (A)** — match por id nos 4 pontos, nome vira display derivado, **nada a migrar**; ponto de costura explícito p/ o [[S2]]-F2 se plugar. Sequência: **S3-F2 → sync liberado → S2-F2**.)
 > Atualizado em: 02/08/2026-pt2 (sessão MAN-S2-F1b: **diagnose analítica ✅** — read-only, zero escrita. **Mecanismo formalizado e provado nas 12 posições:** o Manager exibe **O(L(π(p)))** com **π = S⁻¹∘L** (S = board do Sleeper/standings invertido, L = lottery); π é um **4-ciclo puro em {2,3,4,5}** e as outras 8 posições são **imunes por construção** (lottery não moveu 1º nem 6º; 7–12 são fixas nos dois modelos) → teto de dano = nº de seeds deslocadas, **nunca 12**. **Correção da F1a: são 4 posições divergentes, não 3** — a pos. 2 passou por comparar contra um canônico que ainda tinha o rótulo errado da trade de 29/07. **Estado-alvo derivado** (com re-rótulo: o ativo é a pick da 3 peat, não a da Fazenda) e **verificado 12/12 contra a leitura direta do board** — o Sleeper já exibe a ordem certa; o Manager é que a re-permuta. **Fonte única × réplica:** a *posição* tem fonte única (`_build_pick_projections`, sem réplica JS); o *dono* é lido cru em ≥4 sítios; **"dono-na-posição" não existe como objeto** — é join no template. **"Não fazer a montagem" não é opção**: editar `draft_order` vazaria o lottery para R2/R3 e quebraria o [[M16]] — a permutação de picks é a técnica correta e vai se repetir todo ano. **Recomendação F2: desenho (b) — desconto determinístico** (re-chavear `/traded_picks` por `L(S⁻¹(x))` torna os 3 movimentos administrativos **no-ops** e re-rotula a trade real sozinha), em 3 fatias: corretiva auditável + desconto escopado a R1 da draft season + **tela que prescreve a permutação** (sem ela o desconto é heurística). (a) rejeitado (conserta a tela, deixa o dado errado p/ os ≥4 leitores diretos); (c) rejeitado (schema + disciplina anual por menos). [[OFF26-3]] é **indiferente** aos três (lê `roster_id` do draft real). **Novo item [[S3]] 🔲 Alta — BLOQUEIA o retorno do sync**: rename de time quebra o match de picks por string e o próximo sync cria duplicatas; time 9 já renomeado no Sleeper, ainda não ingerido. Ordem obrigatória: **S3 → sync → S2-F2**.)
 > Atualizado em: 02/08/2026 (sessão MAN-S2-F1a: **levantamento read-only ✅** — retrato do estado, zero escrita. **Premissa central do S2 REFUTADA:** as trocas administrativas **não são transações** (ferramenta de comissário) → `_sync_trades` nunca as viu; a porta é **`_sync_traded_picks`** (`sync_sleeper.py:407`), que reescreve o dono de toda pick de `/traded_picks` **em todo sync**, sem `Trade`, sem `PlayerHistory`, sem trilha. **Não existe trade só-picks em lugar nenhum da chain** (1.123 tx, 53 trades; as 6 de 2026 têm jogadores). **4 movimentos administrativos**, todos em **R1 2026** (1 mascarado por trade posterior), datados em **08/06/2026** pela série `sync_log.picks_updated` (18→**21**→32, aritmética fecha) — ~7 semanas antes do draft, não na véspera. **Intenção confirmada 12/12 slots**: a montagem faz o board do Sleeper (ordem = standings 2025 invertido, conferida em `slot_to_roster_id`) exibir a mesma sequência de donos que a ordem do lottery ([[M16]]) — tradução correta entre modelos incompatíveis, não erro do co-admin. **Dano hoje: 3 de 12 posições do R1 2026** (pos. 3/4/5); R2/R3/2027/2028 intactos; **0** `Trade`, **0** `PlayerHistory`, **0** divergência Manager × Sleeper → **nenhuma correção manual sobreviveu**. Pick 2 = pick da Fazenda Pederasta (`fernandoxmf`) — bate com o sintoma, pendente o owner confirmar "Fehl"=`fernandoxmf`. **Complicação p/ o fix:** a trade real de 29/07 foi registrada sobre a ficção → exige **re-rotulagem**, não só desfazer. Ressalva: base auditada = snapshot de prod do commit `326324a` (31/07), **não** `/data/dynasty.db` (Render Shell indisponível). Colateral: `_sync_traded_picks` casa pick por **string** de nome de time e o time 9 foi renomeado no Sleeper → risco de linha duplicada, candidato a item próprio.)
@@ -46,6 +47,7 @@
 | X1d | Decorators `@login_required` / `@admin_required` nas rotas | Alta | ✅ 31/03/2026 |
 | S1 | Sync detecta trades do Sleeper e move contratos automaticamente | Alta | ✅ 22/04/2026 |
 | S2 | Sync ingere trocas administrativas de picks (as criadas no Sleeper só para montar a ordem do rookie draft) → dono de pick errado no Manager; recorrência anual a cada montagem de ordem — MAN-S2-REG/**F1a/F1b** | Alta | 🔲 (F1a+F1b ✅ 02/08/2026: causa **não** é `_sync_trades` — as trocas não geram transação; entram por `_sync_traded_picks` (`/traded_picks`), sem auditoria. Mecanismo formalizado: Manager exibe **O(L(π(p)))** com **π = S⁻¹∘L**, 4-ciclo em {2,3,4,5} — as outras 8 posições são **imunes por construção**. Dano corrigido para **4 de 12** posições do R1 2026 (a F1a dizia 3: a pos. 2 passou por causa do rótulo errado da trade de 29/07). Alvo derivado e verificado = **leitura direta do board do Sleeper**, 12/12. **Recomendação F2: desconto determinístico (b)** em 3 fatias — corretiva + desconto em `_sync_traded_picks` + tela que prescreve a permutação. **Bloqueado por [[S3]]**: o sync não pode voltar antes) |
+| S4 | `PlayerHistory` e `Trade` identificam time **só por nome** (sem chave estável no schema); o nome está **dentro do índice UNIQUE de dedupe** do [[F8]]a → pós-rename o mesmo evento não colide e a **idempotência do histórico cai**; `Trade.team_a/team_b` string também quebra a contraparte no timeline (`roster.py:245-250`) — achado colateral da **S3-F1** | Média | 🔲 |
 | S3 | Rename de time no Sleeper quebra o match de picks (`Pick` casada por `original_team_name` string; `Team.name` é renomeado e não cascateia) → próximo sync **cria picks duplicadas**; classe "Brown" (identidade por string). **Armado**: time 9 já renomeado no Sleeper, ainda não ingerido — MAN-S2-F1a/F1b + **MAN-S3-F1** | Alta (**bloqueia o retorno do sync** e a F2 do [[S2]]) | 🔲 (F1 ✅ 02/08/2026: duplicação reproduzida com o **código real sobre cópia** — **+9 picks** (3 seasons × 3 rounds), e **só `_ensure_default_picks` duplica** (roda antes; `_sync_traded_picks` acha as novas e só atualiza) → dano 9, não 18. **Sem mudança de schema**: `original_team_id` já existe e nasce **correto até nas duplicatas**; `_sync_trades:670` já é o precedente canônico no mesmo arquivo. **Restrição forçada**: refrescar `DraftLotteryResult.team_name` quebraria o verify do [[M8]] → o join da projeção **tem** de ir para `team_id`. Classe maior que picks: `PlayerHistory` (nome no índice UNIQUE do F8a) e `Trade` sem chave estável → item próprio. **F2: desenho (A)**, 4 pontos, 1 fatia; **nada a migrar**) |
 | T1 | Redesign Trade Manager: simulador multi-owner + link compartilhável | Alta | ✅ 22/04/2026 |
 | T2 | Integrar valores dynasty FantasyCalc no preview de trade | Média | ✅ 22/04/2026 |
@@ -1716,8 +1718,8 @@ existem. Na ordem inversa, o desconto produziria um **nome** que cairia justamen
 | 7 | (implícita) "picks são o alcance da classe" | **premissa falsa** | `PlayerHistory` (nome no índice UNIQUE de dedupe do F8a) e `Trade` (`team_a`/`team_b`) **não têm chave estável nenhuma**. Fora do escopo do S3 — item próprio. |
 
 **QUESTÕES EM ABERTO** (pós-F1 — as 4 originais foram respondidas em "1", "4", "5" e "6")
-- **Escopo separado a registrar:** `PlayerHistory` e `Trade` sem chave estável de time (ver "6").
-  Vira item próprio depois do S3, ou entra no radar do [[F8]]? Toca schema e o índice de dedupe.
+- ~~**Escopo separado a registrar:** `PlayerHistory` e `Trade` sem chave estável de time (ver "6").~~
+  → **registrado como [[S4]]** (02/08/2026, MAN-S4-REG).
 - O refresh de `Pick.*_team_name` no sync deve ser incondicional (toda execução) ou só quando o sync
   detectar `names_changed`? (incondicional é mais simples e idempotente)
 
@@ -1726,6 +1728,82 @@ existem. Na ordem inversa, o desconto produziria um **nome** que cairia justamen
   identidade), [[M8]] (o verify do lottery **proíbe** refrescar `DraftLotteryResult.team_name`),
   [[M16]], [[T2-FIX]] (valor dynasty depende da projeção que o rename derruba), [[F8]] (índice de
   dedupe de `PlayerHistory` inclui `team_name`).
+
+---
+
+### S4 — Histórico (`PlayerHistory` / `Trade`) sem chave estável de time
+🔲 **Registrado 02/08/2026** — MAN-S4-REG (**registro apenas** — nenhum código, nenhum dado do banco
+tocado) — Prioridade **Média** — família [[S1]] / [[S3]]; achado colateral da **S3-F1**
+
+**CONTEXTO**
+A diagnose do [[S3]] (commit `be16de1`) fechou o match de picks por nome, mas ao varrer a classe
+inteira encontrou **dois domínios sem chave estável nenhuma** — não é que a chave exista e não seja
+usada (caso do S3), é que **ela não existe no schema**.
+
+**MECANISMO — o nome está dentro da chave de dedupe**
+`PlayerHistory` guarda o time só como **`team_name` string** (`models.py:780`); não há `team_id`. E
+esse campo participa do **índice UNIQUE** que o [[F8]]a criou para garantir idempotência do rebuild
+canônico do histórico (Migration 5, `app.py:361`):
+
+```
+UNIQUE (player_id, season, event_type, team_name, sleeper_event_ref)
+```
+
+O quinteto foi desenhado para que o mesmo evento, re-ingerido, **colida** e seja descartado. Como o
+`team_name` é gravado a partir do nome vivo no momento da escrita
+(`models.py:232,237` — `team_name = player.team_rel.name`), um rename de time faz o **mesmo evento**
+passar a ser gravado com um valor diferente na quinta posição da chave.
+
+**GATILHO E CONSEQUÊNCIA**
+O sync renomeia `Team.name` a partir do Sleeper (`sync_sleeper.py:181-189`). A partir daí, qualquer
+re-execução do rebuild/backfill do histórico grava as linhas do time renomeado com o nome **novo** —
+que **não colide** com as linhas antigas. **A idempotência do histórico deixa de valer** e os eventos
+duplicam silenciosamente. É a mesma família do [[F7]] (SalaryHistory duplicado), com a agravante de o
+duplicado aqui ser *legítimo* aos olhos do índice.
+
+**SEGUNDA SUPERFÍCIE — `Trade` também é name-only**
+`Trade.team_a` / `Trade.team_b` são strings (sem FK). `routes/roster.py:245-250` resolve a
+contraparte de uma trade **comparando strings** entre a linha de `Trade` e o `team_name` da
+`PlayerHistory`. Trades antigas guardam o nome velho e o histórico novo guarda o novo → a comparação
+falha, cai no ramo `else` e o **timeline do jogador perde a contraparte** da trade.
+
+**DISTINÇÃO EM RELAÇÃO AO [[S3]] — por que não cabia lá**
+| | [[S3]] (picks) | **S4** (histórico) |
+|---|---|---|
+| chave estável no schema | **já existe e já está correta** (`Pick.original_team_id`/`current_team_id`) | **não existe** — `PlayerHistory` e `Trade` só têm nome |
+| mudança de schema | **nenhuma** | **inevitável** (coluna nova + FK) |
+| migração de dado gravado | **nada a migrar** (ids já corretos) | **necessária** — 1.151 linhas de `PlayerHistory` + 53 de `Trade` a resolver por nome histórico, incluindo nomes que já não existem |
+| toca índice/auditoria | não (o [[M8]] fica intacto por construção) | **sim** — mexer no UNIQUE do F8a é mexer na garantia de idempotência do rebuild |
+| urgência | **bloqueia o retorno do sync** | não bloqueia — degrada o histórico, não o corrompe hoje |
+
+**CASO CONCRETO PENDENTE**
+O rename do time 9 (**"Tropa do Bicampeonato 🏆" → "Tropa do Jarra 🏆"**) já está feito no Sleeper e
+**ainda não foi ingerido**. Ele é o gatilho tanto do S3 quanto desta classe: quando o sync voltar a
+rodar (após o S3-F2), o nome novo passa a ser gravado no histórico. **Não é urgente como o S3** — o
+dano só aparece se o rebuild/backfill do histórico for re-executado depois do rename — mas a partir
+daí a proteção do F8a está furada.
+
+**QUESTÕES EM ABERTO** (F1)
+- **Desenho da chave estável:** adicionar `team_id` (FK) a `PlayerHistory` e `team_a_id`/`team_b_id`
+  a `Trade`, mantendo o nome como snapshot histórico? Ou substituir o nome? *(o nome tem valor
+  próprio: registra como o time se chamava à época — remover perderia informação)*
+- **Índice UNIQUE do [[F8]]a:** trocar `team_name` por `team_id` no quinteto, ou remover o time da
+  chave? Qual das duas preserva a intenção original (múltiplos eventos do mesmo tipo/season/time
+  distinguíveis por `sleeper_event_ref`)? Recriar o índice exige migração e **revalidar o rebuild
+  canônico** — o F8a é o dono dessa garantia.
+- **Migração do histórico gravado:** resolver `team_name → team_id` por lookup em `Team.name`
+  funciona para os nomes atuais; e para nomes que **já não existem** (times renomeados antes deste
+  fix, ou grafias com espaço duplo/emoji)? Precisa de mapa manual? Quantas linhas ficam órfãs?
+- **`Trade`:** a resolução de contraparte em `roster.py:245-250` some com a chave estável, ou exige
+  fix próprio?
+- **Alcance:** há outros índices, dedupes ou joins que usem `team_name` como chave funcional além
+  destes dois? (a S3-F1 mapeou `AuctionLog`, `SeasonStandings` e `DraftLotteryResult` como
+  **snapshot de display com `team_id` disponível** — fora do risco)
+
+**DEPENDÊNCIAS**
+- Depende de: nada (independente). Relaciona-se com [[S3]] (mesma classe, chave estável ausente em
+  vez de ignorada), [[F8]]/[[F8a]] (dono do índice UNIQUE), [[F7]] (precedente de histórico
+  duplicado), [[E4-b]] (identidade por string). **Não bloqueia** o [[S2]] nem o [[S3]].
 
 ---
 
