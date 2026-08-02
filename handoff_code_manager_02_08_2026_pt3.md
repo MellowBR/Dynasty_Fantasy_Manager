@@ -195,12 +195,24 @@ rodadas** · roster espelhando a liga real (**3 WR**).
 
 | item | estado |
 |---|---|
-| ambiente | **teste** — 2 times populados |
-| **RESET DRAFT** | ⚠️ **pendente antes do uso real** |
-| `league_id` / `draft_id` | ⚠️ **não fornecidos nesta sessão** — pendência registrada |
+| ambiente | **pronto para uso real** — board **vazio** |
+| **RESET DRAFT** | ✅ **executado em 02/08/2026** — os 2 times da validação foram removidos |
+| **`league_id`** | `1389725099556372481` |
+| **`draft_id`** | `1389725100684611584` |
 
-Os ids são o insumo do **OFF26-4** (§1 da sua F1 trata exatamente de como parametrizar o
-league/draft id da fantasma). **Assim que existirem, mandar** — é o que destrava a auditoria.
+> Esta tabela registrava **duas pendências** quando a parte 2 foi commitada; **ambas foram
+> resolvidas pelo owner na mesma sessão, logo depois** (`MAN-OFF26-IDS-REG`).
+
+Os dois ids são **distintos e não deriváveis um do outro por inspeção** — lidos das URLs da página
+da liga e do draft board. Isso **reforça o precedente do `draft_import.py`** apontado no §1 da F1
+do OFF26-4: passa-se o **`draft_id`** e **deriva-se** o `league_id` do objeto do draft; o caminho
+inverso não é inspecionável. **Registrados só como dado** — nenhuma forma persistida (constante,
+`AppConfig`, coluna), porque a parametrização é decisão de produto **ainda em aberto**.
+
+> ⚠️ **O reset apagou o alvo dos probes.** As verificações pendentes — o que a API expõe
+> **pré-draft** (OFF26-4 §2) e o que os picks expõem **pós-draft** (confirmação do
+> `is_keeper:false`, OFF26-11) — **exigem repopular o board antes de rodar**. É **pré-condição das
+> diagnoses**, não um passo dentro delas.
 
 ---
 

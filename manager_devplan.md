@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 02/08/2026-pt6 (MAN-OFF26-10-11-REG 2ª parte: **liga fantasma criada e testada** — **Dynasty SB FA Auction** (Redraft, 12, Auction, $200, 22 rodadas, 3 WR; 2 times populados, **RESET DRAFT pendente**; ids **não fornecidos**). **§5 da F1 do OFF26-4 REFUTADO por experimento:** o Sleeper aplica a **mesma reserva de $1/vaga** (`teto = 200 − gasto − (vagas−1)`; $29 aceito, $32+ recusado) → base correta = **`usable_draft_budget`**, decisão 2 **resolvida por evidência**. **OFF26-10:** time acima do teto **não entra no board** → **população escalonada obrigatória**. **OFF26-11:** **indício** `is_keeper:false` (verificação definitiva é pós-draft). **Runbook corrigido — o caminho da Fase B não existe**; +7 correções e seção nova do teto. **Medido:** ~75 s/jogador ≈ **2,5 h p/ 12 times** → 2026 via **Cowork**, script determinístico p/ **2027**, API interna **descartada**. Sem código)  
+> Última atualização: 02/08/2026-pt7 (MAN-OFF26-IDS-REG: **fecha as 2 pendências do pt6** sobre a liga fantasma **Dynasty SB FA Auction** — **`league_id` = `1389725099556372481`**, **`draft_id` = `1389725100684611584`** (distintos e **não deriváveis um do outro por inspeção**, reforçando o precedente do `draft_import.py`: passa-se o draft_id e deriva-se o league_id), registrados como **dado** e **não persistidos** em constante/`AppConfig`/coluna — a parametrização segue **decisão em aberto** do OFF26-4; e **RESET DRAFT executado, board vazio**, liga pronta para uso real. **Pré-condição registrada:** o reset **apagou o alvo empírico** dos probes pendentes (pré-draft do OFF26-4 e pós-draft do OFF26-11) → **repopular o board antes de rodar as diagnoses**. Sem código)  
+> Anterior: 02/08/2026-pt6 (MAN-OFF26-10-11-REG 2ª parte: **liga fantasma criada e testada** — **Dynasty SB FA Auction** (Redraft, 12, Auction, $200, 22 rodadas, 3 WR; 2 times populados, RESET DRAFT e ids pendentes **naquele momento — ambos resolvidos no pt7 acima**). **§5 da F1 do OFF26-4 REFUTADO por experimento:** o Sleeper aplica a **mesma reserva de $1/vaga** (`teto = 200 − gasto − (vagas−1)`; $29 aceito, $32+ recusado) → base correta = **`usable_draft_budget`**, decisão 2 **resolvida por evidência**. **OFF26-10:** time acima do teto **não entra no board** → **população escalonada obrigatória**. **OFF26-11:** **indício** `is_keeper:false` (verificação definitiva é pós-draft). **Runbook corrigido — o caminho da Fase B não existe**; +7 correções e seção nova do teto. **Medido:** ~75 s/jogador ≈ **2,5 h p/ 12 times** → 2026 via **Cowork**, script determinístico p/ **2027**, API interna **descartada**. Sem código)  
 > Anterior: 02/08/2026-pt5 (MAN-OFF26-10-11-REG: **registro docs-only** — o calendário real da intertemporada 2026 (17/08 rookie draft · 18/08 congelamento ESPN · 20/08 cortes · **22/08 late drop** · 24/08 FA auction) expôs 2 gaps inéditos: **OFF26-10 🔲** (late drop altera keepers **dois dias após o lock**; sheet de 20/08 é provisória p/ quem fechou acima do cap) e **OFF26-11 🔲** (importador não distingue **keeper de arremate novo**; a porta canônica é de **contrato ano 1** → ingerir keeper zera a idade do contrato). Duas questões empíricas registradas como **probe, não fato**; duas **decisões em aberto** deixadas com o owner. **Emenda de premissa:** o **rookie draft NÃO roda em liga fantasma** — existe **uma** liga fantasma permanente (a da FA auction), não duas. Sem código)  
 > Anterior: 02/08/2026-pt4 (MAN-S2-DONE: **S2 ✅** — smoke prod sobre o hash `9b4bcf1` (backup `/data/dynasty_pre_s2_smoke_2026-08-02.db`): as 4 posições convergiram para o alvo da F1b (pos. 2 = Fazenda sem troca, pos. 5 = 3 peat → Cangaceiros), cruzamento com o board do Sleeper confere, **2ª execução sem alteração** (idempotência em prod), verify do lottery conferindo. Migração O3 feita; fatia F2-3 desmembrada como **S5 🔲**. Arco S2/S3 ✅; ativos S4 e S5, nenhum bloqueante. Nota de método: a correção do critério de validação do prompt partiu do Code contra a tabela-alvo da F1b)  
 > Anterior: 02/08/2026-pt3 (MAN-S2-F2: desconto determinístico da permutação do board — novo `board_mirror.py` (π derivado das fontes canônicas, bijeção obrigatória), armamento por **season** em AppConfig (rollover desarma sozinho) + gate de audit canônica, ligado em `_resolve_traded_pick_identity` **e** no loop de picks do `_sync_trades`, card de armar/desarmar no `/admin`. **F2-1 = redundante**: o próprio sync reescreve as 4 posições. 24/24 em cópia + 48/48. ⚠️ **✅ só após smoke prod (PROC1)**)  
@@ -2319,9 +2320,9 @@ por **string de nome** — com o time 9 já renomeado no Sleeper ("Tropa do Bica
 
 - **A sala existe.** A liga fantasma permanente foi **criada de fato** nesta sessão: **Dynasty SB
   FA Auction** — Redraft, 12 times, draft **Auction**, budget **$200**, **22 rodadas**, roster
-  espelhando a real (**3 WR**). Estado: **ambiente de teste com 2 times populados; RESET DRAFT
-  pendente antes do uso real**. **`league_id` e `draft_id` NÃO foram fornecidos** — pendência
-  registrada, pois são o insumo do [[OFF26-4]] (§1 da sua F1: parametrização do league/draft id).
+  espelhando a real (**3 WR**). Estado **no momento deste registro**: ambiente de teste com 2 times
+  populados, RESET DRAFT pendente e ids ainda não fornecidos. **→ As duas pendências foram
+  resolvidas na mesma sessão, logo depois — ver `MAN-OFF26-IDS-REG` abaixo.**
 
 - **REFUTAÇÃO: §5 da F1 do [[OFF26-4]] (18/06/2026) está errado.** A diagnose afirmava que a
   reserva de **$1 por slot vazio** era regra **interna do Manager, inexistente no Sleeper**, e
@@ -2383,3 +2384,31 @@ por **string de nome** — com o time 9 já renomeado no Sleeper ("Tropa do Bica
   premissa sobre **sistema externo** só se assenta **tocando o sistema externo**.
 
 - **Nenhum item existente teve status alterado.** Sem código, sem schema, sem rotas, sem testes.
+
+### MAN-OFF26-IDS-REG — identificadores da liga fantasma + reset executado (02/08/2026, Opus)
+
+- **Fecha as duas pendências** que o `MAN-OFF26-10-11-REG` (2ª parte) deixou explícitas. Ambas
+  foram resolvidas pelo owner **na mesma sessão, logo após aquele commit**.
+
+- **(1) Identificadores registrados** — liga **Dynasty SB FA Auction**:
+  **`league_id` = `1389725099556372481`** · **`draft_id` = `1389725100684611584`**, lidos das URLs
+  da página da liga e do draft board. **Os dois são distintos e NÃO deriváveis um do outro por
+  inspeção** — o que **reforça o precedente do `draft_import.py`** levantado no §1 da F1 do
+  [[OFF26-4]]: passa-se o **`draft_id`** e **deriva-se** o `league_id` do objeto do draft; o
+  caminho inverso não é inspecionável. **Registrados como DADO e deliberadamente NÃO persistidos**
+  em constante, `AppConfig` ou coluna — as opções (a)/(b)/(c) do §1 **seguem abertas**. Ter o
+  número não escolhe onde ele mora, e antecipar isso num registro seria arbitrar por acidente.
+
+- **(2) RESET DRAFT executado — board vazio.** Os 2 times populados durante a validação
+  (transcrição cronometrada + experimento de teto de budget) foram removidos. A liga está **pronta
+  para o uso real**.
+
+- **Consequência registrada como PRÉ-CONDIÇÃO, não como detalhe de execução: o reset apagou o alvo
+  empírico dos probes pendentes.** As duas verificações que continuam abertas — o que a API expõe
+  **pré-draft** (§2 da F1 do [[OFF26-4]], o bloqueador daquela diagnose) e o que os picks expõem
+  **pós-draft** (a confirmação definitiva do indício `is_keeper:false` do [[OFF26-11]]) — **não têm
+  o que ler hoje**. **Repopular o board é pré-condição das diagnoses**, e ficou anotado nos dois
+  lugares onde essas verificações são descritas, justamente para não ser descoberto no meio delas.
+
+- **Nenhum status alterado, Status Rápido intocado, sem código.** Os identificadores não aparecem
+  em nenhum arquivo `.py`/`.html` — verificado por grep.
