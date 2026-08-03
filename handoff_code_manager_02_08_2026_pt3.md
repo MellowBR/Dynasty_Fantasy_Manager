@@ -4,13 +4,18 @@
 > Esta parte é **registro puro**: nenhum código, nenhuma diagnose, nenhuma decisão de produto
 > arbitrada. Dois gaps novos entram no backlog e uma premissa factualmente errada é emendada.
 >
-> ⚠️ **ESTE ARQUIVO TEM 5 PARTES — LEIA A ÚLTIMA ANTES DE AGIR.** A **parte 2** registra a liga
+> ⚠️ **ESTE ARQUIVO TEM 6 PARTES — LEIA A ÚLTIMA ANTES DE AGIR.** A **parte 2** registra a liga
 > fantasma **criada e testada na mão** (confirmou duas questões que a parte 1 deixa como "probe
 > pendente" e **refutou o §5 da F1 do OFF26-4**); a **parte 3** registra a **2ª execução do Cowork**
 > e, entre outras coisas, que **o `draft_id` registrado na parte 2 já está MORTO** — ele muda a cada
 > reset; a **parte 4** (03/08) registra a **spec D1–D7 do OFF26-4**; a **parte 5** registra o
 > **probe read-only do pré-draft**, que **derrubou o bloqueador do OFF26-4** e **refutou a premissa
 > do LOADING** que a parte 4 carrega. **Onde as partes divergirem, vale a mais recente.**
+>
+> 🔴 **SE FOR LER SÓ UMA COISA, LEIA A PARTE 6 (§35):** **keeper fora do board é JOGADOR
+> LEILOÁVEL.** Board incompleto na abertura do leilão = jogador com dono arrematado por outro time,
+> ao vivo, sem desfazer limpo. Isso requalifica o OFF26-4 como **gate de integridade**, e torna a
+> **população completa do board pré-condição de abertura**.
 
 ---
 
@@ -718,3 +723,116 @@ da F2) · confirmação **pós-draft** do `is_keeper` (OFF26-11) · **e o D5 pre
 
 **Nenhum arquivo de código. Status Rápido intocado. OFF26-4 segue 🔲.** Os scripts do probe ficaram
 no scratchpad da sessão, fora do repositório.
+
+---
+---
+
+# PARTE 6 — Keeper fora do board é leiloável; a spec absorve o probe
+
+> `MAN-OFF26-4-REFINE-PT2` · 03/08/2026. **Sincronização de spec + registro.** Sem código, sem F2.
+> **Onde as partes divergirem, vale a mais recente.**
+
+---
+
+## 35. ⛔ O achado — e por que ele é o de maior peso do arco OFF26
+
+**Um keeper que não esteja designado no board é, para o Sleeper, JOGADOR DISPONÍVEL.** Qualquer
+owner pode nomeá-lo, e o leilão **processa o lance normalmente** — a plataforma **não tem como
+saber** que ele já tem contrato vigente. O resultado é **um jogador com dono sendo arrematado por
+outro time, ao vivo**, e o OFF26-3 ingerindo depois **como aquisição legítima**.
+
+> **Não é erro de contabilidade que a auditoria corrige depois. É transação inválida em tempo real,
+> sem forma limpa de desfazer sem interromper o leilão.**
+
+Toda a modelagem anterior do OFF26-4 tratava divergência como **contabilidade a reconciliar**. Esta
+classe **não se reconcilia**: quando ela se manifesta, o lance já foi dado e desfazer significa
+**parar o leilão com 12 owners na sala**.
+
+**→ O OFF26-4 deixa de ser conferência de cap e passa a ser GATE DE INTEGRIDADE DO LEILÃO.**
+
+---
+
+## 36. Onde o risco fica agudo: o encontro com o OFF26-10
+
+O OFF26-10 já registrava que **times acima do teto não conseguem ser populados** até o late drop.
+Junte com o achado:
+
+> **Enquanto um time permanece bloqueado, TODOS os keepers dele estão expostos ao leilão.**
+
+**→ População completa do board é PRÉ-CONDIÇÃO DE ABERTURA, não preparativo.** Abrir o leilão com
+qualquer time não populado expõe os keepers dele.
+
+**A decisão em aberto do OFF26-10 continua em aberto** — isto é registro de consequência, não
+arbitragem. Mas qualquer desenho que saia dela **tem de terminar com o board 100% populado antes de
+24/08**, e a janela 22/08 → 24/08 é curta.
+
+**No runbook** entrou a **§B.5**, com o mesmo peso: *board incompleto não é estado aceitável para
+iniciar o leilão*. O runbook já dizia "não clicar em START DRAFT até tudo estar populado" — o que
+mudou é que aquilo era **higiene de processo** e agora é **integridade do leilão**. Fechei também o
+loop no §B.3.2: time bloqueado **não pode ficar assim até o leilão**.
+
+---
+
+## 37. IR resolvido — e a alternativa que parecia equivalente não era
+
+A liga real tem slot de IR; a fantasma **não tem nenhum** (22 = 10 titulares + 12 BN).
+
+**Resolução do owner: designar o keeper em IR normalmente.** Excedentes caem no **banco**, vaga
+**automática por posição**. Três efeitos: sai do pool disponível, consome budget corretamente, fica
+visível à auditoria.
+
+**A alternativa descartada merece registro porque parecia razoável:** descontar o valor do keeper em
+IR do budget do time. Não resolve — **o problema não é o dinheiro, é a disponibilidade do jogador**.
+Descontar budget deixa o keeper **no pool, leiloável**. E ainda ficaria **invisível para a
+auditoria**, que deriva budget **por soma das designações** (a API não expõe budget por time — P5 do
+probe).
+
+---
+
+## 38. O que mudou em cada decisão da spec
+
+| | mudança |
+|---|---|
+| **D1** | 🔧 **corrigido, texto anterior preservado** — a "falha silenciosa" **não existe pela API** (404 em 0,2 s; o LOADING é do app web). **Timeout rebaixado de mitigação de risco a boa prática.** **A proibição de persistir `draft_id` permanece intacta**, e a derivação está comprovada em **1 requisição** |
+| **D2** | metade **fechada** (sala = **22 slots**, medido); **8.3.4 segue pendente**, agora com o **caso concreto do IR**. +aritmética nova: nenhum time pode exceder **22 keepers** |
+| **D5** | classe "slot errado" **não existe** — e **não precisa**: atribuição é automática por posição. **Severidade da classe 1 deixa de ser escolha da F2** (é bloqueante) |
+| **D6** | **afrouxado com precisão** — `owner_id` nulo em 11/12 **não bloqueia**; designações vêm por `roster_id`. **Construção e validação parcial liberadas contra placeholders**; só a **costura `roster_id` ↔ time** espera os aceites |
+
+**Armadilhas registradas para a F2:** `player_id` de **DEF é sigla** (`"LAR"`) — coerção a inteiro
+quebra; e **`draft_rounds` da liga ≠ `rounds` do draft** — ler a do draft.
+
+---
+
+## 39. Nota de método: a terceira premissa da mesma família, na mesma sessão
+
+As três caíram pelo **mesmo mecanismo — observação verdadeira, procedência errada**:
+
+| # | premissa | a observação era… | a procedência era… |
+|---|---|---|---|
+| 1 | sigla NFL diverge da sheet | verdadeira | **lista de teste** com temporadas velhas |
+| 2 | reserva de $1/vaga é só do Manager | verdadeira sobre o Manager | concluída sobre o **Sleeper sem tocar o Sleeper** |
+| 3 | URL de draft morto trava em LOADING | verdadeira | comportamento do **app web**, generalizado para a **API** |
+
+> **Padrão a vigiar: comportamento observado numa superfície NÃO vale como propriedade de outra.**
+> Web ≠ API; lista de teste ≠ dado de produção; regra do Manager ≠ regra da plataforma.
+
+Nos três casos a evidência era real e o que falhou foi a **inferência de escopo** — e nos três a
+correção veio de **tocar a superfície certa**. Vale a pena notar que a nº 1 quase enfraqueceu uma
+proteção, e a nº 3 quase gerou um requisito de robustez contra um risco inexistente: **os dois
+sentidos do erro**.
+
+---
+
+## 40. Arquivos alterados (parte 6)
+
+- `improvements.md` — requalificação da natureza do OFF26-4; correção do **D1** (texto anterior
+  preservado); **D2** meio fechado; ajustes de **D5** e **D6**; bloco novo do achado + resolução do
+  IR + armadilhas + nota de método; **propagação ao OFF26-10 e ao OFF26-5**; reforço de evidência no
+  OFF26-11; cabeçalho.
+- `runbook_cowork_liga_fantasma.md` — **§B.5 nova** (board incompleto não é aceitável), **§B.3.3
+  nova** (keeper em IR), fechamento do loop no §B.3.2, TL;DR item 16 e cabeçalho.
+- `manager_devplan.md` — cabeçalho + entrada de log.
+- `handoff_code_manager_02_08_2026_pt3.md` — esta parte.
+
+**Status de OFF26-4, OFF26-10 e OFF26-5 inalterados. Status Rápido intocado. Zero arquivo de
+código.**

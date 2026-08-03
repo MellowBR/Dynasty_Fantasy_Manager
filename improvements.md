@@ -1,6 +1,7 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 03/08/2026-pt3 (sessão MAN-OFF26-4-REFINE-PT2: **absorção dos achados do probe + o achado de maior peso do arco OFF26**. ⛔ **KEEPER FORA DO BOARD É JOGADOR LEILOÁVEL** — para o Sleeper ele é **disponível**; qualquer owner pode nomeá-lo e **o leilão processa o lance normalmente**, porque a plataforma **não sabe** que ele tem contrato vigente. Resultado: **jogador com dono arrematado por outro time AO VIVO**, e o [[OFF26-3]] ingerindo depois como aquisição legítima. **Não é erro de contabilidade que a auditoria corrige depois — é transação inválida em tempo real, sem desfazer limpo sem interromper o leilão.** → **o [[OFF26-4]] deixa de ser conferência de cap e vira GATE DE INTEGRIDADE DO LEILÃO**; a classe "keeper ausente do board" **não é divergência de transcrição** e sua severidade **deixa de ser escolha da F2** (é bloqueante). **Propagado ao [[OFF26-10]]** (times bloqueados pelo teto ficam com **todos os keepers expostos** até o late drop → **população completa do board é PRÉ-CONDIÇÃO DE ABERTURA**, não preparativo; a decisão em aberto do item **segue em aberto** — é registro de consequência) e ao [[OFF26-5]] + runbook (**board incompleto NÃO é estado aceitável**, nova §B.5). **IR RESOLVIDO (owner):** a fantasma não tem slot de IR → **designar o keeper em IR normalmente**, excedentes caem no **banco**, vaga automática por posição — sai do pool, consome budget, fica visível à auditoria. **Alternativa descartada:** descontar o valor do budget do time — **não resolve o risco** (o problema é disponibilidade, não dinheiro) e ficaria **invisível à auditoria**. **D2:** metade da ressalva **fechada** (sala = **22 slots**), metade do **regulamento 8.3.4 pendente**, agora com o **caso concreto do IR**; +aritmética nova a conferir (nenhum time pode exceder **22 keepers**). **🔧 D1 corrigido, texto anterior preservado:** a "falha silenciosa" **não existe pela porta da auditoria** (404 em 0,2 s; o LOADING é do **app web**) → **timeout rebaixado de mitigação de risco a boa prática**; **a proibição de persistir `draft_id` permanece intacta** e a derivação está comprovada por **1 requisição**. **D5:** classe "slot errado" **não existe** (vaga não é auditável **e não precisa ser** — atribuição automática por posição). **D6 afrouxado com precisão:** `owner_id` nulo em 11/12 **não bloqueia** — designações vêm por **`roster_id`** → **construção e validação parcial LIBERADAS contra placeholders**; só a **costura final `roster_id` ↔ time do Manager** espera os aceites. **Armadilhas p/ a F2:** `player_id` de **DEF é sigla** (`"LAR"`) e **`draft_rounds` da liga ≠ `rounds` do draft** (ler o do draft). **Nota de método — 3ª premissa da mesma família na sessão:** observação verdadeira, **procedência errada** (sigla/lista de teste · reserva de $1/só-Manager · LOADING/app-web) → **comportamento observado numa superfície não vale como propriedade de outra**. Status de OFF26-4/10/5 inalterados; Status Rápido intocado; sem código.)
 > Atualizado em: 03/08/2026-pt2 (sessão MAN-OFF26-4-PROBE: **probe read-only executado contra a liga fantasma real — o bloqueador do §2 da F1 do [[OFF26-4]] CAIU**. Zero escrita, draft **não iniciado**, board **intacto**; scripts transitórios não commitados. **P1 ✅ a derivação `league_id → draft_id` funciona, e por DOIS caminhos** — `GET /league/{lid}` **já traz `draft_id` no topo** (1 request) e `/league/{lid}/drafts` devolve **1 draft, o vigente**; **o morto não aparece na lista**. **⛔ Premissa do D1 REFUTADA para a API:** o draft morto dá **404 + `null` em 0,2 s**, não trava — o "LOADING infinito" é do **app web**; pela porta que a auditoria usa **esse modo de falha não existe** (o essencial do D1 — **não persistir `draft_id`** — segue de pé). **P2/P3 ✅ designações EXPOSTAS pré-draft** em `GET /draft/{did}/picks` com `status: pre_draft` — **a MESMA superfície que o projeto já usa**: 24 registros, com **`metadata.amount` (string)**. **Os três totais foram RECONSTRUÍDOS do payload, exatos: $148 / $95 / $60**, e o Team 3 confere 10/10 nominalmente (inclusive **Waddle=DEN vindo do próprio Sleeper**, o que reforça que a divergência de sigla da 2ª execução era **da lista de teste** — ver [[OFF26-5]]). **P4:** jogador por **`player_id` = `sleeper_player_id`** ⚠️ **exceto DEF, que vem como sigla (`"LAR"`)** — coerção a `int` quebra; time por **`roster_id`**; `picked_by` vazio nas 24; **`owner_id` NULO em 11/12 rosters** → **D6 confirmado como bloqueio de VALIDAÇÃO**, mas **a auditoria não precisa de owner para casar** (a designação já vem chaveada por roster). **P5:** ❌ **não existe campo de budget por time** — só `draft.settings.budget=200` global → budget **derivável só por soma**, como o D2 já mandava. **P6:** **réplica dupla confirmada** — `draft_import.py:39` e `sync_sleeper.py:872` leem picks e **replicam a coerção de `amount`** (`float` × `int`), **ambos gateados em `status=="complete"`** — **é o gate, não a API, que impedia ler pré-draft**; a auditoria seria a **3ª réplica** (candidata a helper único, espírito do [[F10]]). **Achados não previstos:** **`is_keeper: false` nas 24** (o indício do [[OFF26-11]] ganha **evidência de payload pré-draft**; a confirmação pós-draft segue pendente); **`pick_no`/`round` NÃO indicam vaga de roster** → **não existe classe "slot errado" auditável, o D5 precisa de ajuste** (presença/valor/time sim, vaga não); **`roster_positions` = 22 slots (10 titulares + 12 BN)** → lado Sleeper da **ressalva do D2 agora medido**, falta o lado do regulamento; **⚠️ a fantasma NÃO tem slot de IR** e a liga real tem (o D5 do [[OFF26-2]] conta IR no budget) — divergência **concreta**, não hipotética, dentro da mesma ressalva; **`league.settings.draft_rounds=3` × `draft.settings.rounds=22`** (ler o do **draft**); **`copy_from_league_id`** = a fantasma foi criada **por cópia da liga real**. Status do OFF26-4 segue 🔲; Status Rápido intocado; sem código.)
 > Atualizado em: 03/08/2026 (sessão MAN-OFF26-4-REFINE: **spec do [[OFF26-4]] sincronizada com a evidência de 02/08** — bloco **"Spec final — decisões de produto arbitradas"** (padrão do [[OFF26-2]]) com **D1–D7**, cada uma rotulada por natureza. **F1 e ATUALIZAÇÃO EMPÍRICA intactas abaixo, como terreno**; status segue **🔲** (a spec não é implementação). **Natureza que decide o D1:** a auditoria é gate que **roda 3× ou mais** numa janela de 48 h (após a 1ª leva de 20/08, após o remendo do late drop de 22/08, e final antes de 24/08). **D1 (arbitrada):** `league_id` em **`AppConfig`** — descartadas coluna em `Team` (é atributo de liga) e parâmetro por chamada (**recolar o id a cada execução sob prazo é oportunidade recorrente de colar o errado**); ⛔ **persiste-se APENAS o `league_id`** — o `draft_id` **muda a cada reset** e é **derivado a cada uso**, com **timeout explícito e mensagem própria** porque a URL morta **trava em LOADING** (falha indistinguível de lentidão); 🔲 a F2 **herda** a pendência de que `league_id → draft_id` **nunca foi exercitado contra a fantasma**. **D2 (resolvida por evidência):** base = **`usable_draft_budget`**, não `raw_budget` — o §5 da F1 está refutado; ⚠️ **ressalva aritmética pendente** (Sleeper reserva sobre **22 rodadas**, a 8.3.4 conta pelo **regulamento** — se divergirem, os limites não coincidem). **D3 (delegada com critério):** `sleeper_player_id` no payload × re-query fica com a F2, **preferindo o caminho que não toque o [[OFF26-2]]** (⚠️ aguardando smoke); invariante: identidade **só por `sleeper_id`**, nunca por nome ("Brown"). **D4:** relatório dos **12 de uma vez**, com **time não populado como ESTADO PRÓPRIO**, distinto de "keeper ausente" — não populado por regra ([[OFF26-10]]) **não é divergência de transcrição**. **D5:** 4 classes de divergência + 1 estado; severidade fica com a F2. **D6:** ponte **só** por `sleeper_owner_id`, reusando o helper existente; ⛔ **terreno não verificado** — convites disparados em **03/08**, times **ainda placeholders com `owner_id` nulo** → **a F2 não pode ser validada contra board de placeholders**. **D7 (pré-condição, não passo da F2):** o probe do §2 exige board populado — **janela ABERTA agora** (Team 3/4/5), **fecha no próximo reset**. Sem código; Status Rápido intocado; nada do OFF26-2 alterado.)
 > Atualizado em: 02/08/2026-pt12 (sessão MAN-OFF26-RUNBOOK-REG-PT2: **2ª execução do Cowork** — runbook corrigido **VALIDADO** (Team 3 = 10 keepers/$148, Team 4 = 8/$95, Team 5 = 6/$60, totais conferindo, **sem redescoberta de caminho**). **Achado de maior alcance: o `draft_id` NÃO é estável** — o RESET DRAFT gerou draft novo e **matou no mesmo dia** o id registrado no pt11 (`1389725100684611584` → atual **`1389755381567213568`**; `league_id` `1389725099556372481` **estável**). A morte é **silenciosa**: a URL velha **trava em LOADING**, não dá erro. → **restrição de desenho sobre a decisão 1 do [[OFF26-4]]**: a decisão segue **em aberto**, mas **qualquer alternativa que persista `draft_id` está descartada por evidência** — persiste-se o `league_id` e **deriva-se** o draft a cada uso (caminho `league_id → draft_id` via `/league/{lid}/drafts` **a confirmar**, não assumir). **⛔ FALSO ACHADO rejeitado:** o Cowork recomendou **rebaixar o check anti-homônimo** por divergência de sigla (Waddle=DEN, Hill sem sigla) — **causa era a lista de TESTE**, montada à mão com times de temporadas antigas; na execução real a sheet sai do Manager, que sincroniza do Sleeper, e as siglas batem. **Check mantido inalterado** e **orientação invertida**: divergência de sigla na execução real = **parar e reportar**. **Nota de método:** recomendação vinda de execução com **dados sintéticos** exige conferir a **origem do dado** antes de virar correção — sem isso, uma proteção teria sido enfraquecida na véspera do uso real. **5 correções no runbook** (coluna com placeholders = menu de contexto; board **reescala**; vaga atribuída **por posição**; preço nasce **$1 sempre**, mesmo com `$PROJ` maior; filtro K/DEF **esconde já-designados**) + **não fixar URL de board**. **Melhoria do [[OFF26-2]] com evidência de campo:** ordenar a sheet **na sequência do board**, marcando os keepers de $1 (6 de 24 dispensaram edição) — registrada, **não implementada**. **⚠️ Medição perdida:** 58min26s para 3 times, dominados por **dezenas de timeouts de 30 s**; risco de **variância de ambiente sem causa identificada** (~2 h × ~5 h, imprevisível) → mitigação: **fatiar por time**, unidade verificável. **Decisão Cowork-2026 mantida**, com **reconsideração parcial aberta** (o argumento novo do script é **variância**, não duração; contra-argumentos preservados: seletores frágeis, competição de prazo com OFF26-4/11, estreia no dia do uso). **Board populado agora** = janela aberta p/ o probe pré-draft **antes do próximo reset** (que trocará o `draft_id` de novo). Sem código; nenhum status alterado; Status Rápido intocado.)
@@ -2134,6 +2135,14 @@ depois da transcrição do board pelo Cowork e antes de abrir o FA auction em **
 do late drop (22/08)** e possivelmente **uma vez final** antes da abertura. Essa repetição sob
 prazo é o que decide o **D1**.
 
+> ⛔ **REQUALIFICAÇÃO DA NATUREZA (MAN-OFF26-4-REFINE-PT2, 03/08/2026): isto não é conferência de
+> cap — é GATE DE INTEGRIDADE DO LEILÃO.** Ver o bloco **"ACHADO — keeper fora do board é jogador
+> leiloável"**, logo abaixo desta spec. Um keeper ausente do board **não é divergência de
+> transcrição**: é **um jogador com contrato vigente prestes a ser arrematado por outro time, ao
+> vivo, sem forma limpa de desfazer**. Isso reclassifica a severidade da classe correspondente do
+> **D5** e transforma a **população completa do board em pré-condição de abertura**, não em
+> preparativo.
+
 - **D1 — Parametrização: `AppConfig` para o `league_id`; `draft_id` DERIVADO.** *(arbitrada)*
   O identificador da liga fantasma mora em **`AppConfig`**, configurável pelo admin. **Descartadas:**
   **coluna em `Team`** (é atributo **de liga**, não de time) e **parâmetro por chamada** (molde
@@ -2153,6 +2162,21 @@ prazo é o que decide o **D1**.
     fantasma** — e o precedente do `draft_import.py` é a derivação **inversa**. **Confirmar antes
     de construir sobre ele.**
 
+  > **🔧 CORREÇÃO DE PREMISSA (MAN-OFF26-4-REFINE-PT2, 03/08/2026) — os dois sub-bullets acima
+  > ficam preservados como registro do que se acreditava, e são corrigidos aqui:**
+  >
+  > **(1) A "falha silenciosa" NÃO existe pela porta da auditoria.** O probe mediu: um draft morto
+  > responde **404 com corpo nulo em ~0,2 s**. **O travamento em LOADING é comportamento do app
+  > WEB**, não da API. → O **timeout explícito é rebaixado de MITIGAÇÃO DE RISCO a BOA PRÁTICA** —
+  > o modo de falha que o justificava **não existe nesta porta** (e o `_get` do projeto já traz
+  > `timeout=15`).
+  > **(2) A pendência de terreno está FECHADA:** a derivação **funciona**, e por caminho **mais
+  > barato que o previsto** — **o `draft_id` vem no próprio objeto da liga** (`GET /league/{lid}`),
+  > em **uma** requisição, sem precisar de `/drafts`.
+  >
+  > **O ESSENCIAL DO D1 PERMANECE INTACTO: `draft_id` NÃO é persistido.** A correção enfraquece o
+  > *requisito acessório*, não a *restrição*.
+
 - **D2 — Base de comparação de budget: `usable_draft_budget`.** *(**resolvida por evidência**, não
   arbitrada)* O **§5 da F1** afirmava que a reserva de **$1 por vaga** era regra interna do Manager,
   inexistente no Sleeper, e concluía pelo **`raw_budget`**. **Refutado por experimento:** o Sleeper
@@ -2164,6 +2188,16 @@ prazo é o que decide o **D1**.
     contagens divergirem, os limites não coincidem apesar da fórmula idêntica.** **Conferência
     ainda NÃO FEITA** — não depende de novo acesso à plataforma, depende de conferir o regulamento
     contra a config da sala.
+  - **📐 Estado da ressalva após o probe (03/08) — METADE FECHADA:**
+    - ✅ **Lado da SALA: medido, são 22 slots** — `roster_positions` = `QB, RB, RB, WR, WR, WR, TE,
+      FLEX, K, DEF` **+ 12 `BN`**. Não é mais suposição.
+    - 🔲 **Lado do REGULAMENTO (8.3.4): SEGUE PENDENTE.**
+    - ⚠️ **E agora com um caso CONCRETO, não hipotético:** a **liga real tem slot de IR** (máx. 2)
+      e **a fantasma não tem nenhum** — ver o bloco **"Divergência de config real × fantasma (IR)"**
+      abaixo. A divergência de contagem entre os dois lados **deixou de ser hipótese**.
+    - **Aritmética adicional a conferir (mesma natureza, não é experimento):** a fantasma comporta
+      **22 keepers por time**. **Confirmar que nenhum time da liga real pode exceder 22 keepers
+      após os cortes.** Improvável dado o cap, **mas não verificado**.
 
 - **D3 — `sleeper_player_id` na ponte de jogador: DELEGADA à F2, com critério.** *(delegada com
   critério)* A keeper sheet **não expõe** `sleeper_player_id` (§3 da F1). A escolha entre
@@ -2188,6 +2222,20 @@ prazo é o que decide o **D1**.
   5. *(estado separado, não divergência)* **time não populado**.
   - A **severidade** de cada classe fica com a **F2**.
 
+  > **🔧 AJUSTE DO D5 (MAN-OFF26-4-REFINE-PT2, 03/08/2026) — duas mudanças:**
+  >
+  > **(1) A classe "slot errado" NÃO EXISTE — e não precisa existir.** O probe mediu que
+  > **`pick_no` e `round` não indicam vaga de roster** (as designações ocupam picks sequenciais na
+  > **ordem de criação**). **Alocação de vaga não é auditável** — e **não faz falta**: a atribuição
+  > é **automática por posição**, então não há erro de vaga a cometer. As 4 classes acima **já não
+  > incluíam** essa classe; o registro é para que a F2 **não tente inventá-la**.
+  >
+  > **(2) A classe 1 deixa de ser divergência comum — é a mais grave da lista.** Pelo achado
+  > "keeper fora do board é jogador leiloável" (bloco abaixo), **keeper ausente do board = jogador
+  > com contrato vigente exposto ao leilão**. **A severidade da classe 1 não é decisão livre da
+  > F2:** ela é **bloqueante de abertura**. A F2 decide a severidade **relativa das outras**, não a
+  > desta.
+
 - **D6 — Ponte de owner: `sleeper_owner_id`, com helper compartilhado.** *(arbitrada)* Casamento
   **só** por **`Team.sleeper_owner_id`** — **`Team.name` é mutado pelo sync** e **não serve de
   chave** (§4 da F1). **Reaproveitar** o helper de ponte de owner já existente
@@ -2197,6 +2245,19 @@ prazo é o que decide o **D1**.
     owners reais na fantasma**. Os **convites foram disparados em 03/08** e os times **ainda são
     placeholders**, cujo **`owner_id` é nulo**. Enquanto for assim, **a auditoria não tem como casar
     coluna e time**. → **A F2 NÃO PODE SER VALIDADA CONTRA BOARD DE PLACEHOLDERS.**
+
+  > **🔧 AJUSTE DO D6 (MAN-OFF26-4-REFINE-PT2, 03/08/2026) — a restrição acima era ampla demais.**
+  > O probe confirmou o fato (**`owner_id` nulo em 11 de 12**), mas **deslocou a consequência**: as
+  > designações **já vêm chaveadas por `roster_id`**, então **casar designação e coluna NÃO exige
+  > owner**. O `owner_id` é necessário **apenas** para a costura `roster_id` ↔ **time do Manager**.
+  >
+  > **Substituir "não validável contra placeholders" por esta distinção:**
+  > - ✅ **CONSTRUÇÃO e validação parcial: LIBERADAS contra placeholders** — leitura de designações,
+  >   soma de budget, comparação de salário e presença, todas as classes do D5 **por `roster_id`**.
+  > - 🔲 **O que espera os aceites dos convites: só a COSTURA FINAL** `roster_id` ↔ time do Manager
+  >   (via `Team.sleeper_owner_id`).
+  >
+  > **A F2 não está bloqueada — está com uma costura pendente.**
 
 - **D7 — Pré-condição de probe (NÃO é passo interno da F2).** *(pré-condição registrada)* Segue
   pendente a questão empírica do **§2 da F1**: **o que a API expõe pré-draft** sobre **designações de
@@ -2210,7 +2271,96 @@ prazo é o que decide o **D1**.
 `sleeper_player_id` (D3, F2); extração do helper de owner (D6, F2); e a conferência aritmética da
 ressalva do D2. **Status do item permanece 🔲** — a spec não é implementação.
 
+> **Ressalva ao parágrafo acima (PT2, 03/08):** "severidade das classes do D5" passa a valer **só
+> para as classes 2-4**. A **severidade da classe 1** (keeper ausente do board) **foi determinada
+> pelo achado abaixo** e é **bloqueante de abertura** — não é escolha da F2.
+
+##### ⛔ ACHADO — keeper fora do board é JOGADOR LEILOÁVEL (MAN-OFF26-4-REFINE-PT2, 03/08/2026)
+
+> **É o achado de maior peso de todo o arco OFF26 até aqui, e não existia em nenhum registro do
+> pacote.** Emergiu da discussão da divergência de IR com o owner, na sequência do probe.
+
+**O fato.** Um keeper que **não esteja designado no board** é, para o Sleeper, **jogador
+disponível**. Qualquer owner pode **nomeá-lo**, e o leilão **processa o lance normalmente** — a
+plataforma **não tem como saber** que ele já tem contrato vigente. O resultado é **um jogador com
+dono sendo arrematado por outro time, AO VIVO**, e o importador [[OFF26-3]] ingerindo isso depois
+**como aquisição legítima**.
+
+**Por que isso muda a natureza do item:**
+
+> **Não é erro de contabilidade que a auditoria corrige depois. É transação inválida em tempo real,
+> sem forma limpa de desfazer sem interromper o leilão.**
+
+Toda a modelagem anterior do OFF26-4 tratava divergências como **contabilidade a reconciliar** —
+algo que se acha e se conserta. Esta classe **não se conserta**: quando ela se manifesta, o lance
+já foi dado, o jogador já mudou de time na sala, e desfazer significa **parar o leilão com 12
+owners ao vivo**. → **A auditoria deixa de ser conferência de cap e passa a ser GATE DE INTEGRIDADE
+DO LEILÃO.**
+
+**Consequências registradas (não são desenho de solução):**
+1. **Severidade da classe 1 do D5** (keeper ausente do board) **não é decisão livre da F2** — é
+   **bloqueante de abertura**.
+2. **População completa do board é PRÉ-CONDIÇÃO DE ABERTURA do leilão**, não preparativo. **Abrir
+   o leilão com qualquer time não populado expõe os keepers desse time.**
+3. **Isto encadeia com o [[OFF26-10]]** e é onde o risco fica agudo — ver a propagação registrada
+   lá: os times **bloqueados pelo teto** só entram no board **após o late drop (22/08)**, e **até
+   lá seus keepers estão expostos**.
+4. **Isto encadeia com o [[OFF26-5]]** — o runbook passa a registrar que **board incompleto não é
+   estado aceitável** para iniciar o leilão.
+
+**O que este bloco NÃO faz:** não decide *como* a auditoria bloqueia, nem *quem* aperta o botão,
+nem se há override de admin. Isso é F2. Aqui está registrado **o risco e a sua força**.
+
+##### Divergência de config real × fantasma — IR (RESOLVIDA pelo owner, 03/08/2026)
+
+**O problema.** A **liga real tem slot de IR** (máx. 2); a **fantasma não tem nenhum**
+(`roster_positions` = 22 = 10 titulares + 12 BN, medido no probe). Um keeper em IR na liga real
+**não tem slot correspondente na sala** — e o **D5 do [[OFF26-2]]** manda **contar IR normalmente**
+no budget de keeper.
+
+**✅ Resolução (owner):** **designar o keeper em IR normalmente no board.** Os excedentes **caem no
+banco** (12 vagas de `BN`), e a **atribuição de vaga é automática por posição** — não há o que
+escolher. Três efeitos, todos desejáveis:
+- o jogador **sai do pool disponível** → **fecha o risco do achado acima para este caso**;
+- **consome budget corretamente**;
+- **fica visível para a auditoria**.
+
+**❌ Alternativa DESCARTADA:** descontar o valor do keeper em IR do **budget do time** na
+configuração do auction. **Motivo do descarte — dois, e o primeiro é decisivo:**
+1. **Não resolve o risco do achado acima.** **O problema não é o dinheiro, é a disponibilidade do
+   jogador** — descontar budget deixa o keeper **no pool**, leiloável.
+2. Tornaria o desconto **invisível para a auditoria** (o budget por time **não é legível pela API**
+   — P5 do probe; a auditoria **deriva por soma das designações**, e um desconto fora do board não
+   aparece em soma nenhuma).
+
+**Fecha metade da ressalva do D2** (a contagem da sala é **22**); a metade do **regulamento 8.3.4**
+segue pendente — ver o D2.
+
+##### Armadilhas de implementação para a F2 (medidas no probe)
+
+- **⚠️ `player_id` de DEF é SIGLA, não número** — ex.: `"LAR"` para o L.A. Rams DEF. **Qualquer
+  coerção a inteiro quebra em defesas.**
+- **⚠️ Duas fontes de contagem de rodadas divergem:** a config **da liga** informa um número
+  (`settings.draft_rounds = 3`) e a **do draft** informa outro (`settings.rounds = 22`). **Ler a do
+  DRAFT.**
+
+##### Nota de método — a TERCEIRA premissa da mesma família na mesma sessão
+
+As três caíram pelo **mesmo mecanismo**: **observação verdadeira, procedência errada.**
+
+| # | premissa | observação (verdadeira) | procedência (errada) |
+|---|---|---|---|
+| 1 | "a sigla NFL do Sleeper diverge da sheet" ([[OFF26-5]]) | a sigla **de fato** divergiu | os dados vinham de **lista de teste com temporadas velhas** |
+| 2 | "a reserva de $1/vaga é regra só do Manager" (§5 da F1) | a regra **de fato** existe no Manager | concluiu-se sobre o **Sleeper** sem tocar o Sleeper |
+| 3 | "a URL de draft morto trava em LOADING" (D1) | o travamento **de fato** ocorre | é comportamento do **app web**, generalizado para a **API** |
+
+> **Padrão a vigiar: comportamento observado numa superfície NÃO vale como propriedade de outra.**
+> Web ≠ API; lista de teste ≠ dado de produção; regra do Manager ≠ regra da plataforma. Nos três
+> casos a evidência era real e a **inferência de escopo** é que falhou — e nos três a correção veio
+> de **tocar a superfície certa**. Quarta família registrada do [[MAN-METH-REG]].
+
 ---
+
 
 #### Diagnose F1 (MAN-OFF26-4-F1, 18/06/2026 — read-only, Opus) — terreno confirmado contra o código
 
@@ -2594,6 +2744,28 @@ execução do Cowork repopulou o board** com **Team 3 ($148)**, **Team 4 ($95)**
 com a URL travando em LOADING. Tabela completa e a **restrição de desenho** decorrente no bloco do
 pacote OFF26 e na seção do [[OFF26-4]]; **nada persistido em código** — a parametrização é decisão
 em aberto do OFF26-4.
+*(A URL do draft morto "travando em LOADING" é comportamento do **app web**; **pela API ela dá 404
+limpo** — ver a correção de premissa do **D1** na spec do [[OFF26-4]].)*
+
+#### ⛔ PROPAGAÇÃO (MAN-OFF26-4-REFINE-PT2, 03/08/2026) — board incompleto NÃO é estado aceitável
+
+> Correção de conteúdo do runbook (**status ✅ mantido**), de peso operacional alto.
+
+O [[OFF26-4]] registrou que **um keeper fora do board é JOGADOR LEILOÁVEL**: o Sleeper o trata como
+**disponível**, qualquer owner pode **nomeá-lo** e o **lance é processado normalmente**. Isso muda o
+peso de uma instrução que o runbook **já tinha** (*"NÃO clicar em START DRAFT até tudo estar
+populado"*): deixa de ser **higiene de processo** e vira **integridade do leilão**.
+
+**Aplicado em `runbook_cowork_liga_fantasma.md`: board incompleto NÃO é estado aceitável para
+iniciar o leilão.** Cada keeper não designado é **um jogador com contrato vigente exposto a ser
+arrematado por outro time, ao vivo, sem desfazer limpo**. Vale inclusive — e sobretudo — para o
+caso do **[[OFF26-10]]**: times **bloqueados pelo teto** ficam com **todos os seus keepers
+expostos** até serem populados após o late drop.
+
+**Também registrado no runbook (resolução do owner, 03/08):** **keeper em IR se designa
+normalmente**; os excedentes caem no **banco** e a vaga é atribuída **automaticamente por posição**
+— a fantasma **não tem slot de IR** e isso **não é problema**. Detalhe e a alternativa descartada na
+seção do [[OFF26-4]].
 
 #### Medição de esforço e decisão de método (02/08/2026 — MAN-OFF26-10-11-REG)
 
@@ -2926,6 +3098,24 @@ budget" — **deixou de ser probe: foi CONFIRMADA por experimento.**
   remendar".
 - **Funcionalidade concreta que isso abre:** o Manager **pode calcular antecipadamente quais times
   ficarão bloqueados** — antes de o Cowork tentar e apanhar da UI.
+
+> ##### ⛔ PROPAGAÇÃO (MAN-OFF26-4-REFINE-PT2, 03/08/2026) — o bloqueio EXPÕE os keepers do time
+>
+> O [[OFF26-4]] registrou que **um keeper fora do board é, para o Sleeper, JOGADOR DISPONÍVEL**:
+> qualquer owner pode nomeá-lo e o leilão **processa o lance normalmente**. Combinado com o achado
+> deste item — times acima do teto **não conseguem ser populados até o late drop** —, a consequência
+> é direta e **não é hipotética**:
+>
+> **Enquanto um time permanece bloqueado, TODOS os keepers dele estão expostos ao leilão.**
+>
+> → **A população completa do board é PRÉ-CONDIÇÃO DE ABERTURA do leilão, não preparativo.**
+> **Abrir o leilão com qualquer time não populado expõe os keepers desse time** — e o dano não é
+> contábil: é **transação inválida ao vivo, sem forma limpa de desfazer sem interromper o leilão**.
+>
+> **O que isso NÃO decide:** a **decisão em aberto** deste item (2ª mini-janela selada × correção
+> administrativa pós-lock) **permanece em aberto** — isto é **registro de consequência**, não
+> arbitragem. Mas qualquer desenho que saia dela **tem de terminar com o board 100% populado antes
+> de 24/08**, porque a janela 22/08 → 24/08 é curta e o custo de errar é o leilão.
 - **Assimetria de limite — a premissa mudou de lado.** O que se supunha ser regra só do Manager
   (reserva de $1/slot) é **a mesma dos dois lados**; ver a **refutação do §5 da F1 do [[OFF26-4]]**,
   registrada nesta sessão. **Ressalva pendente:** o Sleeper reserva sobre as **22 rodadas** da sala;
@@ -2995,6 +3185,11 @@ F1: **nada no código lê o estado pré-draft** hoje).
 A operação interna disparada ao **designar keeper no board** carrega o campo **`is_keeper` com
 valor `false`**: o Sleeper trata a designação como **pick forçado de leilão**, não como keeper.
 **Indício corroborante:** a UI **toca o som de lance vencedor** ao designar.
+
+**📈 Reforço de evidência (MAN-OFF26-4-PROBE / -REFINE-PT2, 03/08/2026):** o probe read-only leu as
+**24 designações pré-draft pela API** e **todas trazem `is_keeper: false`**. O indício deixa de
+apoiar-se só na operação interna observada na UI: **está no payload**. **Continua NÃO sendo a
+confirmação definitiva** — essa é **pós-draft** e ficou **fora do escopo** do probe executado.
 
 **Se o indício se confirmar pós-draft, a questão empírica acima já tem resposta:** o campo **não
 serve de discriminador**, e o discriminador terá de vir da **keeper sheet do Manager como lista de

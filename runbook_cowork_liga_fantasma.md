@@ -44,6 +44,11 @@
 > método, e sim por **dezenas de timeouts de captura de tela (30 s cada)**. **Sem causa
 > identificada; imprevisível.** Ver a mitigação de **fatiamento por time** no TL;DR.
 >
+> ⛔ **ATUALIZAÇÃO 03/08 — a regra mais importante deste runbook está na §B.5:** **keeper fora do
+> board é JOGADOR LEILOÁVEL**, logo **board incompleto NÃO é estado aceitável para iniciar o
+> leilão**. Junto: **keeper em IR se designa normalmente** (§B.3.3) — a fantasma não tem slot de IR
+> e isso não é problema.
+>
 > **Não duplicar conteúdo canônico:** a fonte dos **keepers + salários** é a **keeper sheet
 > ([[OFF26-2]])**; a **auditoria** pré-leilão é o **[[OFF26-4]]**; o PoC que originou este
 > runbook é o **[[OFF26-6]]**.
@@ -358,6 +363,21 @@ keepers somando $140 passaram sem aviso.)
 **Se a designação for recusada, NÃO tente contornar** (não baixe o salário para "caber"): o
 salário vem da keeper sheet e é canônico. Registre o time como **bloqueado** e siga para o próximo.
 
+> ⛔ **MAS O TIME BLOQUEADO NÃO PODE FICAR ASSIM ATÉ O LEILÃO** — 🔧 **03/08:** enquanto ele não for
+> populado, **TODOS os keepers dele estão expostos** (ver §B.5). Volte a ele **depois do late drop
+> (22/08)** e **complete o board antes de 24/08**.
+
+## B.3.3 🔧 **NOVO 03/08 — keeper em IR: designe NORMALMENTE**
+
+A liga real tem **slot de IR**; a **liga fantasma não tem nenhum**. **Isso não é problema e não
+exige nada de especial:** designe o keeper em IR **como qualquer outro**. Os excedentes **caem no
+banco** (há 12 vagas de `BN`) e a **vaga é atribuída automaticamente por posição** — não há o que
+escolher.
+
+**Por que importa fazer assim:** designado, o jogador **sai do pool disponível** (§B.5), **consome
+budget corretamente** e **fica visível para a auditoria**. **Não** existe a opção de "descontar o
+valor dele do budget do time e não designá-lo" — isso o deixaria **leiloável**.
+
 ## B.4 Ao terminar de popular — **gatilho da auditoria [[OFF26-4]]**
 
 > ⚠️ **ANTES de iniciar o auction**, rode a **auditoria [[OFF26-4]]**: diff da liga fantasma
@@ -371,6 +391,30 @@ salário vem da keeper sheet e é canônico. Registre o time como **bloqueado** 
 > - **Owner por `sleeper_owner_id`** (ponte já resolvida no Manager via M12).
 >
 > Só **depois** de a auditoria bater, iniciar o auction.
+
+## B.5 ⛔ **NOVO 03/08 — BOARD INCOMPLETO NÃO É ESTADO ACEITÁVEL PARA INICIAR O LEILÃO**
+
+> **Leia isto antes de qualquer coisa nesta fase.** É a regra mais importante do runbook.
+
+**Um keeper que NÃO estiver designado no board é, para o Sleeper, JOGADOR DISPONÍVEL.** Qualquer
+owner pode **nomeá-lo** durante o leilão, e a plataforma **processa o lance normalmente** — ela
+**não tem como saber** que ele já tem contrato vigente com outro time.
+
+**O resultado é um jogador com dono sendo arrematado por outro time, AO VIVO.** E não há forma
+limpa de desfazer: quando o problema aparece, o lance já foi dado e **desfazer significa parar o
+leilão com 12 owners na sala**.
+
+> **Isto NÃO é erro de contabilidade que alguém corrige depois. É transação inválida em tempo
+> real.**
+
+**Portanto:**
+1. **A população COMPLETA do board é pré-condição de abertura**, não preparativo.
+2. **Nenhum time pode ficar de fora** — inclusive os **bloqueados pelo teto de budget** (§B.3.2),
+   que devem ser completados **após o late drop (22/08)** e **antes de 24/08**.
+3. **Keeper em IR também entra** (§B.3.3) — não designá-lo é deixá-lo leiloável.
+4. **A auditoria [[OFF26-4]] é o gate disso** (§B.4), não uma conferência opcional de valores.
+
+**Se faltar tempo, o que NÃO se faz é abrir o leilão mesmo assim.**
 
 ---
 
@@ -461,7 +505,9 @@ salário vem da keeper sheet e é canônico. Registre o time como **bloqueado** 
     time por completo (o board **reescala** após a 1ª interação).
 14. Após o late drop, **popular os times que faltaram**.
 15. **Rodar a auditoria [[OFF26-4]]** (diff vs. keeper sheet) **ANTES** de iniciar o auction.
-16. **NÃO** clicar em **START DRAFT** até a auditoria bater e tudo estar populado.
+16. ⛔ **NÃO** clicar em **START DRAFT** enquanto **qualquer** keeper estiver fora do board — **keeper
+    não designado é jogador LEILOÁVEL** (§B.5). Board completo é **pré-condição de abertura**, não
+    preparativo.
 
 > ⏱️ **Referência de tempo — e a variância que ela esconde.** Ritmo de regime medido na 1ª
 > execução: ~**75 s/jogador** ≈ **12,5 min/time** ≈ **~2 h** para os 12 times. **Mas a 2ª execução,
