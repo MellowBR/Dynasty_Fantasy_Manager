@@ -141,3 +141,8 @@ for p in sorted(by_roster.get(ALVO, []), key=lambda x: x["pick_no"]):
   pré-draft** — decisão dele, não passo automático.
 - **A costura `roster_id` ↔ time do Manager** — depende de `owner_id`, que só aparece quando os
   convites forem aceitos (D6 da spec do [[OFF26-4]]).
+  > **Atualização (MAN-OFF26-4-OWNERCHECK, 03/08/2026):** com **8 dos 12** convites aceitos, a
+  > costura foi conferida à parte e **casou 8/8** contra `Team.sleeper_owner_id` — resultado e
+  > método na seção do [[OFF26-4]], junto ao D6. O bloco `[P4]` acima (`owner_id` nulo em N/12)
+  > continua sendo a **medição de cobertura**: rodá-lo de novo diz **quantos owners ainda faltam**.
+  > Os 4 restantes (rosters 9–12) **não se resolvem por leitura** — dependem de aceite.

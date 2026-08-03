@@ -1,6 +1,7 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 03/08/2026-pt4 (sessão MAN-OFF26-4-OWNERCHECK: **verificação read-only da costura de owner — a última incógnita do D6 do [[OFF26-4]] foi exercitada com owners reais e CASOU 8/8, zero não-casamentos.** Zero escrita dos dois lados (API só `GET`, `dynasty.db` em `mode=ro`), draft **não iniciado**, board **intacto**, scripts transitórios não commitados. **⚠️ Estado esperado divergiu:** o prompt esperava **7 aceites**, a API expôs **8** — `LeoFBorges1` (roster 8) entrou entre a leitura de tela do owner e a leitura da API; benigna e na direção boa, mas registrada — **a contagem de aceites muda entre uma olhada e a seguinte; a F2 lê, não assume**. **O casamento não depende do banco local:** os 12 `sleeper_owner_id` do Manager são **idênticos** aos 12 `user_id` da liga real lidos ao vivo (`manager − real = ∅` e vice-versa) e os 8 da fantasma são **subconjunto** disso → confirma a propriedade que sustenta o D6: **`owner_id` é identidade de CONTA do Sleeper, não de time nem de liga**. **🔲 D6 SEGUE ABERTO — mecanismo confirmado, cobertura não:** 4 rosters (9–12) com `owner_id` nulo, que **nenhuma leitura resolve** (dependem de aceite); times do Manager ainda fora: **#2 3 peat…** (`fertorquato`), **#7 AlexTheDawg** (`freddupont`), **#8 Trust The Process** (`michelzela`), **#10 achane** (`gabrieldiinis`) — pelo achado "keeper fora do board é leiloável" esses 4 **já são bloqueantes de abertura por outro motivo**, a costura não é o gargalo. Registrado também que **coluna sem owner não é atribuível a time nenhum** (distinto de "time não populado" do D4) — o caso **existe e foi observado**; onde ele cai nas classes do D5 é da F2. **📌 REFORÇO DA JUSTIFICATIVA — a regra NÃO muda:** "casar só por `sleeper_owner_id`, nunca por nome" passa a ter **dois motivos independentes** — **(1) instabilidade no tempo** (`Team.name` mutado pelo sync), com **evidência nova**: o Manager guarda `Tropa do Bicampeonato 🏆` e a liga real **hoje** exibe `Tropa do Jarra 🏆`, o nome **já divergiu sozinho**; **(2) espaços de nome SEPARADOS** (novo, mais fundamental) — nada vincula o nome da fantasma ao da real, ele pode **nascer diferente e permanecer diferente para sempre**, sem mutação: **são dois namespaces**, casá-los é **erro de categoria**, não de atualização. **Evidência de campo medida:** `metadata.team_name` é **`None` nos 8 owners da fantasma (8/8)** → enquanto ninguém batiza o time a coluna exibe **username**, e durante boa parte da preparação **não existe nome de time para casar**; **dois Rafas** (`rafadgil`/`rafaelferreirap`) → colisão por nome é risco **concreto**; e **`rafaelferreirap` não tem `team_name` nem na liga real** → o Manager guarda o **username** como `Team.name` (#11), então um cruzamento por nome acertaria **por coincidência de fallback** — o pior tipo de acerto, porque **valida a técnica errada**. Nota anexada ao `probe_liga_fantasma.md` (o bloco `[P4]` vira **medição de cobertura**: quantos owners ainda faltam). Nenhum status alterado; Status Rápido intocado; sem código.)
 > Atualizado em: 03/08/2026-pt3 (sessão MAN-OFF26-4-REFINE-PT2: **absorção dos achados do probe + o achado de maior peso do arco OFF26**. ⛔ **KEEPER FORA DO BOARD É JOGADOR LEILOÁVEL** — para o Sleeper ele é **disponível**; qualquer owner pode nomeá-lo e **o leilão processa o lance normalmente**, porque a plataforma **não sabe** que ele tem contrato vigente. Resultado: **jogador com dono arrematado por outro time AO VIVO**, e o [[OFF26-3]] ingerindo depois como aquisição legítima. **Não é erro de contabilidade que a auditoria corrige depois — é transação inválida em tempo real, sem desfazer limpo sem interromper o leilão.** → **o [[OFF26-4]] deixa de ser conferência de cap e vira GATE DE INTEGRIDADE DO LEILÃO**; a classe "keeper ausente do board" **não é divergência de transcrição** e sua severidade **deixa de ser escolha da F2** (é bloqueante). **Propagado ao [[OFF26-10]]** (times bloqueados pelo teto ficam com **todos os keepers expostos** até o late drop → **população completa do board é PRÉ-CONDIÇÃO DE ABERTURA**, não preparativo; a decisão em aberto do item **segue em aberto** — é registro de consequência) e ao [[OFF26-5]] + runbook (**board incompleto NÃO é estado aceitável**, nova §B.5). **IR RESOLVIDO (owner):** a fantasma não tem slot de IR → **designar o keeper em IR normalmente**, excedentes caem no **banco**, vaga automática por posição — sai do pool, consome budget, fica visível à auditoria. **Alternativa descartada:** descontar o valor do budget do time — **não resolve o risco** (o problema é disponibilidade, não dinheiro) e ficaria **invisível à auditoria**. **D2:** metade da ressalva **fechada** (sala = **22 slots**), metade do **regulamento 8.3.4 pendente**, agora com o **caso concreto do IR**; +aritmética nova a conferir (nenhum time pode exceder **22 keepers**). **🔧 D1 corrigido, texto anterior preservado:** a "falha silenciosa" **não existe pela porta da auditoria** (404 em 0,2 s; o LOADING é do **app web**) → **timeout rebaixado de mitigação de risco a boa prática**; **a proibição de persistir `draft_id` permanece intacta** e a derivação está comprovada por **1 requisição**. **D5:** classe "slot errado" **não existe** (vaga não é auditável **e não precisa ser** — atribuição automática por posição). **D6 afrouxado com precisão:** `owner_id` nulo em 11/12 **não bloqueia** — designações vêm por **`roster_id`** → **construção e validação parcial LIBERADAS contra placeholders**; só a **costura final `roster_id` ↔ time do Manager** espera os aceites. **Armadilhas p/ a F2:** `player_id` de **DEF é sigla** (`"LAR"`) e **`draft_rounds` da liga ≠ `rounds` do draft** (ler o do draft). **Nota de método — 3ª premissa da mesma família na sessão:** observação verdadeira, **procedência errada** (sigla/lista de teste · reserva de $1/só-Manager · LOADING/app-web) → **comportamento observado numa superfície não vale como propriedade de outra**. Status de OFF26-4/10/5 inalterados; Status Rápido intocado; sem código.)
 > Atualizado em: 03/08/2026-pt2 (sessão MAN-OFF26-4-PROBE: **probe read-only executado contra a liga fantasma real — o bloqueador do §2 da F1 do [[OFF26-4]] CAIU**. Zero escrita, draft **não iniciado**, board **intacto**; scripts transitórios não commitados. **P1 ✅ a derivação `league_id → draft_id` funciona, e por DOIS caminhos** — `GET /league/{lid}` **já traz `draft_id` no topo** (1 request) e `/league/{lid}/drafts` devolve **1 draft, o vigente**; **o morto não aparece na lista**. **⛔ Premissa do D1 REFUTADA para a API:** o draft morto dá **404 + `null` em 0,2 s**, não trava — o "LOADING infinito" é do **app web**; pela porta que a auditoria usa **esse modo de falha não existe** (o essencial do D1 — **não persistir `draft_id`** — segue de pé). **P2/P3 ✅ designações EXPOSTAS pré-draft** em `GET /draft/{did}/picks` com `status: pre_draft` — **a MESMA superfície que o projeto já usa**: 24 registros, com **`metadata.amount` (string)**. **Os três totais foram RECONSTRUÍDOS do payload, exatos: $148 / $95 / $60**, e o Team 3 confere 10/10 nominalmente (inclusive **Waddle=DEN vindo do próprio Sleeper**, o que reforça que a divergência de sigla da 2ª execução era **da lista de teste** — ver [[OFF26-5]]). **P4:** jogador por **`player_id` = `sleeper_player_id`** ⚠️ **exceto DEF, que vem como sigla (`"LAR"`)** — coerção a `int` quebra; time por **`roster_id`**; `picked_by` vazio nas 24; **`owner_id` NULO em 11/12 rosters** → **D6 confirmado como bloqueio de VALIDAÇÃO**, mas **a auditoria não precisa de owner para casar** (a designação já vem chaveada por roster). **P5:** ❌ **não existe campo de budget por time** — só `draft.settings.budget=200` global → budget **derivável só por soma**, como o D2 já mandava. **P6:** **réplica dupla confirmada** — `draft_import.py:39` e `sync_sleeper.py:872` leem picks e **replicam a coerção de `amount`** (`float` × `int`), **ambos gateados em `status=="complete"`** — **é o gate, não a API, que impedia ler pré-draft**; a auditoria seria a **3ª réplica** (candidata a helper único, espírito do [[F10]]). **Achados não previstos:** **`is_keeper: false` nas 24** (o indício do [[OFF26-11]] ganha **evidência de payload pré-draft**; a confirmação pós-draft segue pendente); **`pick_no`/`round` NÃO indicam vaga de roster** → **não existe classe "slot errado" auditável, o D5 precisa de ajuste** (presença/valor/time sim, vaga não); **`roster_positions` = 22 slots (10 titulares + 12 BN)** → lado Sleeper da **ressalva do D2 agora medido**, falta o lado do regulamento; **⚠️ a fantasma NÃO tem slot de IR** e a liga real tem (o D5 do [[OFF26-2]] conta IR no budget) — divergência **concreta**, não hipotética, dentro da mesma ressalva; **`league.settings.draft_rounds=3` × `draft.settings.rounds=22`** (ler o do **draft**); **`copy_from_league_id`** = a fantasma foi criada **por cópia da liga real**. Status do OFF26-4 segue 🔲; Status Rápido intocado; sem código.)
 > Atualizado em: 03/08/2026 (sessão MAN-OFF26-4-REFINE: **spec do [[OFF26-4]] sincronizada com a evidência de 02/08** — bloco **"Spec final — decisões de produto arbitradas"** (padrão do [[OFF26-2]]) com **D1–D7**, cada uma rotulada por natureza. **F1 e ATUALIZAÇÃO EMPÍRICA intactas abaixo, como terreno**; status segue **🔲** (a spec não é implementação). **Natureza que decide o D1:** a auditoria é gate que **roda 3× ou mais** numa janela de 48 h (após a 1ª leva de 20/08, após o remendo do late drop de 22/08, e final antes de 24/08). **D1 (arbitrada):** `league_id` em **`AppConfig`** — descartadas coluna em `Team` (é atributo de liga) e parâmetro por chamada (**recolar o id a cada execução sob prazo é oportunidade recorrente de colar o errado**); ⛔ **persiste-se APENAS o `league_id`** — o `draft_id` **muda a cada reset** e é **derivado a cada uso**, com **timeout explícito e mensagem própria** porque a URL morta **trava em LOADING** (falha indistinguível de lentidão); 🔲 a F2 **herda** a pendência de que `league_id → draft_id` **nunca foi exercitado contra a fantasma**. **D2 (resolvida por evidência):** base = **`usable_draft_budget`**, não `raw_budget` — o §5 da F1 está refutado; ⚠️ **ressalva aritmética pendente** (Sleeper reserva sobre **22 rodadas**, a 8.3.4 conta pelo **regulamento** — se divergirem, os limites não coincidem). **D3 (delegada com critério):** `sleeper_player_id` no payload × re-query fica com a F2, **preferindo o caminho que não toque o [[OFF26-2]]** (⚠️ aguardando smoke); invariante: identidade **só por `sleeper_id`**, nunca por nome ("Brown"). **D4:** relatório dos **12 de uma vez**, com **time não populado como ESTADO PRÓPRIO**, distinto de "keeper ausente" — não populado por regra ([[OFF26-10]]) **não é divergência de transcrição**. **D5:** 4 classes de divergência + 1 estado; severidade fica com a F2. **D6:** ponte **só** por `sleeper_owner_id`, reusando o helper existente; ⛔ **terreno não verificado** — convites disparados em **03/08**, times **ainda placeholders com `owner_id` nulo** → **a F2 não pode ser validada contra board de placeholders**. **D7 (pré-condição, não passo da F2):** o probe do §2 exige board populado — **janela ABERTA agora** (Team 3/4/5), **fecha no próximo reset**. Sem código; Status Rápido intocado; nada do OFF26-2 alterado.)
@@ -2258,6 +2259,77 @@ prazo é o que decide o **D1**.
   >   (via `Team.sleeper_owner_id`).
   >
   > **A F2 não está bloqueada — está com uma costura pendente.**
+
+  > **✅ COSTURA CONFERIDA COM OWNERS REAIS (MAN-OFF26-4-OWNERCHECK, 03/08/2026) — leitura
+  > read-only, zero escrita dos dois lados.** A "última incógnita do D6" foi **exercitada contra
+  > owners de verdade** pela primeira vez.
+  >
+  > **Resultado: 8 de 8 casaram. Nenhum não-casamento.**
+  >
+  > | roster | `owner_id` | display (fantasma) | Team do Manager |
+  > |---|---|---|---|
+  > | 1 | `1130162144764506112` | MellowBR | #5 Cangaceiros da Colina |
+  > | 2 | `695859519976210432` | rafadgil | #1 Pitbull do Samba |
+  > | 3 | `695859970096328704` | TropadoJarra | #9 Tropa do Bicampeonato 🏆 |
+  > | 4 | `205848303030505472` | icarocosta1 | #4 mongoloides |
+  > | 5 | `1133812910268010496` | rafaelferreirap | #11 rafaelferreirap |
+  > | 6 | `1129822349391470592` | fernandoxmf | #3 Fazenda Pederasta |
+  > | 7 | `1131747074137272320` | murilofborges | #6 Miller Time! |
+  > | 8 | `1133818177651224576` | LeoFBorges1 | #12 ESPN FANTASY LEAGUE |
+  > | 9–12 | *(nulo)* | — | — |
+  >
+  > **⚠️ Divergência com o estado esperado — 8 owners, não 7.** O prompt esperava **7 aceites**
+  > (`MellowBR`, `rafadgil`, `TropadoJarra`, `icarocosta1`, `rafaelferreirap`, `fernandoxmf`,
+  > `murilofborges`). A API expôs **8**: `LeoFBorges1` (roster 8) entrou **depois** da leitura de
+  > tela do owner. **Divergência benigna e na direção boa** (mais aceites, não menos), mas o
+  > registro fica: **a contagem de aceites muda entre uma olhada e a seguinte** — a auditoria da F2
+  > tem de **ler, não assumir**.
+  >
+  > **Robustez do casamento — não depende do banco local.** O conjunto dos 12 `sleeper_owner_id`
+  > do Manager é **idêntico** ao conjunto dos 12 `user_id` da liga real lidos ao vivo da API
+  > (`manager − real = ∅`, `real − manager = ∅`), e os 8 owners da fantasma são **subconjunto**
+  > desse conjunto. Ou seja: o casamento se verifica **contra a API**, não contra o estado do
+  > `dynasty.db` de dev — **eventual defasagem do seed não afeta o resultado**. Confirma a
+  > propriedade que sustenta o D6: **`owner_id` é identidade de CONTA do Sleeper, não de time nem
+  > de liga** — a mesma conta atravessa as duas ligas com o mesmo id.
+  >
+  > **🔲 D6 SEGUE ABERTO — o mecanismo está confirmado, a cobertura não.** Fecham-se a dúvida sobre
+  > *se a chave casa* (casa, 8/8) e a *"última incógnita"* como risco de desenho. Continuam
+  > pendentes: **4 rosters com `owner_id` nulo** (9–12), que **nenhuma leitura resolve** — dependem
+  > de aceite. E há um caso que a F2 vai encontrar e que **não é achado de auditoria**: **coluna sem
+  > owner não é atribuível a time nenhum** — distinto de "time não populado" (D4). Onde isso cai nas
+  > classes do D5 é decisão da F2; aqui só fica registrado que **o caso existe e foi observado**.
+  > Lembrando que, pelo achado "keeper fora do board é jogador leiloável", **os 4 placeholders já
+  > são bloqueantes de abertura por outro motivo** — a costura não é o gargalo.
+
+  > **📌 REFORÇO DA JUSTIFICATIVA (MAN-OFF26-4-OWNERCHECK, 03/08/2026) — não altera a regra.** A
+  > regra "casar **só** por `sleeper_owner_id`, nunca por nome" **permanece exatamente como está**.
+  > O que muda é a força do *porquê*: são **dois motivos independentes**, não um.
+  >
+  > **Motivo 1 (já registrado) — instabilidade no tempo:** `Team.name` é **mutado pelo sync**.
+  > **Evidência nova de campo:** o Manager guarda `#9 Tropa do Bicampeonato 🏆` enquanto a liga real
+  > **hoje** exibe `Tropa do Jarra 🏆`. O nome **já divergiu**, sozinho, sem ninguém tocar no
+  > Manager.
+  >
+  > **Motivo 2 (novo, mais fundamental) — espaços de nome SEPARADOS:** nada vincula o nome que um
+  > owner usa na fantasma ao que ele usa na liga real. O nome pode **nascer diferente e permanecer
+  > diferente para sempre**, sem mutação nenhuma. Não é uma dessincronização a corrigir — **são dois
+  > namespaces**, e casá-los seria erro de categoria, não de atualização.
+  >
+  > **Evidência de campo (medida, não suposta):**
+  > - **`metadata.team_name` é `None` nos 8 owners da fantasma — 8 de 8.** Enquanto ninguém batiza o
+  >   time, as colunas exibem **username** (`rafadgil`, `fernandoxmf`), **não nome de time**.
+  >   Durante boa parte da preparação **não existe nome de time para casar**: um casamento por nome
+  >   não erraria — **não teria com o que trabalhar**.
+  > - **Dois Rafas entre os owners reais:** `rafadgil` e `rafaelferreirap`. Colisão por nome é risco
+  >   **concreto**, não hipotético.
+  > - **`rafaelferreirap` não tem `team_name` nem na liga real** → o Manager guarda o **username**
+  >   como `Team.name` (#11). Ou seja: em pelo menos um caso, "nome do time" no Manager **já é um
+  >   username**, e cruzá-lo com o username da fantasma daria um acerto **por coincidência de
+  >   fallback**, não por identidade — o pior tipo de acerto, porque valida a técnica errada.
+  >
+  > **Para quem ler isto no futuro:** ver nomes coincidentes nas duas telas **não** autoriza
+  > simplificar a regra. A coincidência é acidente do momento; a identidade é o `owner_id`.
 
 - **D7 — Pré-condição de probe (NÃO é passo interno da F2).** *(pré-condição registrada)* Segue
   pendente a questão empírica do **§2 da F1**: **o que a API expõe pré-draft** sobre **designações de

@@ -2727,3 +2727,53 @@ por **string de nome** — com o time 9 já renomeado no Sleeper ("Tropa do Bica
   **evidência de payload**; a confirmação definitiva **segue pós-draft**, fora do escopo.
 
 - **Nenhum status alterado (OFF26-4/10/5). Status Rápido intocado. Sem código.**
+
+### MAN-OFF26-4-OWNERCHECK — a costura de owner da liga fantasma casa 8/8 (03/08/2026, Opus)
+
+**Natureza:** verificação **read-only** + registro. **Zero escrita** dos dois lados (API só `GET`;
+`dynasty.db` aberto em `mode=ro`). Draft **não iniciado**, board **intacto**, nenhuma rota/schema/
+teste criado. Scripts transitórios rodados no scratchpad, **não commitados**.
+
+- **A "última incógnita do D6" foi exercitada com owners reais e CASOU — 8 de 8, zero
+  não-casamentos.** O `MAN-OFF26-4-PROBE` mediu `owner_id` nulo em **11/12** e deixou a costura
+  `roster_id` ↔ time do Manager como pendência. Hoje **8 aceites** já entraram e **todos** casaram
+  com `Team.sleeper_owner_id`.
+
+- **⚠️ O estado esperado divergiu — 8 owners, não 7.** `LeoFBorges1` (roster 8) entrou entre a
+  leitura de tela do owner e a leitura da API. Divergência benigna e na direção boa, mas registrada:
+  **a contagem de aceites muda entre uma olhada e a seguinte — a F2 lê, não assume.**
+
+- **O casamento não depende do banco local.** Os 12 `sleeper_owner_id` do Manager são **idênticos**
+  aos 12 `user_id` da liga real lidos ao vivo (`manager − real = ∅` e vice-versa), e os 8 da
+  fantasma são **subconjunto** disso. Confirma a propriedade que sustenta o D6: **`owner_id` é
+  identidade de CONTA, não de time nem de liga** — atravessa as duas ligas com o mesmo valor.
+
+- **🔲 D6 segue ABERTO — mecanismo confirmado, cobertura não.** Faltam **4 rosters (9–12) com
+  `owner_id` nulo**, que **nenhuma leitura resolve**: dependem de aceite. Times do Manager ainda sem
+  owner na fantasma: **#2 3 peat… of pain** (`fertorquato`), **#7 AlexTheDawg** (`freddupont`),
+  **#8 Trust The Process** (`michelzela`), **#10 achane** (`gabrieldiinis`) — quem falta cutucar,
+  informação que antes só existia na tela. Pelo achado "keeper fora do board é jogador leiloável",
+  esses 4 **já são bloqueantes de abertura por outro motivo**: a costura não é o gargalo.
+
+- **📌 Reforço da justificativa da regra de identificação — a REGRA NÃO MUDA.** "Casar só por
+  `sleeper_owner_id`, nunca por nome" agora tem **dois motivos independentes**, não um.
+  **(1) Instabilidade no tempo** (já registrado: `Team.name` é mutado pelo sync) — com **evidência
+  nova**: o Manager guarda `Tropa do Bicampeonato 🏆` e a liga real **hoje** exibe `Tropa do
+  Jarra 🏆`; o nome **já divergiu sozinho**. **(2) Espaços de nome SEPARADOS** (novo, mais
+  fundamental): nada vincula o nome usado na fantasma ao usado na real — ele pode **nascer
+  diferente e permanecer diferente para sempre**, sem mutação. Não é dessincronização a corrigir;
+  **são dois namespaces**, e casá-los é erro de categoria.
+
+- **Evidência de campo medida (não suposta):** **`metadata.team_name` é `None` nos 8 owners da
+  fantasma — 8/8**; enquanto ninguém batiza o time, a coluna exibe **username**, então durante boa
+  parte da preparação **não existe nome de time para casar**. **Dois Rafas** entre os owners reais
+  (`rafadgil`, `rafaelferreirap`) → colisão por nome é risco **concreto**. E **`rafaelferreirap` não
+  tem `team_name` nem na liga real** → o Manager guarda o **username** como `Team.name` (#11): um
+  cruzamento por nome acertaria esse caso **por coincidência de fallback**, não por identidade — o
+  pior tipo de acerto, porque **valida a técnica errada**.
+
+- **Nota de método.** Três premissas "óbvias" caíram nas 24 h anteriores, todas por **procedência de
+  dado**. Esta **não caiu** — mas só se sabe disso porque foi **medida**, e a medição rendeu de
+  quebra o reforço do motivo 2, que **nenhum raciocínio sobre a regra teria produzido**.
+
+- **Nenhum status alterado. Status Rápido intocado. Sem código.**

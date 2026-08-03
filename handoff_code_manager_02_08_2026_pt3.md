@@ -836,3 +836,130 @@ sentidos do erro**.
 
 **Status de OFF26-4, OFF26-10 e OFF26-5 inalterados. Status Rápido intocado. Zero arquivo de
 código.**
+
+---
+
+# PARTE 7 — A costura de owner da liga fantasma casa 8/8
+
+> Sessão `MAN-OFF26-4-OWNERCHECK` (03/08/2026, Opus). **Verificação read-only + registro.** Zero
+> escrita dos dois lados: API só `GET`, `dynasty.db` aberto em `mode=ro`. Draft **não iniciado**,
+> **RESET DRAFT não executado**, board **intacto**. Scripts transitórios rodados no scratchpad,
+> **não commitados**. Nenhuma rota, schema, template ou teste criado.
+
+## 41. O resultado em uma frase
+
+A **última incógnita do D6** — se `owner_id` da fantasma casa com `Team.sleeper_owner_id` do
+Manager — foi exercitada **com owners reais pela primeira vez** e **casou 8 de 8, sem nenhum
+não-casamento**.
+
+| roster | `owner_id` | display (fantasma) | Team do Manager |
+|---|---|---|---|
+| 1 | `1130162144764506112` | MellowBR | #5 Cangaceiros da Colina |
+| 2 | `695859519976210432` | rafadgil | #1 Pitbull do Samba |
+| 3 | `695859970096328704` | TropadoJarra | #9 Tropa do Bicampeonato 🏆 |
+| 4 | `205848303030505472` | icarocosta1 | #4 mongoloides |
+| 5 | `1133812910268010496` | rafaelferreirap | #11 rafaelferreirap |
+| 6 | `1129822349391470592` | fernandoxmf | #3 Fazenda Pederasta |
+| 7 | `1131747074137272320` | murilofborges | #6 Miller Time! |
+| 8 | `1133818177651224576` | LeoFBorges1 | #12 ESPN FANTASY LEAGUE |
+| 9–12 | *(nulo)* | — | — |
+
+## 42. ⚠️ O estado esperado divergiu: 8, não 7
+
+O prompt esperava **7 aceites** e a API expôs **8** — `LeoFBorges1` (roster 8) entrou **entre a
+leitura de tela do owner e a leitura da API**. Divergência benigna e na direção boa, mas o registro
+importa:
+
+> **A contagem de aceites muda entre uma olhada e a seguinte. A auditoria da F2 tem de ler, não
+> assumir** — inclusive quando o número "já se sabe".
+
+## 43. Por que este resultado não depende do banco local
+
+A conferência rodou contra o `dynasty.db` de dev, que é o seed do git e pode estar defasado do
+`/data/dynasty.db` de produção. Isso **não enfraquece o resultado**, porque o conjunto de ids foi
+fechado contra a **API ao vivo**:
+
+- os **12** `sleeper_owner_id` do Manager são **idênticos** aos **12** `user_id` da liga real
+  (`manager − real = ∅` **e** `real − manager = ∅`);
+- os **8** `owner_id` da fantasma são **subconjunto** desse conjunto.
+
+Ou seja, o casamento se verifica **contra o Sleeper**, não contra o estado do banco. E confirma a
+propriedade que sustenta o D6: **`owner_id` é identidade de CONTA — não de time, não de liga.** A
+mesma conta atravessa as duas ligas com o mesmo valor.
+
+## 44. O D6 fecha? Não — e a distinção importa
+
+**Fechou:** a dúvida sobre *se a chave casa* (casa, 8/8) e a "última incógnita" como **risco de
+desenho**. A F2 pode escrever a costura confiando na chave.
+
+**Segue aberto:** **cobertura.** 4 rosters (9–12) com `owner_id` nulo, que **nenhuma leitura
+resolve** — dependem de aceite. Times do Manager ainda sem owner na fantasma:
+
+| Team | owner | `sleeper_owner_id` |
+|---|---|---|
+| #2 3 peat… of pain 🫠 | fertorquato | `732411754436526080` |
+| #7 AlexTheDawg | freddupont | `698015187109773312` |
+| #8 Trust The Process | michelzela | `1126909140380569600` |
+| #10 🕯️🕯️ achane 🕯️🕯️ | gabrieldiinis | `867557566065045504` |
+
+**Efeito colateral útil:** essa lista — *quem falta cutucar* — antes só existia olhando a tela.
+
+**E há um caso que a F2 vai encontrar:** **coluna sem owner não é atribuível a time nenhum**,
+distinto de "time não populado" (D4). Onde ele cai nas classes do D5 é decisão da F2; aqui ficou
+registrado apenas que **o caso existe e foi observado**.
+
+**Perspectiva:** pelo achado da PARTE 6 ("keeper fora do board é jogador leiloável"), esses 4
+placeholders **já são bloqueantes de abertura por outro motivo**. **A costura não é o gargalo.**
+
+## 45. 📌 O reforço da regra — que a medição rendeu de quebra
+
+A regra **não mudou**: casamento **só** por `sleeper_owner_id`, **nunca** por nome. O que mudou é a
+força do porquê — são **dois motivos independentes**, não um.
+
+**Motivo 1 — instabilidade no tempo** *(já registrado)*: `Team.name` é mutado pelo sync. **Evidência
+nova:** o Manager guarda `Tropa do Bicampeonato 🏆`; a liga real **hoje** exibe `Tropa do Jarra 🏆`.
+O nome **já divergiu, sozinho**.
+
+**Motivo 2 — espaços de nome SEPARADOS** *(novo, e mais fundamental)*: nada vincula o nome usado na
+fantasma ao usado na real. Ele pode **nascer diferente e permanecer diferente para sempre**, sem
+mutação nenhuma.
+
+> Não é uma dessincronização a corrigir. **São dois namespaces** — casá-los é **erro de categoria**,
+> não erro de atualização. O motivo 1 sugere "então mantenha sincronizado"; o motivo 2 fecha essa
+> saída.
+
+**Evidência de campo, medida:**
+
+- **`metadata.team_name` é `None` nos 8 owners da fantasma — 8/8.** Enquanto ninguém batiza o time,
+  a coluna exibe **username** (`rafadgil`, `fernandoxmf`). Durante boa parte da preparação **não
+  existe nome de time para casar**: um casamento por nome não erraria — **não teria com o que
+  trabalhar**.
+- **Dois Rafas** entre os owners reais: `rafadgil` e `rafaelferreirap`. Colisão por nome é risco
+  **concreto**, não hipotético.
+- **`rafaelferreirap` não tem `team_name` nem na liga real** → o Manager guarda o **username** como
+  `Team.name` (#11). Um cruzamento por nome acertaria esse caso **por coincidência de fallback**,
+  não por identidade — **o pior tipo de acerto, porque valida a técnica errada.**
+
+**Para quem ler isto no futuro:** ver nomes coincidentes nas duas telas **não** autoriza simplificar
+a regra. A coincidência é acidente do momento; a identidade é o `owner_id`.
+
+## 46. Nota de método
+
+Três premissas "óbvias" caíram nas 24 h anteriores (PARTE 6, §39), todas por **procedência de
+dado**. Esta **não caiu** — mas só se sabe disso porque foi **medida**. E a medição rendeu, de
+quebra, o **motivo 2** do §45, que **nenhum raciocínio sobre a regra teria produzido**: ele só
+apareceu porque alguém foi ler o campo `team_name` e o encontrou vazio doze vezes.
+
+> Verificar uma premissa que se confirma **não é tempo perdido** — o retorno costuma vir pelo dado
+> vizinho que ninguém tinha pensado em olhar.
+
+## 47. Arquivos alterados (parte 7)
+
+- `improvements.md` — bloco de conferência da costura + bloco de reforço da justificativa, ambos
+  junto ao **D6** da spec do OFF26-4; cabeçalho.
+- `probe_liga_fantasma.md` — nota em "o que este script ainda NÃO faz": a costura foi conferida à
+  parte; o bloco `[P4]` vira **medição de cobertura**.
+- `manager_devplan.md` — entrada de log.
+- `handoff_code_manager_02_08_2026_pt3.md` — esta parte.
+
+**Nenhum status alterado. Status Rápido intocado. Zero arquivo de código.**
