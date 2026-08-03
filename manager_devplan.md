@@ -3029,3 +3029,77 @@ entre leituras (quatro num unico dia nesta sessao).
 - **Nada corrigido, nada implementado, status inalterado (🔲).** As duas decisoes seguem do owner:
   o que fazer com quem chegar acima de 22 em 20/08, e se o Manager passa a **avisar** — o que e
   barato, ja que a auditoria [[OFF26-4]] **ja conta keepers por time**.
+
+### MAN-OFF26-14-F1 — o IR na contagem de salario: item OFF26-14 registrado (03/08/2026, Opus)
+
+**Diagnose read-only.** Zero escrita: so `sqlite mode=ro` no `dynasty.db` e leitura do PDF do
+regulamento em `data/`. Board intacto, draft nao iniciado, **nenhum arquivo de codigo alterado**.
+Registro do item novo [[OFF26-14]] (🔲, Alta) — a Fase 2 depende de decisao do owner.
+
+**Criterio declarado no prompt: o IR CONTA no cap.** Logo o que esta desalinhado nao e uma duvida,
+e um grupo de telas — justamente o que cada owner olha para decidir o corte de 20/08.
+
+- **T1 — mapa fechado: 11 superficies EXCLUEM IR, 8 INCLUEM.** Grupo A (exclui): `active_salary`
+  (`models.py:96`) + `cap_remaining` + `to_dict`/`/api/teams` + chip da navbar (`app.py:121` →
+  `base.html:73`) + banner M1 (`roster.py:98`) + pagina de roster (`roster.py:85,89`) + cards do
+  League Hub (`league.py:22`) + `/team/<id>` (`league.py:97-99`) + preview de rollover
+  (`admin.py:159-160`) + alerta pos-trade do sync (`sync_sleeper.py:581`) + preview de trade
+  (`trades.py:151-152`). Grupo B (inclui): `draft_budget` (`salary_engine.py:218`) + cap_projector
+  GET + porta `POST …/budget` + janela de cortes (`projected:false`) + `fa_budget` da keeper sheet
+  (`cuts.py:387-392`) + auditoria OFF26-4 + alertas do importador + `Team.total_salary()` (morto).
+
+- **Divergencia medida (mode=ro, 03/08): 3 times, $14.** achane **$186 x $195** — a diferenca e
+  **exatamente** Penix $1 + Travis Hunter $8; rafaelferreirap $133 x $136 (Charbonnet $3); Fazenda
+  $176 x $178 (Kendre Miller $1 + Tory Horton $1). Os outros **9 times batem**, porque nao tem
+  ninguem em IR — e por isso que a divergencia passou despercebida.
+
+- ⛔ **T3 — A REPLICA ESTA TODA NO LADO ERRADO.** O lado que **inclui** IR tem **1 fonte**
+  (`draft_budget`; invariante [[F10]] preservada — 7 consumidores, nenhuma aritmetica propria). O
+  lado que **exclui** tem **6**: `active_salary` **+ 5 somas inline** (`roster.py:89`,
+  `league.py:22`, `league.py:99`, `admin.py:159`, `admin.py:160`) que reescrevem
+  `sum(p.salary … if not p.is_on_ir)` a mao **sem chamar `active_salary()`**. Corrigir a regra custa
+  **6 pontos, nao 1**. Nenhuma replica em JS/Jinja — a F10 vale dos dois lados.
+
+- ✅ **T5 — a pergunta de severidade alta do prompt NAO se materializou.** Keeper sheet e auditoria
+  [[OFF26-4]] consomem **o MESMO numero**: `keeper_audit.build_sheet` importa
+  `routes.cuts._build_keeper_sheet` e repassa o `fa_budget` pronto (D3/D4). Ambas **incluem** IR; a
+  cadeia do leilao e internamente coerente. **O descompasso real e tela do owner x regua do
+  leilao.** Laterais da mesma familia: a keeper sheet **nao marca quem esta em IR** (zero "IR" no
+  `keeper_sheet.html`) embora keeper em IR **ocupe designacao** no board ([[OFF26-13]]); e
+  `Team.total_salary()` — a regua "com IR" no modelo — e **codigo morto, zero consumidores**.
+
+- **T2 — nao ha decisao registrada, mas ha registro do gap.** O filtro e **explicito e dedicado**
+  (`and not p.is_on_ir`), **sem docstring, sem comentario e sem nenhum teste** (`grep` por
+  `is_on_ir|active_salary` em `*_test.py`: zero). `git log -S` devolve **so `f2271ba`** — nasceu com
+  o projeto. ⚠️ Porem a F1 do [[OFF26-1]] ja anotara o **GAP — IR e K/DEF**
+  (`improvements.md:1860-1863`) prevendo o achado ao pe da letra: *"a barra de cap e o budget da
+  janela **divergiriam** para times com IR — **decisao pendente**"*. **Nao e achado novo: e decisao
+  pendente que virou risco quando a data chegou.**
+
+- **T6 — o regulamento e SILENCIOSO sobre salario de IR no cap** (transcrito, sem interpretar). O
+  **1.3** ("os 2 IR nao sao considerados no total de **22**") fala de **contagem de jogadores**, nao
+  de folha salarial; **5.1** ("CAP de $200 … respeitado NO MOMENTO DO DRAFT"), **8.1.2** ("manter
+  quantos jogadores quiser, respeitando o CAP") e **8.3.3** ("$200 MENOS o salario dos jogadores
+  mantidos") falam de salario **sem abrir excecao para IR**. A **unica** exclusao explicita de folha
+  no documento inteiro e o **7.1.8**, e trata de **FAAB**, nao de IR. → o texto **nao contradiz** a
+  decisao do owner, e tambem **nao a confirma**. Nada a resolver; e registro.
+
+- ⛔ **T4 — a string "cabe ate 24" NAO EXISTE no codigo.** `grep -rn "cabe"` em todo
+  `.py`/`.html`/`.js` devolve **uma** ocorrencia, e e `keeper_audit.py:211` ("nao cabem", ressalva
+  do D2). O que a tela exibe e `roster.html:98-102`: *"N jogador(es) no IR — salary IR: $X"*.
+  **Nao ha limite dinamico de 24 em lugar nenhum, logo nao ha terceiro teto de roster**: a T4 se
+  resolve por **ausencia**. Confirmacao independente: o Manager **nunca le `settings.reserve_slots`**
+  — do payload de IR le so `roster.reserve`, a lista (`sync_sleeper.py:239`). O `24` do
+  enquadramento vem do **regulamento** (1.1 + 1.3), nao de nenhuma tela.
+
+- **Premissas do prompt contraditas:** (1) *"a tela exibe 'cabe ate 24'"* — nao existe; (2) *"se
+  sheet e auditoria divergirem, e severidade alta"* — consomem a mesma fonte, nao divergem; (3)
+  *"duas contagens convivem"* — certo, mas **nao sao duas fontes**: sao **1 do lado que inclui e 6
+  do lado que exclui**. **Nao previsto pelo prompt:** o gap ja registrado desde a F1 do OFF26-1;
+  `total_salary()` morto; as 5 somas inline; a sheet nao marcar IR; zero cobertura de teste sobre
+  `active_salary`/`is_on_ir`; `reserve_slots` nunca lido.
+
+- **Nada corrigido, nada unificado, status de nenhum item alterado.** A decisao da Fase 2 e do
+  owner e **nao e de implementacao**: unificar as 6 superficies do grupo A na regua com IR **x**
+  exibir os dois numeros lado a lado, rotulados ("folha total" x "cap ativo") — as duas perguntas
+  sao legitimas, e o que falta hoje nao e o numero, e o **rotulo**.
