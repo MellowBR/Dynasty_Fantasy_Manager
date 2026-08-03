@@ -1,6 +1,7 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 03/08/2026-pt7 (sessão MAN-OFF26-4-LABELS: **smoke de produção do [[OFF26-4]] COMPLETO — 4 de 4** (deploy `aec8d8f`): o Render **alcança a API do Sleeper** e a **derivação do `draft_id` funciona de produção** (22 rodadas, 24 designações, 10/12 colunas com dono, `pre_draft`) → **modos de falha de ambiente descartados**, não são mais coisa a descobrir em 20/08. **(A) Rename:** a tela tinha **dois cards com o mesmo título** ("Liga fantasma" para leitura ao vivo **e** para configuração persistida) — sob prazo isso convida a procurar no card errado ou **salvar onde não se pretendia**. Agora **"Estado da liga fantasma"** × **"ID da liga fantasma"**; **só rótulo** (ordem, layout, lógica, rota e payload intactos), verificado em **5 estados da página** sem nenhuma duplicata. **(B) ✅ D2 — A CONFERÊNCIA ARITMÉTICA FOI FEITA e a pendência FECHA:** lido do regulamento (PDF em `data/`), a **8.3.4** diz *"completar as **22 posições do roster** … (22 – número de keepers)"* → **regulamento 22 = sala 22 (`roster_positions` e `rounds`) = Manager 22 (`MAX_ROSTER`)**, com a **mesma fórmula de reserva**. **O medo do D2 não se concretizou.** ⚠️ **Mas há diferença residual, e não é de contagem — é de QUEM ENTRA NA CONTA:** o item **1.3** diz que os **2 IR "não são considerados no total de 22"**; o **Manager conta o IR dentro** dos 22 e o **Sleeper também** (o keeper em IR **é designado** e ocupa uma das 22 rodadas). → **Manager e Sleeper concordam entre si, logo a auditoria NÃO produz falso positivo**; **ambos divergem do regulamento em até $2** de `usable_draft_budget` para time com IR (3 times hoje). **Nenhum cálculo alterado** — conferência é registro. 🔲 **Ambiguidade DEVOLVIDA ao owner:** a 8.3.4 não diz se **keeper em IR conta** em "(22 − keepers)"; leitura (a) conta → nada muda; leitura (b) não conta → o Manager está até $2 permissivo e **o ajuste mexeria no `salary_engine`** — **regra de liga, decisão do owner**. ⚠️ **Aritmética adicional respondida: SIM, um time PODE exceder o board** — o regulamento permite **24** (22+2 IR) e o board comporta **22 designações**; **1 time está em 24 HOJE** (medido ao vivo) e, se chegar assim em 20/08, **2 keepers ficam expostos** pelo achado "keeper fora do board é leiloável". **Segunda causa de time não populável**, ao lado do teto — e esta **não se resolve com o late drop** (1 drop não tira 2 excedentes); encadeia com [[OFF26-10]]/[[OFF26-5]], registrada como **risco, não solução**. ⛔ **QUARTA PREMISSA DA MESMA FAMÍLIA REFUTADA:** *"a fantasma não tem slot de IR"* é **FALSO** — `settings.reserve_slots = 2` **nas duas ligas**, e o `roster_positions` da liga **REAL** (que tem IR, 3 rosters usando) **também não lista "IR"**: o campo lido **não é onde o dado mora**. → **a divergência de config real × fantasma quanto a IR NÃO EXISTE**; a resolução do owner **permanece correta e necessária**, por outro motivo — **slot de IR não é slot de draft** (22 rodadas = 22 designações, com ou sem IR). **A decisão não muda; o porquê muda.** **Limitação registrada e não corrigida:** timeout parcial (`/league` responde, `/picks` não — ocorreu de fato nos testes) degrada para **"0 designações"**, indistinguível de board vazio — **falha para o lado SEGURO** (board vazio → todos "não populados" → veredito **BLOQUEADO**; a auditoria nunca libera por falta de leitura), então é **imprecisão de rótulo, não risco de gate**. **34/34** e **48/48**; fixtures A/B/C inalteradas; `draft_id` não persistido; board intacto, draft não iniciado, só `GET`. Status do OFF26-4 **inalterado (⚠️)** — falta o smoke com **sheet real**, a partir de 20/08.)
 > Atualizado em: 03/08/2026-pt6 (sessão MAN-OFF26-4-META: **o smoke de produção do [[OFF26-4]] fechou 3 de 4 pontos e o 4º virou correção**. ⚠️ **Achado de processo antes de tudo:** os **10 commits do dia ficaram locais** — o deploy vivo era o de 02/08 e o smoke só foi possível depois do push; **o auto-deploy dispara no push, e não havia push**. Sem tentar o smoke, isso apareceria **em 20/08**. **Passaram:** rota responde e renderiza, card do `/admin` leva à página, `phantom_league_id` **semeado no `AppConfig` de produção** pelo boot. ⛔ **O 4º ponto NÃO ERA ALCANÇÁVEL — e era o único que só produção prova:** a auditoria bloqueia por ausência de sheet **antes** de exibir qualquer coisa, então o bloco de meta (`draft_id` derivado, `pre_draft`, rodadas) **não renderizava** — ficando sem prova que **o Render alcança a API do Sleeper** e que a **derivação funciona de lá**. **São modos de falha de AMBIENTE** (egress, DNS, timeout de plano) que **não aparecem em localhost** e seriam descobertos **no dia em que a auditoria precisa funcionar**. **Buraco de validação, não bug.** **F2-META (borda e apresentação; núcleo, veredito e classes INTOCADOS):** a meta da liga é lida e exibida **sempre**, inclusive sob bloqueio — o `run_audit` já lia os dois lados de forma independente, faltava a **meta carregar o suficiente** e o **template renderizá-la fora do `if report.ok`**. Campos: `draft_id` **com selo "derivado"** (não guardado), status, **rodadas lidas do DRAFT**, **designações no board** e **colunas com dono × sem dono**. **Erro de leitura é ESTADO PRÓPRIO do bloco**, distinto do bloqueio por falta de insumo: `league_id` inválido → **erro limpo em 0,29 s, HTTP 200**, sem pendurar e sem 500; `run_audit` ganhou guarda contra exceção de rede/parse — **falha de liga nunca derruba a rota**. **Motivo de produto independente do smoke:** `league_id` errado no `AppConfig` era **falha silenciosa até 20/08**; agora o operador confere que aponta para a liga certa **antes** de a sheet existir. **34/34** (29+5) e **48/48** do `salary_engine`; fixtures A/B/C com o mesmo resultado; `draft_id` segue **não persistido** (grep); board intacto, draft não iniciado, só `GET`. **⚠️ A contagem de donos mudou pela QUARTA vez no mesmo dia — 7 esperados → 8 → 9 → 10** (2 sem dono agora): é exatamente por isso que ela é **campo do relatório, nunca constante**, e é o que o bloco novo passa a mostrar ao vivo. Item segue **⚠️** — falta o smoke com **sheet real**, só possível a partir de **20/08**.)
 > Atualizado em: 03/08/2026-pt5 (sessão MAN-OFF26-4: **F2 do [[OFF26-4]] — a auditoria de keepers pré-leilão EXISTE como código**. Status **🔲 → ⚠️** (não fecha ✅ sem smoke prod, [[PROC1]] — e a sheet real só nasce em **20/08**). Novo **`keeper_audit.py`**: núcleo `audit(board, sheet)` **puro** (sem DB, sem rede — molde `salary_engine`) + camada de leitura read-only (`fetch_board`/`build_sheet`/`run_audit`); `templates/keeper_audit.html` com **veredito no topo** (ABERTURA LIBERADA/BLOQUEADA + motivos), 3 rotas no admin (página, JSON, e `POST` que persiste **só o `league_id`**), seed do `phantom_league_id` no `AppConfig` (D1). **Zero divergências NÃO libera:** bloqueiam keeper exposto (classe 1), **time não populado**, **time sem coluna**, **coluna órfã** e **keeper sem identidade resolvível**. **Decisões que a spec delegou:** D3 = **re-query** (o [[OFF26-2]] **não foi tocado**, como o critério mandava); severidade relativa das classes 2-4 (alta/alta/média, com a 1 bloqueante por natureza); ordenação **pior primeiro**. **7 divergências spec × terreno RELATADAS, não resolvidas por conta própria** — as três de maior peso: **(1) o helper do D6 não tinha o que reusar** (`_team_by_roster` consulta o banco; o núcleo puro casa owner↔time **em memória**) — a invariante foi cumprida, o meio previsto é que não se aplicava; **(2) a spec previa UM estado e o terreno tem DOIS** — time **sem coluna** (convite não aceito) não é coluna vazia: não é auditável **nem populável**; **(3) keeper sem `sleeper_player_id` não é divergência, é limite de insumo** — vira aviso e **bloqueia por auditoria incompleta**, porque cair para nome está proibido ("Brown"). Mais: **budget divergente NÃO virou classe** (é consequência das classes 1-4; vira-lo achado produziria a 4ª divergência que a fixture B proíbe), a **ressalva das 22 rodadas virou verificação automática** pelo lado da sala, e o **timeout do D1 já existia** (`_get`, `timeout=15`; id morto → erro em **0,21 s**). **Fixtures:** **A** = board real (24 designações, $148/$95/$60, **dois DEF de id-sigla**) × sheet espelho → **0 divergências / 3 populados / 9 não populados**; **B** = A + **3 erros plantados** → **exatamente 3 achados, um por classe** (o cruzamento de time conta **UMA** vez — contá-lo duas daria a 4ª). ⚠️ **A B não cobre a classe 1** (os 3 erros pedidos são das classes 2/3/4) → fixture **C** dirigida, senão a classe **mais grave** ficaria sem teste; +2 dirigidas (coluna sem owner; keeper sem sid, **com dois Brown**). **Achado da geração da fixture:** os 24 do board estavam **espalhados pelos elencos reais** dos outros times → a fixture "coerente" acusava **18 falsos `time_errado`**; **o erro era da fixture** — a auditoria estava certa, o jogador **estava** em dois times. **Validação:** 29/29 novos + **48/48 do `salary_engine` intactos**; **board REAL atravessando o núcleo** (`draft_id` derivado, 24 designações `pre_draft`, `rounds=22` **lido do draft**, **3 colunas sem owner**) → 0 divergências, 3 `sem_coluna`, 3 órfãs; **sem sheet a auditoria DIZ isso** e devolve 0 times (não 12 falsos positivos); **`draft_id` não persistido** (grep); board intacto, draft não iniciado, só `GET`. **Cobertura do D6:** de manhã **4** times sem coluna, à tarde **3** — `fertorquato` entrou entre as duas leituras da MESMA sessão; **terceira leitura, terceira contagem**. `git diff` não toca `salary_engine`, schema de cortes, sync nem a keeper sheet.)
 > Atualizado em: 03/08/2026-pt4 (sessão MAN-OFF26-4-OWNERCHECK: **verificação read-only da costura de owner — a última incógnita do D6 do [[OFF26-4]] foi exercitada com owners reais e CASOU 8/8, zero não-casamentos.** Zero escrita dos dois lados (API só `GET`, `dynasty.db` em `mode=ro`), draft **não iniciado**, board **intacto**, scripts transitórios não commitados. **⚠️ Estado esperado divergiu:** o prompt esperava **7 aceites**, a API expôs **8** — `LeoFBorges1` (roster 8) entrou entre a leitura de tela do owner e a leitura da API; benigna e na direção boa, mas registrada — **a contagem de aceites muda entre uma olhada e a seguinte; a F2 lê, não assume**. **O casamento não depende do banco local:** os 12 `sleeper_owner_id` do Manager são **idênticos** aos 12 `user_id` da liga real lidos ao vivo (`manager − real = ∅` e vice-versa) e os 8 da fantasma são **subconjunto** disso → confirma a propriedade que sustenta o D6: **`owner_id` é identidade de CONTA do Sleeper, não de time nem de liga**. **🔲 D6 SEGUE ABERTO — mecanismo confirmado, cobertura não:** 4 rosters (9–12) com `owner_id` nulo, que **nenhuma leitura resolve** (dependem de aceite); times do Manager ainda fora: **#2 3 peat…** (`fertorquato`), **#7 AlexTheDawg** (`freddupont`), **#8 Trust The Process** (`michelzela`), **#10 achane** (`gabrieldiinis`) — pelo achado "keeper fora do board é leiloável" esses 4 **já são bloqueantes de abertura por outro motivo**, a costura não é o gargalo. Registrado também que **coluna sem owner não é atribuível a time nenhum** (distinto de "time não populado" do D4) — o caso **existe e foi observado**; onde ele cai nas classes do D5 é da F2. **📌 REFORÇO DA JUSTIFICATIVA — a regra NÃO muda:** "casar só por `sleeper_owner_id`, nunca por nome" passa a ter **dois motivos independentes** — **(1) instabilidade no tempo** (`Team.name` mutado pelo sync), com **evidência nova**: o Manager guarda `Tropa do Bicampeonato 🏆` e a liga real **hoje** exibe `Tropa do Jarra 🏆`, o nome **já divergiu sozinho**; **(2) espaços de nome SEPARADOS** (novo, mais fundamental) — nada vincula o nome da fantasma ao da real, ele pode **nascer diferente e permanecer diferente para sempre**, sem mutação: **são dois namespaces**, casá-los é **erro de categoria**, não de atualização. **Evidência de campo medida:** `metadata.team_name` é **`None` nos 8 owners da fantasma (8/8)** → enquanto ninguém batiza o time a coluna exibe **username**, e durante boa parte da preparação **não existe nome de time para casar**; **dois Rafas** (`rafadgil`/`rafaelferreirap`) → colisão por nome é risco **concreto**; e **`rafaelferreirap` não tem `team_name` nem na liga real** → o Manager guarda o **username** como `Team.name` (#11), então um cruzamento por nome acertaria **por coincidência de fallback** — o pior tipo de acerto, porque **valida a técnica errada**. Nota anexada ao `probe_liga_fantasma.md` (o bloco `[P4]` vira **medição de cobertura**: quantos owners ainda faltam). Nenhum status alterado; Status Rápido intocado; sem código.)
@@ -2202,6 +2203,16 @@ prazo é o que decide o **D1**.
       **22 keepers por time**. **Confirmar que nenhum time da liga real pode exceder 22 keepers
       após os cortes.** Improvável dado o cap, **mas não verificado**.
 
+  > **✅ PENDÊNCIA FECHADA (MAN-OFF26-4-LABELS, 03/08/2026) — decisão do D2 INTACTA, só o terreno
+  > mudou de status.** A conferência foi feita contra o regulamento: **8.3.4 conta 22**, a sala
+  > conta **22**, o Manager conta **22** — **as três coincidem**, e a fórmula da reserva é a mesma.
+  > **A ressalva não se concretizou.** Restam duas coisas, ambas registradas em detalhe na seção da
+  > F2 (bloco "D2 — CONFERÊNCIA ARITMÉTICA FEITA"): uma **diferença residual de até $2** para times
+  > com IR (o regulamento tira o IR dos 22, Manager e Sleeper o mantêm dentro — mas **os dois lados
+  > que a auditoria compara concordam entre si**, então **não há falso positivo**), e a
+  > **ambiguidade da 8.3.4 devolvida ao owner**. **A aritmética adicional foi respondida: SIM, um
+  > time pode exceder** — 24 legais (22+2 IR) contra 22 designações, e **há um time em 24 hoje**.
+
 - **D3 — `sleeper_player_id` na ponte de jogador: DELEGADA à F2, com critério.** *(delegada com
   critério)* A keeper sheet **não expõe** `sleeper_player_id` (§3 da F1). A escolha entre
   **incluí-lo no payload** ou **re-consultar no Manager** fica com a F2, sob critério do owner:
@@ -2498,6 +2509,112 @@ mesmo resultado; **34/34** — 29 antigos + 5 novos — e **48/48** do `salary_e
 **Estado de referência p/ conferir o smoke completo:** liga `1389725099556372481`, draft
 `pre_draft`, **22 rodadas**, **24 designações**.
 
+##### ✅ SMOKE DE PRODUÇÃO COMPLETO (03/08/2026, deploy `aec8d8f`) — 4 de 4
+
+O ponto que faltava **fechou**: o serviço no Render **alcança a API do Sleeper** e a **derivação do
+`draft_id` funciona de produção** (22 rodadas, 24 designações, 10/12 colunas com dono, `pre_draft`).
+**Os modos de falha de ambiente estão descartados** — não é mais coisa a descobrir em 20/08. **O
+item segue ⚠️**: falta o smoke com **sheet real**.
+
+##### F2-LABELS (MAN-OFF26-4-LABELS, 03/08/2026) — dois cards com o mesmo nome
+
+O smoke expôs **títulos duplicados**: "Liga fantasma" nomeava tanto a **leitura ao vivo** quanto a
+**configuração persistida**. Em 20/08, sob prazo, isso convida a procurar informação no card errado
+ou a **salvar onde não se pretendia**. Renomeados para **"Estado da liga fantasma"** (leitura) e
+**"ID da liga fantasma"** (configuração). **Só rótulo** — ordem, layout, lógica, rota e payload
+intactos; verificado em **5 estados da página** (sem sheet, fixtures A/B/C, erro de liga): nenhum
+título repetido em nenhum deles, ordem veredito → estado → configuração preservada.
+
+##### ✅ D2 — CONFERÊNCIA ARITMÉTICA FEITA: as contagens COINCIDEM (a pendência fecha)
+
+Lido do **regulamento** (`data/Regulamento - Dynasty - SB FANTASY FOOTBALL LEAGUE - 12-08-2025.pdf`,
+item **8.3.4**, verbatim):
+
+> *"Cada owner deverá draftar o número de jogadores necessários para completar as **22 posições do
+> roster**. Para isso deverá ter PELO MENOS $1 disponível no CAP para cada jogador a ser draftado
+> **(22 – número de keepers)**"*
+
+| lado | contagem | origem |
+|---|---|---|
+| **Regulamento 8.3.4** | **22** | texto acima, explícito |
+| **Sala fantasma** | **22** | `roster_positions` = 22 **e** `draft.settings.rounds` = 22 |
+| **Manager** | **22** | `salary_engine.MAX_ROSTER`; `empty_spots = 22 − num_keepers` |
+
+**Resposta: SIM, coincidem — 22 = 22 = 22, e a fórmula da reserva é a mesma nos três.** O medo do
+D2 ("se as contagens divergirem, os limites não coincidem apesar da fórmula idêntica") **não se
+concretiza**. **Metade pendente do D2: FECHADA.**
+
+**⚠️ Mas há uma diferença residual, e ela não é de contagem — é de QUEM ENTRA NA CONTA.** O item
+**1.3** do regulamento diz: *"2 IR (injuried reserves) – **não são considerados no total de 22**"*.
+
+- **Regulamento:** jogador em IR **fica fora** dos 22 → um time com 20 não-IR + 2 IR ainda **deve
+  reservar $2** (faltam 2 para completar as 22).
+- **Manager:** conta o IR **dentro** dos 22 (`cuts._team_fa_budget` passa todos os não-dropados;
+  `draft_budget` filtra só `is_dropped`) → vê roster **cheio** e reserva **$0**.
+- **Sleeper:** o keeper em IR **é designado** e ocupa uma das 22 rodadas → conta **igual ao
+  Manager**.
+
+**Efeito prático sobre a auditoria: NENHUM falso positivo.** Os dois lados que a auditoria compara
+— Manager e Sleeper — **concordam entre si**. A divergência é **de ambos com o regulamento**, e vale
+**até $2** de `usable_draft_budget` a mais para time com IR. Hoje **3 times** têm IR preenchido na
+liga real. **Nenhum cálculo foi alterado** — a conferência era de registro.
+
+**🔲 AMBIGUIDADE DEVOLVIDA AO OWNER (é regra de liga, não decisão de implementação):** a **8.3.4 diz
+"(22 − número de keepers)" sem dizer se keeper em IR entra nessa contagem.** Com o 1.3, a leitura
+natural é que **não entra** — e é justamente essa leitura que produz a diferença de até $2 com o que
+Manager e Sleeper fazem hoje. **Duas leituras possíveis:**
+- **(a) IR conta como keeper** → o que Manager e Sleeper já fazem; nada muda, e o 1.3 vale só para
+  limite de elenco, não para a reserva.
+- **(b) IR não conta como keeper** → o Manager está **até $2 permissivo** e a fórmula precisaria
+  descontar IR do `num_keepers`. **Isso mexeria no `salary_engine`** — fora do escopo desta sessão e
+  **decisão do owner**.
+
+##### ⚠️ ARITMÉTICA ADICIONAL DO D2 — a resposta é SIM, um time PODE exceder o board
+
+O D2 pedia confirmar que "nenhum time da liga real pode exceder 22 keepers". **Pode:** o regulamento
+permite **24** (22 + 2 IR, item 1.3) e o board comporta **22 designações** (22 rodadas).
+
+**E não é hipótese: 1 time está em 24 hoje** (roster 10 — 22 não-IR + 2 IR), medido ao vivo na liga
+real. Se chegar assim em 20/08, **2 keepers não cabem no board** — e pelo achado "keeper fora do
+board é jogador leiloável", **ficam expostos ao leilão**. Os cortes de 20/08 podem resolver, mas
+**nada no regulamento obriga** um time a descer de 24 para 22.
+
+> **Encadeia com [[OFF26-10]] e [[OFF26-5]]:** é uma **segunda causa** de time não populável, ao lado
+> do teto de budget — e esta **não se resolve com o late drop de 22/08** (1 drop não tira 2
+> excedentes). **Registrado como risco, não como solução:** a decisão é do owner.
+
+##### ⛔ PREMISSA REFUTADA — "a fantasma NÃO tem slot de IR" é FALSO (4ª da mesma família)
+
+O probe de 03/08 registrou, como **divergência concreta de config**, que a liga real tem IR e **a
+fantasma não** — lido de `roster_positions` (22 = 10 titulares + 12 BN, sem "IR").
+
+**Medição de hoje, decisiva:** `settings.reserve_slots = **2** nas DUAS ligas`, e o campo `reserve`
+existe nos rosters das duas. **O `roster_positions` da liga REAL também não lista "IR"** — e ela
+tem, com **3 rosters usando** agora. **IR não mora em `roster_positions`; mora em
+`settings.reserve_slots`.** A observação era verdadeira; a **procedência**, errada.
+
+- **A "divergência de config real × fantasma" quanto a IR NÃO EXISTE.** As duas salas são
+  idênticas nesse ponto.
+- **A resolução operacional do owner PERMANECE CORRETA e necessária** — designar o keeper em IR
+  normalmente no board —, mas **por outro motivo**: não é que a sala não tenha IR; é que **slot de
+  IR não é slot de draft**. O draft tem **22 rodadas**, então **22 designações por time**,
+  independentemente dos 2 IR do elenco.
+- **Nada do que foi decidido muda. O que muda é o porquê** — e isso importa para quem for reabrir a
+  decisão depois.
+
+> **Quarta premissa da mesma família, no mesmo arco:** observação verdadeira, **procedência
+> errada** — e de novo **o campo lido não era onde o dado mora**. O teste que a derrubou foi o
+> mesmo das outras três: **ir à superfície certa** (aqui, comparar com a liga real, cujo IR ninguém
+> duvida).
+
+##### Limitação conhecida (fail-safe, registrada e NÃO corrigida nesta sessão)
+
+Um **timeout parcial** — `/league` responde e `/draft/{id}/picks` não — ocorreu de fato durante os
+testes. A leitura degrada para **"0 designações"**, indistinguível de board genuinamente vazio.
+**Falha para o lado seguro:** board vazio deixa todos os times "não populados" e o veredito
+**BLOQUEADO**; a auditoria **nunca libera** por falta de leitura. **Fica registrado como imprecisão
+de rótulo, não risco de gate** — distinguir "0" de "desconhecido" é melhoria, não correção urgente.
+
 **⚠️ E a contagem mudou pela QUARTA vez no mesmo dia:** **7 esperados → 8 → 9 → 10 colunas com
 dono** (2 sem dono agora). Quatro leituras, quatro números. **É exatamente por isso que a contagem é
 campo do relatório e não constante** — e é o que o bloco novo passa a mostrar ao vivo.
@@ -2562,6 +2679,16 @@ configuração do auction. **Motivo do descarte — dois, e o primeiro é decisi
 
 **Fecha metade da ressalva do D2** (a contagem da sala é **22**); a metade do **regulamento 8.3.4**
 segue pendente — ver o D2.
+
+> **⛔ CORREÇÃO DE PREMISSA (MAN-OFF26-4-LABELS, 03/08/2026) — o texto acima fica preservado, mas
+> "a fantasma não tem nenhum [slot de IR]" é FALSO.** Medido: `settings.reserve_slots = **2** nas
+> duas ligas`. O `roster_positions` da **liga real** também não lista "IR" — e ela tem IR, com 3
+> rosters usando. **IR não mora em `roster_positions`; mora em `settings.reserve_slots`.**
+> → **A divergência de config real × fantasma quanto a IR NÃO EXISTE** — as salas são idênticas.
+> **A resolução do owner (designar o keeper em IR normalmente) PERMANECE CORRETA e necessária**,
+> por outro motivo: **slot de IR não é slot de draft**. O draft tem **22 rodadas** → **22
+> designações por time**, tenha a sala IR ou não. **A decisão não muda; o porquê muda** — e é o
+> porquê que alguém usaria para reabri-la. Detalhe na seção da F2.
 
 ##### Armadilhas de implementação para a F2 (medidas no probe)
 

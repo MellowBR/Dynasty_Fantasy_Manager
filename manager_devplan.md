@@ -2872,3 +2872,60 @@ veredito e classes **intocados**.
 - **⚠️ A contagem de donos mudou pela QUARTA vez no mesmo dia: 7 esperados → 8 → 9 → 10** (2 sem
   dono agora). É exatamente por isso que ela é **campo do relatório, nunca constante** — e agora o
   bloco a mostra ao vivo, que é o ponto.
+
+### MAN-OFF26-4-LABELS — rename dos cards + a conferencia aritmetica do D2 (03/08/2026, Opus)
+
+**Smoke de producao COMPLETO (4 de 4, deploy `aec8d8f`):** o Render **alcanca a API do Sleeper** e
+a **derivacao do `draft_id` funciona de producao** (22 rodadas, 24 designacoes, 10/12 colunas com
+dono, `pre_draft`). **Modos de falha de ambiente descartados** — nao sao mais coisa a descobrir em
+20/08. Item segue **⚠️**: falta o smoke com **sheet real**.
+
+- **(A) Dois cards tinham o mesmo titulo.** "Liga fantasma" nomeava a **leitura ao vivo** e a
+  **configuracao persistida**. Sob prazo, isso convida a procurar informacao no card errado ou a
+  **salvar onde nao se pretendia**. Agora: **"Estado da liga fantasma"** e **"ID da liga
+  fantasma"**. **So rotulo** — ordem, layout, logica, rota e payload intactos; conferido em **5
+  estados da pagina** (sem sheet, fixtures A/B/C, erro de liga), zero duplicatas em todos.
+
+- **(B) ✅ D2 FECHADO: as contagens COINCIDEM.** A **8.3.4** do regulamento diz, verbatim,
+  *"completar as **22 posicoes do roster** … (22 – numero de keepers)"*. Regulamento **22** = sala
+  **22** (`roster_positions` e `draft.settings.rounds`) = Manager **22** (`MAX_ROSTER`), com a
+  **mesma formula de reserva**. **O medo do D2 — "limites nao coincidem apesar da formula
+  identica" — nao se concretizou.**
+
+- **⚠️ A diferenca residual nao e de contagem, e de QUEM ENTRA NA CONTA.** O item **1.3** diz que
+  os **2 IR "nao sao considerados no total de 22"**. O **Manager conta o IR dentro** dos 22
+  (`cuts._team_fa_budget` passa todos os nao-dropados) e o **Sleeper tambem** (o keeper em IR **e
+  designado** e ocupa uma das 22 rodadas). → **Os dois lados que a auditoria compara concordam
+  entre si: NAO ha falso positivo.** Ambos divergem do **regulamento** em ate **$2** de
+  `usable_draft_budget` para time com IR (3 times hoje). **Nenhum calculo alterado.**
+
+- **🔲 Ambiguidade devolvida ao owner (regra de liga, nao implementacao):** a 8.3.4 **nao diz** se
+  keeper em IR entra em "(22 − keepers)". Leitura **(a)** conta → e o que Manager e Sleeper ja
+  fazem, nada muda. Leitura **(b)** nao conta → o Manager esta **ate $2 permissivo** e o ajuste
+  **mexeria no `salary_engine`**. **Decisao do owner.**
+
+- **⚠️ A aritmetica adicional do D2 tem resposta: SIM, um time PODE exceder o board.** O
+  regulamento permite **24** (22 + 2 IR, item 1.3); o board comporta **22 designacoes**. **Um time
+  esta em 24 hoje** (roster 10 — 22 nao-IR + 2 IR), medido ao vivo. Se chegar assim em 20/08,
+  **2 keepers nao cabem e ficam EXPOSTOS** pelo achado "keeper fora do board e leilavel".
+  **Segunda causa de time nao populavel**, ao lado do teto de budget — e esta **nao se resolve com
+  o late drop** (1 drop nao tira 2 excedentes). Registrada como **risco, nao solucao**.
+
+- **⛔ QUARTA premissa da mesma familia REFUTADA: "a fantasma nao tem slot de IR" e FALSO.**
+  `settings.reserve_slots = 2` **nas duas ligas**; e o `roster_positions` da liga **REAL** — que
+  tem IR, com 3 rosters usando — **tambem nao lista "IR"**. **IR nao mora em `roster_positions`;
+  mora em `settings.reserve_slots`.** Observacao verdadeira, **procedencia errada**, pela quarta
+  vez no mesmo arco — e derrubada pelo mesmo metodo das outras tres: **ir a superficie certa**
+  (aqui, comparar com a liga real, cujo IR ninguem duvida). **A divergencia de config real ×
+  fantasma quanto a IR NAO EXISTE.** A resolucao do owner **permanece correta e necessaria**, por
+  outro motivo: **slot de IR nao e slot de draft** — 22 rodadas = 22 designacoes, com ou sem IR.
+  **A decisao nao muda; o porque muda** — e e o porque que alguem usaria para reabri-la.
+
+- **Limitacao registrada e NAO corrigida:** timeout parcial (`/league` responde, `/picks` nao —
+  ocorreu de fato nos testes) degrada para **"0 designacoes"**, indistinguivel de board vazio.
+  **Falha para o lado SEGURO**: board vazio deixa todos os times "nao populados" e o veredito
+  **BLOQUEADO** — a auditoria **nunca libera por falta de leitura**. **Imprecisao de rotulo, nao
+  risco de gate.**
+
+- **34/34** e **48/48**; fixtures A/B/C com o mesmo resultado; `draft_id` nao persistido; board
+  intacto, draft nao iniciado, so `GET`. **Status do OFF26-4 inalterado (⚠️).**

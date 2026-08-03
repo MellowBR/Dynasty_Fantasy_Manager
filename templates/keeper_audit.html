@@ -30,7 +30,7 @@
    derivação do `draft_id` funciona de onde ele roda. Erro aqui é estado PRÓPRIO, não
    se confunde com o bloqueio por falta de insumo. #}
 <div class="card" style="margin-bottom:1rem">
-  <h2 class="card-title">🔗 Liga fantasma</h2>
+  <h2 class="card-title">🔗 Estado da liga fantasma</h2>
   {% if report.league.available %}
   <div class="stat-grid">
     <div class="stat-item"><span class="stat-num">{{ report.league.rounds }}</span><span class="stat-label">Rodadas (do draft)</span></div>
@@ -159,7 +159,7 @@
 {% endif %}
 
 <div class="card">
-  <h2 class="card-title">⚙️ Liga fantasma</h2>
+  <h2 class="card-title">⚙️ ID da liga fantasma</h2>
   <p class="text-dim" style="margin-bottom:.6rem">
     Guarda-se <strong>apenas o <code>league_id</code></strong>, que é estável. O
     <code>draft_id</code> muda a cada RESET DRAFT e é derivado do <code>league_id</code>
