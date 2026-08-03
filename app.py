@@ -428,6 +428,11 @@ def _seed_app_config():
         "auction_done": "false",
         "playoffs_started": "false",
         "cuts_window_open": "false",  # OFF26-1: janela de cortes selada
+        # OFF26-4/D1: liga fantasma da FA auction (permanente). Persiste-se APENAS o
+        # league_id, que é estável — o draft_id muda a cada RESET DRAFT e é derivado
+        # do league_id a cada uso. Pré-preenchido com a liga registrada em 02/08/2026
+        # (editável no admin); é seed de default, só entra se a chave não existir.
+        "phantom_league_id": "1389725099556372481",
     }
     for key, val in defaults.items():
         if not db.session.get(AppConfig, key):

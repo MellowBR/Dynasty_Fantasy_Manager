@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Auditoria de Keepers{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">🛡️ Auditoria de Keepers (pré-leilão)</h1>
+  <p class="page-subtitle">
+    Compara a keeper sheet com o board da liga fantasma, lido ao vivo pela API.
+    <strong>Não é conferência de cap</strong> — keeper fora do board é jogador
+    leiloável, e o leilão processa o lance normalmente.
+  </p>
+</div>
+
+{# Veredito primeiro: quem abre esta tela quer saber se pode abrir o leilão. #}
+{% if report.verdict == 'liberada' %}
+<div class="alert" style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.35);color:#86efac">
+  ✅ <strong>Abertura liberada</strong> — 12 times populados, nenhuma divergência.
+</div>
+{% else %}
+<div class="alert alert-warn">
+  ⛔ <strong>Abertura BLOQUEADA</strong>
+  <ul style="margin:.5rem 0 0 1.1rem">
+    {% for r in report.blocking_reasons %}<li>{{ r }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if report.ok %}
+<div class="card" style="margin-bottom:1rem">
+  <div class="stat-grid">
+    <div class="stat-item"><span class="stat-num">{{ report.summary.divergences }}</span><span class="stat-label">Divergências</span></div>
+    <div class="stat-item {{ 'stat-warn' if report.summary.blocking_findings else '' }}"><span class="stat-num">{{ report.summary.blocking_findings }}</span><span class="stat-label">Bloqueantes</span></div>
+    <div class="stat-item"><span class="stat-num">{{ report.summary.populated }}/{{ report.summary.teams }}</span><span class="stat-label">Populados</span></div>
+    <div class="stat-item"><span class="stat-num">{{ report.summary.unpopulated }}</span><span class="stat-label">Não populados</span></div>
+    <div class="stat-item"><span class="stat-num">{{ report.summary.no_column }}</span><span class="stat-label">Sem coluna</span></div>
+    <div class="stat-item"><span class="stat-num">{{ report.summary.orphan_columns }}</span><span class="stat-label">Colunas órfãs</span></div>
+  </div>
+  <p class="text-dim" style="margin-top:.75rem">
+    Liga <strong>{{ report.league.league_name }}</strong> ({{ report.league.league_id }}) ·
+    draft <strong>{{ report.league.draft_id }}</strong> ({{ report.league.draft_status }},
+    {{ report.league.rounds }} rodadas, budget ${{ report.league.budget }}) ·
+    season {{ report.season }}.
+    O <code>draft_id</code> é <strong>derivado a cada execução</strong> — ele muda a cada RESET DRAFT.
+  </p>
+  <a class="btn btn-primary" href="{{ url_for('admin.keeper_audit_page') }}">🔄 Reexecutar</a>
+  <a class="btn btn-secondary" href="{{ url_for('admin.keeper_audit_json') }}">JSON</a>
+</div>
+{% endif %}
+
+{% for t in report.teams %}
+<div class="card" style="margin-bottom:1rem">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.5rem">
+    <h2 style="margin:.25rem 0">
+      {{ t.team_name }}
+      {% if t.state != 'ok' %}<span class="badge">{{ t.state_label }}</span>{% endif %}
+    </h2>
+    <div class="text-dim">
+      Coluna: <strong>{{ t.roster_id or '—' }}</strong> ·
+      Sheet: <strong>{{ t.num_keepers_sheet }}</strong> keepers / ${{ t.sheet_total }} ·
+      Board: <strong>{{ t.num_designations }}</strong> / ${{ t.board_total }} ·
+      Budget FA: <strong>${{ t.fa_budget }}</strong>
+    </div>
+  </div>
+
+  {% if t.findings %}
+  <table class="data-table">
+    <thead><tr><th>Classe</th><th>Jogador</th><th>Pos</th><th>Sheet</th><th>Board</th><th>Detalhe</th></tr></thead>
+    <tbody>
+      {% for f in t.findings %}
+      <tr {% if f.blocking %}style="background:rgba(239,68,68,.10)"{% endif %}>
+        <td>{% if f.blocking %}⛔ {% endif %}<strong>{{ f.class_label }}</strong><br>
+            <span class="text-dim">{{ f.severity }}</span></td>
+        <td>{{ f.player }}</td>
+        <td>{{ f.position or '—' }}</td>
+        <td>{% if f.sheet_salary is not none %}${{ f.sheet_salary }}{% else %}—{% endif %}</td>
+        <td>{% if f.board_amount is not none %}${{ f.board_amount }}{% else %}—{% endif %}</td>
+        <td class="text-dim">{{ f.detail }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% elif t.state == 'ok' %}
+  <p class="text-dim" style="margin:.5rem 0 0">✅ Sem divergências.</p>
+  {% elif t.state == 'nao_populado' %}
+  <p class="text-dim" style="margin:.5rem 0 0">
+    Coluna vazia. <strong>Não é divergência de transcrição</strong> — pode ser bloqueio
+    pelo teto de budget (o time só entra no board após o late drop). Ainda assim os
+    keepers deste time <strong>estão expostos</strong> enquanto a coluna não for populada.
+  </p>
+  {% else %}
+  <p class="text-dim" style="margin:.5rem 0 0">
+    Nenhuma coluna da fantasma tem o <code>sleeper_owner_id</code> deste time —
+    convite ainda não aceito. O time não é auditável e não pode ser populado.
+  </p>
+  {% endif %}
+
+  {% if t.warnings %}
+  <ul class="text-dim" style="margin:.6rem 0 0 1.1rem">
+    {% for w in t.warnings %}<li>⚠️ {{ w }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% if report.orphan_columns %}
+<div class="card" style="margin-bottom:1rem">
+  <h2 class="card-title">🚫 Colunas não atribuíveis</h2>
+  <p class="text-dim">
+    Coluna sem <code>owner_id</code> (convite não aceito) ou com owner que não
+    corresponde a time nenhum do Manager. <strong>Não pertence a time algum</strong>, então
+    o que estiver designada nela não conta como divergência de ninguém — mas também
+    não pode ser conferido.
+  </p>
+  <table class="data-table">
+    <thead><tr><th>Coluna</th><th>Owner</th><th>Designações</th><th>Soma</th><th>Nota</th></tr></thead>
+    <tbody>
+      {% for c in report.orphan_columns %}
+      <tr>
+        <td>{{ c.roster_id }}</td>
+        <td>{{ c.owner_id or '(sem dono)' }}</td>
+        <td>{{ c.num_designations }}</td>
+        <td>${{ c.board_total }}</td>
+        <td class="text-dim">{{ c.note or 'convite não aceito' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2 class="card-title">⚙️ Liga fantasma</h2>
+  <p class="text-dim" style="margin-bottom:.6rem">
+    Guarda-se <strong>apenas o <code>league_id</code></strong>, que é estável. O
+    <code>draft_id</code> muda a cada RESET DRAFT e é derivado do <code>league_id</code>
+    a cada execução — por isso não existe campo para ele aqui, nem em lugar nenhum.
+  </p>
+  <form method="post" action="{{ url_for('admin.set_phantom_league') }}"
+        style="display:flex;gap:.5rem;flex-wrap:wrap">
+    <input class="input-sm" type="text" name="league_id" value="{{ phantom_league_id }}"
+           placeholder="league_id da liga fantasma" style="width:260px">
+    <button class="btn btn-primary" type="submit">Salvar</button>
+  </form>
+</div>
+{% endblock %}

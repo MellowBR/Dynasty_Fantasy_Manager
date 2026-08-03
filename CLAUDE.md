@@ -21,6 +21,9 @@ python app.py
 # Run salary engine unit tests
 python salary_engine_test.py
 
+# Run keeper audit unit tests (OFF26-4 — núcleo puro, sem Flask/DB/rede)
+python keeper_audit_test.py
+
 # Seed users (after first deploy)
 python seed_users.py --csv data/users.csv
 python seed_users.py --email user@gmail.com --name "Name" --team-id 1 --admin
@@ -75,7 +78,7 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 | trades | `/trades`, `/trades/proposta/<uuid>` | Trade simulador puro (T1), preview com dynasty + redraft delta-pointing bars (T2/T3), descrição "de/para" 2-colunas, query params pré-seleção (M14), propostas compartilháveis |
 | picks | `/picks`, `/picks/lottery/<season>` | Grid navegável de picks (M9), auditoria pública do lottery (M8), legenda de odds audit-first — pesos do audit canônico, senão config (M15/M15-FIX), projeção do draft: R1 = lottery, R2/R3 = standings invertido (M16) |
 | auction | `/auction` | FA auction & rookie draft registration |
-| admin | `/admin`, `/admin/users`, `/admin/review` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1), PlayerHistory canonical rebuild (F8), dynasty values refresh (T2), revisão admin auditável Cat A/B (M2) |
+| admin | `/admin`, `/admin/users`, `/admin/review`, `/admin/keeper_audit` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1), PlayerHistory canonical rebuild (F8), dynasty values refresh (T2), revisão admin auditável Cat A/B (M2), **auditoria de keepers pré-leilão (OFF26-4 — read-only, ver `keeper_audit.py`)** |
 | offseason | `/offseason` | 7-step offseason workflow com lottery auditável (M8), 6 seeds via fonte única (M15), editor de pesos reativo com render single-source JS (M15-FIX) |
 | draft_import | `/draft_import` | OFF26-3: importa drafts via API read-only — **rookie linear (roda na liga REAL)** / **FA auction (roda na liga fantasma permanente)**; preview→confirm, match por sleeper_player_id, idempotente, escreve só via `record_acquisition`. ⚠️ OFF26-11 🔲: com keepers designados no board da fantasma os picks vêm misturados, e a porta é de **contrato ano 1** — ingerir keeper zera a idade do contrato |
 | cuts | `/cuts`, `/cuts/keeper_sheet` | OFF26-1: janela de cortes selada — declaração privada por owner (escopo `current_user.team_id`, sigilo D6) + budget ao vivo via porta canônica não-projetada (D9) + lock/revelação simultânea admin-manual com snapshot auditável molde M8 (`CutWindowAudit`); gate de abertura = `needs_review` zerado (D3, único gate — ver OFF26-9). OFF26-2: keeper sheet consolidada (leitora, keepers = roster − cortes; tabela + CSV) |
@@ -156,6 +159,35 @@ via `acquisition_already_recorded()`. **Nenhuma porta escreve contrato inline** 
 `bulk_register` roteado pelo helper — última réplica inline fechada; ⚠️ aguardando smoke prod).
 Não criar contrato fora desse helper.
 
+### Keeper audit — gate de integridade do leilão (OFF26-4)
+
+`keeper_audit.py` compara a **keeper sheet** (OFF26-2) com o **board da liga fantasma** lido ao
+vivo pela API read-only, e devolve o relatório dos **12 times de uma vez**. **Não é conferência
+de cap:** um keeper que não esteja designado no board é, para o Sleeper, **jogador disponível** —
+qualquer owner pode arrematá-lo ao vivo. Mesma separação do `salary_engine`: **`audit(board,
+sheet)` é puro** (sem DB, sem rede — é o que os testes exercem); `fetch_board`/`build_sheet`/
+`run_audit` são a camada de IO. UI em `/admin/keeper_audit` (+ `/api/admin/keeper_audit`).
+
+- **4 classes de divergência:** keeper ausente do board (**bloqueante** — é a exposição), salário
+  divergente, keeper no time errado, jogador no board fora da sheet. **A classe "slot errado" não
+  existe** (`pick_no`/`round` não indicam vaga; a atribuição é automática por posição) — há teste
+  que falha se alguém a criar.
+- **3 estados de time (estado ≠ divergência):** `ok`, `nao_populado` (coluna vazia — pode ser
+  bloqueio legítimo pelo teto, OFF26-10), `sem_coluna` (owner não aceitou o convite). Coluna sem
+  dono vai para um balde próprio (`orphan_columns`) — **não é divergência de time nenhum**.
+- **Bloqueiam a abertura:** classe 1, time não populado, time sem coluna, coluna órfã e keeper sem
+  `sleeper_player_id` (auditoria incompleta). **Zero divergências não libera.**
+- **Parametrização (D1):** `AppConfig["phantom_league_id"]` — **só o `league_id`, que é estável**.
+  O `draft_id` **muda a cada RESET DRAFT** e é **derivado a cada uso** (vem no próprio objeto da
+  liga, 1 requisição). ⛔ **Nunca persistir `draft_id`** (constante, config, coluna ou cache).
+- **Armadilhas medidas:** `player_id` de DEF é **sigla** (`"LAR"`) — nunca coagir a inteiro;
+  `metadata.amount` é **string**; rodadas vêm do **draft** (`draft.settings.rounds`), não da liga.
+- **Identidade:** jogador só por `sleeper_id`, time só por `sleeper_owner_id` — **nunca por nome**
+  (`metadata.team_name` veio nulo em 8/8 dos owners da fantasma, e há dois Rafas entre eles).
+- **Fixtures:** `keeper_audit_fixtures.py` é **material de teste congelado — NÃO é a keeper sheet
+  real** (essa nasce da revelação da janela de cortes e vive no banco). Nenhum caminho de produção
+  o importa.
+
 ### Audit Trails
 
 Every action is logged: SalaryHistory (with `rule_applied` explanation), PlayerHistory (trades, corrections), SyncLog, Trade records, AuctionLog, ESPNImportLog.
@@ -175,6 +207,8 @@ Every action is logged: SalaryHistory (with `rule_applied` explanation), PlayerH
 fantasy_manager/
   app.py, wsgi.py, models.py       # Core app
   salary_engine.py                  # Pure salary logic (no DB)
+  keeper_audit.py                   # OFF26-4: auditoria pré-leilão (núcleo puro + IO read-only)
+  keeper_audit_fixtures.py          # material de TESTE congelado (NÃO é a keeper sheet real)
   import_csv.py                     # CSV → DB upsert (reads data/)
   sync_sleeper.py                   # Sleeper API sync
   seed_users.py                     # User seeding (reads data/)

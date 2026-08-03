@@ -963,3 +963,134 @@ apareceu porque alguém foi ler o campo `team_name` e o encontrou vazio doze vez
 - `handoff_code_manager_02_08_2026_pt3.md` — esta parte.
 
 **Nenhum status alterado. Status Rápido intocado. Zero arquivo de código.**
+
+---
+
+# PARTE 8 — F2: a auditoria de keepers existe como código
+
+> Sessão `MAN-OFF26-4` (03/08/2026, Opus). **Implementação em escopo único: leitura, diff e
+> apresentação.** Read-only do lado da plataforma (só `GET`), draft **não iniciado**, **RESET DRAFT
+> não executado**, board **intacto**. Status do OFF26-4: **🔲 → ⚠️** — não fecha ✅ sem smoke em
+> produção, e a **sheet real só nasce em 20/08**.
+
+## 48. O que existe agora
+
+| arquivo | papel |
+|---|---|
+| `keeper_audit.py` | núcleo **puro** `audit(board, sheet)` + camada de leitura read-only |
+| `keeper_audit_fixtures.py` | material de teste **congelado** (⛔ não é a sheet real) |
+| `keeper_audit_test.py` | **29 testes**, sem Flask, sem banco, sem rede |
+| `templates/keeper_audit.html` | relatório dos 12 de uma vez, veredito no topo |
+| `routes/admin.py` | `/admin/keeper_audit`, `/api/admin/keeper_audit`, `POST /api/admin/phantom_league` |
+| `app.py` | seed do `phantom_league_id` no `AppConfig` (D1) |
+
+O núcleo segue a separação do `salary_engine`: **a lógica é pura e é ela que os testes exercem**;
+rede e banco ficam na borda. É o que permite testar o diff **antes de existir sheet real**.
+
+## 49. Veredito, não lista
+
+A tela abre com **ABERTURA LIBERADA / BLOQUEADA** e os motivos. **Zero divergências não libera** —
+bloqueiam:
+
+- **keeper exposto** (classe 1 — a que não é escolha de desenho);
+- **time não populado** (não é divergência, mas os keepers dele estão igualmente expostos);
+- **time sem coluna** (convite não aceito);
+- **coluna órfã** (não atribuível a time nenhum);
+- **keeper sem `sleeper_player_id`** (auditoria incompleta para aquele jogador).
+
+Isso é a requalificação do item virando comportamento: **gate de integridade, não conferência de
+cap**. Um relatório que dissesse "0 divergências" com 9 colunas vazias estaria tecnicamente correto
+e operacionalmente perigoso.
+
+## 50. As decisões que a spec delegou
+
+- **D3 — re-query, não payload.** `build_sheet` consome `_build_keeper_sheet` (fonte única do
+  OFF26-2) e enriquece com `sleeper_player_id` consultando `Player`. **O OFF26-2 não foi tocado**,
+  como o critério do owner mandava — ele segue ⚠️ aguardando smoke, e não ganhou risco novo.
+- **D5 — severidade relativa:** `time_errado` e `salario_divergente` **alta**, `fora_da_sheet`
+  **média**. A da classe 1 não era escolha.
+- **Ordenação pior-primeiro.** Sob prazo, ninguém rola a página.
+
+## 51. ⚠️ Sete divergências entre spec e terreno — relatadas, não resolvidas por conta própria
+
+1. **O helper do D6 não tinha o que reusar.** `_team_by_roster` **consulta o banco** por roster; o
+   núcleo puro casa `owner_id` ↔ time **em memória**, com dado que os dois lados já carregam. Não
+   houve réplica nem extração. **A invariante do D6 foi cumprida — o meio previsto é que não se
+   aplicava.**
+2. **A spec previa UM estado; o terreno tem DOIS.** Time cujo owner não está em coluna nenhuma não
+   é "coluna vazia": **não é auditável nem populável**. Estado novo `sem_coluna` — é a cobertura do
+   D6 aparecendo como estado de relatório.
+3. **"Coluna sem owner" ganhou tratamento, e é o inverso do (2).** Balde próprio; **nunca** conta
+   como divergência de um time. Mesmo balde recebe coluna **com** owner sem time no Manager.
+4. **Keeper sem `sleeper_player_id` não estava previsto.** Não é divergência — é **limite de
+   insumo**. Vira aviso, entra em `unresolved_keepers` e bloqueia por **auditoria incompleta**.
+   Cair para nome está proibido ("Brown"); **silenciar seria pior que acusar**.
+5. **Budget: exibido, não diferenciado.** A base do D2 está certa e vem da sheet, mas diferença de
+   soma **não virou classe** — é consequência das classes 1-4, e virá-la achado produziria
+   exatamente a **quarta divergência** que a fixture B existe para proibir.
+6. **A ressalva das 22 rodadas virou verificação automática** pelo lado da sala (aviso se um time
+   trouxer mais keepers que `rounds`). O lado do **regulamento 8.3.4 segue pendente** — não é
+   código.
+7. **O timeout do D1 já existia.** `ss._get` traz `timeout=15`. Medido de novo: **id morto → erro
+   em 0,21 s**, com mensagem citando o RESET DRAFT.
+
+## 52. A fixture que estava errada — e a auditoria que estava certa
+
+A primeira fixture "coerente" acusou **18 falsos `time_errado`**. A causa não era o diff: os **24
+jogadores do board** estavam **espalhados pelos elencos reais** dos outros times, porque o board foi
+populado a partir de uma **lista de teste**, não dos elencos daqueles três times. A auditoria estava
+dizendo a verdade — **o jogador estava em dois lugares**. Corrigida a geração (os 24 pertencem aos
+três times populados e a mais ninguém), a fixture A fecha em zero.
+
+> Vale como método: **quando o instrumento acusa muito, a primeira hipótese não é "o instrumento
+> exagera" — é "o material está errado".** Foi o mesmo mecanismo do falso achado de 02/08 (dados
+> sintéticos quase enfraqueceram uma proteção), agora na direção contrária e pego a tempo.
+
+## 53. A fixture B não cobre a classe mais grave
+
+Os três erros pedidos — salário, keeper removido da sheet, jogador no time errado — são das classes
+**2, 3 e 4**. **A classe 1 (bloqueante) não está entre eles**, porque "remover da sheet" deixa o
+jogador **no board** (classe 4), e a classe 1 é o inverso. Sem uma fixture dirigida, **a classe que
+governa a natureza do item ficaria sem teste**. Criada a **C**, mais duas: **coluna sem owner**
+(terreno real de hoje) e **keeper sem sid** (com **dois Brown** — exatamente o caso que um fallback
+por nome estragaria).
+
+O teste que mais importa na B é o do **time errado contar UMA vez**: um diff ingênuo o contaria
+duas ("ausente lá" + "sobrando cá") e entregaria a quarta divergência que denuncia auditoria que
+inventa.
+
+## 54. Validação
+
+- **29/29** testes novos; **48/48** do `salary_engine` intactos.
+- **Board REAL atravessando o núcleo inteiro:** `draft_id` derivado do `league_id`, **24
+  designações** com `status=pre_draft`, **`rounds=22` lido do draft**, **3 colunas sem owner** →
+  cruzado com a fixture A: **0 divergências, 3 `sem_coluna`, 3 órfãs**.
+- **Sem sheet real (janela não revelada em localhost): a auditoria diz isso** e devolve **0 times**.
+  É o caminho que a tela mostra hoje — **não 12 falsos positivos**.
+- **`draft_id` não persistido em lugar nenhum** (grep): variável local, URL e tela.
+- Board intacto, draft não iniciado, **nenhuma escrita na plataforma**. `git diff` **não toca**
+  `salary_engine`, schema de cortes, `sync_sleeper` nem a keeper sheet. `dynasty.db` **não foi
+  alterado** (o smoke rodou sobre cópia).
+
+## 55. O que fica pendente
+
+- **Smoke em produção (PROC1)** — o item **não fecha ✅** com localhost.
+- **A auditoria nunca rodou com os DOIS lados reais.** O lado Manager foi sempre fixture; a sheet
+  real só existe **a partir de 20/08**.
+- **Cobertura do D6 aberta: 3 dos 12 times sem coluna.** Eram **4 de manhã e 3 à tarde** —
+  `fertorquato` entrou entre duas leituras da **mesma sessão**. **Terceira leitura, terceira
+  contagem** (7 esperados → 8 → 9 owners). Por isso a contagem é campo do relatório, nunca
+  constante.
+- **Ressalva aritmética do D2 pelo lado do regulamento (8.3.4).**
+- Nada disso bloqueia a construção — bloqueia o **✅**.
+
+## 56. Arquivos alterados (parte 8)
+
+- **Novos:** `keeper_audit.py`, `keeper_audit_fixtures.py`, `keeper_audit_test.py`,
+  `templates/keeper_audit.html`.
+- **Alterados:** `routes/admin.py` (3 rotas), `templates/admin.html` (card), `app.py` (seed do
+  `phantom_league_id`), `CLAUDE.md` (seção nova + estrutura + comando de teste),
+  `improvements.md` (seção F2 + linha do Status Rápido + cabeçalho), `manager_devplan.md`,
+  este handoff.
+
+**Status do OFF26-4: ⚠️ (era 🔲). Nenhum outro item alterado.**

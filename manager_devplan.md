@@ -2777,3 +2777,57 @@ teste criado. Scripts transitórios rodados no scratchpad, **não commitados**.
   quebra o reforço do motivo 2, que **nenhum raciocínio sobre a regra teria produzido**.
 
 - **Nenhum status alterado. Status Rápido intocado. Sem código.**
+
+### MAN-OFF26-4 — F2: a auditoria de keepers pré-leilão existe como código (03/08/2026, Opus)
+
+**Escopo único: leitura, diff e apresentação.** Status do [[OFF26-4]] **🔲 → ⚠️** — não fecha ✅ sem
+smoke em produção (PROC1), e a **sheet real só nasce em 20/08**.
+
+- **`keeper_audit.py` — núcleo puro, molde `salary_engine`.** `audit(board, sheet)` não toca DB nem
+  rede; é o que os 29 testes exercem. A camada de IO (`fetch_board`/`build_sheet`/`run_audit`) é
+  **read-only estrita** — só `GET`. Tela em `/admin/keeper_audit`, JSON em `/api/admin/keeper_audit`,
+  e um `POST` que persiste **só o `league_id`**.
+
+- **Veredito, não lista.** A tela abre com **ABERTURA LIBERADA / BLOQUEADA** e os motivos.
+  **Zero divergências NÃO libera:** bloqueiam keeper exposto (classe 1), **time não populado**,
+  **time sem coluna**, **coluna órfã** e **keeper sem identidade resolvível**. É o que a
+  requalificação do item pedia — gate de integridade, não conferência de cap.
+
+- **Decisões que a spec delegou.** **D3 = re-query**: `build_sheet` consome a sheet canônica do
+  [[OFF26-2]] e enriquece com `sleeper_player_id` consultando `Player` — **o OFF26-2 não foi
+  tocado**, como o critério do owner mandava. **Severidade relativa** das classes 2-4 (alta/alta/
+  média; a 1 é bloqueante por natureza). **Ordenação pior-primeiro** — o gate se lê de cima.
+
+- **7 divergências spec × terreno, relatadas e não resolvidas por conta própria.** As de maior
+  peso: **(1) o helper do D6 não tinha o que reusar** — `_team_by_roster` consulta o banco, e o
+  núcleo puro casa owner↔time **em memória**; a invariante ("só por `sleeper_owner_id`") foi
+  cumprida, o **meio previsto** é que não se aplicava. **(2) A spec previa UM estado, o terreno tem
+  DOIS** — time **sem coluna** (convite não aceito) não é coluna vazia: não é auditável **nem
+  populável**. **(3) Keeper sem `sleeper_player_id` não é divergência — é limite de insumo**: vira
+  aviso e **bloqueia por auditoria incompleta**, porque cair para nome está proibido ("Brown").
+
+- **Budget: exibido, não diferenciado.** A base do D2 (`usable_draft_budget`) está correta e vem da
+  sheet, mas **diferença de soma NÃO virou classe** — é **consequência** das classes 1-4, e
+  transformá-la em achado produziria exatamente a **quarta divergência** que a fixture B existe para
+  proibir. A **ressalva das 22 rodadas virou verificação automática** pelo lado da sala (aviso se um
+  time tiver mais keepers que `rounds`); o lado do regulamento 8.3.4 **segue pendente**.
+
+- **Achado da geração da fixture — e a auditoria estava certa.** A fixture "coerente" acusou **18
+  falsos `time_errado`** na primeira tentativa: os 24 jogadores do board estavam **espalhados pelos
+  elencos reais** dos outros times (o board veio de lista de teste). **O erro era da fixture** — o
+  jogador **estava** em dois times. Corrigida a geração, zero divergências.
+
+- **A fixture B não cobre a classe bloqueante.** Os três erros pedidos são das classes 2, 3 e 4 —
+  a classe 1 **não está entre eles**. Sem uma fixture dirigida (C), **a classe mais grave do item
+  ficaria sem teste**. Criada, mais duas: coluna sem owner e keeper sem sid (com **dois Brown**).
+
+- **Validado com dado real atravessando o núcleo:** `draft_id` derivado do `league_id`, **24
+  designações** lidas com `status=pre_draft`, `rounds=22` **lido do draft**, **3 colunas sem owner**
+  → cruzado com a fixture A dá 0 divergências, 3 `sem_coluna`, 3 órfãs. **Sem sheet, a auditoria
+  DIZ isso** e devolve 0 times — não 12 falsos positivos. Id morto → erro em **0,21 s**.
+  **`draft_id` não persistido em lugar nenhum** (grep). 29/29 novos + **48/48 do `salary_engine`
+  intactos**. Board intacto, draft não iniciado, nenhuma escrita na plataforma.
+
+- **Cobertura do D6 — terceira leitura, terceira contagem.** De manhã 4 times sem coluna, à tarde
+  **3**: `fertorquato` entrou entre duas leituras da **mesma sessão**. A auditoria **lê, nunca
+  assume** — e é por isso que a contagem é campo do relatório, não constante.

@@ -1,6 +1,7 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 03/08/2026-pt5 (sessão MAN-OFF26-4: **F2 do [[OFF26-4]] — a auditoria de keepers pré-leilão EXISTE como código**. Status **🔲 → ⚠️** (não fecha ✅ sem smoke prod, [[PROC1]] — e a sheet real só nasce em **20/08**). Novo **`keeper_audit.py`**: núcleo `audit(board, sheet)` **puro** (sem DB, sem rede — molde `salary_engine`) + camada de leitura read-only (`fetch_board`/`build_sheet`/`run_audit`); `templates/keeper_audit.html` com **veredito no topo** (ABERTURA LIBERADA/BLOQUEADA + motivos), 3 rotas no admin (página, JSON, e `POST` que persiste **só o `league_id`**), seed do `phantom_league_id` no `AppConfig` (D1). **Zero divergências NÃO libera:** bloqueiam keeper exposto (classe 1), **time não populado**, **time sem coluna**, **coluna órfã** e **keeper sem identidade resolvível**. **Decisões que a spec delegou:** D3 = **re-query** (o [[OFF26-2]] **não foi tocado**, como o critério mandava); severidade relativa das classes 2-4 (alta/alta/média, com a 1 bloqueante por natureza); ordenação **pior primeiro**. **7 divergências spec × terreno RELATADAS, não resolvidas por conta própria** — as três de maior peso: **(1) o helper do D6 não tinha o que reusar** (`_team_by_roster` consulta o banco; o núcleo puro casa owner↔time **em memória**) — a invariante foi cumprida, o meio previsto é que não se aplicava; **(2) a spec previa UM estado e o terreno tem DOIS** — time **sem coluna** (convite não aceito) não é coluna vazia: não é auditável **nem populável**; **(3) keeper sem `sleeper_player_id` não é divergência, é limite de insumo** — vira aviso e **bloqueia por auditoria incompleta**, porque cair para nome está proibido ("Brown"). Mais: **budget divergente NÃO virou classe** (é consequência das classes 1-4; vira-lo achado produziria a 4ª divergência que a fixture B proíbe), a **ressalva das 22 rodadas virou verificação automática** pelo lado da sala, e o **timeout do D1 já existia** (`_get`, `timeout=15`; id morto → erro em **0,21 s**). **Fixtures:** **A** = board real (24 designações, $148/$95/$60, **dois DEF de id-sigla**) × sheet espelho → **0 divergências / 3 populados / 9 não populados**; **B** = A + **3 erros plantados** → **exatamente 3 achados, um por classe** (o cruzamento de time conta **UMA** vez — contá-lo duas daria a 4ª). ⚠️ **A B não cobre a classe 1** (os 3 erros pedidos são das classes 2/3/4) → fixture **C** dirigida, senão a classe **mais grave** ficaria sem teste; +2 dirigidas (coluna sem owner; keeper sem sid, **com dois Brown**). **Achado da geração da fixture:** os 24 do board estavam **espalhados pelos elencos reais** dos outros times → a fixture "coerente" acusava **18 falsos `time_errado`**; **o erro era da fixture** — a auditoria estava certa, o jogador **estava** em dois times. **Validação:** 29/29 novos + **48/48 do `salary_engine` intactos**; **board REAL atravessando o núcleo** (`draft_id` derivado, 24 designações `pre_draft`, `rounds=22` **lido do draft**, **3 colunas sem owner**) → 0 divergências, 3 `sem_coluna`, 3 órfãs; **sem sheet a auditoria DIZ isso** e devolve 0 times (não 12 falsos positivos); **`draft_id` não persistido** (grep); board intacto, draft não iniciado, só `GET`. **Cobertura do D6:** de manhã **4** times sem coluna, à tarde **3** — `fertorquato` entrou entre as duas leituras da MESMA sessão; **terceira leitura, terceira contagem**. `git diff` não toca `salary_engine`, schema de cortes, sync nem a keeper sheet.)
 > Atualizado em: 03/08/2026-pt4 (sessão MAN-OFF26-4-OWNERCHECK: **verificação read-only da costura de owner — a última incógnita do D6 do [[OFF26-4]] foi exercitada com owners reais e CASOU 8/8, zero não-casamentos.** Zero escrita dos dois lados (API só `GET`, `dynasty.db` em `mode=ro`), draft **não iniciado**, board **intacto**, scripts transitórios não commitados. **⚠️ Estado esperado divergiu:** o prompt esperava **7 aceites**, a API expôs **8** — `LeoFBorges1` (roster 8) entrou entre a leitura de tela do owner e a leitura da API; benigna e na direção boa, mas registrada — **a contagem de aceites muda entre uma olhada e a seguinte; a F2 lê, não assume**. **O casamento não depende do banco local:** os 12 `sleeper_owner_id` do Manager são **idênticos** aos 12 `user_id` da liga real lidos ao vivo (`manager − real = ∅` e vice-versa) e os 8 da fantasma são **subconjunto** disso → confirma a propriedade que sustenta o D6: **`owner_id` é identidade de CONTA do Sleeper, não de time nem de liga**. **🔲 D6 SEGUE ABERTO — mecanismo confirmado, cobertura não:** 4 rosters (9–12) com `owner_id` nulo, que **nenhuma leitura resolve** (dependem de aceite); times do Manager ainda fora: **#2 3 peat…** (`fertorquato`), **#7 AlexTheDawg** (`freddupont`), **#8 Trust The Process** (`michelzela`), **#10 achane** (`gabrieldiinis`) — pelo achado "keeper fora do board é leiloável" esses 4 **já são bloqueantes de abertura por outro motivo**, a costura não é o gargalo. Registrado também que **coluna sem owner não é atribuível a time nenhum** (distinto de "time não populado" do D4) — o caso **existe e foi observado**; onde ele cai nas classes do D5 é da F2. **📌 REFORÇO DA JUSTIFICATIVA — a regra NÃO muda:** "casar só por `sleeper_owner_id`, nunca por nome" passa a ter **dois motivos independentes** — **(1) instabilidade no tempo** (`Team.name` mutado pelo sync), com **evidência nova**: o Manager guarda `Tropa do Bicampeonato 🏆` e a liga real **hoje** exibe `Tropa do Jarra 🏆`, o nome **já divergiu sozinho**; **(2) espaços de nome SEPARADOS** (novo, mais fundamental) — nada vincula o nome da fantasma ao da real, ele pode **nascer diferente e permanecer diferente para sempre**, sem mutação: **são dois namespaces**, casá-los é **erro de categoria**, não de atualização. **Evidência de campo medida:** `metadata.team_name` é **`None` nos 8 owners da fantasma (8/8)** → enquanto ninguém batiza o time a coluna exibe **username**, e durante boa parte da preparação **não existe nome de time para casar**; **dois Rafas** (`rafadgil`/`rafaelferreirap`) → colisão por nome é risco **concreto**; e **`rafaelferreirap` não tem `team_name` nem na liga real** → o Manager guarda o **username** como `Team.name` (#11), então um cruzamento por nome acertaria **por coincidência de fallback** — o pior tipo de acerto, porque **valida a técnica errada**. Nota anexada ao `probe_liga_fantasma.md` (o bloco `[P4]` vira **medição de cobertura**: quantos owners ainda faltam). Nenhum status alterado; Status Rápido intocado; sem código.)
 > Atualizado em: 03/08/2026-pt3 (sessão MAN-OFF26-4-REFINE-PT2: **absorção dos achados do probe + o achado de maior peso do arco OFF26**. ⛔ **KEEPER FORA DO BOARD É JOGADOR LEILOÁVEL** — para o Sleeper ele é **disponível**; qualquer owner pode nomeá-lo e **o leilão processa o lance normalmente**, porque a plataforma **não sabe** que ele tem contrato vigente. Resultado: **jogador com dono arrematado por outro time AO VIVO**, e o [[OFF26-3]] ingerindo depois como aquisição legítima. **Não é erro de contabilidade que a auditoria corrige depois — é transação inválida em tempo real, sem desfazer limpo sem interromper o leilão.** → **o [[OFF26-4]] deixa de ser conferência de cap e vira GATE DE INTEGRIDADE DO LEILÃO**; a classe "keeper ausente do board" **não é divergência de transcrição** e sua severidade **deixa de ser escolha da F2** (é bloqueante). **Propagado ao [[OFF26-10]]** (times bloqueados pelo teto ficam com **todos os keepers expostos** até o late drop → **população completa do board é PRÉ-CONDIÇÃO DE ABERTURA**, não preparativo; a decisão em aberto do item **segue em aberto** — é registro de consequência) e ao [[OFF26-5]] + runbook (**board incompleto NÃO é estado aceitável**, nova §B.5). **IR RESOLVIDO (owner):** a fantasma não tem slot de IR → **designar o keeper em IR normalmente**, excedentes caem no **banco**, vaga automática por posição — sai do pool, consome budget, fica visível à auditoria. **Alternativa descartada:** descontar o valor do budget do time — **não resolve o risco** (o problema é disponibilidade, não dinheiro) e ficaria **invisível à auditoria**. **D2:** metade da ressalva **fechada** (sala = **22 slots**), metade do **regulamento 8.3.4 pendente**, agora com o **caso concreto do IR**; +aritmética nova a conferir (nenhum time pode exceder **22 keepers**). **🔧 D1 corrigido, texto anterior preservado:** a "falha silenciosa" **não existe pela porta da auditoria** (404 em 0,2 s; o LOADING é do **app web**) → **timeout rebaixado de mitigação de risco a boa prática**; **a proibição de persistir `draft_id` permanece intacta** e a derivação está comprovada por **1 requisição**. **D5:** classe "slot errado" **não existe** (vaga não é auditável **e não precisa ser** — atribuição automática por posição). **D6 afrouxado com precisão:** `owner_id` nulo em 11/12 **não bloqueia** — designações vêm por **`roster_id`** → **construção e validação parcial LIBERADAS contra placeholders**; só a **costura final `roster_id` ↔ time do Manager** espera os aceites. **Armadilhas p/ a F2:** `player_id` de **DEF é sigla** (`"LAR"`) e **`draft_rounds` da liga ≠ `rounds` do draft** (ler o do draft). **Nota de método — 3ª premissa da mesma família na sessão:** observação verdadeira, **procedência errada** (sigla/lista de teste · reserva de $1/só-Manager · LOADING/app-web) → **comportamento observado numa superfície não vale como propriedade de outra**. Status de OFF26-4/10/5 inalterados; Status Rápido intocado; sem código.)
 > Atualizado em: 03/08/2026-pt2 (sessão MAN-OFF26-4-PROBE: **probe read-only executado contra a liga fantasma real — o bloqueador do §2 da F1 do [[OFF26-4]] CAIU**. Zero escrita, draft **não iniciado**, board **intacto**; scripts transitórios não commitados. **P1 ✅ a derivação `league_id → draft_id` funciona, e por DOIS caminhos** — `GET /league/{lid}` **já traz `draft_id` no topo** (1 request) e `/league/{lid}/drafts` devolve **1 draft, o vigente**; **o morto não aparece na lista**. **⛔ Premissa do D1 REFUTADA para a API:** o draft morto dá **404 + `null` em 0,2 s**, não trava — o "LOADING infinito" é do **app web**; pela porta que a auditoria usa **esse modo de falha não existe** (o essencial do D1 — **não persistir `draft_id`** — segue de pé). **P2/P3 ✅ designações EXPOSTAS pré-draft** em `GET /draft/{did}/picks` com `status: pre_draft` — **a MESMA superfície que o projeto já usa**: 24 registros, com **`metadata.amount` (string)**. **Os três totais foram RECONSTRUÍDOS do payload, exatos: $148 / $95 / $60**, e o Team 3 confere 10/10 nominalmente (inclusive **Waddle=DEN vindo do próprio Sleeper**, o que reforça que a divergência de sigla da 2ª execução era **da lista de teste** — ver [[OFF26-5]]). **P4:** jogador por **`player_id` = `sleeper_player_id`** ⚠️ **exceto DEF, que vem como sigla (`"LAR"`)** — coerção a `int` quebra; time por **`roster_id`**; `picked_by` vazio nas 24; **`owner_id` NULO em 11/12 rosters** → **D6 confirmado como bloqueio de VALIDAÇÃO**, mas **a auditoria não precisa de owner para casar** (a designação já vem chaveada por roster). **P5:** ❌ **não existe campo de budget por time** — só `draft.settings.budget=200` global → budget **derivável só por soma**, como o D2 já mandava. **P6:** **réplica dupla confirmada** — `draft_import.py:39` e `sync_sleeper.py:872` leem picks e **replicam a coerção de `amount`** (`float` × `int`), **ambos gateados em `status=="complete"`** — **é o gate, não a API, que impedia ler pré-draft**; a auditoria seria a **3ª réplica** (candidata a helper único, espírito do [[F10]]). **Achados não previstos:** **`is_keeper: false` nas 24** (o indício do [[OFF26-11]] ganha **evidência de payload pré-draft**; a confirmação pós-draft segue pendente); **`pick_no`/`round` NÃO indicam vaga de roster** → **não existe classe "slot errado" auditável, o D5 precisa de ajuste** (presença/valor/time sim, vaga não); **`roster_positions` = 22 slots (10 titulares + 12 BN)** → lado Sleeper da **ressalva do D2 agora medido**, falta o lado do regulamento; **⚠️ a fantasma NÃO tem slot de IR** e a liga real tem (o D5 do [[OFF26-2]] conta IR no budget) — divergência **concreta**, não hipotética, dentro da mesma ressalva; **`league.settings.draft_rounds=3` × `draft.settings.rounds=22`** (ler o do **draft**); **`copy_from_league_id`** = a fantasma foi criada **por cópia da liga real**. Status do OFF26-4 segue 🔲; Status Rápido intocado; sem código.)
@@ -84,7 +85,7 @@
 | OFF26-1 | Janela de cortes selada no Manager (declaração privada de cortes + budget ao vivo não-projetado + lock/revelação simultânea admin-manual, snapshot M8) — MAN-OFF26-REG/F1/REFINE/F2/SMOKE | Alta | ⚠️ F2 + e2e localhost 23/23; **smoke PARCIAL prod 17/06** (infra+abertura OK: deploy live, tabelas criadas, "Fechada — 0/12", gate `needs_review` zerado, cap soft); lock/hash + cortes reais ficam p/ OFF26-7 |
 | OFF26-2 | Keeper sheet consolidada (12 times pós-revelação: keeper+salário+budget FA usable via porta projected:false+status declared, tabela+CSV) — insumo do Cowork — MAN-OFF26-REG/F1/REFINE/F2/SMOKE | Alta | ⚠️ F2 + e2e localhost 20/20; **smoke PARCIAL prod 17/06** (deploy live, `CutWindowAudit` criada); sheet depende da revelação (não travada) → validação completa no OFF26-7 |
 | OFF26-3 | Importador de drafts de liga fantasma (rookie linear + FA auction via API, match por sleeper_player_id, preview + helper atômico) — MAN-OFF26-REG | Alta | ✅ 05/06/2026 |
-| OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only) — MAN-OFF26-REG | Média | 🔲 |
+| OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only; **gate de integridade do leilão**) — MAN-OFF26-REG/F1/REFINE/PROBE/OWNERCHECK/F2 | Média | ⚠️ F2 + 29/29 localhost (48/48 do salary_engine intactos) + leitura do board REAL atravessando o núcleo; **aguardando smoke prod** e **sheet real (só a partir de 20/08)**; cobertura do D6 aberta (3/12 sem coluna) |
 | OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG/MAN-OFF26-5 | Média | ✅ 17/06/2026 (doc — `runbook_cowork_liga_fantasma.md`; reconciliado c/ OFF26-6: roster espelha real 3WR obrigatório, liga permanente + mapa por `sleeper_owner_id`, setup único × trabalho anual, gatilho OFF26-4) |
 | OFF26-6 | PoC de viabilidade do Cowork montando a liga fantasma no Sleeper (validação operacional NÃO-código: roteiro de experimento + registro do resultado; gate antes de confiar a FA auction real ao procedimento) — MAN-OFF26-6-7-REG/PoC | Alta | ✅ 17/06/2026 (op — GATE passou: Cowork cria liga + seta keeper/salário sozinho; decisões: liga PERMANENTE redraft, config espelha real 3WR, mapa por `sleeper_owner_id`; achados → OFF26-4 calcula budget/lê designações) |
 | OFF26-7 | Dry run E2E da intertemporada: ensaio da cadeia inteira encadeada, foco nas costuras entre módulos (OFF26-6 ⊂ OFF26-7); depende de OFF26-1/2/4 existirem; decisão em aberto (gate único vs. por etapas) — MAN-OFF26-6-7-REG | Alta | 🔲 (op) |
@@ -2346,6 +2347,116 @@ ressalva do D2. **Status do item permanece 🔲** — a spec não é implementa�
 > **Ressalva ao parágrafo acima (PT2, 03/08):** "severidade das classes do D5" passa a valer **só
 > para as classes 2-4**. A **severidade da classe 1** (keeper ausente do board) **foi determinada
 > pelo achado abaixo** e é **bloqueante de abertura** — não é escolha da F2.
+
+#### F2 — IMPLEMENTAÇÃO (MAN-OFF26-4, 03/08/2026) — ⚠️ código pronto, **aguardando smoke em prod**
+
+**Status do item: 🔲 → ⚠️.** Validado em localhost (**29/29** testes novos + **48/48** do
+`salary_engine` intactos) e **exercitado contra o board REAL**, mas **não fecha ✅ sem smoke em
+produção** ([[PROC1]]) — e, mais que isso, **sem sheet real, que só existe a partir de 20/08**.
+
+**O que foi construído**
+
+| arquivo | papel |
+|---|---|
+| `keeper_audit.py` | **núcleo puro** `audit(board, sheet)` (sem DB, sem rede — molde `salary_engine`) + camada de leitura `fetch_board` / `build_sheet` / `run_audit` |
+| `keeper_audit_fixtures.py` | **material de teste** congelado (⛔ **não é a sheet real** e nenhum caminho de produção o importa) |
+| `keeper_audit_test.py` | 29 testes do núcleo, sem Flask e sem banco |
+| `templates/keeper_audit.html` | relatório dos 12 de uma vez; veredito no topo |
+| `routes/admin.py` | `/admin/keeper_audit` (página), `/api/admin/keeper_audit` (JSON), `POST /api/admin/phantom_league` (**só** o `league_id`) |
+| `app.py` | seed do `phantom_league_id` no `AppConfig` (D1) |
+
+**Decisões que a spec delegou, agora tomadas:**
+- **D3 (ponte de jogador):** **re-query**, não payload. `build_sheet` consome
+  `_build_keeper_sheet` (fonte única do [[OFF26-2]]) e enriquece com `sleeper_player_id`
+  consultando `Player` — **o [[OFF26-2]] não foi tocado**, como o critério do owner mandava.
+- **D5 (severidade relativa):** classe 1 **bloqueante** (não era escolha); `time_errado` e
+  `salario_divergente` **alta**; `fora_da_sheet` **média**. **A classe "slot errado" não foi
+  criada** — e há teste que falha se alguém a criar.
+- **Ordenação:** pior primeiro. O gate se lê de cima sob prazo.
+
+**Veredito, não lista.** A tela abre com **ABERTURA LIBERADA / BLOQUEADA** e os motivos. Bloqueiam:
+keeper exposto (classe 1), **time não populado**, **time sem coluna**, **coluna órfã** e **keeper
+sem identidade resolvível**. **Zero divergências não libera** — 9 times sem board é o cenário em que
+todos os keepers deles estão expostos.
+
+##### Divergências entre spec e terreno (relatadas, não resolvidas por conta própria)
+
+1. **D6 mandou reusar `_team_by_roster` — e não há o que reusar.** Aquele helper **consulta o
+   banco** por roster; o núcleo puro casa `owner_id` ↔ time **em memória**, com dado que os dois
+   lados já carregam. **Não houve réplica nem extração** (a spec previa que a extração *poderia*
+   ser da F2): `_team_by_roster` segue sendo a porta do importador, intocada. **A invariante do D6
+   — casar só por `sleeper_owner_id` — foi cumprida; o meio previsto é que não se aplicava.**
+2. **A spec previa UM estado ("time não populado"); o terreno tem DOIS.** Um time cujo owner **não
+   está em coluna nenhuma** (convite não aceito) é caso distinto de coluna vazia: **não é
+   auditável nem populável**. Criado o estado **`sem_coluna`** — é a cobertura do D6 aparecendo
+   como estado de relatório, não como bug.
+3. **"Coluna sem owner" (observada e não classificada) recebeu tratamento próprio, e é o inverso
+   do (2).** Vai para um **balde separado** (`orphan_columns`), **nunca** para a conta de
+   divergências de um time: **coluna não atribuível não é divergência de ninguém** — e o que
+   estiver designado nela **não pode ser conferido contra sheet nenhuma**. Bloqueia a abertura.
+   Mesmo balde recebe coluna **com** owner que não corresponda a time do Manager.
+4. **A spec não previu keeper sem `sleeper_player_id`.** O Manager admite jogador sem id do
+   Sleeper; a identidade **não é resolvível** e **cair para nome está proibido** ("Brown"). Não é
+   divergência — é **limite de insumo**: vira aviso, entra na contagem `unresolved_keepers` e
+   **bloqueia a abertura por auditoria incompleta**. Silenciar seria pior que acusar.
+5. **D2 — `usable_draft_budget` é EXIBIDO, não diferenciado.** A base está correta e vem da sheet,
+   mas **budget divergente NÃO virou classe**: qualquer diferença de soma é **consequência** das
+   classes 1–4, e transformá-la em achado próprio produziria exatamente a **quarta divergência**
+   que a fixture B existe para proibir. O relatório mostra `fa_budget`, Σ sheet e Σ board por time;
+   a conferência aritmética do regulamento **segue pendente** (não é código).
+6. **A ressalva das 22 rodadas virou verificação automática.** Se a sheet de um time trouxer mais
+   keepers que `rounds` do draft, sai **aviso** ("não cabem na sala"). Fecha por medição, a cada
+   execução, a aritmética que o D2 deixou pendente do lado da sala — **não** do lado do
+   regulamento.
+7. **D1 — o timeout já existia.** `ss._get` traz `timeout=15`; nada novo foi preciso. Medido de
+   novo hoje: **id morto → erro em 0,21 s**, com mensagem própria citando o RESET DRAFT.
+
+##### Fixtures — o que provam, e o que deliberadamente não provam
+
+- **A (coerente):** board real (24 designações, **$148/$95/$60**, com os **dois DEF de id-sigla**)
+  × sheet que o espelha → **zero divergências**, 3 populados, **9 não populados**. **Uma coerência
+  extra teve de ser imposta na geração:** os 24 do board estavam **espalhados pelos elencos reais**
+  dos outros times (o board veio de lista de teste), e sem removê-los de lá a fixture "coerente"
+  acusava **18 falsos `time_errado`**. **O erro era da fixture, não da auditoria** — e a auditoria
+  estava certa: aquele jogador **estava** em dois times.
+- **B (divergente):** A + **três erros plantados** (salário, keeper removido da sheet, jogador no
+  time errado) → **exatamente três achados, um por classe**. O caso do time errado é o que mais
+  importa: um diff ingênuo o contaria **duas vezes** ("ausente lá" + "sobrando cá") e produziria
+  a quarta divergência.
+- **O que a B NÃO cobre:** os três erros pedidos são das classes **2, 3 e 4** — **a classe 1
+  (bloqueante) não está entre eles**. Foi criada a fixture dirigida **C** para ela; sem isso a
+  classe mais grave ficaria sem teste.
+- Mais duas dirigidas: **coluna sem owner** (terreno real de hoje) e **keeper sem `sleeper_id`**
+  (com dois Brown, exatamente o caso que um fallback por nome estragaria).
+- **Enquadramento ao cap na geração:** artifício de fixture, **não regra de negócio** — e **não
+  precisou disparar**: nenhum time excedia $200. Os cortes reais são declarados no [[OFF26-1]].
+
+##### Validação executada (localhost + leitura real)
+
+- **29/29** testes novos; **48/48** do `salary_engine` **intactos** (linha de base preservada).
+- **Contra o board REAL, ao vivo:** `fetch_board` derivou o `draft_id` do `league_id`, leu **24
+  designações** com `status=pre_draft`, `rounds=22` **lido do draft**, e as **3 colunas sem owner**.
+  Cruzado com a fixture A: **0 divergências, 3 `sem_coluna`, 3 colunas órfãs** — o terreno real
+  atravessando o núcleo inteiro.
+- **Sem sheet real (janela não revelada em localhost): a auditoria diz isso** e devolve **0 times**
+  — não acusa 12 times de keeper ausente por falta de insumo. É o caminho que a tela mostra hoje.
+- **`draft_id` não é persistido em lugar nenhum** (grep): só existe em variável local, URL e tela.
+- **Board intacto, draft não iniciado, nenhuma escrita na plataforma** — só `GET`.
+- `git diff` **não toca** `salary_engine`, schema de cortes, `sync_sleeper` nem a keeper sheet.
+
+##### ⚠️ O que fica pendente
+
+- **Smoke em produção ([[PROC1]])** — o item **não fecha ✅** com localhost.
+- **A auditoria só terá sheet real a partir de 20/08** (revelação da janela de cortes). Até lá
+  **nunca rodou com os dois lados reais** — o lado Manager foi sempre fixture.
+- **Cobertura do D6 segue aberta:** hoje **3 dos 12** times não têm coluna (convite não aceito).
+  **Foram 4 de manhã e 3 à tarde** — `fertorquato` entrou entre as duas leituras da mesma sessão.
+  **Terceira leitura, terceira contagem: a auditoria lê, nunca assume.**
+- **Ressalva aritmética do D2 pelo lado do regulamento (8.3.4)** — segue pendente; o lado da sala
+  agora é verificado a cada execução.
+- **A tela é `@login_required`, não `@admin_required`** — leitura, e a sheet que ela cruza já é
+  visível a todos **pós-revelação**. **Não há vazamento de sigilo**: sem snapshot canônico
+  revelado, a auditoria não roda.
 
 ##### ⛔ ACHADO — keeper fora do board é JOGADOR LEILOÁVEL (MAN-OFF26-4-REFINE-PT2, 03/08/2026)
 

@@ -88,6 +88,18 @@
     <div id="board-mirror-result" class="result-box" style="display:none;margin-top:.75rem"></div>
   </div>
 
+  <!-- OFF26-4: auditoria de keepers pré-leilão -->
+  <div class="card">
+    <h2 class="card-title">🛡️ Auditoria de Keepers (pré-leilão)</h2>
+    <p class="text-dim" style="margin-bottom:.75rem">
+      Diff da keeper sheet contra o board da liga fantasma, lido ao vivo.
+      <strong>Gate de integridade do leilão</strong>: keeper fora do board é jogador
+      leiloável — o Sleeper processa o lance normalmente. Roda quantas vezes for preciso;
+      é read-only e o <code>draft_id</code> é derivado a cada execução.
+    </p>
+    <a class="btn btn-primary" href="/admin/keeper_audit">🛡️ Abrir auditoria</a>
+  </div>
+
   <!-- Pre-season workflow order -->
   <div class="card workflow-card">
     <h2 class="card-title">📋 Ordem do Fluxo Pré-Temporada</h2>

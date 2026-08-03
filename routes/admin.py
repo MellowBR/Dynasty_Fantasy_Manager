@@ -67,6 +67,49 @@ def toggle_board_mirror():
                     "draft_season": draft_season})
 
 
+# ── OFF26-4 (F2): auditoria de keepers pré-leilão ────────────────────────────
+#
+# Gate de integridade do leilão, não conferência de cap: keeper fora do board é
+# jogador leiloável. Tudo aqui é READ-ONLY ponta a ponta — a única escrita da
+# seção é o `league_id` da fantasma no AppConfig (D1), feita pelo admin.
+
+@admin_bp.route("/admin/keeper_audit")
+@login_required
+def keeper_audit_page():
+    """Roda a auditoria e renderiza. Reexecutar = recarregar a página (o gate roda
+    3× ou mais na janela de 48 h e o `draft_id` é derivado a cada execução)."""
+    from keeper_audit import run_audit, get_phantom_league_id
+    return render_template("keeper_audit.html",
+                           report=run_audit(),
+                           phantom_league_id=get_phantom_league_id())
+
+
+@admin_bp.route("/api/admin/keeper_audit")
+@login_required
+def keeper_audit_json():
+    from keeper_audit import run_audit
+    return jsonify(run_audit())
+
+
+@admin_bp.route("/api/admin/phantom_league", methods=["POST"])
+@admin_required
+def set_phantom_league():
+    """D1: persiste APENAS o `league_id` (estável). O `draft_id` muda a cada RESET
+    DRAFT e é derivado a cada uso — nenhuma forma de persistência é aceitável."""
+    from models import set_config
+    from keeper_audit import PHANTOM_LEAGUE_KEY
+    data = request.get_json() or request.form or {}
+    league_id = str(data.get("league_id", "")).strip()
+    if league_id and not league_id.isdigit():
+        return jsonify({"success": False,
+                        "error": "O `league_id` do Sleeper é numérico."}), 400
+    set_config(PHANTOM_LEAGUE_KEY, league_id)
+    if request.is_json:
+        return jsonify({"success": True, "league_id": league_id})
+    flash(f"Liga fantasma: {league_id or '(vazio)'}", "success")
+    return redirect(url_for("admin.keeper_audit_page"))
+
+
 # ── Sleeper Sync ──────────────────────────────────────────────────────────────
 
 @admin_bp.route("/api/admin/sync", methods=["POST"])
