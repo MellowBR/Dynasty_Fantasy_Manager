@@ -4,10 +4,11 @@
 > Esta parte é **registro puro**: nenhum código, nenhuma diagnose, nenhuma decisão de produto
 > arbitrada. Dois gaps novos entram no backlog e uma premissa factualmente errada é emendada.
 >
-> ⚠️ **LEIA A PARTE 2 (fim do arquivo) ANTES DE AGIR.** Depois desta parte, a liga fantasma foi
-> **criada e testada na mão**, e o experimento **confirmou duas das questões que a parte 1 registra
-> como "probe pendente"** e **refutou o §5 da F1 do OFF26-4**. Onde as duas partes divergirem,
-> **vale a parte 2**.
+> ⚠️ **ESTE ARQUIVO TEM 3 PARTES — LEIA A ÚLTIMA ANTES DE AGIR.** A parte 2 registra a liga
+> fantasma **criada e testada na mão** (confirmou duas questões que a parte 1 deixa como "probe
+> pendente" e **refutou o §5 da F1 do OFF26-4**); a parte 3 registra a **2ª execução do Cowork** e,
+> entre outras coisas, que **o `draft_id` registrado na parte 2 já está MORTO** — ele muda a cada
+> reset. **Onde as partes divergirem, vale a mais recente.**
 
 ---
 
@@ -195,13 +196,16 @@ rodadas** · roster espelhando a liga real (**3 WR**).
 
 | item | estado |
 |---|---|
-| ambiente | **pronto para uso real** — board **vazio** |
+| ambiente | board **vazio** *(estado na parte 2 — **repopulado depois**; ver §21)* |
 | **RESET DRAFT** | ✅ **executado em 02/08/2026** — os 2 times da validação foram removidos |
 | **`league_id`** | `1389725099556372481` |
-| **`draft_id`** | `1389725100684611584` |
+| ~~`draft_id`~~ | ~~`1389725100684611584`~~ ☠️ **MORTO — ver parte 3** (atual: `1389755381567213568`) |
 
 > Esta tabela registrava **duas pendências** quando a parte 2 foi commitada; **ambas foram
 > resolvidas pelo owner na mesma sessão, logo depois** (`MAN-OFF26-IDS-REG`).
+>
+> ⚠️ **E o `draft_id` acima morreu horas depois** — o RESET DRAFT gera um draft novo a cada vez.
+> **Ver §16 (parte 3).** O `league_id` continua válido.
 
 Os dois ids são **distintos e não deriváveis um do outro por inspeção** — lidos das URLs da página
 da liga e do draft board. Isso **reforça o precedente do `draft_import.py`** apontado no §1 da F1
@@ -348,3 +352,161 @@ liga de teste descartável.
 
 **Status Rápido: não foi tocado nesta parte** — segue com exatamente as duas linhas novas da
 parte 1.
+
+---
+---
+
+# PARTE 3 — 2ª execução do Cowork: runbook validado, `draft_id` instável, falso achado rejeitado
+
+> `MAN-OFF26-RUNBOOK-REG-PT2` · 02/08/2026. **Onde esta parte divergir das anteriores, vale esta.**
+> Em particular: **o `draft_id` registrado na parte 2 e no `MAN-OFF26-IDS-REG` está MORTO.**
+
+---
+
+## 15. O que a execução produziu
+
+Segunda rodada no mesmo dia, agora **com o runbook corrigido** e com a lista de keepers
+**pré-ordenada na sequência do board**:
+
+| time | keepers | total | resultado |
+|---|---|---|---|
+| **Team 3** | 10 | **$148** | ✅ confere |
+| **Team 4** | 8 | **$95** | ✅ confere |
+| **Team 5** | 6 | **$60** | ✅ confere |
+
+**O runbook corrigido foi validado** — o fluxo levou o agente ao fim três vezes, **sem
+redescoberta de caminho**. **A medição de tempo foi perdida** (§19).
+
+---
+
+## 16. ⚠️ O `draft_id` não é estável — leia antes de usar qualquer id anotado
+
+| campo | valor | estabilidade |
+|---|---|---|
+| `league_id` | `1389725099556372481` | **estável** |
+| `draft_id` **atual** | `1389755381567213568` | ⚠️ muda a cada reset |
+| ~~`draft_id` anterior~~ | ~~`1389725100684611584`~~ | ☠️ **MORTO** |
+
+O **RESET DRAFT gerou um draft novo, com id novo**: o valor que registrei há poucas horas **morreu
+no mesmo dia**. E **morre em silêncio** — a URL antiga **trava indefinidamente em LOADING**, sem
+erro. Se um board não carregar, **a primeira hipótese é id velho**, não lentidão.
+
+**Efeito sobre a decisão 1 do OFF26-4 — restrição, não arbitragem.** Continuo sem escolher entre
+(a) parâmetro por chamada, (b) `AppConfig`, (c) coluna em Team. O que a evidência elimina é um
+atributo **transversal às três**:
+
+> **Qualquer alternativa que persista `draft_id` está descartada por evidência.** Persiste-se o
+> `league_id`; o `draft_id` é **derivado a cada uso**.
+
+**A confirmar antes de desenhar, não assumir:** o precedente do `draft_import.py` é a derivação
+**inversa** (`draft_id → league_id`). O caminho necessário aqui é `league_id → draft_id`,
+presumivelmente via `/league/{lid}/drafts` — endpoint **já usado no código** (`sync_sleeper.py:762`)
+mas **nunca exercitado contra a fantasma**.
+
+**Por que isso é pior do que parece:** um id persistido que morre em silêncio faz a auditoria
+**pendurar em vez de errar** — e o momento em que isso aconteceria é **logo depois de um reset**,
+ou seja, **na virada da intertemporada**, que é exatamente quando ninguém tem tempo de diagnosticar.
+
+---
+
+## 17. ⛔ O falso achado — e por que ele quase passou
+
+O relatório do Cowork **recomendou rebaixar o check anti-homônimo**, alegando que a sigla NFL do
+Sleeper diverge da keeper sheet (**Waddle exibido como DEN**, **Hill sem sigla**).
+
+**Rejeitado. Nada foi aplicado.** A causa foi a **lista de teste**, montada à mão com **times de
+temporadas anteriores** — **dado velho na lista**, não divergência da plataforma. Na execução real
+a sheet sai do **Manager**, que **sincroniza do Sleeper**: mesma fonte dos dois lados, sigla bate.
+
+**A orientação registrada é a inversa da recomendada:** se a sigla divergir **na execução real**,
+isso é **sinal de problema no sync ou na sheet** → **parar e reportar**. O check da §B.3 ficou
+**inalterado**, e a armadilha 4 do runbook agora carrega esse aviso.
+
+**O que torna o caso instrutivo — e vale como nota de método:** *a observação era verdadeira*. A
+sigla **de fato** divergiu. O erro não estava no que se viu, e sim em **de onde o dado vinha**.
+Recomendação vinda de execução com **dados sintéticos** precisa ser conferida contra a **origem do
+dado** antes de virar correção de documento — sem isso, **uma proteção teria sido enfraquecida na
+véspera do uso real, com justificativa aparentemente empírica**.
+
+---
+
+## 18. As 5 correções de runbook (+1)
+
+| # | correção | onde |
+|---|---|---|
+| 1 | **coluna com placeholders**: cabeçalhos são **avatares vazios sem rótulo**; a verificação canônica é o **menu de contexto** (*"…for Team N"*). Os **dois estados** documentados — a orientação "pelo owner" só vale com owners reais dentro | §B.2 |
+| 2 | **o board reescala** após a 1ª interação → quebra referência posicional; revelar FLEX/K/DEF antes, confirmar o time pelo menu | §B.2 |
+| 3 | **a vaga é atribuída por posição** (RB entra no FLEX quando RB está cheio) → clicar a célula exata é **conveniência, não obrigação** — desarma boa parte de (2) | §B.3.0 (nova) |
+| 4 | **o preço nasce em `$1` sempre**, inclusive com `$PROJ` maior → regra **generalizada** a qualquer keeper de $1 | §B.3 |
+| 5 | **filtro de K/DEF** mais rápido, e **já-designados somem do filtro** → "primeiro disponível" é limpo | §B.3 |
+| +1 | **não fixar URL de board** — entrada por descoberta (liga → pré-draft → widget Draftboard → globo), com o aviso do LOADING | §B.1 |
+
+---
+
+## 19. A medição que se perdeu, e o risco que ela revelou
+
+Tempos de relógio: Team 3 = **26min52s** (10) · Team 4 = **14min13s** (8) · Team 5 = **13min58s**
+(6) · total **58min26s**. **Esses números não medem o procedimento:** o ambiente acumulou **dezenas
+de timeouts de captura de tela, 30 s cada**.
+
+**Por que é o ambiente e não o método:** o **Team 4 foi mais rápido por jogador que o Team 3** e o
+**Team 5 voltou a subir** — por concentração de timeouts, não por regressão (curva de aprendizado
+não sobe). E a execução anterior, **no mesmo dia**, **sem** runbook corrigido e **sem** lista
+ordenada, rendeu **~75 s/jogador**. Não existe explicação plausível para que corrigir o documento e
+pré-ordenar a lista **piorasse** o trabalho.
+
+**O risco registrado é a variância, não a duração:** mesmo ambiente, resultados muito diferentes,
+**sem causa identificada**. Projeção: **~2 h** em regime, **~5 h** numa execução degradada — e
+**não há como saber qual será antes de começar**.
+
+**Mitigação: fatiar a transcrição por time.** Cada time é uma **unidade verificável** (confira o
+total ao fechar). Se a sessão degradar, a seguinte **retoma do time seguinte, sem refazer nada** —
+o modo de falha é **lentidão, não erro**, então o feito continua válido.
+
+**Efeito sobre Cowork-2026 / script-2027 — reconsideração parcial, aberta.** A decisão vigente
+**não muda**. O argumento original do script ("não cabe em 48 h") **segue caído**. Mas surge um
+argumento **novo**: o script determinístico **não tem esse modo de falha**. Contra-argumentos
+**preservados**: seletores frágeis (a UI **já mudou uma vez** entre junho e agosto), competição de
+prazo com OFF26-4 e OFF26-11 no caminho crítico, e **estreia no dia do uso** como pior cenário.
+
+---
+
+## 20. Melhoria do OFF26-2 registrada (não implementada)
+
+A lista pré-ordenada **eliminou busca, deliberação e navegação** — a execução virou **descida linha
+a linha**, e **6 dos 24 keepers dispensaram edição de preço** por serem de $1.
+
+→ **Emitir a keeper sheet time a time, na ordem das linhas do board, marcando os keepers de $1.**
+A sheet é o **artefato de handoff** para o único passo do calendário que roda **fora** do Manager;
+ordená-la na sequência do consumidor é a diferença entre dados **corretos** e dados **operáveis**.
+A ordem é **derivável** da config de roster que o runbook já exige espelhar — mas **confirmar
+contra o board real** antes de fixar (a ordem exata de banco/FLEX não foi verificada).
+
+---
+
+## 21. Estado da liga e a janela que está aberta
+
+Board **populado** com **Team 3/4/5** (dados de teste); Team 1 e 2 foram limpos pelo reset. **Novo
+RESET DRAFT pendente** antes do uso real — e ele **trocará o `draft_id` outra vez**.
+
+> ✅ **Janela aberta:** o board **está populado agora**, então serve de **alvo** ao probe pré-draft
+> do **OFF26-4** e à verificação de designações — **desde que rodados ANTES do próximo reset**. A
+> confirmação **pós-draft** do `is_keeper:false` (**OFF26-11**) exige **rodar um draft de teste**,
+> o que o board populado torna possível.
+>
+> Ou seja: **há uma oportunidade com prazo**, e o prazo é o próximo reset.
+
+---
+
+## 22. Arquivos alterados (parte 3)
+
+- `improvements.md` — ids atualizados + instabilidade do `draft_id` (bloco do pacote e OFF26-4,
+  como **restrição de desenho** sobre a decisão 1); 2ª execução, falso achado, correções, variância
+  e reconsideração parcial na seção do **OFF26-5**; melhoria de ordenação no **OFF26-2**;
+  pré-condições dos probes atualizadas no **OFF26-4** e **OFF26-11**; cabeçalho.
+- `runbook_cowork_liga_fantasma.md` — 5 correções + entrada por descoberta (§B.1) + §B.3.0 nova +
+  armadilha 4 com o aviso invertido + TL;DR + cabeçalho.
+- `manager_devplan.md` — cabeçalho + entrada de log.
+- `handoff_code_manager_02_08_2026_pt3.md` — esta parte.
+
+**Status Rápido intocado. Nenhum status alterado. Zero arquivo de código.**

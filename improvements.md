@@ -1,7 +1,8 @@
-# improvements.md — Fantasy Manager
+﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
-> Atualizado em: 02/08/2026-pt11 (sessão MAN-OFF26-IDS-REG: **fecha as 2 pendências abertas no pt10** sobre a liga fantasma **Dynasty SB FA Auction**. **(1) Identificadores registrados** — `league_id` = **`1389725099556372481`**, `draft_id` = **`1389725100684611584`**, lidos das URLs da página da liga e do draft board. Os dois são **distintos e não deriváveis um do outro por inspeção**, o que **reforça o precedente do `draft_import.py`** citado no §1 da F1 do [[OFF26-4]]: passa-se o `draft_id` e **deriva-se** o `league_id` do objeto do draft. Registrados como **DADO, deliberadamente NÃO persistidos** em constante/`AppConfig`/coluna — as opções (a)/(b)/(c) do §1 **seguem abertas**; ter o número não escolhe onde ele mora. **(2) RESET DRAFT executado — board VAZIO**, os 2 times da validação removidos; a liga está pronta para o uso real. **Consequência registrada como PRÉ-CONDIÇÃO, não detalhe:** o reset **apagou o alvo empírico** dos probes pendentes — o do §2 da F1 do [[OFF26-4]] (o que a API expõe **pré-draft**) e a confirmação **pós-draft** do indício `is_keeper:false` do [[OFF26-11]] **exigem repopular o board antes de rodar**, para que isso não seja descoberto no meio da diagnose. Nenhum status alterado, Status Rápido intocado, sem código.)
+> Atualizado em: 02/08/2026-pt12 (sessão MAN-OFF26-RUNBOOK-REG-PT2: **2ª execução do Cowork** — runbook corrigido **VALIDADO** (Team 3 = 10 keepers/$148, Team 4 = 8/$95, Team 5 = 6/$60, totais conferindo, **sem redescoberta de caminho**). **Achado de maior alcance: o `draft_id` NÃO é estável** — o RESET DRAFT gerou draft novo e **matou no mesmo dia** o id registrado no pt11 (`1389725100684611584` → atual **`1389755381567213568`**; `league_id` `1389725099556372481` **estável**). A morte é **silenciosa**: a URL velha **trava em LOADING**, não dá erro. → **restrição de desenho sobre a decisão 1 do [[OFF26-4]]**: a decisão segue **em aberto**, mas **qualquer alternativa que persista `draft_id` está descartada por evidência** — persiste-se o `league_id` e **deriva-se** o draft a cada uso (caminho `league_id → draft_id` via `/league/{lid}/drafts` **a confirmar**, não assumir). **⛔ FALSO ACHADO rejeitado:** o Cowork recomendou **rebaixar o check anti-homônimo** por divergência de sigla (Waddle=DEN, Hill sem sigla) — **causa era a lista de TESTE**, montada à mão com times de temporadas antigas; na execução real a sheet sai do Manager, que sincroniza do Sleeper, e as siglas batem. **Check mantido inalterado** e **orientação invertida**: divergência de sigla na execução real = **parar e reportar**. **Nota de método:** recomendação vinda de execução com **dados sintéticos** exige conferir a **origem do dado** antes de virar correção — sem isso, uma proteção teria sido enfraquecida na véspera do uso real. **5 correções no runbook** (coluna com placeholders = menu de contexto; board **reescala**; vaga atribuída **por posição**; preço nasce **$1 sempre**, mesmo com `$PROJ` maior; filtro K/DEF **esconde já-designados**) + **não fixar URL de board**. **Melhoria do [[OFF26-2]] com evidência de campo:** ordenar a sheet **na sequência do board**, marcando os keepers de $1 (6 de 24 dispensaram edição) — registrada, **não implementada**. **⚠️ Medição perdida:** 58min26s para 3 times, dominados por **dezenas de timeouts de 30 s**; risco de **variância de ambiente sem causa identificada** (~2 h × ~5 h, imprevisível) → mitigação: **fatiar por time**, unidade verificável. **Decisão Cowork-2026 mantida**, com **reconsideração parcial aberta** (o argumento novo do script é **variância**, não duração; contra-argumentos preservados: seletores frágeis, competição de prazo com OFF26-4/11, estreia no dia do uso). **Board populado agora** = janela aberta p/ o probe pré-draft **antes do próximo reset** (que trocará o `draft_id` de novo). Sem código; nenhum status alterado; Status Rápido intocado.)
+> Atualizado em: 02/08/2026-pt11 (sessão MAN-OFF26-IDS-REG: **fecha as 2 pendências abertas no pt10** sobre a liga fantasma **Dynasty SB FA Auction**. **(1) Identificadores registrados** — `league_id` = **`1389725099556372481`**, `draft_id` = **`1389725100684611584`**, lidos das URLs da página da liga e do draft board. Os dois são **distintos e não deriváveis um do outro por inspeção**, o que **reforça o precedente do `draft_import.py`** citado no §1 da F1 do [[OFF26-4]]: passa-se o `draft_id` e **deriva-se** o `league_id` do objeto do draft. Registrados como **DADO, deliberadamente NÃO persistidos** em constante/`AppConfig`/coluna — as opções (a)/(b)/(c) do §1 **seguem abertas**; ter o número não escolhe onde ele mora. **(2) RESET DRAFT executado — board VAZIO**, os 2 times da validação removidos (**estado daquele momento: o board foi repopulado na 2ª execução e este `draft_id` morreu no reset — ver pt12 acima**). **Consequência registrada como PRÉ-CONDIÇÃO, não detalhe:** o reset **apagou o alvo empírico** dos probes pendentes — o do §2 da F1 do [[OFF26-4]] (o que a API expõe **pré-draft**) e a confirmação **pós-draft** do indício `is_keeper:false` do [[OFF26-11]] **exigem repopular o board antes de rodar**, para que isso não seja descoberto no meio da diagnose. Nenhum status alterado, Status Rápido intocado, sem código.)
 > Atualizado em: 02/08/2026-pt10 (sessão MAN-OFF26-10-11-REG, 2ª parte: **achados empíricos da liga fantasma** — a sala foi **criada de fato** (**Dynasty SB FA Auction**: Redraft, 12 times, Auction, budget $200, 22 rodadas, 3 WR; 2 times populados, RESET DRAFT e ids pendentes **naquele momento — ambos resolvidos no pt11 abaixo**) e submetida a experimento manual. **§5 da F1 do [[OFF26-4]] REFUTADO:** a reserva de **$1 por vaga não é regra só do Manager — o Sleeper aplica a mesma**. Fórmula confirmada `teto = 200 − gasto − (vagas_restantes − 1)`: time com $150 e 21 vagas → teto **$29** ($40/$33/$32 recusados com *"The specified slot does not have enough budget."*, **$29 aceito**; sem falso positivo — 10 keepers de $140 passaram calados). → base de comparação correta é **`usable_draft_budget`**, não `raw_budget`; **decisão de produto 2 do OFF26-4 = RESOLVIDA POR EVIDÊNCIA**. Ressalva pendente (aritmética, não experimento): o Sleeper reserva sobre as **22 rodadas**, a regra 8.3.4 conta slots pelo **regulamento** — se divergirem, os limites não coincidem. **[[OFF26-10]]:** a suspeita virou **fato** — time acima do teto **não entra no board**, logo a **população escalonada é OBRIGATÓRIA** (enquadrados em 20/08, estourados só após o late drop de 22/08); o Manager pode **pré-calcular os bloqueados**. **[[OFF26-11]]:** **indício forte** (não fato) — a designação carrega **`is_keeper: false`** e a UI toca som de lance vencedor → o Sleeper trata keeper como **pick forçado de leilão**; se confirmado **pós-draft** (ainda não observado), o discriminador terá de ser a keeper sheet como **lista de exclusão**. **Runbook [[OFF26-5]] corrigido (status ✅ mantido): o caminho da Fase B NÃO EXISTE** — o board já está em modo de designação (clicar direto na célula); +7 correções ("+" da linha nunca o nome, K/DEF abaixo da dobra via seta ▼, filtro de posição p/ K/DEF, preço já vem $1, Ctrl+A rebaixado a nota, homônimo suavizado — pool só de ofensivos elegíveis, nome da liga) + seção nova do teto de lance. **Esforço MEDIDO:** 1 time/10 keepers = **20min32s** (~9 min de overhead único) → **~75 s/jogador ≈ 2,5 h p/ 12 times** (vs. uma tarde inteira manual). **Decisão:** 2026 via **Cowork**; **script determinístico = melhoria p/ 2027** (o argumento da janela de 48 h **cai**); **API interna descartada** (sem contrato, provável violação de ToS, expõe a conta de comissário). Sem código.)
 > Atualizado em: 02/08/2026-pt9 (sessão MAN-OFF26-10-11-REG: **registro docs-only** — calendário real da intertemporada 2026 fixado com o comissário (**17/08** rookie draft · **18/08** congelamento ESPN · **20/08** cortes · **22/08 late drop** (máx. 1 jogador/time) · **24/08** FA auction) expôs **2 gaps inéditos**, ambos 🔲 Alta. **OFF26-10** — o late drop altera os keepers **dois dias depois do lock** da janela selada, e sheet/budget/board derivam do snapshot: a sheet de 20/08 é **provisória** p/ quem fechou acima do cap. Registrados como **questão empírica (probe, não fato)**: o Sleeper pode **recusar** designação de keepers acima do budget (então a população do board teria de ser **fatiada por time**), e a **assimetria de limite** (Sleeper só conhece o budget global; a regra da liga reserva $1/slot vazio → passa lá, ilegal aqui). **Decisão em aberto:** 2ª mini-janela selada × correção administrativa pós-lock. **OFF26-11** — keepers **precisam** estar no board (o cap emerge do budget consumido), logo os picks virão **misturados**; o importador [[OFF26-3]] escreve pela porta de **contrato ano 1** → ingerir keeper **zera a idade do contrato** (dano silencioso, visível só na renovação; caso canônico: $50 dropado e recomprado por $50 — valor igual, natureza diferente). Probe pendente: os picks vêm marcados, ou o discriminador sai da keeper sheet como lista de exclusão? **Decisão em aberto:** importar só arremates × reconciliar e reportar divergência. **EMENDA de premissa:** o **rookie draft NÃO roda em liga fantasma** — a frase do registro do pacote (05/06) colou as duas salas sem justificar o rookie draft item a item; o [[OFF26-3]] foi validado contra o **rookie draft real de 2025** (chain da liga real) e todo o arco [[S2]]/[[S3]] trata do **board de R1 2026 da liga real**. O motivo da sala separada da **FA auction** permanece válido e é outro (dynasty com rosters cheios × auction que pressupõe rosters vazios). **Existe UMA liga fantasma permanente, não duas.** Texto histórico preservado verbatim + bloco EMENDA anexo (precedente [[DP1]]); título da seção e descrição do [[OFF26-7]] ajustados; `CLAUDE.md` sincronizado. Sem código; nenhum item existente teve status alterado.)
 > Atualizado em: 02/08/2026-pt8 (sessão MAN-S2-DONE: **S2 ✅** — smoke em produção aprovado sobre o hash **`9b4bcf1`** (gate [[PROC1]]; backup `/data/dynasty_pre_s2_smoke_2026-08-02.db`): desconto armado para 2026 via `/admin` → sync rodado → **as 4 posições divergentes convergiram para o alvo da F1b** — pos. **2 = Fazenda Pederasta sem troca**, pos. **5 = 3 peat → Cangaceiros** (**re-rótulo da trade de 29/07 confirmado em prod**), pos. 3 e 4 com donas originais corretas; **cruzamento com o board do Sleeper confere** (`1.05` via `fernandoxmf` visível no roster MellowBR); **2ª execução do sync sem nenhuma alteração** (idempotência confirmada **em produção**); verify do lottery 2026 conferindo; pos. 1 e 6–12, R2/R3 e seasons futuras **intactos**. O alvo era, desde a derivação da F1b, "o que o board já exibia" — e é o que o Manager agora exibe. **Estado operacional:** sync liberado com o desconto **armado para 2026**; desarme no rollover **por construção** (armamento por season). **Migração O3:** seção detalhada do S2 (REG + F1a + F1b + F2 + smoke) movida **verbatim** para `improvements_archive.md`. **Fatia F2-3 desmembrada como [[S5]] 🔲** (tela que prescreve a permutação ao co-admin) para não se perder na migração — não iniciada, não bloqueia. Sem código.)
@@ -1563,10 +1564,18 @@ Sleeper expõe sobre designações de keeper). **Ambos entram como etapas do OFF
 (MAN-OFF26-IDS-REG):** **Dynasty SB FA Auction** — permanente, Redraft, 12 times, draft
 **Auction**, budget **$200**, **22 rodadas**, roster espelhando a real (**3 WR**).
 
-| campo | valor |
-|---|---|
-| **`league_id`** | `1389725099556372481` |
-| **`draft_id`** | `1389725100684611584` |
+| campo | valor | estabilidade |
+|---|---|---|
+| **`league_id`** | `1389725099556372481` | **estável** |
+| **`draft_id`** (atual) | `1389755381567213568` | ⚠️ **MUDA A CADA RESET** |
+| ~~`draft_id` (anterior)~~ | ~~`1389725100684611584`~~ | ☠️ **MORTO** — a URL trava em LOADING |
+
+> ⚠️ **O `draft_id` NÃO é estável (achado MAN-OFF26-RUNBOOK-REG-PT2, 02/08/2026).** O **RESET DRAFT
+> gerou um draft novo, com id novo** — o valor registrado poucas horas antes pelo
+> `MAN-OFF26-IDS-REG` **morreu no mesmo dia**. E a morte é **silenciosa**: a URL antiga **trava
+> indefinidamente em LOADING**, não dá erro. **Persistir `draft_id` é armadilha.** O que se guarda
+> é o **`league_id`**; o `draft_id` se **deriva** dele a cada uso. Presumivelmente muda também na
+> virada de season. Detalhe e incidência sobre a decisão 1 na seção do [[OFF26-4]].
 
 **Os dois são distintos e NÃO deriváveis um do outro por inspeção** — o draft board vive sob id
 próprio, a página da liga sob outro (confirmado empiricamente ao ler as duas URLs). Coerente com o
@@ -1575,16 +1584,19 @@ do draft. **Registrados aqui como DADO, deliberadamente não persistidos** em co
 ou coluna: a parametrização do league/draft id é **decisão de produto ainda em aberto** no
 [[OFF26-4]] (§1 da sua F1) e não deve ser antecipada por um registro.
 
-**Estado: RESET DRAFT executado (02/08/2026) — board VAZIO**, nenhum keeper designado; os 2 times
-populados durante a validação foram removidos. **Pendência de reset cumprida.**
+**Estado do board (02/08/2026, após a 2ª execução do Cowork):** **populado com dados de teste** —
+**Team 3 ($148, 10 keepers)**, **Team 4 ($95, 8)**, **Team 5 ($60, 6)**, totais conferindo. Team 1
+e Team 2 foram limpos pelo reset. **Novo RESET DRAFT pendente antes do uso real** — e ele **gerará
+novo `draft_id` outra vez**.
 
-Achados do experimento manual na sala (feito **antes** do reset): refutação do §5 da F1 do
+Achados do experimento manual na sala (feito **antes** do 1º reset): refutação do §5 da F1 do
 **OFF26-4**, teto de lance do **OFF26-10** e o indício `is_keeper:false` do **OFF26-11**. Método
-de população em 2026: **Cowork** (~2,5 h medidas para 12 times) — ver [[OFF26-5]].
+de população em 2026: **Cowork** (decisão vigente) — ver [[OFF26-5]].
 
-> ⚠️ **O reset apagou o alvo empírico dos probes pendentes.** As verificações ainda não feitas —
-> o que a API expõe **pré-draft** ([[OFF26-4]]) e o que os picks expõem **pós-draft** ([[OFF26-11]])
-> — **exigem repopular o board antes de rodar**. É pré-condição, não detalhe de execução.
+> ✅ **Janela aberta para os probes pendentes.** O board **está populado agora**, então serve de
+> **alvo** ao probe pré-draft do [[OFF26-4]] e à verificação de designações — **desde que
+> executados ANTES do próximo reset**. A confirmação **pós-draft** do `is_keeper:false`
+> ([[OFF26-11]]) continua exigindo **rodar um draft de teste**.
 **Validação operacional (REG 16/06/2026):** OFF26-6 (PoC do Cowork montando a liga) roda
 **cedo e isolado** (mecânica pura com dados fake) e é **gate** de OFF26-5/FA auction real;
 OFF26-6 é **subconjunto** de OFF26-7 (dry run E2E), que ensaia a cadeia inteira e depende
@@ -1987,6 +1999,30 @@ tabela×CSV** em prod.
 **Status:** **⚠️ mantido** — a sheet depende da revelação do OFF26-1, que não ocorreu neste
 smoke parcial; validação completa no OFF26-7.
 
+#### Melhoria com validação empírica: ORDENAR a sheet na sequência do board (MAN-OFF26-RUNBOOK-REG-PT2, 02/08/2026)
+
+> **Registro apenas — nada implementado.** A sheet hoje sai agrupada por time, em ordem de roster
+> do Manager. A melhoria abaixo tem **evidência de campo**, não é preferência estética.
+
+Na 2ª execução do Cowork (02/08), a lista de keepers foi entregue **pré-ordenada na sequência exata
+do board** — e o efeito foi qualitativo, não marginal: **eliminou busca, deliberação e navegação**,
+transformando a transcrição numa **descida linha a linha**. **6 dos 24 keepers dispensaram edição
+de preço** por serem de **$1** (o campo já nasce em `$1` — ver [[OFF26-5]]).
+
+**Forma da melhoria:** emitir a sheet **time a time, na ordem das linhas do board**, com **marcação
+explícita dos keepers de $1** (os que não exigem edição de preço). O consumidor é o procedimento
+Cowork ([[OFF26-5]]), não uma tela do Manager.
+
+**Por que isto merece registro e não é detalhe de formatação:** a sheet é o **artefato de handoff**
+entre o Manager e o único passo do calendário que roda **fora** dele. Ordená-la na sequência do
+consumidor é a diferença entre "dados corretos" e "dados operáveis" — e o custo é de ordenação,
+não de lógica nova.
+
+**Dependência de terreno:** a ordem das linhas do board segue a **config de roster** (QB, RB, RB,
+WR, WR, WR, TE, FLEX, DEF, K, banco…), que o runbook exige espelhar a liga real. Ou seja, a ordem
+é **derivável** do que o Manager já sabe — mas **confirmar contra o board real** antes de fixar,
+porque a ordem exata das vagas de banco/FLEX não foi verificada.
+
 #### F1 — Diagnose read-only do terreno (MAN-OFF26-2-F1, 16/06/2026)
 
 Read-only (zero mutação) sobre o OFF26-1 F2 recém-commitado (`2c243d4`), roster e a
@@ -2177,10 +2213,11 @@ tentar.
 O §1 acima levantou "como apontar para a liga fantasma" e listou 3 opções de terreno **sem
 decidir**. Os **valores** agora existem — a decisão de **como parametrizá-los**, não:
 
-| campo | valor |
-|---|---|
-| **`league_id`** | `1389725099556372481` |
-| **`draft_id`** | `1389725100684611584` |
+| campo | valor | estabilidade |
+|---|---|---|
+| **`league_id`** | `1389725099556372481` | **estável** |
+| **`draft_id`** (atual) | `1389755381567213568` | ⚠️ **muda a cada reset** |
+| ~~`draft_id` (anterior)~~ | ~~`1389725100684611584`~~ | ☠️ **morto** |
 
 - Liga **Dynasty SB FA Auction** (permanente, Redraft, 12 times, Auction, $200, 22 rodadas, 3 WR).
 - **Os dois são distintos e NÃO deriváveis um do outro por inspeção** — lidos das URLs da página da
@@ -2190,11 +2227,38 @@ decidir**. Os **valores** agora existem — a decisão de **como parametrizá-lo
 - **Registrados como DADO, deliberadamente NÃO persistidos** em constante, `AppConfig` ou coluna.
   As **opções (a)/(b)/(c) do §1 seguem abertas** — ter o número não escolhe onde ele mora.
 
-> ⚠️ **PRÉ-CONDIÇÃO DO PROBE — o alvo empírico deixou de existir.** O **RESET DRAFT foi executado**
-> em 02/08/2026 e **o board está vazio**. O probe bloqueador do §2 — *o que a API expõe **pré-draft**
-> (designações + salário de keeper)* — **não tem o que ler hoje**. **Repopular o board é
-> pré-condição da diagnose**, não um passo dentro dela. Vale igualmente para a confirmação
-> pós-draft do indício `is_keeper:false` ([[OFF26-11]]).
+##### ⛔ RESTRIÇÃO DE DESENHO sobre a decisão 1 (MAN-OFF26-RUNBOOK-REG-PT2, 02/08/2026)
+
+**O `draft_id` NÃO é estável — evidência direta.** O **RESET DRAFT de 02/08/2026 gerou um draft
+novo, com id novo**: o `draft_id` registrado poucas horas antes (`1389725100684611584`) **morreu no
+mesmo dia**, e a URL correspondente **trava indefinidamente em LOADING** — **falha silenciosa**,
+não erro. Id atual: **`1389755381567213568`**. Presumivelmente muda também **a cada virada de
+season**.
+
+**A decisão 1 permanece EM ABERTO — mas o espaço de opções encolheu.** Não estou arbitrando entre
+(a) parâmetro por chamada, (b) `AppConfig`, (c) coluna em Team. O que a evidência elimina é um
+**atributo transversal a elas**:
+
+> **Qualquer alternativa que PERSISTA `draft_id` está descartada por evidência.** O que se persiste
+> (se algo for persistido) é o **`league_id`**, que é estável. O `draft_id` tem de ser **derivado
+> do `league_id` a cada uso**.
+
+**Consequência técnica a confirmar na F2/probe:** o precedente do `draft_import.py` é a derivação
+no sentido **inverso** (recebe `draft_id` → deriva `league_id`). Aqui é preciso o caminho
+`league_id → draft_id`, presumivelmente via `/league/{lid}/drafts` — endpoint **já usado no
+código** (`sync_sleeper.py:762`), mas **nunca exercitado contra a fantasma**. **Confirmar
+disponibilidade; não assumir.**
+
+**Por que isso é grave além do OFF26-4:** um `draft_id` persistido que morre em silêncio produz
+exatamente o pior modo de falha — a auditoria não erra, ela **pendura**. E o momento em que isso
+aconteceria é o pior possível: logo após um reset, ou seja, **na virada da intertemporada**.
+
+> ✅ **PRÉ-CONDIÇÃO DO PROBE — atualizada: a janela está ABERTA, mas fecha no próximo reset.** O
+> board **está populado** (Team 3/4/5, dados de teste), então o probe bloqueador do §2 — *o que a
+> API expõe **pré-draft** (designações + salário de keeper)* — **tem o que ler agora**. Rodar
+> **antes do próximo RESET DRAFT**, que já está pendente. A confirmação **pós-draft** do
+> `is_keeper:false` ([[OFF26-11]]) continua exigindo **rodar um draft de teste**, o que o board
+> populado agora torna possível.
 
 ---
 
@@ -2271,11 +2335,14 @@ descobriu que a Fase B do runbook estava errada.
    continuariam ambíguos.
 8. Nome correto da liga: **Dynasty SB FA Auction**.
 
-**Estado da liga (atualizado — MAN-OFF26-IDS-REG, 02/08/2026):** **RESET DRAFT executado**, board
-**vazio**; os dois times populados durante a validação foram removidos. **A liga está pronta para
-o uso real.** Identificadores: **`league_id` = `1389725099556372481`**, **`draft_id` =
-`1389725100684611584`** (registrados no bloco do pacote OFF26 e na seção do [[OFF26-4]];
-**não persistidos em código** — a parametrização é decisão em aberto do OFF26-4).
+**Estado da liga (atualizado — MAN-OFF26-RUNBOOK-REG-PT2, 02/08/2026):** após o reset, a **2ª
+execução do Cowork repopulou o board** com **Team 3 ($148)**, **Team 4 ($95)** e **Team 5 ($60)**
+— dados de **teste**. **Novo RESET DRAFT pendente antes do uso real**, e ele **trocará o
+`draft_id` outra vez**. Identificadores: **`league_id` = `1389725099556372481`** (estável) ·
+**`draft_id` atual = `1389755381567213568`** — o anterior (`1389725100684611584`) **está morto**,
+com a URL travando em LOADING. Tabela completa e a **restrição de desenho** decorrente no bloco do
+pacote OFF26 e na seção do [[OFF26-4]]; **nada persistido em código** — a parametrização é decisão
+em aberto do OFF26-4.
 
 #### Medição de esforço e decisão de método (02/08/2026 — MAN-OFF26-10-11-REG)
 
@@ -2294,6 +2361,107 @@ ano anterior consumiu **uma tarde inteira**.
 - **Caminho via API interna não documentada: DELIBERADAMENTE DESCARTADO.** Sem contrato → quebra
   sem aviso; provável **violação de termos de uso**; e **expõe a conta de comissário da liga real**.
   Registrado para que não seja re-proposto como "otimização óbvia" em 2027.
+
+#### 2ª execução do Cowork — runbook corrigido VALIDADO (MAN-OFF26-RUNBOOK-REG-PT2, 02/08/2026)
+
+Segunda rodada no mesmo dia, agora **com o runbook já corrigido** e **com a lista de keepers
+pré-ordenada na sequência do board**. Populados **Team 3 (10 keepers, $148)**, **Team 4 (8, $95)** e
+**Team 5 (6, $60)** — **todos os totais conferindo**.
+
+**Objetivo duplo — um resultado e uma perda:** o runbook corrigido **foi validado** (o fluxo real
+descrito no `MAN-OFF26-10-11-REG` levou o agente ao fim três vezes, sem redescoberta de caminho);
+a **medição de tempo foi perdida** por instabilidade de ambiente (ver bloco próprio abaixo).
+
+##### ⛔ FALSO ACHADO — NÃO APLICAR: "rebaixar o check anti-homônimo"
+
+> **Este é o registro mais importante desta entrada.** O relatório do Cowork **recomenda enfraquecer
+> uma proteção**, e a recomendação **está errada**.
+
+**O que o relatório diz:** que a sigla do time NFL exibida pelo Sleeper **diverge** da keeper sheet
+(observado: **Waddle exibido como DEN**, **Hill sem sigla**), e que portanto o check anti-homônimo
+da §B.3 deveria ser rebaixado.
+
+**Por que está errado:** a causa foi a **lista de teste**, montada manualmente pelo owner-side com
+**times de temporadas anteriores**. É **dado velho na lista**, não divergência da plataforma. Na
+execução **real**, a keeper sheet sai do **Manager**, que **sincroniza do Sleeper** — os dois lados
+**bebem da mesma fonte** e a sigla **bate**.
+
+**A orientação correta é a INVERSA da recomendada:** se a sigla divergir na execução real, isso é
+**sinal de problema no sync ou na sheet** → **parar e reportar**, não seguir em frente. Uma
+divergência de sigla é **sintoma**, não ruído.
+
+**Decisão registrada: o check anti-homônimo da §B.3 permanece INALTERADO**, sem nenhum
+enfraquecimento. Nada foi aplicado no runbook a partir desta recomendação.
+
+**Nota de método (família [[MAN-METH-REG]]):** *recomendação de melhoria vinda de execução com
+**dados sintéticos** precisa ser conferida contra a **origem do dado** antes de virar correção de
+documento.* Sem essa conferência, **uma proteção teria sido enfraquecida na véspera do uso real por
+artefato de teste** — e o enfraquecimento pareceria justificado, porque a observação era verdadeira
+(a sigla **de fato** divergiu). O erro não estava no que se viu; estava em **de onde o dado vinha**.
+
+##### 5 correções aplicadas ao runbook
+
+1. **Identificação de coluna com times placeholder — os DOIS estados.** Enquanto os times não
+   tiverem donos reais, os cabeçalhos das colunas são **avatares vazios, sem rótulo de texto** — não
+   há "Team N" escrito em lugar nenhum. A verificação canônica nesse estado é o **menu de contexto
+   da célula**, que exibe *"Manually set a player for Team N"*. A orientação anterior ("identifique
+   pelo owner") **pressupõe rótulos que só existirão quando os owners reais entrarem**.
+2. **Reescala do board após a primeira interação.** O board **desloca/reescala**, o que **quebra
+   referência posicional**. Mitigação observada: revelar **FLEX/K/DEF pela seta ▼ antes** de mirar
+   as linhas de baixo, e **confirmar o time pelo menu de contexto antes de cada designação**.
+3. **Atribuição de vaga é POR POSIÇÃO.** Escolher o jogador o coloca na vaga correta
+   automaticamente (um **RB entra no FLEX** quando as vagas de RB estão cheias). **Clicar a célula
+   exata é conveniência, não obrigação** — reduz a criticidade do item 2.
+4. **O campo de preço nasce em `$1` SEMPRE**, inclusive quando o `$PROJ` é maior. **Regra
+   generalizada:** vale para **qualquer keeper de $1**, não só K/DEF (o registro anterior sugeria
+   escopo menor).
+5. **Filtro de posição para K/DEF confirmado como mais rápido**, com propriedade útil descoberta:
+   kickers e defesas **já designados somem do filtro** → "pegar o primeiro disponível" é **limpo e
+   sem colisão**.
+
+##### Ganho da lista ordenada — validado qualitativamente
+
+A lista pré-ordenada na sequência do board **eliminou busca, deliberação e navegação**; a execução
+virou **descida linha a linha**. **6 dos 24 keepers dispensaram edição de preço** (keepers de $1).
+→ **Vira melhoria concreta do [[OFF26-2]]** (ordenar a sheet na sequência do board, marcando os de
+$1), registrada lá **sem implementação**.
+
+##### ⚠️ Medição PERDIDA + risco de variância de ambiente
+
+**Tempos de relógio:** Team 3 = **26min52s** (10 keepers) · Team 4 = **14min13s** (8) · Team 5 =
+**13min58s** (6) · **total 58min26s**. **Estes números NÃO medem o procedimento:** o ambiente do
+Cowork acumulou **dezenas de timeouts de captura de tela, de 30 s cada**, que **dominam o relógio**.
+
+**Evidência de que o gargalo é o ambiente, não o método:**
+- o **Team 4 foi mais rápido por jogador que o Team 3**, e o **Team 5 voltou a subir** — por
+  **concentração de timeouts**, não por regressão de fluxo (a curva de aprendizado não sobe);
+- a execução **anterior**, no **mesmo dia**, **sem** runbook corrigido e **sem** lista ordenada,
+  rendeu **~75 s/jogador**. **Nenhuma explicação plausível sustenta que corrigir o documento e
+  pré-ordenar a lista tenha tornado o trabalho mais lento.**
+
+**Risco operacional registrado:** as duas execuções rodaram **no mesmo ambiente**, com resultados
+**muito diferentes** e **sem causa identificada**. A instabilidade é **imprevisível**. Projeção por
+ritmo de regime: **~2 h para 12 times**; numa execução degradada como a segunda, **~5 h** — e **não
+há como saber qual será antes de começar**.
+
+**Mitigação registrada: fatiar a transcrição POR TIME**, cada um uma **unidade verificável** — se a
+sessão degradar, a seguinte **retoma do time seguinte sem refazer nada**. É a mitigação certa
+justamente porque o modo de falha é *lentidão*, não *erro*: o trabalho já feito permanece válido.
+
+##### Efeito sobre a decisão Cowork-2026 / script-2027 — reconsideração PARCIAL, em aberto
+
+- **A decisão vigente NÃO muda:** 2026 roda **via Cowork**.
+- **O argumento original do script segue caído:** "não cabe na janela de 48 h" — o **tempo médio
+  cabe**.
+- **Mas surge um argumento NOVO, de natureza diferente: VARIÂNCIA.** O script determinístico **não
+  tem esse modo de falha**. O risco deixou de ser "demora demais" e passou a ser "**não dá para
+  prever quanto demora**" — e é a imprevisibilidade, não a duração, que ameaça uma janela de 48 h.
+- **Contra-argumentos preservados (seguem válidos):** **fragilidade de seletores** (script que
+  dirige UI quebra com mudança de front-end — e a UI **já mudou uma vez** entre junho e agosto);
+  **competição por prazo** com [[OFF26-4]] e [[OFF26-11]], que estão no caminho crítico; e
+  **estreia no dia do uso** como pior cenário possível.
+- **Status: reconsideração parcial ABERTA.** Não arbitrada aqui.
+
 
 ---
 
@@ -2565,11 +2733,13 @@ F1: **nada no código lê o estado pré-draft** hoje).
 > expõem **pós-draft**, e isso **ainda não foi observado** — a liga fantasma está em estado de
 > teste, com o draft não rodado.
 >
-> ⚠️ **PRÉ-CONDIÇÃO (MAN-OFF26-IDS-REG, 02/08/2026):** o **RESET DRAFT foi executado** e **o board
-> está vazio** — o alvo do probe **deixou de existir**. Confirmar (ou derrubar) este indício exige
-> **repopular o board e rodar um draft de teste** antes de qualquer leitura. Pré-condição da
-> diagnose, não passo interno dela. Identificadores da sala no bloco do pacote OFF26 e na seção do
-> [[OFF26-4]].
+> ⚠️ **PRÉ-CONDIÇÃO — atualizada em 02/08/2026 (MAN-OFF26-RUNBOOK-REG-PT2):** o board voltou a
+> ficar **populado** (Team 3/4/5, dados de teste da 2ª execução do Cowork), então **existe alvo
+> outra vez**. Mas confirmar este indício exige o estado **pós-draft**: é preciso **rodar um draft
+> de teste sobre o board populado**, e fazê-lo **antes do próximo RESET DRAFT** (já pendente), que
+> zeraria o alvo de novo **e trocaria o `draft_id`**. Pré-condição da diagnose, não passo interno
+> dela. Identificadores da sala — e o aviso de que o **`draft_id` muda a cada reset** — no bloco do
+> pacote OFF26 e na seção do [[OFF26-4]].
 
 A operação interna disparada ao **designar keeper no board** carrega o campo **`is_keeper` com
 valor `false`**: o Sleeper trata a designação como **pick forçado de leilão**, não como keeper.

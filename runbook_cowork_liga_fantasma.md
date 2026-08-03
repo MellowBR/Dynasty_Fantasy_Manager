@@ -30,6 +30,20 @@
 > documentada** foi **deliberadamente descartado**: sem contrato, quebra sem aviso, provável
 > violação de termos de uso e **expõe a conta de comissário da liga real**.
 >
+> **🔧 2ª RODADA DE CORREÇÕES — 02/08/2026 (MAN-OFF26-RUNBOOK-REG-PT2).** O runbook corrigido foi
+> **exercitado e validado**: **Team 3 (10 keepers, $148)**, **Team 4 (8, $95)** e **Team 5 (6,
+> $60)**, todos com os totais conferindo, **sem redescoberta de caminho**. Novas correções: **não
+> fixar URL de board** (§B.1 — o `draft_id` **muda a cada reset** e a URL velha **trava em
+> LOADING**), **identificação de coluna em liga com placeholders** (§B.2), **reescala do board**
+> (§B.2), **vaga atribuída por posição** (§B.3.0), **preço nasce em $1 sempre** (§B.3) e **filtro
+> de K/DEF esconde os já designados** (§B.3). **⛔ Uma recomendação da 2ª execução foi REJEITADA:**
+> rebaixar o check anti-homônimo — ver armadilha 4. **Marcadas com 🔧 CORREÇÃO 02/08 (2ª
+> execução).**
+>
+> ⚠️ **Variância de ambiente:** a 2ª execução levou **58min26s para 3 times** — não por regressão do
+> método, e sim por **dezenas de timeouts de captura de tela (30 s cada)**. **Sem causa
+> identificada; imprevisível.** Ver a mitigação de **fatiamento por time** no TL;DR.
+>
 > **Não duplicar conteúdo canônico:** a fonte dos **keepers + salários** é a **keeper sheet
 > ([[OFF26-2]])**; a **auditoria** pré-leilão é o **[[OFF26-4]]**; o PoC que originou este
 > runbook é o **[[OFF26-6]]**.
@@ -221,26 +235,60 @@ real antes de seguir.**
 > *SET KEEPERS/DYNASTY PLAYERS* → *SET PLAYERS*: **essa seção não está na UI atual**. Perder tempo
 > caçando esse caminho foi a maior parte dos ~9 min de overhead da transcrição cronometrada.
 
-**O board JÁ ESTÁ EM MODO DE DESIGNAÇÃO no pré-draft.** Basta abrir o draft board da liga
-(`/draft/nfl/<DRAFT_ID>`) e **clicar direto na célula vazia** da coluna do time (§B.3). Não há
-modo a ativar, nem botão a apertar antes.
+**O board JÁ ESTÁ EM MODO DE DESIGNAÇÃO no pré-draft.** Basta chegar ao board e **clicar direto na
+célula vazia** da coluna do time (§B.3). Não há modo a ativar, nem botão a apertar antes.
+
+### 🔧 **CORREÇÃO 02/08 (2ª execução) — NÃO fixe a URL do draft board**
+
+> ⛔ **O `draft_id` MUDA a cada RESET DRAFT** (e presumivelmente a cada virada de season). Uma URL
+> de board anotada numa sessão **morre na seguinte** — e morre **em silêncio: a página trava
+> indefinidamente em LOADING**, sem mensagem de erro. Se o board não carregar, **a primeira
+> hipótese é URL velha**, não lentidão.
+
+**Chegue ao board por descoberta, toda vez:**
+1. Abrir a **página da liga** (o `league_id` **é estável** — esse sim pode ser anotado).
+2. Ir ao **pré-draft** → widget **Draftboard** → **ícone de globo**.
+
+*(Alternativa para quem estiver com acesso de leitura à API: reler o `draft_id` da liga antes da
+sessão. De um jeito ou de outro, **o `draft_id` é redescoberto, nunca reaproveitado**.)*
 
 No topo do board: nome da liga, resumo do formato e o botão **START DRAFT** — **NÃO clicar**.
 
 ## B.2 Anatomia do board
-- **Colunas = times** (rótulos "Team 1" … "Team 12"); cada coluna é um roster.
-  - ⚠️ **Identifique a coluna pelo OWNER (handle Sleeper), não pelo rótulo "Team N".** Na liga
-    permanente os times têm dono e nome reais — case cada coluna ao owner correto da keeper sheet.
+- **Colunas = times**; cada coluna é um roster. 🔧 **CORREÇÃO 02/08 (2ª execução) — a coluna se
+  identifica de duas formas, conforme o estado da liga:**
+  - **(a) Com owners reais dentro (estado do uso REAL):** ⚠️ **identifique pela coluna do OWNER
+    (handle Sleeper), não pelo nome do time** (mutável). Case cada coluna ao owner da keeper sheet.
+  - **(b) Com times placeholder (estado de TESTE):** os cabeçalhos são **avatares vazios, SEM
+    rótulo de texto** — **não existe "Team N" escrito em lugar nenhum** na coluna. A verificação
+    canônica nesse estado é o **menu de contexto da célula**, que exibe
+    ***"Manually set a player for Team N"***. Abrir o menu **antes de cada designação** é o que
+    confirma o time.
+  - ⚠️ A orientação (a) **pressupõe rótulos que só existem quando os owners reais entram** — em
+    liga de teste, use (b).
 - **Linhas = vagas do roster** na ordem (QB, RB, RB, WR, WR, WR…). ⚠️ Confirme que o board reflete
   a config **3 WR** etc. (FASE A.3).
   - 🔧 **CORREÇÃO 02/08 — K e DEF ficam ABAIXO DA DOBRA.** As últimas linhas do board não aparecem
     de saída. **Revele pela seta ▼ do canto direito** — o **scroll do mouse NÃO move o board**.
     Esquecer isso faz parecer que o time está completo quando faltam 2 vagas.
+  - 🔧 **CORREÇÃO 02/08 (2ª execução) — o board RESCALA após a primeira interação.** Ele
+    **desloca/reescala**, o que **quebra qualquer referência posicional** memorizada. Mitigação
+    observada: **revelar FLEX/K/DEF pela seta ▼ ANTES** de mirar as linhas de baixo, e **confirmar
+    o time pelo menu de contexto antes de cada designação** (§B.2b). *(A criticidade disso é menor
+    do que parece — ver §B.3.0: a vaga é atribuída por posição, não pela célula clicada.)*
 - Embaixo: lista de jogadores com busca **"Find player Ctrl + U"**, filtros (All / QB / RB / WR /
   TE / FLEX / K / DEF) com contadores (ex.: "All 0/15"), colunas de projeção ($PROJ, BYE, PROJ…).
 - No centro/topo: barra do leilão com seletor de preço **"–  $ 1  +"** e botão de ação.
 
 ## B.3 Atribuir um keeper a um time, com salário
+
+### B.3.0 🔧 **NOVO 02/08 (2ª execução) — a vaga é atribuída POR POSIÇÃO**
+
+Escolher o jogador **já o coloca na vaga correta automaticamente**: um **RB entra no FLEX** quando
+as vagas de RB estão cheias. **Clicar a célula exata é conveniência, não obrigação** — o que
+importa é acertar **a coluna (o time)**, não a linha. Isso desarma boa parte do risco da reescala
+do board (§B.2).
+
 1. Clique na **célula da posição** do time-alvo (ex.: célula **QB** da coluna do owner X). Aparece
    um **menu de contexto**:
    - **"Set Player — Manually set a player for Team N"**
@@ -250,6 +298,8 @@ No topo do board: nome da liga, resumo do formato e o botão **START DRAFT** —
 3. Clique no campo de busca e **digite o nome** do jogador (ex.: `Mahomes`).
    - 🔧 **CORREÇÃO 02/08 — para K e DEF, use o FILTRO DE POSIÇÃO** (K / DEF) em vez de digitar o
      nome. Digitar nome de kicker/defesa é lento e errático; o filtro entrega a lista curta direto.
+     🔧 **Confirmado na 2ª execução**, com uma propriedade útil: **kickers e defesas já designados
+     SOMEM do filtro** — então **"pegar o primeiro disponível" é limpo e sem risco de colisão**.
 4. **VERIFICAÇÃO (anti-homônimo):** confira, na linha do resultado, **a posição e a sigla do time
    da NFL** sob o nome (ex.: "QB **KC**", "RB **ATL**").
    - 🔧 **CORREÇÃO 02/08 — alerta SUAVIZADO, não removido.** O pool de designação traz **apenas
@@ -265,7 +315,9 @@ No topo do board: nome da liga, resumo do formato e o botão **START DRAFT** —
 6. **Definir o salário** (valor da keeper sheet):
    - 🔧 **CORREÇÃO 02/08 — o campo JÁ VEM COM $1.** Para keepers de **$1 não é preciso editar
      nada**: vá direto ao **SET PLAYER**. (Como boa parte do roster tende a ser de $1, isso corta
-     bastante tempo.)
+     bastante tempo.) 🔧 **Generalizado na 2ª execução:** o campo **nasce em `$1` SEMPRE** —
+     **inclusive quando o `$PROJ` exibido é maior**. A regra vale para **qualquer keeper de $1**,
+     não só K/DEF. Não se deixe induzir pelo `$PROJ`: o que conta é o valor da keeper sheet.
    - Para os demais: clique sobre o número **"$ 1"** — ele vira editável (aparece cursor).
    - **Ctrl+A** para selecionar e **digite o valor** (ex.: `40`). Digitar é muito mais rápido que
      "+/–" (andam de 1 em 1). 🔧 **Nota 02/08:** o **Ctrl+A funcionou em 100% dos casos** na
@@ -336,6 +388,15 @@ salário vem da keeper sheet e é canônico. Registre o time como **bloqueado** 
    **apenas ofensivos elegíveis**, então o Josh Allen **LB/JAX não aparece** na busca — o caso
    clássico está fora de alcance. **O alerta permanece** em versão menor: **dois ofensivos
    homônimos continuariam ambíguos**, então siga conferindo **posição + sigla NFL** antes do "+".
+   > ⛔ **NÃO rebaixar este check além disto (registro de 02/08, 2ª execução).** A 2ª execução
+   > relatou **divergência de sigla** (Waddle como DEN, Hill sem sigla) e **recomendou enfraquecer
+   > a conferência**. **A recomendação foi rejeitada:** a causa era a **lista de teste**, montada
+   > à mão com **times de temporadas anteriores** — **dado velho na lista**, não divergência da
+   > plataforma. Na execução **real** a keeper sheet sai do **Manager**, que **sincroniza do
+   > Sleeper**: os dois lados bebem da **mesma fonte** e a sigla **bate**.
+   >
+   > **Orientação INVERTIDA, portanto:** se a sigla divergir **na execução real**, isso é **sinal
+   > de problema no sync ou na sheet** → **PARE e REPORTE**. Não é ruído a ignorar, é **sintoma**.
 5. **Edição do campo de preço** — 🔧 **REBAIXADO A NOTA EM 02/08:** o **Ctrl+A funcionou em 100%
    dos casos** na transcrição cronometrada. Fluxo: clicar no "$ 1" → **Ctrl+A** → digitar →
    conferir → SET PLAYER. E lembre: **para keepers de $1 não é preciso editar nada.**
@@ -384,18 +445,32 @@ salário vem da keeper sheet e é canônico. Registre o time como **bloqueado** 
 
 ### Trabalho anual (a cada intertemporada) — 🔧 **atualizado 02/08/2026**
 9. (Reset de rosters é **automático** no redraft — **não fazer nada**.)
-10. Abrir o **draft board** da liga (`/draft/nfl/<DRAFT_ID>`). **Não** procurar *SET
-    KEEPERS/DYNASTY PLAYERS* — **não existe**; o board já está em modo de designação.
+10. Chegar ao board **por descoberta**: página da liga → **pré-draft** → widget **Draftboard** →
+    **ícone de globo**. **NUNCA reaproveitar URL de board anotada** — o `draft_id` muda a cada
+    reset e a URL velha **trava em LOADING** (§B.1). **Não** procurar *SET KEEPERS/DYNASTY
+    PLAYERS* — **não existe**; o board já está em modo de designação.
 11. **Popular os times ENQUADRADOS primeiro.** Times acima do teto (§B.3.2) **não entram** — ficam
     para depois do **late drop (22/08)**.
-12. Para cada keeper da **keeper sheet [[OFF26-2]]**: localizar a coluna **pelo OWNER** → clicar na
-    **célula vazia** → **Set Player** → buscar (**filtro de posição** para K/DEF) → **conferir
-    posição + time NFL** → **"+" da linha (nunca o nome)** → se salário > $1: clicar no preço →
-    **Ctrl+A** → digitar → **SET PLAYER**. Para **$1, não editar** — direto no SET PLAYER.
-13. **Revelar K e DEF com a seta ▼** antes de dar o time por completo.
+12. Para cada keeper da **keeper sheet [[OFF26-2]]**: confirmar a coluna — **pelo OWNER** se os
+    times têm dono, **pelo menu de contexto** (*"…for Team N"*) se forem placeholders (§B.2) →
+    clicar na **célula vazia** → **Set Player** → buscar (**filtro de posição** para K/DEF) →
+    **conferir posição + time NFL** → **"+" da linha (nunca o nome)** → se salário > $1: clicar no
+    preço → **Ctrl+A** → digitar → **SET PLAYER**. Para **$1, não editar** — direto no SET PLAYER.
+    *(A vaga é atribuída **por posição** — acertar a coluna é o que importa; §B.3.0.)*
+13. **Revelar FLEX, K e DEF com a seta ▼** antes de mirar as linhas de baixo **e** antes de dar o
+    time por completo (o board **reescala** após a 1ª interação).
 14. Após o late drop, **popular os times que faltaram**.
 15. **Rodar a auditoria [[OFF26-4]]** (diff vs. keeper sheet) **ANTES** de iniciar o auction.
 16. **NÃO** clicar em **START DRAFT** até a auditoria bater e tudo estar populado.
 
-> ⏱️ **Referência de tempo (medido 02/08/2026):** ~**75 s/jogador** ≈ **12,5 min/time** ≈
-> **2,5 h** para os 12 times, já descontado o overhead de descoberta.
+> ⏱️ **Referência de tempo — e a variância que ela esconde.** Ritmo de regime medido na 1ª
+> execução: ~**75 s/jogador** ≈ **12,5 min/time** ≈ **~2 h** para os 12 times. **Mas a 2ª execução,
+> no mesmo ambiente, levou 58min26s para 3 times** — não por regressão do método, e sim por
+> **dezenas de timeouts de captura de tela (30 s cada)** que dominaram o relógio. **A instabilidade
+> é imprevisível e não tem causa identificada:** a mesma tarefa pode levar ~2 h ou ~5 h, e **não há
+> como saber antes de começar**.
+>
+> ✅ **Mitigação: FATIE A TRANSCRIÇÃO POR TIME.** Cada time é uma **unidade verificável** (confira o
+> total de salários ao fechar). Se a sessão degradar, **a seguinte retoma do time seguinte, sem
+> refazer nada** — o modo de falha é **lentidão, não erro**, então o trabalho já feito continua
+> válido.
