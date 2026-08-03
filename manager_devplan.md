@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 03/08/2026 (MAN-OFF26-4-REFINE: **spec do OFF26-4 sincronizada** com a evidência de 02/08 — bloco D1–D7 no padrão do OFF26-2, cada decisão rotulada (**arbitrada** / **resolvida por evidência** / **delegada com critério**); F1 e ATUALIZAÇÃO EMPÍRICA **intactas** abaixo, status segue **🔲**. **D1:** `league_id` em `AppConfig`, **`draft_id` NUNCA persistido** (derivado a cada uso, com timeout explícito — URL morta trava em LOADING); a F2 herda a pendência de que `league_id → draft_id` nunca foi exercitado. **D2:** base = `usable_draft_budget` (resolvida por evidência), com a **ressalva aritmética 22 rodadas × 8.3.4 pendente**. **D3:** ponte de jogador **delegada** com critério "não tocar o OFF26-2". **D4/D5:** 12 times de uma vez; **não populado = estado próprio**, não divergência; 4 classes + severidade na F2. **D6:** só `sleeper_owner_id`; ⛔ **times ainda placeholders (owner_id nulo, convites de 03/08) → F2 não validável contra placeholders**. **D7:** probe exige board populado — janela aberta agora, fecha no próximo reset. Sem código)  
+> Última atualização: 03/08/2026-pt2 (MAN-OFF26-4-PROBE: **probe read-only na liga fantasma real — o bloqueador do §2 da F1 do OFF26-4 CAIU**. Zero escrita, draft não iniciado, board intacto. **Derivação `league_id → draft_id` funciona por 2 caminhos** (`league.draft_id` no topo, 1 request; e `/drafts` com 1 item — o morto não aparece). **Premissa do D1 refutada para a API:** draft morto = **404 limpo em 0,2 s**, não trava (o LOADING é do app web). **Designações expostas pré-draft** em `/draft/{did}/picks` (mesma superfície já usada), 24 registros com **`metadata.amount`** — **totais $148/$95/$60 reconstruídos exatos**. Jogador por `player_id`=`sleeper_player_id`, **⚠️ DEF vem como sigla (`"LAR"`)**; time por `roster_id`; **`owner_id` nulo em 11/12** (D6 confirmado como bloqueio de validação, mas a auditoria casa por roster). **Sem campo de budget por time** → soma, como o D2 já dizia. **Réplica dupla** de leitura de picks (`draft_import.py:39` × `sync_sleeper.py:872`, coerção `float` × `int`), **ambos gateados em `status=="complete"` — era o gate, não a API**. Não previstos: **`is_keeper:false` nas 24**; **`pick_no`/`round` não indicam vaga → D5 sem classe "slot errado"**; **22 slots (10+12 BN)** medem o lado Sleeper da ressalva do D2; **fantasma sem IR** × liga real com IR = divergência concreta. Status 🔲; sem código)  
+> Anterior: 03/08/2026 (MAN-OFF26-4-REFINE: **spec do OFF26-4 sincronizada** com a evidência de 02/08 — bloco D1–D7 no padrão do OFF26-2, cada decisão rotulada (**arbitrada** / **resolvida por evidência** / **delegada com critério**); F1 e ATUALIZAÇÃO EMPÍRICA **intactas** abaixo, status segue **🔲**. **D1:** `league_id` em `AppConfig`, **`draft_id` NUNCA persistido** (derivado a cada uso, com timeout explícito — URL morta trava em LOADING); a F2 herda a pendência de que `league_id → draft_id` nunca foi exercitado. **D2:** base = `usable_draft_budget` (resolvida por evidência), com a **ressalva aritmética 22 rodadas × 8.3.4 pendente**. **D3:** ponte de jogador **delegada** com critério "não tocar o OFF26-2". **D4/D5:** 12 times de uma vez; **não populado = estado próprio**, não divergência; 4 classes + severidade na F2. **D6:** só `sleeper_owner_id`; ⛔ **times ainda placeholders (owner_id nulo, convites de 03/08) → F2 não validável contra placeholders**. **D7:** probe exige board populado — janela aberta agora, fecha no próximo reset. Sem código)  
 > Anterior: 02/08/2026-pt8 (MAN-OFF26-RUNBOOK-REG-PT2: **2ª execução do Cowork** — runbook corrigido **validado** (Team 3/4/5 populados, totais conferindo). **`draft_id` NÃO é estável**: o reset gerou id novo e **matou o registrado no pt7** (atual `1389755381567213568`; `league_id` estável), com **falha silenciosa** (URL velha trava em LOADING) → **restrição de desenho na decisão 1 do OFF26-4: persistir `draft_id` está descartado por evidência**; persiste-se `league_id` e deriva-se o draft. **⛔ Falso achado rejeitado:** rebaixar o check anti-homônimo — causa era **lista de teste com dados velhos**; check **mantido** e orientação **invertida** (divergência real = parar e reportar). 5 correções de runbook + não fixar URL de board. **Melhoria do OFF26-2** registrada (ordenar a sheet na sequência do board). **Medição perdida** por timeouts de ambiente → risco de **variância imprevisível** (~2 h × ~5 h), mitigação **fatiar por time**; decisão Cowork-2026 **mantida** com reconsideração parcial **aberta**. Sem código)  
 > Anterior: 02/08/2026-pt7 (MAN-OFF26-IDS-REG: **fecha as 2 pendências do pt6** sobre a liga fantasma **Dynasty SB FA Auction** — **`league_id` = `1389725099556372481`**, **`draft_id` = `1389725100684611584`** (distintos e **não deriváveis um do outro por inspeção**, reforçando o precedente do `draft_import.py`: passa-se o draft_id e deriva-se o league_id), registrados como **dado** e **não persistidos** em constante/`AppConfig`/coluna — a parametrização segue **decisão em aberto** do OFF26-4; e **RESET DRAFT executado, board vazio**, liga pronta para uso real. **Pré-condição registrada:** o reset **apagou o alvo empírico** dos probes pendentes (pré-draft do OFF26-4 e pós-draft do OFF26-11) → **repopular o board antes de rodar as diagnoses**. Sem código)  
 > Anterior: 02/08/2026-pt6 (MAN-OFF26-10-11-REG 2ª parte: **liga fantasma criada e testada** — **Dynasty SB FA Auction** (Redraft, 12, Auction, $200, 22 rodadas, 3 WR; 2 times populados, RESET DRAFT e ids pendentes **naquele momento — ambos resolvidos no pt7 acima**). **§5 da F1 do OFF26-4 REFUTADO por experimento:** o Sleeper aplica a **mesma reserva de $1/vaga** (`teto = 200 − gasto − (vagas−1)`; $29 aceito, $32+ recusado) → base correta = **`usable_draft_budget`**, decisão 2 **resolvida por evidência**. **OFF26-10:** time acima do teto **não entra no board** → **população escalonada obrigatória**. **OFF26-11:** **indício** `is_keeper:false` (verificação definitiva é pós-draft). **Runbook corrigido — o caminho da Fase B não existe**; +7 correções e seção nova do teto. **Medido:** ~75 s/jogador ≈ **2,5 h p/ 12 times** → 2026 via **Cowork**, script determinístico p/ **2027**, API interna **descartada**. Sem código)  
@@ -2569,3 +2570,79 @@ por **string de nome** — com o time 9 já renomeado no Sleeper ("Tropa do Bica
 
 - **Sem código. Status Rápido intocado. Nada do [[OFF26-2]] alterado; nenhuma decisão em aberto do
   [[OFF26-10]]/[[OFF26-11]] arbitrada.**
+
+### MAN-OFF26-4-PROBE — probe read-only do estado pré-draft: o bloqueador do §2 caiu (03/08/2026, Opus)
+
+- **Probe empírico contra a liga fantasma real**, pela **API pública read-only** já usada pelo
+  projeto (mesmo `BASE_URL` de `sync_sleeper._get`). **Zero escrita, draft NÃO iniciado, nenhum
+  reset, board intacto ao fim.** Scripts transitórios no scratchpad, **não commitados**.
+
+- **O resultado central:** o §2 da F1 dizia que *"nada no código lê o estado pré-draft, e o que a
+  API expõe é questão empírica"*. **A API expõe tudo o que a auditoria precisa — designação,
+  jogador, time e VALOR.** O que impedia não era a API: era o **gate `status == "complete"`** nos
+  dois consumidores de picks do projeto (ver réplica, abaixo). **A F1 estava certa na causa e
+  incompleta no efeito.**
+
+- **P1 — derivação `league_id → draft_id`: funciona, e por dois caminhos.** `GET /league/{lid}` já
+  traz **`draft_id` no topo** (1 request, mais barato que o previsto) e `/league/{lid}/drafts`
+  devolve **exatamente 1 draft, o vigente**. **O draft morto não aparece na lista** — a pergunta
+  "como distinguir se vier mais de um" não se coloca hoje; se vier, os discriminadores são `status`
+  e `created`. **Pendência herdada do D1: fechada.**
+
+- **⛔ Refutação de premissa do D1 — o draft morto NÃO trava na API.** `GET /draft/{morto}` retorna
+  **404 com corpo `null` em 0,2 s**; idem `/picks`. **O "trava em LOADING" é comportamento do app
+  WEB.** Pela porta que a auditoria vai usar, **o modo de falha silenciosa não existe** — a
+  distinção morto × vivo é limpa e imediata. O requisito de *timeout explícito* continua sendo boa
+  prática (o `_get` já tem `timeout=15`), mas **deixa de ser mitigação de um risco real**. O
+  essencial do D1 — **não persistir `draft_id`** — permanece intacto.
+
+- **P2/P3 — designações e salário legíveis pré-draft.** `GET /draft/{did}/picks` com o draft em
+  `status: "pre_draft"` devolveu **24 registros**, com **`metadata.amount` (string)**. **Os três
+  totais foram reconstruídos do payload, exatos: $148 / $95 / $60**, e o Team 3 confere 10/10
+  nominalmente. **A auditoria pode comparar salário, não só presença.**
+  - Detalhe que fecha um ciclo: **o "Waddle = DEN" vem do próprio Sleeper**. É a confirmação
+    independente de que a divergência de sigla relatada na 2ª execução do Cowork era **da lista de
+    teste**, não da plataforma — e que **rejeitar o falso achado foi correto** ([[OFF26-5]]).
+
+- **P4 — pontes.** Jogador por **`player_id`, que casa com `sleeper_player_id`** — **⚠️ exceto DEF,
+  que vem como sigla (`"LAR"`)**: qualquer coerção a `int` quebra. Time por **`roster_id`**;
+  `picked_by` vem **vazio** nas 24. **`owner_id` nulo em 11 dos 12 rosters** (só o comissário tem
+  dono; `/users` devolve 1 usuário) → **o D6 está confirmado como bloqueio de VALIDAÇÃO**. **Mas
+  houve um deslocamento na premissa:** a auditoria **não precisa** de `owner_id` para casar
+  designação e time — a pick **já vem chaveada por `roster_id`**. O `owner_id` é necessário para
+  casar **`roster_id` ↔ time do Manager**, que é outra coisa.
+
+- **P5 — não existe campo de budget por time.** Só `draft.settings.budget = 200`, global;
+  `roster.settings` não tem nada de auction, e `roster.players`/`keepers` vêm vazios (confirma o
+  [[OFF26-6]]: designação não popula roster). **Budget é derivável só por soma** — como o D2 já
+  determinava. A UI mostra um número que a API não expõe.
+
+- **P6 — réplica: existe, e é dupla.** Dois consumidores de `/draft/{did}/picks` —
+  `routes/draft_import.py:39` e `sync_sleeper.py:872` — **replicam a leitura de `metadata.amount`
+  com coerções diferentes** (`float` × `int`), e **ambos gateiam em `status == "complete"`**. A
+  auditoria seria o **3º leitor**; se criar a própria coerção, vira a **3ª réplica** — candidata
+  natural a helper único, no espírito da invariante do [[F10]]. Sem réplica em template/JS.
+
+- **Achados não previstos pelo prompt:**
+  1. **`is_keeper: false` nas 24 designações** — o indício do [[OFF26-11]] ganha **evidência de
+     payload** na superfície pré-draft. **Continua não sendo a confirmação definitiva** (pós-draft,
+     fora do escopo), mas o campo está lá e vale `false`.
+  2. **`pick_no`/`round` NÃO indicam vaga de roster** — as 24 ocupam `pick_no` 1..24 na ordem de
+     criação (as 10 do Team 3 são 1-10, todas `round=1`, num draft de 12 times). **Não há
+     informação de qual vaga a designação ocupa**, só a posição do jogador. → **Consequência para o
+     D5: não existe classe "slot errado" auditável.** Presença, valor e time sim; vaga não.
+  3. **`roster_positions` = 22 slots** (`QB,RB,RB,WR,WR,WR,TE,FLEX,K,DEF` + 12 `BN`) → **o lado
+     Sleeper da ressalva aritmética do D2 agora está MEDIDO**, não suposto. Falta o lado do
+     regulamento (8.3.4).
+  4. **A fantasma NÃO tem slot de IR**, e a liga real tem (máx. 2) — enquanto o **D5 do
+     [[OFF26-2]]** manda **contar IR normalmente** no budget. É um **caso concreto** de divergência
+     de contagem dentro da mesma ressalva do D2, não uma hipótese.
+  5. **`league.settings.draft_rounds = 3` × `draft.settings.rounds = 22`** — homônimos com valores
+     diferentes em níveis diferentes; a F2 deve ler o do **draft**.
+  6. **`copy_from_league_id` = liga real** — a fantasma nasceu por **cópia**, o que explica o 3 WR e
+     corrobora "config espelha a real".
+
+- **Estado final:** board intacto (24 designações, 3 times), draft `pre_draft`, nenhuma escrita.
+  **A janela do D7 continua aberta e continua fechando no próximo RESET DRAFT.** Status do OFF26-4
+  segue **🔲**; a F2 está **desbloqueada do lado da leitura** — o que ainda a limita é **validação**
+  (D6, placeholders), não construção.

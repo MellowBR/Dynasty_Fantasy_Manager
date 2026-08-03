@@ -4,12 +4,13 @@
 > Esta parte é **registro puro**: nenhum código, nenhuma diagnose, nenhuma decisão de produto
 > arbitrada. Dois gaps novos entram no backlog e uma premissa factualmente errada é emendada.
 >
-> ⚠️ **ESTE ARQUIVO TEM 4 PARTES — LEIA A ÚLTIMA ANTES DE AGIR.** A **parte 2** registra a liga
+> ⚠️ **ESTE ARQUIVO TEM 5 PARTES — LEIA A ÚLTIMA ANTES DE AGIR.** A **parte 2** registra a liga
 > fantasma **criada e testada na mão** (confirmou duas questões que a parte 1 deixa como "probe
 > pendente" e **refutou o §5 da F1 do OFF26-4**); a **parte 3** registra a **2ª execução do Cowork**
 > e, entre outras coisas, que **o `draft_id` registrado na parte 2 já está MORTO** — ele muda a cada
-> reset; a **parte 4** (03/08) registra a **spec D1–D7 do OFF26-4**, que é a camada que a F2 daquele
-> item deve ler. **Onde as partes divergirem, vale a mais recente.**
+> reset; a **parte 4** (03/08) registra a **spec D1–D7 do OFF26-4**; a **parte 5** registra o
+> **probe read-only do pré-draft**, que **derrubou o bloqueador do OFF26-4** e **refutou a premissa
+> do LOADING** que a parte 4 carrega. **Onde as partes divergirem, vale a mais recente.**
 
 ---
 
@@ -606,3 +607,114 @@ board e troca o `draft_id`**.
 
 **Status do OFF26-4: 🔲 (inalterado). Status Rápido intocado. Nada do OFF26-2 alterado. Zero
 arquivo de código.**
+
+---
+---
+
+# PARTE 5 — Probe read-only do pré-draft: o bloqueador do OFF26-4 caiu
+
+> `MAN-OFF26-4-PROBE` · 03/08/2026. **Read-only estrito:** zero escrita, **draft NÃO iniciado**,
+> nenhum reset, **board intacto** ao fim. **Onde as partes divergirem, vale a mais recente.**
+
+---
+
+## 28. O resultado em uma frase
+
+O §2 da F1 dizia que *"nada no código lê o estado pré-draft, e o que a API expõe é questão
+empírica"*. **A API expõe tudo o que a auditoria precisa — designação, jogador, time e VALOR.**
+
+O que impedia **não era a API**: era o **gate `status == "complete"`** nos dois consumidores de
+picks do projeto. **A F1 estava certa na causa e incompleta no efeito.**
+
+---
+
+## 29. Respostas P1–P6
+
+| | pergunta | resposta |
+|---|---|---|
+| **P1** | derivação `league_id → draft_id` | ✅ **funciona, por 2 caminhos** — `league.draft_id` no topo (1 request) e `/drafts` com 1 item; **o morto não aparece** |
+| **P2** | designações pré-draft | ✅ **`GET /draft/{did}/picks` com `status: pre_draft`** — 24 registros, **mesma superfície que o projeto já usa** |
+| **P3** | salário | ✅ **`metadata.amount`** (string) — **totais $148/$95/$60 reconstruídos exatos** |
+| **P4** | identidade | jogador = `player_id` (= `sleeper_player_id`); time = `roster_id`; **`owner_id` nulo em 11/12** |
+| **P5** | budget por time | ❌ **não existe campo** — só `budget: 200` global → **derivar por soma** |
+| **P6** | réplica | ⚠️ **dupla** — `draft_import.py:39` e `sync_sleeper.py:872`, com coerções diferentes de `amount` |
+
+**Verificação concreta:** os três totais saíram do payload **exatos**, e o Team 3 confere 10/10
+nominalmente. Inclusive **Waddle = DEN — que vem do próprio Sleeper**. Isso fecha um ciclo: é a
+confirmação independente de que a divergência de sigla relatada na 2ª execução do Cowork era **da
+lista de teste**, e de que **rejeitar aquele falso achado foi a decisão certa**.
+
+---
+
+## 30. ⛔ Uma premissa do D1 caiu — e é boa notícia
+
+O REFINE registrou, como requisito de robustez, que *"a URL de um draft morto trava em LOADING em
+vez de dar erro"*, tornando a falha indistinguível de lentidão.
+
+**Pela API isso é falso:** `GET /draft/{morto}` → **404, corpo `null`, 0,2 s**. O LOADING infinito é
+comportamento do **app web**. **Pela porta que a auditoria vai usar, esse modo de falha não
+existe** — morto × vivo se distingue de imediato.
+
+O requisito de timeout continua sendo boa prática (o `_get` do projeto já tem `timeout=15`), mas
+**deixa de ser mitigação de um risco real**. **O essencial do D1 — não persistir `draft_id` —
+permanece intacto**, e agora com o caminho de derivação comprovado.
+
+---
+
+## 31. Três achados que mexem na spec
+
+**(a) O D5 precisa de ajuste — não existe classe "slot errado".** `pick_no` e `round` **não
+indicam vaga de roster**: as 24 designações ocupam `pick_no` 1..24 na ordem de criação (as 10 do
+Team 3 são 1-10, todas `round=1`, num draft de 12 times). O payload traz a **posição do jogador**,
+nunca a **vaga que ele ocupa**. → A auditoria verifica **presença, valor e time**; **alocação de
+vaga não é auditável**.
+
+**(b) A ressalva aritmética do D2 tem agora metade da conta medida.** `roster_positions` da fantasma
+= **22 slots** (`QB,RB,RB,WR,WR,WR,TE,FLEX,K,DEF` + 12 `BN`). Falta o lado do regulamento (8.3.4).
+**E apareceu um caso concreto:** a **fantasma não tem slot de IR**, enquanto a liga real tem (máx.
+2) e o **D5 do OFF26-2** manda **contar IR normalmente** no budget. A divergência de contagem
+deixou de ser hipótese.
+
+**(c) O D6 se confirma, mas com um deslocamento de premissa.** `owner_id` é nulo em 11 dos 12
+rosters — a F2 segue **não validável contra placeholders**. **Porém a auditoria não precisa de
+`owner_id` para casar designação e time**: a pick **já vem chaveada por `roster_id`**. O `owner_id`
+é necessário para casar **`roster_id` ↔ time do Manager** — outra coisa, e é só isso que o D6 trava.
+
+---
+
+## 32. Dois detalhes que vão morder quem implementar
+
+- **⚠️ DEF tem `player_id` NÃO-NUMÉRICO:** `L. Rams` vem como **`"LAR"`**, sigla do time. Qualquer
+  coerção a `int` quebra em defesas.
+- **⚠️ `league.settings.draft_rounds = 3` × `draft.settings.rounds = 22`** — homônimos, valores
+  diferentes, níveis diferentes. **Ler o do objeto do DRAFT.**
+- Bônus: **`is_keeper: false` nas 24** — o indício do OFF26-11 ganha evidência de payload
+  pré-draft. **Não é a confirmação definitiva**, que é pós-draft e ficou fora do escopo.
+- Bônus 2: `copy_from_league_id` aponta para a **liga real** — a fantasma nasceu **por cópia**, o
+  que explica o 3 WR.
+
+---
+
+## 33. O que fechou, o que segue aberto
+
+**Fechou:** D7 (probe executado) · pendência herdada do D1 (derivação funciona) · premissa do
+LOADING (refutada para a API) · **§2 da F1** (o bloqueador do item).
+
+**Segue aberto:** ressalva aritmética do D2 (falta o regulamento) · D6 (placeholders) · D3 (decisão
+da F2) · confirmação **pós-draft** do `is_keeper` (OFF26-11) · **e o D5 precisa do ajuste do §31a**.
+
+> **A F2 do OFF26-4 está desbloqueada do lado da LEITURA.** O que ainda a limita é **validação**,
+> não construção — e a **janela do D7 continua fechando no próximo RESET DRAFT**.
+
+---
+
+## 34. Arquivos alterados (parte 5)
+
+- `improvements.md` — bloco `PROBE read-only do estado pré-draft` na seção do OFF26-4 (abaixo da
+  spec e da restrição de desenho, acima do OFF26-5), com P1–P6, refutação de premissas e a tabela
+  de "fecha × segue aberto"; cabeçalho.
+- `manager_devplan.md` — cabeçalho + entrada de log.
+- `handoff_code_manager_02_08_2026_pt3.md` — esta parte.
+
+**Nenhum arquivo de código. Status Rápido intocado. OFF26-4 segue 🔲.** Os scripts do probe ficaram
+no scratchpad da sessão, fora do repositório.
