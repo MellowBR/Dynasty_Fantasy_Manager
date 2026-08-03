@@ -1,6 +1,7 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 03/08/2026-pt9 (sessão MAN-OFF26-13-F1: **diagnose read-only da ocupação de roster dos 12 times — e a hipótese central do [[OFF26-13]] CAIU**. Zero escrita (só `GET` + `sqlite mode=ro`); board intacto; `git diff` sem arquivo de código. **✅ T2 — ambiguidade DISSOLVIDA por estrutura, não interpretação:** `roster.reserve` é **subconjunto** de `roster.players` (verificado nos 3 rosters com IR) → **"24 no ativo" nunca existiu**. O time é o **`🕯️🕯️ achane 🕯️🕯️`** (roster 10, `gabrieldiinis`): **22 ativos + 2 IR** (Penix $1, Travis Hunter $8); o `is_on_ir` do Manager **bate 100%** com o `reserve` do Sleeper nos 3 times. **T1/T3 — 1 time não cabe, 5 estão com folga ZERO:** contando toda a posse como designação (o IR ocupa **banco** na sala), só o achane excede (**24 num board de 22, +2**), mas **Pitbull, 3 peat, Fazenda, mongoloides e Miller Time estão em 22 exatos** — qualquer aquisição antes de 20/08 os põe na mesma situação, e isso **não aparece em nenhuma contagem de excedente**. Agregado sobra (248 de 264) e **não ajuda**: o limite é por time. **Base do limite declarada como INFERÊNCIA:** `rounds=22` dá 22 picks/time; **não foi testado** se a UI recusa a 23ª (exigiria tocar o board, proibido). ⛔ **HIPÓTESE CENTRAL REFUTADA — os cortes de 20/08 NÃO resolvem sozinhos:** supunha-se que "quem excede o roster tende a exceder o cap"; **o time das 24 está em $195, ABAIXO do cap**, e os dois times acima do cap (mongoloides $206, Tropa $201) **cabem no board**. As condições são independentes e hoje estão **anticorrelacionadas** → **nada obriga o achane a cortar**, e ele fecharia a janela legal, sob o cap, com **2 keepers fora do board e expostos ao leilão**. **T4 — o teto de 22 NÃO é validado em lugar nenhum:** `MAX_ROSTER` é definido em **dois** lugares (`models.py:9`, `salary_engine.py:40`) e usado **só como divisor** (`draft_budget:221`), onde o `max(0,…)` **apaga o excedente** (24 keepers → `empty_spots=0`, indistinguível de roster cheio: **o Manager não tem como saber que estourou**); nenhuma porta confere contagem (`record_acquisition`, sync — e no sync **é correto não conferir**, o Sleeper é autoridade de posse; trades não movem jogador). **Assimetria que responde a T4:** o teto **menor** (`MAX_IR=2`) **é** enforçado (`roster.py:155`, 400 "IR cheio"); o **maior**, que hoje expõe keepers, **não**. +import morto de `MAX_ROSTER` em `routes/salary.py:4`. **T5 — réplicas:** (1) `MAX_ROSTER` com **duas definições** (inócuo hoje, contra a invariante [[F10]]); (2) **duas contagens de "salário usado" convivem** — telas de cap **excluem** IR (`active_salary`, `league.py`, `admin.py`) e o budget de keeper **inclui** (D5 do [[OFF26-2]]) → divergem em **3 times, $14 no total**, com o achane exibindo **$186 numa tela e $195 noutra**: **não é bug (são perguntas diferentes), é risco de leitura sob prazo**. **Premissas do prompt contraditas:** *"a fantasma não tem slot de IR"* (5ª ocorrência da família — `reserve_slots=2` nas duas ligas; **a conclusão do prompt continua certa, pelo motivo certo: slot de IR não é slot de draft**) e *"os cortes provavelmente resolvem"*. **Nada corrigido, nada implementado, status do OFF26-13 inalterado (🔲).**)
 > Atualizado em: 03/08/2026-pt8 (sessão MAN-OFF26-4-SLOTS: **o prompt reeditou tarefas já entregues no `b467651` — (A) conferência aritmética e (B) rename dos cards estavam ambas feitas e publicadas** (escrito antes do relatório da sessão anterior). **Nada foi refeito**; conferido item a item contra o HEAD. **O que FALTAVA de verdade era um item da VALIDAÇÃO deste prompt:** "a decisão de tratá-la ficou como **item**, não como alteração" — a divergência estava registrada **dentro da seção do [[OFF26-4]]**, mas **sem ID rastreável**. Corrigido: **dois itens novos**. **[[OFF26-12]] 🔲 Baixa** — *keeper em IR conta na reserva de $1?*: a **8.3.4** manda reservar `(22 − keepers)` e a **1.3** diz que os 2 IR "não são considerados no total de 22", mas a regra **não diz** se keeper em IR entra em "keepers"; Manager e Sleeper hoje **contam o IR dentro** dos 22 (leitura (a)), o que deixa o Manager **até $2 mais permissivo que o regulamento** (3 times com IR hoje). **Efeito sobre o veredito da auditoria: NENHUM** — os dois lados comparados concordam entre si, a margem é **entre as plataformas e o regulamento**; daí a prioridade Baixa apesar de tocar dinheiro. Se a leitura (b) vencer, o ajuste **mexe em `salary_engine.draft_budget`** (3 consumidores) e **exige F1 própria** — **regra de liga, decisão do owner**. **[[OFF26-13]] 🔲 Alta** — *time com >22 keepers não cabe no board*: o regulamento permite **24** (22 + 2 IR) e o board comporta **22 designações**; **1 time está em 24 hoje** (medido ao vivo) e, se chegar assim em 20/08, **2 keepers ficam EXPOSTOS** pelo achado do OFF26-4. É **segunda causa de time não populável** ao lado do teto ([[OFF26-10]]), com **remédio diferente**, e **não se resolve com o late drop** (1 drop × 2 excedentes); **nada no regulamento obriga** a descer de 24 para 22. Decisão em aberto: corte adicional obrigatório × exceção administrativa. **O Manager já pode pré-calcular quem vai estourar**, sem decisão nenhuma. **Reafirmado (o prompt repete a premissa derrubada):** *"a fantasma não tem IR"* segue **FALSO** — `settings.reserve_slots = 2` **nas duas ligas**, e o `roster_positions` da liga **REAL** (que tem IR, 3 rosters usando) **também não lista "IR"**; o que sustenta o limite de 22 designações **não é a ausência de IR na sala, é que slot de IR não é slot de draft**. **Ressalva do D2: FECHADA** (22 = 22 = 22, mesma fórmula), com o resíduo agora **rastreável** em OFF26-12/13. 34/34 e 48/48; template e código **inalterados nesta sessão**; board intacto, draft não iniciado. Status do OFF26-4 **inalterado (⚠️)**.)
 > Atualizado em: 03/08/2026-pt7 (sessão MAN-OFF26-4-LABELS: **smoke de produção do [[OFF26-4]] COMPLETO — 4 de 4** (deploy `aec8d8f`): o Render **alcança a API do Sleeper** e a **derivação do `draft_id` funciona de produção** (22 rodadas, 24 designações, 10/12 colunas com dono, `pre_draft`) → **modos de falha de ambiente descartados**, não são mais coisa a descobrir em 20/08. **(A) Rename:** a tela tinha **dois cards com o mesmo título** ("Liga fantasma" para leitura ao vivo **e** para configuração persistida) — sob prazo isso convida a procurar no card errado ou **salvar onde não se pretendia**. Agora **"Estado da liga fantasma"** × **"ID da liga fantasma"**; **só rótulo** (ordem, layout, lógica, rota e payload intactos), verificado em **5 estados da página** sem nenhuma duplicata. **(B) ✅ D2 — A CONFERÊNCIA ARITMÉTICA FOI FEITA e a pendência FECHA:** lido do regulamento (PDF em `data/`), a **8.3.4** diz *"completar as **22 posições do roster** … (22 – número de keepers)"* → **regulamento 22 = sala 22 (`roster_positions` e `rounds`) = Manager 22 (`MAX_ROSTER`)**, com a **mesma fórmula de reserva**. **O medo do D2 não se concretizou.** ⚠️ **Mas há diferença residual, e não é de contagem — é de QUEM ENTRA NA CONTA:** o item **1.3** diz que os **2 IR "não são considerados no total de 22"**; o **Manager conta o IR dentro** dos 22 e o **Sleeper também** (o keeper em IR **é designado** e ocupa uma das 22 rodadas). → **Manager e Sleeper concordam entre si, logo a auditoria NÃO produz falso positivo**; **ambos divergem do regulamento em até $2** de `usable_draft_budget` para time com IR (3 times hoje). **Nenhum cálculo alterado** — conferência é registro. 🔲 **Ambiguidade DEVOLVIDA ao owner:** a 8.3.4 não diz se **keeper em IR conta** em "(22 − keepers)"; leitura (a) conta → nada muda; leitura (b) não conta → o Manager está até $2 permissivo e **o ajuste mexeria no `salary_engine`** — **regra de liga, decisão do owner**. ⚠️ **Aritmética adicional respondida: SIM, um time PODE exceder o board** — o regulamento permite **24** (22+2 IR) e o board comporta **22 designações**; **1 time está em 24 HOJE** (medido ao vivo) e, se chegar assim em 20/08, **2 keepers ficam expostos** pelo achado "keeper fora do board é leiloável". **Segunda causa de time não populável**, ao lado do teto — e esta **não se resolve com o late drop** (1 drop não tira 2 excedentes); encadeia com [[OFF26-10]]/[[OFF26-5]], registrada como **risco, não solução**. ⛔ **QUARTA PREMISSA DA MESMA FAMÍLIA REFUTADA:** *"a fantasma não tem slot de IR"* é **FALSO** — `settings.reserve_slots = 2` **nas duas ligas**, e o `roster_positions` da liga **REAL** (que tem IR, 3 rosters usando) **também não lista "IR"**: o campo lido **não é onde o dado mora**. → **a divergência de config real × fantasma quanto a IR NÃO EXISTE**; a resolução do owner **permanece correta e necessária**, por outro motivo — **slot de IR não é slot de draft** (22 rodadas = 22 designações, com ou sem IR). **A decisão não muda; o porquê muda.** **Limitação registrada e não corrigida:** timeout parcial (`/league` responde, `/picks` não — ocorreu de fato nos testes) degrada para **"0 designações"**, indistinguível de board vazio — **falha para o lado SEGURO** (board vazio → todos "não populados" → veredito **BLOQUEADO**; a auditoria nunca libera por falta de leitura), então é **imprecisão de rótulo, não risco de gate**. **34/34** e **48/48**; fixtures A/B/C inalteradas; `draft_id` não persistido; board intacto, draft não iniciado, só `GET`. Status do OFF26-4 **inalterado (⚠️)** — falta o smoke com **sheet real**, a partir de 20/08.)
 > Atualizado em: 03/08/2026-pt6 (sessão MAN-OFF26-4-META: **o smoke de produção do [[OFF26-4]] fechou 3 de 4 pontos e o 4º virou correção**. ⚠️ **Achado de processo antes de tudo:** os **10 commits do dia ficaram locais** — o deploy vivo era o de 02/08 e o smoke só foi possível depois do push; **o auto-deploy dispara no push, e não havia push**. Sem tentar o smoke, isso apareceria **em 20/08**. **Passaram:** rota responde e renderiza, card do `/admin` leva à página, `phantom_league_id` **semeado no `AppConfig` de produção** pelo boot. ⛔ **O 4º ponto NÃO ERA ALCANÇÁVEL — e era o único que só produção prova:** a auditoria bloqueia por ausência de sheet **antes** de exibir qualquer coisa, então o bloco de meta (`draft_id` derivado, `pre_draft`, rodadas) **não renderizava** — ficando sem prova que **o Render alcança a API do Sleeper** e que a **derivação funciona de lá**. **São modos de falha de AMBIENTE** (egress, DNS, timeout de plano) que **não aparecem em localhost** e seriam descobertos **no dia em que a auditoria precisa funcionar**. **Buraco de validação, não bug.** **F2-META (borda e apresentação; núcleo, veredito e classes INTOCADOS):** a meta da liga é lida e exibida **sempre**, inclusive sob bloqueio — o `run_audit` já lia os dois lados de forma independente, faltava a **meta carregar o suficiente** e o **template renderizá-la fora do `if report.ok`**. Campos: `draft_id` **com selo "derivado"** (não guardado), status, **rodadas lidas do DRAFT**, **designações no board** e **colunas com dono × sem dono**. **Erro de leitura é ESTADO PRÓPRIO do bloco**, distinto do bloqueio por falta de insumo: `league_id` inválido → **erro limpo em 0,29 s, HTTP 200**, sem pendurar e sem 500; `run_audit` ganhou guarda contra exceção de rede/parse — **falha de liga nunca derruba a rota**. **Motivo de produto independente do smoke:** `league_id` errado no `AppConfig` era **falha silenciosa até 20/08**; agora o operador confere que aponta para a liga certa **antes** de a sheet existir. **34/34** (29+5) e **48/48** do `salary_engine`; fixtures A/B/C com o mesmo resultado; `draft_id` segue **não persistido** (grep); board intacto, draft não iniciado, só `GET`. **⚠️ A contagem de donos mudou pela QUARTA vez no mesmo dia — 7 esperados → 8 → 9 → 10** (2 sem dono agora): é exatamente por isso que ela é **campo do relatório, nunca constante**, e é o que o bloco novo passa a mostrar ao vivo. Item segue **⚠️** — falta o smoke com **sheet real**, só possível a partir de **20/08**.)
@@ -97,7 +98,7 @@
 | OFF26-10 | **Late drop pós-lock** na janela selada: o late drop de **22/08** altera o conjunto de keepers **dois dias depois do lock** de 20/08, e keeper sheet, budget de FA e board da liga fantasma derivam todos do snapshot selado → a sheet de 20/08 é **provisória** para quem fechou os cortes acima do cap. Decisão em aberto: 2ª mini-janela selada × correção administrativa pós-lock sobre o snapshot existente — MAN-OFF26-10-11-REG | Alta | 🔲 |
 | OFF26-11 | Importador (OFF26-3) **não distingue keeper de arremate novo**: com keepers designados no board da liga fantasma, os picks do auction vêm misturados, e a porta canônica de aquisição é porta de **contrato ano 1** → ingerir um keeper **zera a idade do contrato** de quem nunca saiu do time (dano silencioso, visível só na renovação). Decisão em aberto: importar só arremates × reconciliar e reportar divergência — MAN-OFF26-10-11-REG | Alta | 🔲 |
 | OFF26-12 | **Keeper em IR conta na reserva de $1?** A **8.3.4** manda reservar `(22 − keepers)` e a **1.3** diz que os 2 IR "não são considerados no total de 22" — a regra **não diz** se keeper em IR entra em "keepers". Manager e Sleeper hoje **contam o IR dentro dos 22** (concordam entre si → auditoria sem falso positivo), mas isso deixa o Manager **até $2 mais permissivo que o regulamento** para time com IR (3 times hoje). **Decisão de REGRA DE LIGA, não de implementação**; se a leitura (b) vencer, o ajuste mexe em `salary_engine.draft_budget` — MAN-OFF26-4-LABELS/SLOTS | Baixa | 🔲 (decisão do owner) |
-| OFF26-13 | **Time com mais de 22 keepers não cabe no board:** o regulamento permite **24** (22 + 2 IR, item 1.3) e o board da fantasma comporta **22 designações** (22 rodadas — slot de IR **não é** slot de draft). **1 time está em 24 hoje** (medido ao vivo); se chegar assim em 20/08, **2 keepers ficam EXPOSTOS ao leilão** pelo achado do [[OFF26-4]]. **Segunda causa de time não populável**, ao lado do teto de budget ([[OFF26-10]]) — e **não se resolve com o late drop** (1 drop não tira 2 excedentes). Decisão em aberto: corte adicional obrigatório × exceção administrativa — MAN-OFF26-4-LABELS/SLOTS | Alta | 🔲 |
+| OFF26-13 | **Time com mais de 22 keepers não cabe no board** — F1 03/08: o time é o **achane** (24 = **22 ativos + 2 IR**, ambiguidade dissolvida), e **a hipótese "os cortes resolvem sozinhos" está REFUTADA** (ele está em **$195, abaixo do cap** — nada o obriga a cortar; os 2 times acima do cap **cabem** no board). +**5 times em 22 exatos** (folga zero). **T4: o teto de 22 não é validado em lugar nenhum** (`MAX_ROSTER` só divide no `draft_budget`, e o `max(0,…)` **apaga o excedente**), enquanto `MAX_IR` **é** enforçado — assimetria registrada: o regulamento permite **24** (22 + 2 IR, item 1.3) e o board da fantasma comporta **22 designações** (22 rodadas — slot de IR **não é** slot de draft). **1 time está em 24 hoje** (medido ao vivo); se chegar assim em 20/08, **2 keepers ficam EXPOSTOS ao leilão** pelo achado do [[OFF26-4]]. **Segunda causa de time não populável**, ao lado do teto de budget ([[OFF26-10]]) — e **não se resolve com o late drop** (1 drop não tira 2 excedentes). Decisão em aberto: corte adicional obrigatório × exceção administrativa — MAN-OFF26-4-LABELS/SLOTS | Alta | 🔲 |
 | F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | ⚠️ |
 | F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | ✅ 12/06/2026 (réplica eliminada + smoke prod OK: $157/$43/$38/5 spots conferido) |
 | M17 | Personalização por usuário logado: home + cap widget + 8 surfaces derivam de `current_user.team_rel` (fonte única `inject_user_team`; réplica JS do chip removida) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | ⚠️ |
@@ -3642,6 +3643,159 @@ keepers por time, então **quem vai estourar é pré-calculável** antes de 20/0
 **Cross-refs:** [[OFF26-4]] (achado que dá a gravidade), [[OFF26-10]] (a outra causa de não
 populável), [[OFF26-5]] (o runbook registra que board incompleto não é estado aceitável),
 [[OFF26-2]] (a sheet é onde a contagem de keepers aparece).
+
+#### Diagnose F1 (MAN-OFF26-13-F1, 03/08/2026 — read-only) — a ocupação dos 12 times
+
+**Instantâneo**, não estado estável: as contagens mudam entre leituras (quatro leituras de owner num
+único dia nesta sessão). Zero escrita: só `GET` na API e `sqlite mode=ro`.
+
+##### ✅ T2 — A AMBIGUIDADE ESTÁ DISSOLVIDA: são 22 ativos + 2 IR, não 24 no ativo
+
+**Prova de estrutura, não interpretação:** `roster.reserve` é **subconjunto** de `roster.players`
+— verificado nos 3 rosters com IR (`reserve ⊆ players` = True nos três). Logo **`players` já
+inclui os de IR**, e "24" nunca foi 24 no ativo.
+
+**O time é o `🕯️🕯️ achane 🕯️🕯️`** (roster 10, owner `gabrieldiinis`): **24 total = 22 ativos + 2
+em IR** (Michael Penix $1 e Travis Hunter $8). O `is_on_ir` do Manager **bate exatamente** com o
+`reserve` do Sleeper nos 3 times — **não há divergência de marcação**.
+
+> **O alarme "24 no ativo" era falso. O risco, não.** Ver T3.
+
+##### T1 — Distribuição dos 12 (leitura ao vivo da liga real)
+
+| time | roster | total | ativo | IR | designações | cabe em 22? |
+|---|---|---|---|---|---|---|
+| Pitbull do Samba | 1 | 22 | 22 | 0 | 22 | ✅ (folga 0) |
+| 3 peat… of pain 🫠 | 2 | 22 | 22 | 0 | 22 | ✅ (folga 0) |
+| Fazenda Pederasta | 3 | 22 | 20 | **2** | 22 | ✅ (folga 0) |
+| mongoloides | 4 | 22 | 22 | 0 | 22 | ✅ (folga 0) |
+| Cangaceiros da Colina | 5 | 18 | 18 | 0 | 18 | ✅ |
+| Miller Time! | 6 | 22 | 22 | 0 | 22 | ✅ (folga 0) |
+| AlexTheDawg | 7 | 18 | 18 | 0 | 18 | ✅ |
+| Trust The Process | 8 | 21 | 21 | 0 | 21 | ✅ |
+| Tropa do Bicampeonato 🏆 | 9 | 19 | 19 | 0 | 19 | ✅ |
+| **🕯️🕯️ achane 🕯️🕯️** | **10** | **24** | **22** | **2** | **24** | ⛔ **NÃO (+2)** |
+| rafaelferreirap | 11 | 17 | 16 | **1** | 17 | ✅ |
+| ESPN FANTASY LEAGUE | 12 | 21 | 21 | 0 | 21 | ✅ |
+
+##### T3 — Designações necessárias: **1 time não cabe, e 5 estão com folga ZERO**
+
+Critério: **toda a posse vira designação** — o IR ocupa vaga de **banco** na sala (o D5 do
+[[OFF26-2]] manda contar IR, e o achado do [[OFF26-4]] exige que **todo** keeper esteja no board).
+
+- ⛔ **Excede: 1 time** — `achane`, **24 designações num board de 22 (+2)**.
+- ⚠️ **Folga zero: 5 times** (Pitbull, 3 peat, Fazenda, mongoloides, Miller Time) — **qualquer
+  aquisição antes de 20/08 os põe na mesma situação**. É o dado que a contagem "só 1 excede"
+  esconde.
+- **No agregado sobra espaço e isso não ajuda:** 248 designações necessárias para 264 vagas — o
+  limite é **por time**, e agregado não compensa.
+
+> **Base do limite (inferência declarada, não teste):** `draft.settings.rounds = 22` dá **22 picks
+> por time**. **Não foi testado** se a UI recusa a 23ª designação — testar exigiria tocar o board,
+> que está proibido. O limite é lido da estrutura do draft, não observado em comportamento.
+
+##### ⛔ A HIPÓTESE CENTRAL DO ITEM ESTÁ REFUTADA: os cortes de 20/08 NÃO resolvem sozinhos
+
+A suposição registrada era que "quem está acima do teto de roster tende a estar acima do cap
+também". **Falso no único caso que existe:**
+
+| time | jogadores | salário total | acima do cap $200? |
+|---|---|---|---|
+| **achane (o das 24)** | **24** | **$195** | ❌ **NÃO — está abaixo** |
+| mongoloides | 22 | $206 | ✅ sim (mas cabe no board) |
+| Tropa do Bicampeonato | 19 | $201 | ✅ sim (mas cabe no board) |
+
+**Os dois times acima do cap cabem no board; o time que não cabe está abaixo do cap.** As duas
+condições são **independentes**, e no instantâneo de hoje elas estão **anticorrelacionadas**.
+
+> **Consequência direta:** **nada obriga o `achane` a cortar ninguém em 20/08.** Ele fecha a janela
+> legal, sob o cap, com 24 — e **2 keepers dele ficam fora do board, expostos ao leilão**. A
+> "provável resolução automática" não acontece.
+
+##### T4 — O teto de 22 NÃO é validado em lugar nenhum do código
+
+| constante | onde é definida | onde é **enforçada** |
+|---|---|---|
+| `MAX_IR = 2` | `models.py:10` (**1 lugar**) | **`routes/roster.py:155`** — bloqueia com 400 "IR cheio" |
+| `MAX_ROSTER = 22` | `models.py:9` **e** `salary_engine.py:40` (**2 lugares**) | ⛔ **NENHUM** |
+
+**`MAX_ROSTER` só é usado como divisor**, em `salary_engine.draft_budget:221`
+(`empty_spots = max(0, 22 − num_keepers)`) — é aritmética de reserva, **não validação**. E o
+`max(0, …)` faz o excedente **desaparecer em silêncio**: com 24 keepers o resultado é 0, idêntico a
+um roster exatamente cheio. **Nada distingue "cheio" de "estourado".**
+
+**Caminhos que colocam jogador num time — nenhum confere contagem:**
+- `models.record_acquisition:379` (`player.team_id = team.id`) — porta canônica das 4 entradas do
+  `/auction` + importador [[OFF26-3]]: **sem checagem**;
+- `sync_sleeper.py:285,300,687` — **e aqui é correto não checar**: o Sleeper é autoridade de
+  posse, e um roster de 24 **entra no Manager legitimamente**;
+- **trades não movem jogador** (`routes/trades.py` é simulador puro — só grava `TradeProposal`);
+- `routes/offseason.py:611,617` **não é caminho de jogador** (é `DraftLotteryResult`).
+
+**Achado lateral:** `routes/salary.py:4` **importa `MAX_ROSTER` e nunca o usa** — import morto,
+resíduo de uma validação que nunca existiu.
+
+> **A assimetria é a resposta da T4:** o teto **menor e menos consequente** (IR = 2) é enforçado; o
+> teto **maior, que hoje expõe keepers ao leilão** (roster = 22), **não é**. E não é bug: o Manager
+> foi desenhado para **espelhar** a posse do Sleeper, não para arbitrá-la. **Registrado como
+> achado — implementar validação é decisão do owner**, e teria de decidir antes o que fazer quando
+> o Sleeper legitimamente entrega 24.
+
+##### T5 — Réplicas: uma constante duplicada e duas contagens de salário coexistindo
+
+1. **`MAX_ROSTER` definido duas vezes** (`models.py:9`, `salary_engine.py:40`) com o mesmo valor.
+   `routes/salary.py` importa a de **models**; `draft_budget` usa a de **salary_engine**. Hoje é
+   inócuo (mesmo valor, e a de models nem é usada), mas **duas fontes para um número de regra** é
+   exatamente o que a invariante [[F10]] evita. **Não corrigido nesta diagnose.**
+2. **Duas contagens de "salário usado" convivem, e divergem em times com IR:**
+   - **exclui IR** — `models.Team.active_salary:99`, `routes/league.py:22,25`, `routes/admin.py:159`
+     (cap bar, League Hub, preview de rollover);
+   - **inclui IR** — `salary_engine.draft_budget` via `cuts._team_fa_budget` (budget de keeper,
+     por decisão do **D5 do [[OFF26-2]]**).
+
+   **Medido hoje:** divergem em **3 times**, total **$14** — `achane` **$186 × $195 (+$9)**,
+   rafaelferreirap +$3, Fazenda +$2.
+
+   > **Não é bug — são perguntas diferentes** ("quanto do cap está comprometido em jogadores que
+   > pontuam" × "quanto do cap está comprometido no total"). **É risco de leitura:** o mesmo time
+   > exibe **$186 numa tela e $195 noutra**, sem nada explicando a diferença. Sob prazo, em 20/08,
+   > é convite a achar que uma das duas está errada. **Registrado, não alterado.**
+3. **Tratamento de IR não tem réplica de decisão** — `is_on_ir` é lido em ~15 sites, mas todos
+   apenas **filtram/exibem**; a única escrita com regra é o `toggle_ir`, e o sync espelha o Sleeper.
+
+##### Refutação de premissas (MAN-METH-REG)
+
+**(a) Premissas deste prompt contraditas pelo observado:**
+1. ⛔ **"O board da fantasma não tem slot de IR."** Já derrubada nesta sessão e **repetida no
+   prompt**: `settings.reserve_slots = 2` **nas duas ligas**. **A conclusão do prompt continua
+   correta** (24 designações num board de 22), mas **pelo motivo certo**: não é ausência de IR na
+   sala — é que **slot de IR não é slot de draft** (o draft tem 22 rodadas). Quinta ocorrência da
+   mesma família: observação verdadeira, procedência errada.
+2. ⛔ **"A janela de 20/08 provavelmente resolve sozinha, já que quem excede o roster tende a
+   exceder o cap."** **Refutado com o dado:** o time das 24 está em **$195, abaixo do cap**; os dois
+   times acima do cap **cabem no board**. Anticorrelacionado, não correlacionado.
+3. ⚠️ **"Um time em 23 importa tanto quanto um em 24."** Correto — e **não há nenhum em 23**. O que
+   o prompt não previu é que **5 times estão em 22 exatos**, que é a mesma fragilidade **sem
+   aparecer em contagem nenhuma de excedente**.
+
+**(b) Comportamentos presentes que o prompt não previu:**
+1. **`max(0, …)` no `draft_budget` apaga o excedente**: 24 keepers produzem `empty_spots = 0`,
+   **indistinguível** de roster exatamente cheio — o Manager **não tem como saber** que estourou,
+   nem para avisar.
+2. **`MAX_ROSTER` é importado e não usado** em `routes/salary.py` — sinal de validação planejada e
+   nunca escrita.
+3. **O teto de IR É enforçado** (`MAX_IR`), o de roster não — a assimetria não estava no
+   enquadramento.
+4. **A marcação de IR do Manager bate 100% com a do Sleeper** hoje (3 times, 5 jogadores) — o
+   pressuposto de que a contagem local pudesse estar defasada **não se confirmou**.
+
+##### O que esta diagnose NÃO faz
+
+Não corrige dado, não corta jogador, não implementa validação, não altera cálculo e **não muda o
+status do item**. As duas decisões seguem do owner: **(1)** o que fazer com quem chegar em 20/08
+acima de 22 (corte adicional obrigatório × exceção administrativa), e **(2)** se o Manager passa a
+**avisar** — o que é barato, já que a auditoria [[OFF26-4]] **já conta keepers por time** e poderia
+sinalizar antes de 20/08, sem depender da decisão (1).
 
 ---
 

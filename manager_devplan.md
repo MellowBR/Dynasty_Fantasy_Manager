@@ -2971,3 +2971,61 @@ registrada na secao do [[OFF26-4]].
 - **Ressalva do D2: FECHADA** (22 = 22 = 22, mesma formula), com o residuo agora **rastreavel**.
   34/34 e 48/48; **nenhuma linha de codigo ou template alterada nesta sessao**; board intacto,
   draft nao iniciado; status do OFF26-4 inalterado (⚠️).
+
+### MAN-OFF26-13-F1 — ocupacao de roster dos 12 times: a hipotese central caiu (03/08/2026, Opus)
+
+**Diagnose read-only.** Zero escrita (so `GET` + `sqlite mode=ro`), board intacto, draft nao
+iniciado, nenhum arquivo de codigo tocado. Instantaneo, nao estado estavel — as contagens mudam
+entre leituras (quatro num unico dia nesta sessao).
+
+- **✅ T2 — a ambiguidade se dissolve por ESTRUTURA, nao por interpretacao.** `roster.reserve` e
+  **subconjunto** de `roster.players` (verificado nos 3 rosters com IR) → **"24 no ativo" nunca
+  existiu**. O time e o **`achane`** (roster 10, `gabrieldiinis`): **22 ativos + 2 IR** (Penix $1,
+  Travis Hunter $8). O `is_on_ir` do Manager **bate 100%** com o `reserve` do Sleeper nos 3 times —
+  a suspeita de contagem local defasada **nao se confirmou**.
+
+- **T1/T3 — 1 time nao cabe; 5 estao com folga ZERO.** Contando toda a posse como designacao (o IR
+  ocupa **banco** na sala), so o achane excede: **24 num board de 22 (+2)**. Mas **Pitbull, 3 peat,
+  Fazenda, mongoloides e Miller Time estao em 22 exatos** — qualquer aquisicao antes de 20/08 os
+  poe na mesma situacao, e **isso nao aparece em contagem nenhuma de excedente**. No agregado sobra
+  espaco (248 de 264) e **isso nao ajuda**: o limite e por time.
+
+- **Limite declarado como INFERENCIA, nao teste.** `draft.settings.rounds = 22` da 22 picks por
+  time; **nao foi testado** se a UI recusa a 23a designacao — exigiria tocar o board, proibido.
+  Registrado assim de proposito, dado o historico de premissas desta sessao.
+
+- **⛔ A HIPOTESE CENTRAL DO ITEM ESTA REFUTADA: os cortes de 20/08 NAO resolvem sozinhos.**
+  Supunha-se que "quem excede o roster tende a exceder o cap". **O time das 24 esta em $195,
+  ABAIXO do cap**; os dois times acima do cap (mongoloides $206, Tropa $201) **cabem no board**.
+  As duas condicoes sao independentes e hoje estao **anticorrelacionadas**. → **Nada obriga o
+  achane a cortar ninguem**: ele fecha a janela legal, sob o cap, com 24 — e **2 keepers dele ficam
+  fora do board, expostos ao leilao**.
+
+- **T4 — o teto de 22 NAO e validado em lugar nenhum.** `MAX_ROSTER` e definido em **dois** lugares
+  e usado **so como divisor** (`draft_budget:221`), onde o `max(0, …)` **apaga o excedente**: 24
+  keepers dao `empty_spots = 0`, **indistinguivel** de roster exatamente cheio — **o Manager nao
+  tem como saber que estourou**. Nenhuma porta confere contagem: `record_acquisition` nao confere;
+  o **sync tambem nao, e ai e correto** (o Sleeper e autoridade de posse, e um roster de 24 entra
+  legitimamente); trades nao movem jogador. **Assimetria que responde a T4:** o teto **menor**
+  (`MAX_IR = 2`) **e** enforcado (`roster.py:155`, 400 "IR cheio"); o **maior**, que hoje expoe
+  keepers ao leilao, **nao**. Achado lateral: `routes/salary.py:4` **importa `MAX_ROSTER` e nunca
+  usa** — residuo de uma validacao que nunca foi escrita.
+
+- **T5 — duas replicas.** (1) `MAX_ROSTER` com **duas definicoes** (`models.py:9` e
+  `salary_engine.py:40`): inocuo hoje, contra a invariante [[F10]]. (2) **Duas contagens de
+  "salario usado" convivem** — as telas de cap **excluem** IR (`active_salary`, `league.py`,
+  `admin.py`) e o budget de keeper **inclui** (D5 do [[OFF26-2]]). Divergem em **3 times, $14 no
+  total**; o achane exibe **$186 numa tela e $195 noutra**. **Nao e bug — sao perguntas
+  diferentes** ("cap comprometido em quem pontua" x "cap comprometido no total"); **e risco de
+  leitura**: sob prazo, em 20/08, convida a achar que uma das duas esta errada.
+
+- **Premissas do prompt contraditas:** (1) *"o board da fantasma nao tem slot de IR"* — 5a
+  ocorrencia da mesma familia; `reserve_slots = 2` nas duas ligas. **A conclusao do prompt continua
+  correta** (24 designacoes num board de 22), mas o motivo e outro: **slot de IR nao e slot de
+  draft**. (2) *"os cortes provavelmente resolvem"* — refutada com dado. (3) O prompt previu "um
+  time em 23"; **nao ha nenhum em 23** — ha **cinco em 22 exatos**, a mesma fragilidade sem
+  aparecer como excedente.
+
+- **Nada corrigido, nada implementado, status inalterado (🔲).** As duas decisoes seguem do owner:
+  o que fazer com quem chegar acima de 22 em 20/08, e se o Manager passa a **avisar** — o que e
+  barato, ja que a auditoria [[OFF26-4]] **ja conta keepers por time**.
