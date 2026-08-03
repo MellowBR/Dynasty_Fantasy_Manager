@@ -2929,3 +2929,45 @@ dono, `pre_draft`). **Modos de falha de ambiente descartados** — nao sao mais 
 
 - **34/34** e **48/48**; fixtures A/B/C com o mesmo resultado; `draft_id` nao persistido; board
   intacto, draft nao iniciado, so `GET`. **Status do OFF26-4 inalterado (⚠️).**
+
+### MAN-OFF26-4-SLOTS — prompt reeditado; o que faltava era transformar o residuo em ITEM (03/08/2026, Opus)
+
+**O prompt pediu (A) a conferencia aritmetica do D2 e (B) o rename dos cards — ambas ja entregues e
+publicadas no `b467651`**, na sessao imediatamente anterior (o prompt foi escrito antes do
+relatorio). **Nada foi refeito.** Conferido item a item contra o HEAD: os dois cards ja se chamam
+"Estado da liga fantasma" e "ID da liga fantasma", na ordem original, e a conferencia ja esta
+registrada na secao do [[OFF26-4]].
+
+- **O que FALTAVA de verdade era um item da VALIDACAO deste prompt:** *"a decisao de trata-la ficou
+  como **item**, nao como alteracao feita nesta tarefa"*. A divergencia estava registrada **dentro
+  da secao do OFF26-4**, com magnitude, causa e efeito — mas **sem ID rastreavel**. Registro sem ID
+  no Status Rapido **nao entra no namespace nem na baseline de dedupe** (O3): some da vista.
+  **Corrigido com dois itens.**
+
+- **[[OFF26-12]] 🔲 Baixa — keeper em IR conta na reserva de $1?** A 8.3.4 manda reservar
+  `(22 − keepers)`; a 1.3 diz que os 2 IR "nao sao considerados no total de 22"; **a regra nao diz**
+  se keeper em IR entra em "keepers". Manager e Sleeper hoje **contam o IR dentro** dos 22 — o que
+  deixa o Manager **ate $2 mais permissivo que o regulamento** (3 times com IR hoje). **Efeito
+  sobre o veredito da auditoria: NENHUM** — os dois lados comparados concordam entre si; a margem e
+  **entre as plataformas e o regulamento**. Dai Baixa, apesar de tocar dinheiro. Se a leitura (b)
+  vencer, o ajuste **mexe em `salary_engine.draft_budget`** (3 consumidores) e **exige F1 propria**.
+  **Regra de liga — decisao do owner.**
+
+- **[[OFF26-13]] 🔲 Alta — time com mais de 22 keepers nao cabe no board.** Regulamento permite
+  **24** (22 + 2 IR); board comporta **22 designacoes**. **1 time esta em 24 hoje.** Se chegar assim
+  em 20/08, **2 keepers ficam EXPOSTOS** pelo achado do OFF26-4. **Segunda causa de time nao
+  populavel**, ao lado do teto ([[OFF26-10]]) — se manifestam igual no relatorio (`nao populado`) e
+  tem **remedios diferentes** — e **nao se resolve com o late drop** (1 drop x 2 excedentes).
+  **Nada no regulamento obriga** a descer de 24 para 22. Decisao em aberto: corte adicional
+  obrigatorio x excecao administrativa. **O Manager ja pode pre-calcular quem vai estourar**, sem
+  depender da decisao.
+
+- **Reafirmado, porque o prompt repete a premissa derrubada:** *"a fantasma nao tem IR
+  (`roster_positions` = 22)"* segue **FALSO** — `settings.reserve_slots = 2` **nas duas ligas**, e o
+  `roster_positions` da liga **REAL** (que tem IR, com 3 rosters usando) **tambem nao lista "IR"**.
+  O que sustenta o limite de 22 designacoes **nao e a ausencia de IR na sala** — e que **slot de IR
+  nao e slot de draft**. A conclusao operacional nao muda; a justificativa, sim.
+
+- **Ressalva do D2: FECHADA** (22 = 22 = 22, mesma formula), com o residuo agora **rastreavel**.
+  34/34 e 48/48; **nenhuma linha de codigo ou template alterada nesta sessao**; board intacto,
+  draft nao iniciado; status do OFF26-4 inalterado (⚠️).
