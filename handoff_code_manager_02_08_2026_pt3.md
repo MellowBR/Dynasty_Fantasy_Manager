@@ -4,11 +4,12 @@
 > Esta parte é **registro puro**: nenhum código, nenhuma diagnose, nenhuma decisão de produto
 > arbitrada. Dois gaps novos entram no backlog e uma premissa factualmente errada é emendada.
 >
-> ⚠️ **ESTE ARQUIVO TEM 3 PARTES — LEIA A ÚLTIMA ANTES DE AGIR.** A parte 2 registra a liga
+> ⚠️ **ESTE ARQUIVO TEM 4 PARTES — LEIA A ÚLTIMA ANTES DE AGIR.** A **parte 2** registra a liga
 > fantasma **criada e testada na mão** (confirmou duas questões que a parte 1 deixa como "probe
-> pendente" e **refutou o §5 da F1 do OFF26-4**); a parte 3 registra a **2ª execução do Cowork** e,
-> entre outras coisas, que **o `draft_id` registrado na parte 2 já está MORTO** — ele muda a cada
-> reset. **Onde as partes divergirem, vale a mais recente.**
+> pendente" e **refutou o §5 da F1 do OFF26-4**); a **parte 3** registra a **2ª execução do Cowork**
+> e, entre outras coisas, que **o `draft_id` registrado na parte 2 já está MORTO** — ele muda a cada
+> reset; a **parte 4** (03/08) registra a **spec D1–D7 do OFF26-4**, que é a camada que a F2 daquele
+> item deve ler. **Onde as partes divergirem, vale a mais recente.**
 
 ---
 
@@ -510,3 +511,98 @@ RESET DRAFT pendente** antes do uso real — e ele **trocará o `draft_id` outra
 - `handoff_code_manager_02_08_2026_pt3.md` — esta parte.
 
 **Status Rápido intocado. Nenhum status alterado. Zero arquivo de código.**
+
+---
+---
+
+# PARTE 4 — Spec do OFF26-4 (auditoria de keepers pré-leilão)
+
+> `MAN-OFF26-4-REFINE` · 03/08/2026. **Sincronização de spec, não implementação** — o OFF26-4 segue
+> **🔲**. **Onde as partes divergirem, vale a mais recente.**
+
+---
+
+## 23. O que esta parte fez
+
+Registrou, na seção do OFF26-4, um bloco **"Spec final — decisões de produto arbitradas"** no padrão
+do OFF26-2, com **D1 a D7**. A **F1 (18/06)** e a **ATUALIZAÇÃO EMPÍRICA (02/08)** ficaram
+**intactas abaixo**, como terreno — a spec é camada nova acima delas, e é ela que a F2 lê.
+
+**Cada decisão está rotulada pela sua natureza**, porque as três não têm o mesmo peso:
+
+| | decisão | natureza |
+|---|---|---|
+| **D1** | `league_id` em `AppConfig`; `draft_id` derivado | **arbitrada** |
+| **D2** | base de budget = `usable_draft_budget` | **resolvida por evidência** |
+| **D3** | ponte de `sleeper_player_id` | **delegada à F2, com critério** |
+| **D4** | 12 times de uma vez; não-populado = estado próprio | **arbitrada** |
+| **D5** | 4 classes de divergência + 1 estado | **arbitrada** (severidade → F2) |
+| **D6** | ponte de owner por `sleeper_owner_id` | **arbitrada** |
+| **D7** | probe exige board populado | **pré-condição registrada** |
+
+---
+
+## 24. O detalhe que decidiu o D1: a auditoria roda mais de uma vez
+
+Não é gate único. **Roda 3× ou mais** numa janela de 48 h — após a 1ª leva de população (**20/08**),
+após o remendo do late drop (**22/08**) e possivelmente uma vez final antes de **24/08**.
+
+É isso que derruba o parâmetro-por-chamada (o molde do OFF26-3): **recolar o id a cada execução é
+oportunidade recorrente de colar o errado, exatamente quando ninguém tem tempo de conferir.** A
+coluna em `Team` cai por outro motivo — é atributo **de liga**, não de time.
+
+**E a restrição que vem da evidência de 02/08:** persiste-se **apenas o `league_id`**. O `draft_id`
+**muda a cada reset** e é **derivado a cada uso** — nenhuma persistência, nem cache.
+
+**Um requisito de robustez que nasce do modo de falha, e que vale destacar:** a URL de um draft
+morto **trava em LOADING em vez de dar erro**. A falha é **indistinguível de lentidão**, então a
+derivação precisa de **timeout explícito e mensagem própria**. Numa janela de 48 h, **uma auditoria
+que pendura é pior que uma que falha** — a que falha você conserta, a que pendura você fica olhando.
+
+🔲 **A F2 herda uma pendência de terreno:** o caminho `league_id → draft_id` existe no código
+(`/league/{lid}/drafts`) mas **nunca foi exercitado contra a fantasma**, e o precedente do
+`draft_import.py` é a derivação **inversa**. Confirmar antes de construir sobre ele.
+
+---
+
+## 25. Duas restrições que limitam o que a F2 pode validar
+
+**(a) D6 — a ponte de owner não tem como funcionar hoje.** Os **convites foram disparados em
+03/08**, mas os times **ainda são placeholders**, com **`owner_id` nulo**. Enquanto for assim, a
+auditoria **não consegue casar coluna e time**. → **A F2 não pode ser validada contra board de
+placeholders.** Registrei isso também no bloco de estado da liga, no registro do pacote, para que
+não seja descoberto no meio da F2.
+
+**(b) D7 — o probe tem janela com prazo.** O §2 da F1 segue pendente (nada no código lê estado
+pré-draft) e o probe **exige board populado**. Ele **está populado agora** (Team 3/4/5, dados de
+teste — alvo válido), mas a janela **fecha no próximo RESET DRAFT**, já pendente, que **zera o
+board e troca o `draft_id`**.
+
+> As duas juntas descrevem uma tensão real: **o probe quer o board como está agora; a F2 quer o
+> board com owners reais.** O reset fica no meio. Não arbitrei a ordem — é decisão do owner, e
+> depende de quando os convites forem aceitos.
+
+---
+
+## 26. O que a spec deliberadamente NÃO decide
+
+- **severidade** de cada classe de divergência (D5) → F2;
+- **forma de exposição** do `sleeper_player_id` — payload × re-query (D3) → F2, com o critério
+  "**preferir o caminho que não toque o OFF26-2**", que segue ⚠️ aguardando smoke;
+- **extração** do helper de ponte de owner para local compartilhado (D6) → F2;
+- **conferência aritmética** da ressalva do D2 — o Sleeper reserva sobre as **22 rodadas da sala**,
+  a regra **8.3.4** conta pelo **regulamento**; se divergirem, os limites não coincidem apesar da
+  fórmula idêntica. **Não depende de acesso à plataforma** — depende de conferir regulamento ×
+  config, e **não foi feito**.
+
+---
+
+## 27. Arquivos alterados (parte 4)
+
+- `improvements.md` — bloco de spec **D1–D7** na seção do OFF26-4 (acima da F1, que ficou íntegra);
+  estado dos owners (placeholders, `owner_id` nulo) no bloco de estado da liga; cabeçalho.
+- `manager_devplan.md` — cabeçalho + entrada de log.
+- `handoff_code_manager_02_08_2026_pt3.md` — esta parte.
+
+**Status do OFF26-4: 🔲 (inalterado). Status Rápido intocado. Nada do OFF26-2 alterado. Zero
+arquivo de código.**
