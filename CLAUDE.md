@@ -184,6 +184,11 @@ sheet)` é puro** (sem DB, sem rede — é o que os testes exercem); `fetch_boar
   `metadata.amount` é **string**; rodadas vêm do **draft** (`draft.settings.rounds`), não da liga.
 - **Identidade:** jogador só por `sleeper_id`, time só por `sleeper_owner_id` — **nunca por nome**
   (`metadata.team_name` veio nulo em 8/8 dos owners da fantasma, e há dois Rafas entre eles).
+- **Meta da liga é independente da sheet (F2-META):** o bloco com `draft_id` derivado, status,
+  rodadas, designações e colunas com/sem dono é exibido **mesmo sob bloqueio por falta de sheet** —
+  é a única prova de que **o ambiente onde o app roda alcança a API do Sleeper** (falhas de egress/
+  DNS não aparecem em localhost) e a única forma de conferir que o `league_id` aponta para a liga
+  certa antes de a sheet existir. Erro de leitura é **estado próprio do bloco**, nunca 500.
 - **Fixtures:** `keeper_audit_fixtures.py` é **material de teste congelado — NÃO é a keeper sheet
   real** (essa nasce da revelação da janela de cortes e vive no banco). Nenhum caminho de produção
   o importa.

@@ -2831,3 +2831,44 @@ smoke em produção (PROC1), e a **sheet real só nasce em 20/08**.
 - **Cobertura do D6 — terceira leitura, terceira contagem.** De manhã 4 times sem coluna, à tarde
   **3**: `fertorquato` entrou entre duas leituras da **mesma sessão**. A auditoria **lê, nunca
   assume** — e é por isso que a contagem é campo do relatório, não constante.
+
+### MAN-OFF26-4-META — a meta da liga deixa de depender da keeper sheet (03/08/2026, Opus)
+
+**Origem: o smoke de produção do [[OFF26-4]]** (deploy `d83d2f8`) fechou **3 de 4** pontos. O 4º
+**não era alcançavel** — e virou esta correção. Mudança de **borda e apresentação**: núcleo,
+veredito e classes **intocados**.
+
+- **⚠️ Achado de processo, antes do técnico:** os **10 commits do dia ficaram locais**. O deploy
+  vivo era o de 02/08; o smoke só foi possível depois do push. **O auto-deploy dispara no push, e
+  não havia push.** Sem *tentar* o smoke, isso apareceria em **20/08**.
+
+- **O buraco.** A auditoria bloqueia por ausência de sheet **antes** de exibir qualquer coisa, então
+  o bloco de meta (`draft_id` derivado, `pre_draft`, rodadas) **não renderizava**. A ordem era
+  coerente — sem os dois lados não há diff —, mas deixava sem prova justamente **o que só produção
+  prova**: que o serviço no Render **alcança a API do Sleeper** e que a **derivação do `draft_id`
+  funciona de lá**. São modos de falha de **AMBIENTE** (egress, DNS, timeout de plano) que **não
+  aparecem em localhost**, e seriam descobertos **no dia em que a auditoria precisa funcionar**.
+  **Buraco de validação, não bug.**
+
+- **A correção foi menor do que o diagnóstico sugeria.** O `run_audit` **já lia os dois lados de
+  forma independente** e o `_no_input` **já carregava** a meta. Faltavam duas coisas: a meta
+  **carregar o suficiente** (designações, colunas com/sem dono) e o template **renderizá-la fora do
+  `if report.ok`**. Nada no caminho do diff foi tocado.
+
+- **Erro de leitura virou estado PRÓPRIO do bloco**, distinto do bloqueio por falta de insumo: o
+  veredito segue dizendo o que falta de insumo, o bloco diz o que houve com a liga. `league_id`
+  inválido → **erro limpo em 0,29 s, HTTP 200**. `run_audit` ganhou guarda contra exceção de rede/
+  parse fora do que o `_get` já absorve — **falha de liga nunca derruba a rota**.
+
+- **Motivo de produto, independente do smoke:** antes de a sheet existir, o operador precisa
+  conferir que aponta para a **liga certa**. `league_id` errado no `AppConfig` era **falha
+  silenciosa até 20/08**.
+
+- **Validação:** **34/34** (29 + 5 novos) e **48/48** do `salary_engine`; fixtures A/B/C com o mesmo
+  resultado; os três caminhos do bloco exercidos em render real (válido sem sheet / inválido /
+  vazio), todos **HTTP 200**; `draft_id` segue **não persistido** (grep); board intacto, draft não
+  iniciado, só `GET`.
+
+- **⚠️ A contagem de donos mudou pela QUARTA vez no mesmo dia: 7 esperados → 8 → 9 → 10** (2 sem
+  dono agora). É exatamente por isso que ela é **campo do relatório, nunca constante** — e agora o
+  bloco a mostra ao vivo, que é o ponto.

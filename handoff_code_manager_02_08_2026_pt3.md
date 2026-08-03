@@ -1094,3 +1094,72 @@ inventa.
   este handoff.
 
 **Status do OFF26-4: ⚠️ (era 🔲). Nenhum outro item alterado.**
+
+---
+
+# PARTE 9 — O smoke de produção, e o ponto que ele não alcançava
+
+> Sessão `MAN-OFF26-4-META` (03/08/2026, Opus). Correção de **borda e apresentação** nascida do
+> smoke. Núcleo, veredito e classes **intocados**. Read-only; draft não iniciado; board intacto.
+
+## 57. O smoke fechou 3 de 4 — e o que faltou era o único que importava provar em prod
+
+Passaram: a rota responde e renderiza, o card do `/admin` leva à página, e o `phantom_league_id` foi
+**semeado no `AppConfig` de produção** pelo boot.
+
+**Não passou porque não era alcançável:** a auditoria bloqueia por ausência de sheet **antes** de
+exibir qualquer coisa, então o bloco de meta não renderizava. A ordem era coerente — sem os dois
+lados não há diff. A consequência não era: ficava sem prova **que o Render alcança a API do
+Sleeper** e que a **derivação do `draft_id` funciona de lá**.
+
+> Esses são modos de falha de **ambiente** — egress bloqueado, DNS, timeout de plano. **Nenhum
+> aparece em localhost**, e todos apareceriam **em 20/08**, no dia em que a auditoria precisa
+> funcionar. **Buraco de validação, não bug.**
+
+## 58. ⚠️ E antes disso: os commits do dia estavam locais
+
+O deploy vivo era o de **02/08**. Os 10 commits desta jornada — os nove de registro e o `d83d2f8`
+com a auditoria — **nunca foram empurrados**. O auto-deploy dispara no **push**, e não houve push.
+
+**O que salvou foi tentar o smoke.** Não fosse a tentativa, a descoberta seria em 20/08 — junto com
+tudo o mais que só produção mostra. Fica como regra da sessão: **commit não é deploy**.
+
+## 59. A correção foi menor que o diagnóstico
+
+O `run_audit` **já lia os dois lados de forma independente**, e o `_no_input` **já carregava** a
+meta no payload. Faltavam exatamente duas coisas:
+
+1. a meta **carregar o suficiente** — designações lidas e colunas com dono × sem dono;
+2. o template **renderizá-la fora do `{% if report.ok %}`**.
+
+Nada no caminho do diff foi tocado. As fixtures A, B e C dão o mesmo resultado de antes.
+
+## 60. Erro de liga virou estado próprio
+
+Falha ao ler a liga **não se confunde** com bloqueio por falta de sheet: o veredito continua dizendo
+o que falta de insumo, e o bloco diz o que houve com a liga. Exercido em render real:
+
+| cenário | resultado |
+|---|---|
+| `league_id` válido, sem sheet | bloqueio **e** meta preenchida (`pre_draft`, 22 rodadas, 24 designações, selo "derivado") |
+| `league_id` inválido | erro próprio, **HTTP 200 em 0,29 s** — sem pendurar, sem 500 |
+| `league_id` vazio | "não configurada", sem exceção |
+
+`run_audit` ganhou guarda contra exceção de rede/parse fora do que o `_get` já absorve.
+
+## 61. Quarta leitura, quarto número
+
+**7 esperados → 8 → 9 → 10 colunas com dono** — quatro contagens no mesmo dia, duas colunas ainda
+sem dono. É a mesma lição de manhã, agora virando produto: **a contagem é campo do relatório, nunca
+constante**, e o bloco novo a mostra ao vivo.
+
+## 62. Arquivos alterados (parte 9)
+
+- `keeper_audit.py` — meta enriquecida (`num_designations`, colunas com/sem dono, `error`,
+  `available`) + guarda em `run_audit`.
+- `templates/keeper_audit.html` — bloco "Liga fantasma" fora do `if report.ok`, com estado de erro
+  próprio; sumário do diff separado.
+- `keeper_audit_test.py` — 5 testes novos (**34/34**).
+- `improvements.md`, `manager_devplan.md`, `CLAUDE.md`, este handoff.
+
+**Item segue ⚠️ — falta o smoke com sheet real, só possível a partir de 20/08.**

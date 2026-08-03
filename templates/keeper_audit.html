@@ -25,8 +25,47 @@
 </div>
 {% endif %}
 
+{# Estado da liga fantasma — INDEPENDENTE da sheet. Sem sheet não há diff, mas este
+   bloco continua sendo a prova de que o serviço alcança a API do Sleeper e de que a
+   derivação do `draft_id` funciona de onde ele roda. Erro aqui é estado PRÓPRIO, não
+   se confunde com o bloqueio por falta de insumo. #}
+<div class="card" style="margin-bottom:1rem">
+  <h2 class="card-title">🔗 Liga fantasma</h2>
+  {% if report.league.available %}
+  <div class="stat-grid">
+    <div class="stat-item"><span class="stat-num">{{ report.league.rounds }}</span><span class="stat-label">Rodadas (do draft)</span></div>
+    <div class="stat-item"><span class="stat-num">{{ report.league.num_designations }}</span><span class="stat-label">Designações no board</span></div>
+    <div class="stat-item"><span class="stat-num">{{ report.league.columns_with_owner }}/{{ report.league.columns_total }}</span><span class="stat-label">Colunas com dono</span></div>
+    <div class="stat-item {{ 'stat-warn' if report.league.columns_without_owner else '' }}"><span class="stat-num">{{ report.league.columns_without_owner }}</span><span class="stat-label">Sem dono</span></div>
+  </div>
+  <p class="text-dim" style="margin-top:.75rem">
+    <strong>{{ report.league.league_name }}</strong> ({{ report.league.league_id }}) ·
+    draft <strong>{{ report.league.draft_id }}</strong>
+    <span class="badge">derivado</span>
+    ({{ report.league.draft_status }}, {{ report.league.draft_type }},
+    budget ${{ report.league.budget }}).
+    O <code>draft_id</code> é <strong>derivado do <code>league_id</code> a cada execução</strong>,
+    nunca guardado — ele muda a cada RESET DRAFT. A contagem de donos
+    <strong>muda entre leituras</strong>: é o que a API respondeu agora.
+  </p>
+  {% elif report.league.error %}
+  <div class="alert alert-warn">
+    🔌 <strong>Não foi possível ler a liga.</strong> {{ report.league.error }}
+    <br><span class="text-dim">Estado deste bloco, não do diff — confira o
+    <code>league_id</code> abaixo.</span>
+  </div>
+  {% else %}
+  <p class="text-dim">Liga não configurada — informe o <code>league_id</code> abaixo.</p>
+  {% endif %}
+  <div style="margin-top:.75rem">
+    <a class="btn btn-primary" href="{{ url_for('admin.keeper_audit_page') }}">🔄 Reexecutar</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.keeper_audit_json') }}">JSON</a>
+  </div>
+</div>
+
 {% if report.ok %}
 <div class="card" style="margin-bottom:1rem">
+  <h2 class="card-title">📊 Diff (season {{ report.season }})</h2>
   <div class="stat-grid">
     <div class="stat-item"><span class="stat-num">{{ report.summary.divergences }}</span><span class="stat-label">Divergências</span></div>
     <div class="stat-item {{ 'stat-warn' if report.summary.blocking_findings else '' }}"><span class="stat-num">{{ report.summary.blocking_findings }}</span><span class="stat-label">Bloqueantes</span></div>
@@ -35,15 +74,6 @@
     <div class="stat-item"><span class="stat-num">{{ report.summary.no_column }}</span><span class="stat-label">Sem coluna</span></div>
     <div class="stat-item"><span class="stat-num">{{ report.summary.orphan_columns }}</span><span class="stat-label">Colunas órfãs</span></div>
   </div>
-  <p class="text-dim" style="margin-top:.75rem">
-    Liga <strong>{{ report.league.league_name }}</strong> ({{ report.league.league_id }}) ·
-    draft <strong>{{ report.league.draft_id }}</strong> ({{ report.league.draft_status }},
-    {{ report.league.rounds }} rodadas, budget ${{ report.league.budget }}) ·
-    season {{ report.season }}.
-    O <code>draft_id</code> é <strong>derivado a cada execução</strong> — ele muda a cada RESET DRAFT.
-  </p>
-  <a class="btn btn-primary" href="{{ url_for('admin.keeper_audit_page') }}">🔄 Reexecutar</a>
-  <a class="btn btn-secondary" href="{{ url_for('admin.keeper_audit_json') }}">JSON</a>
 </div>
 {% endif %}
 

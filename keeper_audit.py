@@ -277,9 +277,34 @@ def _no_input(reason, board, sheet):
 
 
 def _league_meta(board):
+    """Estado da liga fantasma — INDEPENDENTE da existência da keeper sheet.
+
+    Sem sheet não há diff, mas há o que mostrar: é a única prova de que o serviço
+    ALCANÇA a API do Sleeper e de que a derivação do `draft_id` funciona **de onde
+    ele roda**. Esses modos de falha são de AMBIENTE (egress, DNS, timeout do plano)
+    e não aparecem em localhost — sem este bloco só seriam descobertos no dia em que
+    a auditoria precisa funcionar. Serve também ao operador: com `league_id` errado
+    no `AppConfig`, o erro fica silencioso até a sheet existir.
+
+    `error` e `available` são estado PRÓPRIO deste bloco — não se confundem com o
+    bloqueio por falta de insumo, que é do veredito.
+    """
     b = board or {}
-    return {k: b.get(k) for k in ("league_id", "league_name", "draft_id",
-                                 "draft_status", "draft_type", "rounds", "budget")}
+    cols = b.get("columns") or []
+    com_owner = sum(1 for c in cols if _sid(c.get("owner_id")))
+    meta = {k: b.get(k) for k in ("league_id", "league_name", "draft_id",
+                                  "draft_status", "draft_type", "rounds", "budget")}
+    meta.update({
+        "num_designations": len(b.get("designations") or []),
+        "columns_total": len(cols),
+        "columns_with_owner": com_owner,
+        "columns_without_owner": len(cols) - com_owner,
+        "error": b.get("error"),
+        # A contagem de owners MUDA entre leituras (três leituras num dia deram três
+        # números) — é campo de relatório, nunca constante.
+        "available": bool(b.get("league_id")) and not b.get("error"),
+    })
+    return meta
 
 
 def _finish(board, sheet, teams_out, orphan_columns):
@@ -435,9 +460,19 @@ def build_sheet(season: int | None = None) -> dict:
 
 def run_audit(season: int | None = None) -> dict:
     """Porta única de execução: lê os dois lados e roda o núcleo. Read-only ponta a
-    ponta — nenhuma escrita, nem no Sleeper nem no banco."""
+    ponta — nenhuma escrita, nem no Sleeper nem no banco.
+
+    Os dois lados são lidos SEMPRE, e um não depende do outro: sem sheet não há diff,
+    mas o estado da liga continua sendo lido e exibido. Falha na leitura da liga vira
+    `error` no bloco de meta — nunca 500, nunca página pendurada."""
     sheet = build_sheet(season)
     league_id = get_phantom_league_id()
-    board = fetch_board(league_id) if league_id else {
-        "error": "Liga fantasma não configurada — informe o `league_id` no admin."}
+    if not league_id:
+        board = {"error": "Liga fantasma não configurada — informe o `league_id` "
+                          "no admin."}
+    else:
+        try:
+            board = fetch_board(league_id)
+        except Exception as e:      # rede/parse fora do que `_get` já absorve
+            board = {"error": f"Falha ao ler a liga {league_id}: {e}"}
     return audit(board, sheet)

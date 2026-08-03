@@ -238,6 +238,48 @@ class TestInsumoFaltando(unittest.TestCase):
         self.assertEqual(rep["teams"], [])
 
 
+class TestMetaDaLigaIndependeDaSheet(unittest.TestCase):
+    """O buraco que o smoke de produção expôs: sem sheet, o bloco de meta some — e
+    com ele a única prova de que o serviço ALCANÇA a API do Sleeper de onde roda.
+    A leitura da liga não pode depender da existência da sheet."""
+
+    def test_meta_preenchida_com_sheet_ausente(self):
+        rep = audit(fx.BOARD_A, {"revealed": False, "season": 2026})
+        self.assertFalse(rep["ok"])                      # o bloqueio continua
+        lg = rep["league"]
+        self.assertTrue(lg["available"])                 # ...e a meta vem junto
+        self.assertEqual(lg["draft_id"], "1389755381567213568")
+        self.assertEqual(lg["draft_status"], "pre_draft")
+        self.assertEqual(lg["rounds"], 22)               # do DRAFT, não da liga
+        self.assertEqual(lg["num_designations"], 24)
+
+    def test_contagem_de_donos_vem_da_leitura(self):
+        rep = audit(fx.BOARD_SEM_OWNER, {"revealed": False, "season": 2026})
+        lg = rep["league"]
+        self.assertEqual((lg["columns_total"], lg["columns_with_owner"],
+                          lg["columns_without_owner"]), (2, 1, 1))
+
+    def test_erro_de_liga_e_estado_proprio_do_bloco(self):
+        """Falha ao ler a liga não se confunde com falta de sheet: o veredito segue
+        dizendo o que falta de insumo, e o bloco diz o que houve com a liga."""
+        rep = audit({"error": "Liga 999 não respondeu"},
+                    {"revealed": False, "season": 2026})
+        self.assertIn("não foi revelada", rep["reason"])       # motivo do bloqueio
+        self.assertFalse(rep["league"]["available"])
+        self.assertEqual(rep["league"]["error"], "Liga 999 não respondeu")
+
+    def test_liga_nao_configurada_nao_finge_disponibilidade(self):
+        rep = audit(None, {"revealed": False, "season": 2026})
+        self.assertFalse(rep["league"]["available"])
+        self.assertIsNone(rep["league"]["draft_id"])
+        self.assertEqual(rep["league"]["num_designations"], 0)
+
+    def test_meta_tambem_presente_no_relatorio_completo(self):
+        lg = audit(fx.BOARD_A, fx.SHEET_A)["league"]
+        self.assertTrue(lg["available"])
+        self.assertEqual(lg["num_designations"], 24)
+
+
 class TestClassesDeclaradas(unittest.TestCase):
 
     def test_sao_quatro_e_slot_errado_nao_existe(self):
