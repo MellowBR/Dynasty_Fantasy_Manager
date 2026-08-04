@@ -37,10 +37,12 @@
           {% if c.wins is not none %}{{ c.wins }}-{{ c.losses }}{% else %}—{% endif %}
         </span>
       </div>
+      {# OFF26-14: com IR no time, o "cap restante" é o do CAP ATIVO; o valor entre
+         parênteses é o da FOLHA TOTAL, que é a régua do leilão. Sem IR, nada muda. #}
       <div class="league-stat">
-        <span class="league-stat-label">Cap restante</span>
+        <span class="league-stat-label">{% if c.ir_cap %}Cap restante (ativo · c/ IR){% else %}Cap restante{% endif %}</span>
         <span class="league-stat-value {% if c.cap_space < 0 %}cap-negative{% endif %}">
-          ${{ c.cap_space|int }}
+          ${{ c.cap_space|int }}{% if c.ir_cap %}<span class="league-stat-folha {% if c.folha_space < 0 %}cap-negative{% endif %}"> · ${{ c.folha_space|int }}</span>{% endif %}
         </span>
       </div>
       <div class="league-stat">

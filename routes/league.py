@@ -20,6 +20,9 @@ def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=Non
     M17: `is_my_team` deriva do usuário logado (my_team_id = current_user.team_rel.id),
     não mais da flag legada Team.is_my_team."""
     cap_used = sum(p.salary for p in players if not p.is_on_ir)
+    # OFF26-14: soma de IR p/ exibir a FOLHA TOTAL (cap_used + ir_cap) no card. O
+    # `cap_used` acima segue intocado — isto acrescenta um número, não corrige o outro.
+    ir_cap = sum(p.salary for p in players if p.is_on_ir)
     dynasty_total = sum(
         resolve_asset_value(dv_map, p.sleeper_player_id) or 0
         for p in players if not p.is_on_ir
@@ -32,6 +35,9 @@ def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=Non
         "is_my_team": team.id == my_team_id,
         "cap_used": cap_used,
         "cap_space": SALARY_CAP - cap_used,
+        "ir_cap": ir_cap,                                    # OFF26-14
+        "folha_total": cap_used + ir_cap,                    # OFF26-14
+        "folha_space": SALARY_CAP - (cap_used + ir_cap),     # OFF26-14
         "pick_count": pick_count,
         "dynasty_total": dynasty_total,
         "rank": standing.rank if standing else 999,
@@ -120,6 +126,9 @@ def team_detail(team_id):
         "cap_used": cap_used,
         "cap_remaining": SALARY_CAP - cap_used,
         "ir_cap": ir_cap,
+        # OFF26-14: folha total = cap ativo + IR, derivada dos dois valores já calculados.
+        "folha_total": cap_used + ir_cap,
+        "folha_remaining": SALARY_CAP - (cap_used + ir_cap),
         "ir_count": len(ir),
         "active_count": len(active),
         "cap_by_pos": dict(cap_by_pos),

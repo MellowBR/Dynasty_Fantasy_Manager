@@ -97,6 +97,22 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 - **Renewal (after Year 4):** new 4-year contract, Year 1 = floor(ESPN_adjusted), min $1
 - **Draft budget:** $200 − Σ(keeper salaries), minimum $1 per empty slot
 
+#### Duas réguas de salário — "cap ativo" × "folha total" (OFF26-14)
+
+Convivem **duas** contagens de salário usado, **ambas legítimas**, e a UI as exibe **rotuladas**
+(nunca unificadas sem decisão registrada):
+
+- **cap ativo** — `Team.active_salary()` (+ 5 somas inline em `roster.py`, `league.py`, `admin.py`):
+  **EXCLUI** `is_on_ir`. É o que o time paga por quem joga.
+- **folha total ⚖️** — `Team.total_salary()` / `cap_ativo + ir_cap`: **INCLUI** IR. **É A RÉGUA DO
+  LEILÃO** — é a que `salary_engine.draft_budget` aplica (filtra só `is_dropped`) e, por
+  consequência, a que a keeper sheet (OFF26-2) e a auditoria (OFF26-4) consomem.
+
+As duas **só divergem para time com alguém em IR**; as telas mostram o par apenas nesse caso
+(`ir_cap > 0` / `has_ir`). O regulamento é **explícito sobre contagem** (item 1.3 — os 2 IR não
+entram no total de 22) e **silencioso sobre salário de IR no cap**; a decisão do owner é que **o IR
+conta no cap**. ⛔ Não trocar uma régua pela outra nem unificá-las sem passar pelo OFF26-16.
+
 ### Offseason Workflow (7 steps)
 
 1. Close Season → import standings from Sleeper or manual entry

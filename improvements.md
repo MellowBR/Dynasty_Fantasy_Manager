@@ -1,6 +1,7 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 04/08/2026-pt1 (sessão MAN-OFF26-14-F2: **as duas réguas foram ROTULADAS, não unificadas** — [[OFF26-14]] passa a ⚠️, pendente de smoke em prod. **Vocabulário único em 7 superfícies: "cap ativo" (sem IR, intocado) × "folha total ⚖️" (com IR — É A RÉGUA DO LEILÃO)**, com o rótulo dizendo isso onde cabe. **Gate de exibição:** o par só aparece para time **com** IR (`ir_cap > 0`/`has_ir`) — **3 times hoje**; os **9 sem IR seguem com um número só**, sem ruído novo. Caso concreto conferido: o **achane exibe $186 (cap ativo) e $195 (folha total)**, restante $14 → $5. ✅ **Nenhum valor calculado mudou** — o `git diff` das rotas remove **5 linhas, todas estruturais** (2 `return` de context processor com os valores preservados, a assinatura de `side()` e seus 2 call sites): `active_salary`, as **5 somas inline** e `draft_budget` estão **byte a byte iguais**. Superfícies: chip da navbar (limiar de cor **inalterado**), banner M1, página de roster, cards do League Hub, `/team/<id>`, preview de rollover e preview de trade. ⚠️ **Banner NOVO, aditivo:** o par (cap ativo ≤ $200, folha total > $200) — em que o banner antigo **silencia** e o time entra no leilão estourado — agora avisa; nenhum time está nesse par hoje, mas um drop/IR o cria. **`Team.total_salary()` deixou de ser código morto:** virou a fonte única da folha total onde há objeto `Team`, em vez de uma definição paralela (que seria o vício que o próprio item documenta) — [[OFF26-17]] ⚠️. **Correção de premissa registrada com a leitura anterior preservada:** o **1.3 NÃO é silencioso** — ele estabelece que os 2 IR não entram no total de 22, logo **22+2 = 24 é legítimo e o Manager está correto**; o conflito real é **regulamento (24) × sala do leilão (22 vagas)**, que é o [[OFF26-13]]. Delimitação: o 1.3 é explícito sobre **CONTAGEM** e nada diz sobre **SALÁRIO** — o silêncio que a F1 mediu era o de salário, e permanece. **Dois itens novos escopados e NÃO implementados:** [[OFF26-15]] 🔲 **Alta** (a keeper sheet **não marca quem está em IR**, e keeper em IR **ocupa designação no board** — quem transcrever em 20/08 não sabe que precisa incluí-los, e omitir **expõe ao leilão**; **5 jogadores em 3 times**; o `fa_budget` já os conta, falta só a marcação) e [[OFF26-16]] 🔲 **Baixa** (unificar as 6 superfícies **pós-leilão**, com **pré-requisito duro de escrever a cobertura antes** — hoje é zero). **48/48** + **34/34**, `py_compile` das 6 rotas, parse Jinja dos 8 templates. **Cadeia do leilão intocada**: `draft_budget`, keeper sheet, auditoria [[OFF26-4]], `salary_engine`, schema e sync. Board intacto, draft não iniciado.)
 > Atualizado em: 03/08/2026-pt10 (sessão MAN-OFF26-14-F1: **diagnose read-only do IR na contagem de salário — item [[OFF26-14]] registrado 🔲 Alta**. Zero escrita (só `sqlite mode=ro` + leitura do PDF do regulamento); board intacto; nenhum arquivo de código alterado. **A decisão do owner é o critério: o IR CONTA no cap** → o grupo que exclui está desalinhado, e é o que o owner olha para cortar em 20/08. **T1 — mapa fechado: 11 superfícies EXCLUEM IR, 8 INCLUEM.** Divergência medida: **3 times, $14** (achane **$186 × $195**, dif = exatamente Penix $1 + Hunter $8; rafaelferreirap $3; Fazenda $2) — os outros 9 batem porque **não têm ninguém em IR**, que é por que passou despercebido. ⛔ **T3 — A RÉPLICA ESTÁ TODA NO LADO ERRADO:** o lado que **inclui** IR tem **1 fonte** (`draft_budget`; invariante [[F10]] preservada, 7 consumidores sem aritmética própria); o que **exclui** tem **6** — `active_salary` **+ 5 somas inline** (`roster.py:89`, `league.py:22`, `league.py:99`, `admin.py:159`, `admin.py:160`) que **não chamam `active_salary()`**. Corrigir a regra custa **6 pontos, não 1**. Sem réplica em JS/Jinja (F10 vale dos dois lados). ✅ **T5 — a pergunta de severidade alta NÃO se materializou:** keeper sheet e auditoria [[OFF26-4]] consomem **o MESMO número** (`keeper_audit.build_sheet` importa `routes.cuts._build_keeper_sheet`), ambas **com IR** — a cadeia do leilão é internamente coerente. O descompasso real é **tela do owner × régua do leilão** (chip da navbar, banner M1, roster, League Hub, `/team/<id>`, preview de trade e de rollover). **T2 — não há decisão registrada:** o filtro é **explícito e dedicado** (`and not p.is_on_ir`), **sem comentário e sem nenhum teste** (`grep` em `*_test.py`: zero), e vem do **commit inicial `f2271ba`**; ⚠️ mas o gap **já estava anotado na F1 do [[OFF26-1]]** ([improvements.md:1860]) com o texto *"divergiriam para times com IR — **decisão pendente**"*: **não é achado novo, é decisão pendente que virou risco quando a data chegou**. **T6 — regulamento SILENCIOSO sobre salário de IR no cap:** o **1.3** ("os 2 IR não são considerados no total de **22**") fala de **contagem de jogadores**, não de folha; 5.1/8.1.2/8.3.3 falam de salários **sem abrir exceção**; a **única** exclusão explícita de folha no documento inteiro é o **7.1.8**, e é sobre **FAAB**. → **não contradiz nem confirma** a decisão do owner. ⛔ **T4 — a string "cabe até 24" NÃO EXISTE no código** (`grep` em todo `.py`/`.html`/`.js`: 1 ocorrência de "cabe", e é `keeper_audit.py:211`); o template diz *"N jogador(es) no IR — salary IR: $X"*. **Não há terceiro teto de roster**, e o Manager **nunca lê `settings.reserve_slots`** (só `roster.reserve`). **Laterais:** `Team.total_salary()` (a régua "com IR" no modelo) é **código morto, zero consumidores**; a **keeper sheet não marca quem está em IR** — e keeper em IR **ocupa designação** no board ([[OFF26-13]]). **Nada corrigido, nada unificado, status de nenhum item alterado.** Decisão da Fase 2 é do owner: **unificar as 6 superfícies na régua com IR** × **exibir os dois números rotulados** ("folha total" × "cap ativo") — o que falta hoje não é o número, é o **rótulo**.)
 > Atualizado em: 03/08/2026-pt9 (sessão MAN-OFF26-13-F1: **diagnose read-only da ocupação de roster dos 12 times — e a hipótese central do [[OFF26-13]] CAIU**. Zero escrita (só `GET` + `sqlite mode=ro`); board intacto; `git diff` sem arquivo de código. **✅ T2 — ambiguidade DISSOLVIDA por estrutura, não interpretação:** `roster.reserve` é **subconjunto** de `roster.players` (verificado nos 3 rosters com IR) → **"24 no ativo" nunca existiu**. O time é o **`🕯️🕯️ achane 🕯️🕯️`** (roster 10, `gabrieldiinis`): **22 ativos + 2 IR** (Penix $1, Travis Hunter $8); o `is_on_ir` do Manager **bate 100%** com o `reserve` do Sleeper nos 3 times. **T1/T3 — 1 time não cabe, 5 estão com folga ZERO:** contando toda a posse como designação (o IR ocupa **banco** na sala), só o achane excede (**24 num board de 22, +2**), mas **Pitbull, 3 peat, Fazenda, mongoloides e Miller Time estão em 22 exatos** — qualquer aquisição antes de 20/08 os põe na mesma situação, e isso **não aparece em nenhuma contagem de excedente**. Agregado sobra (248 de 264) e **não ajuda**: o limite é por time. **Base do limite declarada como INFERÊNCIA:** `rounds=22` dá 22 picks/time; **não foi testado** se a UI recusa a 23ª (exigiria tocar o board, proibido). ⛔ **HIPÓTESE CENTRAL REFUTADA — os cortes de 20/08 NÃO resolvem sozinhos:** supunha-se que "quem excede o roster tende a exceder o cap"; **o time das 24 está em $195, ABAIXO do cap**, e os dois times acima do cap (mongoloides $206, Tropa $201) **cabem no board**. As condições são independentes e hoje estão **anticorrelacionadas** → **nada obriga o achane a cortar**, e ele fecharia a janela legal, sob o cap, com **2 keepers fora do board e expostos ao leilão**. **T4 — o teto de 22 NÃO é validado em lugar nenhum:** `MAX_ROSTER` é definido em **dois** lugares (`models.py:9`, `salary_engine.py:40`) e usado **só como divisor** (`draft_budget:221`), onde o `max(0,…)` **apaga o excedente** (24 keepers → `empty_spots=0`, indistinguível de roster cheio: **o Manager não tem como saber que estourou**); nenhuma porta confere contagem (`record_acquisition`, sync — e no sync **é correto não conferir**, o Sleeper é autoridade de posse; trades não movem jogador). **Assimetria que responde a T4:** o teto **menor** (`MAX_IR=2`) **é** enforçado (`roster.py:155`, 400 "IR cheio"); o **maior**, que hoje expõe keepers, **não**. +import morto de `MAX_ROSTER` em `routes/salary.py:4`. **T5 — réplicas:** (1) `MAX_ROSTER` com **duas definições** (inócuo hoje, contra a invariante [[F10]]); (2) **duas contagens de "salário usado" convivem** — telas de cap **excluem** IR (`active_salary`, `league.py`, `admin.py`) e o budget de keeper **inclui** (D5 do [[OFF26-2]]) → divergem em **3 times, $14 no total**, com o achane exibindo **$186 numa tela e $195 noutra**: **não é bug (são perguntas diferentes), é risco de leitura sob prazo**. **Premissas do prompt contraditas:** *"a fantasma não tem slot de IR"* (5ª ocorrência da família — `reserve_slots=2` nas duas ligas; **a conclusão do prompt continua certa, pelo motivo certo: slot de IR não é slot de draft**) e *"os cortes provavelmente resolvem"*. **Nada corrigido, nada implementado, status do OFF26-13 inalterado (🔲).**)
 > Atualizado em: 03/08/2026-pt8 (sessão MAN-OFF26-4-SLOTS: **o prompt reeditou tarefas já entregues no `b467651` — (A) conferência aritmética e (B) rename dos cards estavam ambas feitas e publicadas** (escrito antes do relatório da sessão anterior). **Nada foi refeito**; conferido item a item contra o HEAD. **O que FALTAVA de verdade era um item da VALIDAÇÃO deste prompt:** "a decisão de tratá-la ficou como **item**, não como alteração" — a divergência estava registrada **dentro da seção do [[OFF26-4]]**, mas **sem ID rastreável**. Corrigido: **dois itens novos**. **[[OFF26-12]] 🔲 Baixa** — *keeper em IR conta na reserva de $1?*: a **8.3.4** manda reservar `(22 − keepers)` e a **1.3** diz que os 2 IR "não são considerados no total de 22", mas a regra **não diz** se keeper em IR entra em "keepers"; Manager e Sleeper hoje **contam o IR dentro** dos 22 (leitura (a)), o que deixa o Manager **até $2 mais permissivo que o regulamento** (3 times com IR hoje). **Efeito sobre o veredito da auditoria: NENHUM** — os dois lados comparados concordam entre si, a margem é **entre as plataformas e o regulamento**; daí a prioridade Baixa apesar de tocar dinheiro. Se a leitura (b) vencer, o ajuste **mexe em `salary_engine.draft_budget`** (3 consumidores) e **exige F1 própria** — **regra de liga, decisão do owner**. **[[OFF26-13]] 🔲 Alta** — *time com >22 keepers não cabe no board*: o regulamento permite **24** (22 + 2 IR) e o board comporta **22 designações**; **1 time está em 24 hoje** (medido ao vivo) e, se chegar assim em 20/08, **2 keepers ficam EXPOSTOS** pelo achado do OFF26-4. É **segunda causa de time não populável** ao lado do teto ([[OFF26-10]]), com **remédio diferente**, e **não se resolve com o late drop** (1 drop × 2 excedentes); **nada no regulamento obriga** a descer de 24 para 22. Decisão em aberto: corte adicional obrigatório × exceção administrativa. **O Manager já pode pré-calcular quem vai estourar**, sem decisão nenhuma. **Reafirmado (o prompt repete a premissa derrubada):** *"a fantasma não tem IR"* segue **FALSO** — `settings.reserve_slots = 2` **nas duas ligas**, e o `roster_positions` da liga **REAL** (que tem IR, 3 rosters usando) **também não lista "IR"**; o que sustenta o limite de 22 designações **não é a ausência de IR na sala, é que slot de IR não é slot de draft**. **Ressalva do D2: FECHADA** (22 = 22 = 22, mesma fórmula), com o resíduo agora **rastreável** em OFF26-12/13. 34/34 e 48/48; template e código **inalterados nesta sessão**; board intacto, draft não iniciado. Status do OFF26-4 **inalterado (⚠️)**.)
@@ -100,7 +101,10 @@
 | OFF26-11 | Importador (OFF26-3) **não distingue keeper de arremate novo**: com keepers designados no board da liga fantasma, os picks do auction vêm misturados, e a porta canônica de aquisição é porta de **contrato ano 1** → ingerir um keeper **zera a idade do contrato** de quem nunca saiu do time (dano silencioso, visível só na renovação). Decisão em aberto: importar só arremates × reconciliar e reportar divergência — MAN-OFF26-10-11-REG | Alta | 🔲 |
 | OFF26-12 | **Keeper em IR conta na reserva de $1?** A **8.3.4** manda reservar `(22 − keepers)` e a **1.3** diz que os 2 IR "não são considerados no total de 22" — a regra **não diz** se keeper em IR entra em "keepers". Manager e Sleeper hoje **contam o IR dentro dos 22** (concordam entre si → auditoria sem falso positivo), mas isso deixa o Manager **até $2 mais permissivo que o regulamento** para time com IR (3 times hoje). **Decisão de REGRA DE LIGA, não de implementação**; se a leitura (b) vencer, o ajuste mexe em `salary_engine.draft_budget` — MAN-OFF26-4-LABELS/SLOTS | Baixa | 🔲 (decisão do owner) |
 | OFF26-13 | **Time com mais de 22 keepers não cabe no board** — F1 03/08: o time é o **achane** (24 = **22 ativos + 2 IR**, ambiguidade dissolvida), e **a hipótese "os cortes resolvem sozinhos" está REFUTADA** (ele está em **$195, abaixo do cap** — nada o obriga a cortar; os 2 times acima do cap **cabem** no board). +**5 times em 22 exatos** (folga zero). **T4: o teto de 22 não é validado em lugar nenhum** (`MAX_ROSTER` só divide no `draft_budget`, e o `max(0,…)` **apaga o excedente**), enquanto `MAX_IR` **é** enforçado — assimetria registrada: o regulamento permite **24** (22 + 2 IR, item 1.3) e o board da fantasma comporta **22 designações** (22 rodadas — slot de IR **não é** slot de draft). **1 time está em 24 hoje** (medido ao vivo); se chegar assim em 20/08, **2 keepers ficam EXPOSTOS ao leilão** pelo achado do [[OFF26-4]]. **Segunda causa de time não populável**, ao lado do teto de budget ([[OFF26-10]]) — e **não se resolve com o late drop** (1 drop não tira 2 excedentes). Decisão em aberto: corte adicional obrigatório × exceção administrativa — MAN-OFF26-4-LABELS/SLOTS | Alta | 🔲 |
-| OFF26-14 | **Duas contagens de cap convivem — as telas de roster EXCLUEM o salário de IR.** Decisão do owner: **o IR CONTA no cap** → o grupo que exclui está desalinhado da regra, e é o que o owner olha para cortar em 20/08 (`$186/$14` na tela × `$195` na régua do leilão; **3 times, $14** de divergência). **T3 — a réplica está toda no lado errado:** o lado que INCLUI IR tem **1 fonte** (`draft_budget`, [[F10]] preservada); o que EXCLUI tem **6** (`active_salary` + **5 somas inline** em `roster.py:89`, `league.py:22/99`, `admin.py:159/160`). **T5 — keeper sheet e auditoria [[OFF26-4]] consomem o MESMO número (com IR), NÃO divergem** — a cadeia do leilão é coerente; o descompasso é **tela do owner × leilão**. **T2 — sem decisão registrada:** filtro explícito desde o commit inicial, **sem comentário e sem teste**, e o gap **já estava anotado na F1 do [[OFF26-1]]** como "decisão pendente". **T6 — regulamento SILENCIOSO** sobre salário de IR no cap (o 1.3 fala de **contagem**, não de folha; a única exclusão de folha é o 7.1.8, sobre FAAB) → não contradiz nem confirma o owner. ⛔ **T4 — a string "cabe até 24" NÃO existe no código**; não há terceiro teto de roster. Laterais: `Team.total_salary()` é **código morto**, a keeper sheet **não marca quem está em IR**, `reserve_slots` nunca é lido — MAN-OFF26-14-F1 | Alta | 🔲 |
+| OFF26-14 | **Duas contagens de cap convivem — as telas de roster EXCLUEM o salário de IR.** Decisão do owner: **o IR CONTA no cap** → o grupo que exclui está desalinhado da regra, e é o que o owner olha para cortar em 20/08 (`$186/$14` na tela × `$195` na régua do leilão; **3 times, $14** de divergência). **T3 — a réplica está toda no lado errado:** o lado que INCLUI IR tem **1 fonte** (`draft_budget`, [[F10]] preservada); o que EXCLUI tem **6** (`active_salary` + **5 somas inline** em `roster.py:89`, `league.py:22/99`, `admin.py:159/160`). **T5 — keeper sheet e auditoria [[OFF26-4]] consomem o MESMO número (com IR), NÃO divergem** — a cadeia do leilão é coerente; o descompasso é **tela do owner × leilão**. **T2 — sem decisão registrada:** filtro explícito desde o commit inicial, **sem comentário e sem teste**, e o gap **já estava anotado na F1 do [[OFF26-1]]** como "decisão pendente". **T6 — regulamento SILENCIOSO** sobre salário de IR no cap (o 1.3 fala de **contagem**, não de folha; a única exclusão de folha é o 7.1.8, sobre FAAB) → não contradiz nem confirma o owner. ⛔ **T4 — a string "cabe até 24" NÃO existe no código**; não há terceiro teto de roster. Laterais: `Team.total_salary()` é **código morto**, a keeper sheet **não marca quem está em IR**, `reserve_slots` nunca é lido — MAN-OFF26-14-F1 | Alta | ⚠️ **F2 04/08: NÃO unificou — rotulou.** As 7 superfícies passam a exibir **"cap ativo" × "folha total"** quando o time tem IR (achane: **$186 × $195**); 9 times sem IR seguem com **um número só**. `active_salary`, as 5 somas inline e `draft_budget` **intocados** (nenhuma linha de cálculo removida). 48/48 + 34/34. **Pendente de smoke em prod** |
+| OFF26-15 | **Keeper sheet não marca quem está em IR** — e keeper em IR **ocupa designação no board** ([[OFF26-13]]). `keeper_sheet.html` não tem badge de IR (zero ocorrências no template), então quem transcrever em 20/08 **não tem como saber que precisa incluí-los**; pelo achado do [[OFF26-4]] (*"keeper fora do board é jogador leiloável"*), omitir um deles o **expõe ao leilão**. Hoje são **5 jogadores em 3 times** (achane 2, Fazenda 2, rafaelferreirap 1). A sheet **já conta** o salário deles no `fa_budget` (régua com IR) — falta só a **marcação visual** — MAN-OFF26-14-F2 | Alta | 🔲 |
+| OFF26-16 | **Unificar as 6 superfícies da régua sem IR** (`active_salary` + 5 somas inline em `roster.py:89`, `league.py:22/99`, `admin.py:159/160`) — **pós-leilão, e com testes**. A F2 deliberadamente **não unificou**: a cadeia crítica já está coerente, o custo é 6 pontos sem nenhum teste cobrindo, em código do commit inicial, a 17 dias do leilão. **Pré-requisito explícito: escrever a cobertura de `active_salary`/`total_salary`/`is_on_ir` primeiro** (hoje é zero) — MAN-OFF26-14-F2 | Baixa | 🔲 |
+| OFF26-17 | `Team.total_salary()` era **código morto** (zero consumidores) — a régua "folha total" existia no modelo e ninguém chamava. ⚠️ **A F2 o promoveu a fonte única da folha total** (chip da navbar, banner de roster, preview de trade), em vez de criar uma definição paralela — que seria exatamente o vício que o [[OFF26-14]] documenta. **Resíduo resolvido por consumo, não por remoção**; segue o mesmo smoke do OFF26-14 — MAN-OFF26-14-F2 | Baixa | ⚠️ (aguardando smoke prod) |
 | F9 | `bulk_register` (/auction) cria jogadores sem SalaryHistory — risco de dano silencioso já existente (achado de MAN-OFF26-3-F1; exige F1 de avaliação de dano antes do fix) | Alta | ⚠️ |
 | F10 | `draft_budget` replicado em JS no cap_projector (viola "1 fonte por modo de render", T2-FIX-2; cliente deve consumir endpoint canônico) — achado de MAN-OFF26-3-F1 | Média | ✅ 12/06/2026 (réplica eliminada + smoke prod OK: $157/$43/$38/5 spots conferido) |
 | M17 | Personalização por usuário logado: home + cap widget + 8 surfaces derivam de `current_user.team_rel` (fonte única `inject_user_team`; réplica JS do chip removida) — prompt MAN-M15-REG (ID remapeado: M15 ocupado) | Alta | ⚠️ |
@@ -3996,6 +4000,153 @@ designação no board), [[OFF26-12]] (a mesma ambiguidade do 1.3, mas sobre **va
 [[OFF26-1]] (onde o GAP foi registrado e a decisão ficou pendente), [[OFF26-2]] (D5 — a sheet é o
 lado que **inclui** IR), [[OFF26-4]] (consome a sheet, herda a régua com IR), [[F10]] (a invariante
 que o grupo B respeita e o grupo A não).
+
+#### Correção de premissa sobre o regulamento (04/08/2026)
+
+**Leitura anterior (F1), preservada:** *"o regulamento é **SILENCIOSO** sobre se o salário de IR
+entra no cap"* — e, sobre o `24`, *"a string 'cabe até 24' não existe no código; o 24 vem do
+regulamento (1.1 + 1.3)"*.
+
+**Correção do owner:** o **1.3 não é silencioso** — ele **estabelece** que os 2 IR **não são
+considerados no total de 22**, logo **22 + 2 IR = 24 é composição legítima**, e o comportamento do
+Manager **está correto**. ⇒ **Não há conflito entre Manager e regulamento.** O conflito real é entre
+o **regulamento** (permite 24) e a **sala do leilão** (22 vagas, sem IR) — que é precisamente o
+[[OFF26-13]], e não este item.
+
+**Delimitação, para as duas leituras não se sobreporem de novo:** o 1.3 é **explícito sobre
+CONTAGEM** (quantos jogadores) e **não fala de salário**; a ausência de regra sobre **salário de IR
+na folha** permanece — é sobre ela que a decisão do owner (*o IR conta no cap*) se apoia, e é o que
+a F1 chamou de silêncio. **A F1 media salário; a correção fala de contagem.** As duas valem, em
+escopos distintos.
+
+#### F2 (MAN-OFF26-14-F2, 04/08/2026) — rotular, não unificar
+
+**Decisão registrada para não ser revisitada por engano.** Não se unificou porque: (1) a cadeia
+crítica do leilão **já é coerente** — o risco que motivaria a unificação não existe; (2) unificar
+custa **6 pontos**, **sem nenhum teste** cobrindo, em código do commit inicial, **a 17 dias do
+leilão**; (3) os dois números **têm sentidos diferentes e ambos são legítimos**. **O que faltava não
+era o número: era o rótulo.**
+
+**Vocabulário único, aplicado em todas as superfícies:**
+
+| rótulo | o que é | onde vale |
+|---|---|---|
+| **cap ativo** | exclui IR (`active_salary` e as 5 somas inline — **intocados**) | o que o time paga por quem joga |
+| **folha total ⚖️** | inclui IR (`Team.total_salary()` / `cap_ativo + ir_cap`) | **é a régua do leilão** — `draft_budget`, keeper sheet, auditoria [[OFF26-4]] |
+
+**Gate de exibição — sem IR, sem ruído:** toda superfície mostra o par **só quando o time tem
+alguém em IR** (`ir_cap > 0` / `has_ir`). Hoje isso é **3 times**; os outros **9 seguem exibindo um
+único número**, byte a byte como antes.
+
+| # | superfície | o que mudou |
+|---|---|---|
+| A4 | chip da navbar ([base.html:73](templates/base.html#L73), [app.py:121](app.py#L121)) | valor e **limiar de cor inalterados**; com IR, ganha `$195 c/ IR` ao lado + `title` com os dois rótulos |
+| A5 | banner M1 de cap estourado ([roster.py](routes/roster.py), [roster.html](templates/roster.html)) | `own_cap_overrun` **inalterado**; ganha o valor pela folha quando maior. **+ banner NOVO** para o par (ativo ≤ cap, folha > cap) — o caso em que o banner antigo silencia e o time entra no leilão estourado |
+| A6 | página de roster ([roster.html](templates/roster.html)) | 2ª linha de rótulos sob a barra: `Cap ativo (sem IR)` × `Folha total (com IR)` + restante + *"⚖️ é a folha total que vale no leilão"*; o alerta de IR passa a nomear as duas |
+| A7 | cards do League Hub ([league.html](templates/league.html)) | `Cap restante (ativo · c/ IR)` com os dois valores |
+| A8 | `/team/<id>` ([team_detail.html](templates/team_detail.html)) | rótulo vira `Cap ativo` + item novo `Folha total ⚖️`; `Resto` ganha `($5 c/ IR)` |
+| A9 | preview de rollover ([admin.py](routes/admin.py), [admin.html](templates/admin.html)) | os 2 agregados existentes viram `(ativo)`; **+2** `⚖️ Folha … (c/ IR)`, só se divergirem |
+| A11 | preview de trade ([trades.py](routes/trades.py), [trades.html](templates/trades.html)) | `Cap` → `Cap ativo` quando há IR; **+ linha** `⚖️ Folha total (com IR — é a que vale no leilão): antes → depois (restante)`. Mesma aritmética de delta: **o contrato viaja com o jogador, esteja em IR ou não** |
+
+**Prova de que nenhum valor calculado mudou:** `git diff` das rotas remove **5 linhas, todas
+estruturais** — dois `return` de context processor (valores preservados, chaves acrescentadas), a
+assinatura de `side()` e seus dois call sites. **Nenhuma linha de cálculo foi removida ou
+alterada** — `active_salary`, as 5 somas inline e `draft_budget` estão byte a byte iguais.
+
+**Números conferidos** (réplica read-only da aritmética das rotas, 04/08):
+
+| time | cap ativo | folha total | restante (ativo → folha) | exibe par? |
+|---|---|---|---|---|
+| **🕯️🕯️ achane 🕯️🕯️** | **$186** | **$195** | $14 → $5 | ✅ **sim** |
+| rafaelferreirap | $133 | $136 | $67 → $64 | ✅ sim |
+| Fazenda Pederasta | $176 | $178 | $24 → $22 | ✅ sim |
+| *(os outros 9)* | — | *idem* | — | ❌ **um número só** |
+
+**`Team.total_salary()` deixou de ser código morto** — virou a fonte única da folha total onde há
+objeto `Team` (chip, banner, trade). A alternativa (calcular `cap + ir` em paralelo nesses três
+pontos) criaria **mais uma definição da mesma régua**, que é exatamente o vício que este item
+documenta. Registrado como [[OFF26-17]].
+
+⚠️ **PENDENTE DE SMOKE EM PRODUÇÃO — o item NÃO fecha ✅ com validação em localhost.** O que foi
+validado aqui: **48/48** (`salary_engine`) + **34/34** (`keeper_audit`), `py_compile` das 6 rotas,
+parse Jinja dos 8 templates, e a aritmética conferida contra o banco em `mode=ro`. **O que só prod
+prova:** (1) o **par renderiza** nas 7 superfícies para um time com IR e (2) **não aparece** para os
+9 sem IR; (3) o chip não quebra a navbar no mobile; (4) a linha nova do preview de trade não
+desalinha as 2 colunas; (5) os 2 cards novos do rollover cabem no `stat-grid`. **Sugestão de caso
+de smoke: abrir `/?team=🕯️🕯️ achane 🕯️🕯️` e conferir $186 e $195 lado a lado**, depois qualquer
+time sem IR para conferir que nada mudou.
+
+**Fora do escopo por decisão explícita (itens próprios):** marcação de IR na keeper sheet
+([[OFF26-15]], **Alta**), unificação das 6 superfícies ([[OFF26-16]], **Baixa**, pós-leilão e com
+testes), `total_salary()` ([[OFF26-17]], **Baixa**). **Nada da cadeia do leilão foi tocado**:
+`draft_budget`, keeper sheet, auditoria [[OFF26-4]], `salary_engine`, schema e sync intactos.
+
+---
+
+### OFF26-15 — Keeper sheet não marca quem está em IR
+🔲 **Pendente** — Prioridade **Alta** — achado da [[OFF26-14]] F1, escopado como item na F2 (04/08/2026)
+
+**O problema.** `keeper_sheet.html` **não tem badge de IR** (zero ocorrências de "IR" no template).
+A sheet lista os jogadores em IR como keepers quaisquer, **sem distinguir**.
+
+**Por que é Alta, e não cosmético.** Keeper em IR **ocupa designação no board** da liga fantasma —
+o board **não tem slot de IR** ([[OFF26-13]]). Quem transcrever a sheet em 20/08 **não tem como
+saber que precisa incluí-los**, e pelo achado do [[OFF26-4]] — *"keeper fora do board é jogador
+leiloável"* — **omitir um deles o expõe a ser arrematado ao vivo**. É a mesma classe de dano do
+OFF26-13, por outra porta: lá o keeper não cabe, aqui **cabe mas ninguém sabe que precisa entrar**.
+
+**Estado hoje:** **5 jogadores em 3 times** — achane (Michael Penix $1, Travis Hunter $8), Fazenda
+Pederasta (Kendre Miller $1, Tory Horton $1), rafaelferreirap (Zach Charbonnet $3).
+
+**O que já está certo e NÃO deve ser mexido:** a sheet **já conta** o salário deles no `fa_budget`
+(régua com IR, D4 do [[OFF26-2]]). **Não é erro de cálculo — é ausência de marcação visual.** O
+`is_on_ir` já existe no `Player`; falta levá-lo ao payload da sheet e renderizar o badge (+ coluna
+no CSV, para manter a paridade 1:1 que o `keeper_sheet_csv` promete).
+
+**Cross-refs:** [[OFF26-13]] (keeper em IR ocupa designação), [[OFF26-4]] (o achado que dá a
+gravidade), [[OFF26-2]] (a sheet e a paridade CSV), [[OFF26-14]] (de onde saiu).
+
+---
+
+### OFF26-16 — Unificar as 6 superfícies da régua sem IR (pós-leilão, com testes)
+🔲 **Pendente** — Prioridade **Baixa** — decisão explícita da [[OFF26-14]] F2 (04/08/2026)
+
+**O que fica.** Seis pontos definem a régua "sem IR": `Team.active_salary()`
+([models.py](models.py#L96)) **+ 5 somas inline** que reescrevem `sum(… if not p.is_on_ir)` à mão —
+[roster.py:89](routes/roster.py#L89), [league.py:22](routes/league.py#L22),
+[league.py:99](routes/league.py#L99), [admin.py:159](routes/admin.py#L159) e
+[admin.py:160](routes/admin.py#L160). Elas **não chamam o helper**.
+
+**Por que NÃO foi feito na F2** (registrado para a decisão não ser revisitada por engano):
+1. a cadeia crítica **já está coerente** — keeper sheet e auditoria consomem a mesma régua com IR;
+2. custa **6 pontos**, em código do **commit inicial**, **a 17 dias do leilão**;
+3. **não há um único teste** cobrindo `active_salary`, `total_salary` ou `is_on_ir`.
+
+**Pré-requisito duro:** escrever a cobertura **antes** de unificar. Unificar sem teste é trocar seis
+somas silenciosas por uma mudança de comportamento silenciosa.
+
+**Nota de escopo:** "unificar" aqui significa **fazer os 5 pontos chamarem o helper**, não decidir
+qual régua vence — essa decisão já está tomada (as duas convivem, rotuladas; ver F2).
+
+---
+
+### OFF26-17 — `Team.total_salary()` era código morto
+⚠️ **Resolvido por consumo na F2 — aguardando o mesmo smoke do [[OFF26-14]]** — Prioridade **Baixa**
+
+**O achado (F1):** `Team.total_salary()` ([models.py:102](models.py#L102)) — a régua **folha total**,
+semanticamente correta — estava definida no modelo com **zero consumidores**. Sinal de que a régua
+certa foi escrita e depois abandonada; gêmeo do `MAX_ROSTER` importado e nunca usado do [[OFF26-13]].
+
+**⚠️ O que a F2 fez, e por que difere do "registrar e parar":** o item foi registrado como manda o
+prompt, **mas a F2 o consumiu** em vez de deixá-lo morto — ele é a fonte única da folha total nos
+três pontos onde há objeto `Team` (chip da navbar, banner do roster, preview de trade). **A
+alternativa seria calcular `cap_ativo + ir_cap` em paralelo nesses pontos, criando uma segunda
+definição da mesma régua** — exatamente o vício que o [[OFF26-14]] documenta e que o [[OFF26-16]]
+vai ter de desfazer do outro lado. **Resíduo resolvido por consumo, não por remoção**; nada foi
+apagado, como o prompt exigia.
+
+**Decisão do owner, se discordar:** reverter é trocar as 3 chamadas por `cap + ir` local — mas isso
+recria a réplica. Registrado assim para que a escolha fique visível.
 
 ---
 

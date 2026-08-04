@@ -136,6 +136,16 @@ code {
 .cap-chip.chip-warn   { background: rgba(245,158,11,.15); color: var(--yellow); }
 .cap-chip.chip-danger { background: rgba(239,68,68,.15);  color: var(--red); }
 
+/* OFF26-14: folha total (com IR) ao lado do cap ativo no chip — só renderiza para
+   time com IR, então não ocupa espaço para os demais. */
+.cap-chip-folha {
+  margin-left: .35rem;
+  padding-left: .35rem;
+  border-left: 1px solid currentColor;
+  font-weight: 500;
+  opacity: .8;
+}
+
 .btn-sync {
   display: flex;
   align-items: center;
@@ -222,6 +232,18 @@ code {
   font-size: .83rem;
   flex-wrap: wrap;
 }
+
+/* OFF26-14: 2ª linha de rótulos (folha total) sob a barra de cap — só existe para
+   time com IR. Recuada e menor, para não competir com a linha principal. */
+.cap-bar-folha {
+  margin-top: -.15rem;
+  margin-bottom: .45rem;
+  font-size: .78rem;
+  opacity: .92;
+}
+
+/* OFF26-14: valor da folha total no card do League Hub. */
+.league-stat-folha { font-weight: 500; opacity: .78; }
 
 .cap-bar {
   height: 10px;

@@ -158,11 +158,17 @@ def rollover_preview():
         })
     total_current = sum(p.salary for p in players if not p.is_on_ir)
     total_next = sum(r["new_salary"] for r in preview if not Player.query.get(r["id"]).is_on_ir)
+    # OFF26-14: os totais acima são CAP ATIVO (ligados, excluem IR) e seguem intocados.
+    # Estes são a FOLHA TOTAL — a régua do leilão. Agregados de liga, não por time.
+    total_current_full = sum(p.salary for p in players)
+    total_next_full = sum(r["new_salary"] for r in preview)
     return jsonify({
         "next_season": next_season,
         "player_count": len(preview),
         "total_current": total_current,
         "total_next": total_next,
+        "total_current_full": total_current_full,
+        "total_next_full": total_next_full,
         "renewals": len([r for r in preview if r["is_renewal"]]),
         "players": preview,
     })

@@ -151,6 +151,12 @@ def _compute_cap_impact(team_a, team_b, players_a, players_b, picks_a, picks_b):
     cap_a = team_a.active_salary()
     cap_b = team_b.active_salary()
 
+    # OFF26-14: a FOLHA TOTAL (régua do leilão) segue o MESMO delta do cap ativo —
+    # o contrato viaja com o jogador, esteja ele em IR ou não. `cap_*` fica intocado;
+    # isto acrescenta a segunda leitura, exibida só quando as duas divergem.
+    folha_a = team_a.total_salary()
+    folha_b = team_b.total_salary()
+
     sal_a_out = sum(p.salary for p in players_a)
     sal_a_in = sum(p.salary for p in players_b)
     sal_b_out = sum(p.salary for p in players_b)
@@ -158,6 +164,8 @@ def _compute_cap_impact(team_a, team_b, players_a, players_b, picks_a, picks_b):
 
     cap_a_after = cap_a - sal_a_out + sal_a_in
     cap_b_after = cap_b - sal_b_out + sal_b_in
+    folha_a_after = folha_a - sal_a_out + sal_a_in
+    folha_b_after = folha_b - sal_b_out + sal_b_in
 
     # Dynasty values — single cache read, client-side-ready payload
     dv_payload = get_dynasty_values()
@@ -194,7 +202,8 @@ def _compute_cap_impact(team_a, team_b, players_a, players_b, picks_a, picks_b):
             "delta": total_in - total_out,
         }
 
-    def side(team, cap_before, cap_after, out_players, in_players, out_picks, in_picks):
+    def side(team, cap_before, cap_after, folha_before, folha_after,
+             out_players, in_players, out_picks, in_picks):
         d_totals = dynasty_totals(out_players, in_players, out_picks, in_picks)
         r_totals = redraft_totals(out_players, in_players, out_picks, in_picks)
         return {
@@ -205,6 +214,13 @@ def _compute_cap_impact(team_a, team_b, players_a, players_b, picks_a, picks_b):
             "cap_after": round(cap_after, 2),
             "cap_remaining_after": round(SALARY_CAP - cap_after, 2),
             "over_cap": cap_after > SALARY_CAP,
+            # OFF26-14 — folha total (com IR). `has_ir` é o gate de exibição: sem IR
+            # os dois pares coincidem e a tela não ganha ruído.
+            "has_ir": folha_before != cap_before,
+            "folha_before": folha_before,
+            "folha_after": round(folha_after, 2),
+            "folha_remaining_after": round(SALARY_CAP - folha_after, 2),
+            "folha_over_cap": folha_after > SALARY_CAP,
             "players_out": out_players,
             "players_in":  in_players,
             "picks_out": out_picks,
@@ -218,9 +234,9 @@ def _compute_cap_impact(team_a, team_b, players_a, players_b, picks_a, picks_b):
         }
 
     return {
-        "team_a": side(team_a, cap_a, cap_a_after,
+        "team_a": side(team_a, cap_a, cap_a_after, folha_a, folha_a_after,
                        ea_players_out, ea_players_in, ea_picks_out, ea_picks_in),
-        "team_b": side(team_b, cap_b, cap_b_after,
+        "team_b": side(team_b, cap_b, cap_b_after, folha_b, folha_b_after,
                        eb_players_out, eb_players_in, eb_picks_out, eb_picks_in),
         "dynasty_available": bool(values_map),
     }

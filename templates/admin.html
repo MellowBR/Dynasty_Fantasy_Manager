@@ -314,12 +314,21 @@ function triggerSync() {
 function previewRollover() {
   fetch('/api/admin/rollover/preview').then(r => r.json()).then(d => {
     const sum = document.getElementById('rollover-summary');
+    // OFF26-14: agregados de liga nas duas réguas. Os dois primeiros são CAP ATIVO
+    // (excluem IR, inalterados); estes são a FOLHA TOTAL — a régua do leilão. Só
+    // aparecem se divergirem, ou seja, se algum time da liga tiver alguém em IR.
+    const folhaStats = (d.total_current_full !== d.total_current || d.total_next_full !== d.total_next)
+      ? `<div class="stat-item"><span class="stat-num">$${d.total_current_full}</span><span class="stat-label">⚖️ Folha Atual (c/ IR)</span></div>
+         <div class="stat-item"><span class="stat-num">$${d.total_next_full}</span><span class="stat-label">⚖️ Folha Próx. Temp. (c/ IR)</span></div>`
+      : '';
+
     sum.innerHTML = `
       <div class="stat-grid">
         <div class="stat-item"><span class="stat-num">${d.player_count}</span><span class="stat-label">Jogadores</span></div>
         <div class="stat-item"><span class="stat-num stat-warn">${d.renewals}</span><span class="stat-label">Renovações</span></div>
-        <div class="stat-item"><span class="stat-num">$${d.total_current}</span><span class="stat-label">Cap Atual</span></div>
-        <div class="stat-item"><span class="stat-num">$${d.total_next}</span><span class="stat-label">Cap Próxima Temp.</span></div>
+        <div class="stat-item"><span class="stat-num">$${d.total_current}</span><span class="stat-label">Cap Atual (ativo)</span></div>
+        <div class="stat-item"><span class="stat-num">$${d.total_next}</span><span class="stat-label">Cap Próx. Temp. (ativo)</span></div>
+        ${folhaStats}
       </div>`;
 
     let html = `<thead><tr><th>Jogador</th><th>Equipe</th><th>Sal Atual</th><th>Próx Sal</th><th>Δ</th><th>Regra</th></tr></thead><tbody>`;

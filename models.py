@@ -93,13 +93,30 @@ class Team(db.Model):
     players = db.relationship("Player", back_populates="team_rel", lazy="dynamic",
                               foreign_keys="Player.team_id")
 
+    # ── OFF26-14: DUAS RÉGUAS DE SALÁRIO — ambas legítimas, nenhuma é "a certa" ──
+    #
+    #   · active_salary() = CAP ATIVO   — EXCLUI IR. O que o time paga por quem joga.
+    #   · total_salary()  = FOLHA TOTAL — INCLUI IR. É a **RÉGUA DO LEILÃO**: é a que
+    #     `salary_engine.draft_budget` aplica (filtra só `is_dropped`, sem olhar IR) e
+    #     que, por consequência, a keeper sheet (OFF26-2) e a auditoria (OFF26-4)
+    #     consomem. É sobre ela que a decisão de cortes de 20/08 se apoia.
+    #
+    # As duas divergem SÓ para time com alguém em IR (3 times / $14 na medição de
+    # 03/08/2026). O regulamento é explícito sobre CONTAGEM (item 1.3 — os 2 IR não
+    # entram no total de 22) e SILENCIOSO sobre salário de IR no cap.
+    #
+    # A F2 (04/08/2026) deliberadamente NÃO unificou as réguas: as telas passaram a
+    # EXIBIR AS DUAS, rotuladas. ⛔ Não trocar uma pela outra sem decisão registrada —
+    # a unificação é item próprio, pós-leilão e com testes (ver OFF26-14/OFF26-16).
     def active_salary(self):
+        """Régua CAP ATIVO — exclui IR. Não é a régua do leilão (ver bloco acima)."""
         return sum(
             p.salary for p in self.players
             if not p.is_dropped and not p.is_on_ir
         )
 
     def total_salary(self):
+        """Régua FOLHA TOTAL — inclui IR. É a régua do leilão (ver bloco acima)."""
         return sum(p.salary for p in self.players if not p.is_dropped)
 
     def cap_remaining(self):

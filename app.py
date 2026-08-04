@@ -116,9 +116,14 @@ def create_app():
     def inject_user_team():
         from flask_login import current_user
         if not (current_user.is_authenticated and current_user.team_rel):
-            return {"g_user_team": None, "g_user_team_cap": None}
+            return {"g_user_team": None, "g_user_team_cap": None,
+                    "g_user_team_folha": None}
         team = current_user.team_rel
-        return {"g_user_team": team, "g_user_team_cap": team.active_salary()}
+        # OFF26-14: as duas réguas viajam juntas p/ o chip. `g_user_team_cap` segue
+        # sendo o CAP ATIVO (valor e limiar de cor inalterados); `g_user_team_folha`
+        # é a FOLHA TOTAL (régua do leilão), exibida só quando diverge.
+        return {"g_user_team": team, "g_user_team_cap": team.active_salary(),
+                "g_user_team_folha": team.total_salary()}
 
     # Context processor — exposes count of players needing review for the navbar
     # badge. Admin-only — non-admins and unauthenticated users get 0 without

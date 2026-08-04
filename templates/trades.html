@@ -586,6 +586,13 @@ function renderPreview(data) {
       </p>`;
     }
 
+    // OFF26-14: só para time com IR — a folha total (régua do leilão) ao lado do cap
+    // ativo. Sem IR os dois pares coincidem e a linha nem é gerada.
+    const folhaCls = s.folha_over_cap ? 'text-danger' : 'text-ok';
+    const folhaLine = s.has_ir
+      ? `<p class="text-dim">⚖️ Folha total (com IR — é a que vale no leilão): $${s.folha_before} → <span class="${folhaCls}">$${s.folha_after.toFixed(0)}</span> (restante: <span class="${folhaCls}">$${s.folha_remaining_after.toFixed(0)}</span>)</p>`
+      : '';
+
     // M1: cap-overrun banner.
     const overCapBanner = s.over_cap
       ? `<div class="cap-overrun-alert">⚠️ ${s.name} ficaria $${(-s.cap_remaining_after).toFixed(0)} acima do cap</div>`
@@ -595,8 +602,9 @@ function renderPreview(data) {
     return `<div class="preview-side">
       <h3>${s.name}</h3>
       ${overCapBanner}
-      <p>Cap: $${s.cap_before} → <span class="${capCls}">$${s.cap_after.toFixed(0)}</span>
+      <p>${s.has_ir ? 'Cap ativo' : 'Cap'}: $${s.cap_before} → <span class="${capCls}">$${s.cap_after.toFixed(0)}</span>
          (restante: <span class="${capCls}">$${s.cap_remaining_after.toFixed(0)}</span>)</p>
+      ${folhaLine}
       <p>📤 Envia: <strong>${out_p}</strong>${out_k !== '—' ? ' | picks: ' + out_k : ''}</p>
       <p>📥 Recebe: <strong>${in_p}</strong>${in_k !== '—' ? ' | picks: ' + in_k : ''}</p>
       ${dimsLine}

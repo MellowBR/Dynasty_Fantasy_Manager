@@ -3103,3 +3103,72 @@ e um grupo de telas — justamente o que cada owner olha para decidir o corte de
   owner e **nao e de implementacao**: unificar as 6 superficies do grupo A na regua com IR **x**
   exibir os dois numeros lado a lado, rotulados ("folha total" x "cap ativo") — as duas perguntas
   sao legitimas, e o que falta hoje nao e o numero, e o **rotulo**.
+
+### MAN-OFF26-14-F2 — as duas reguas ROTULADAS, nao unificadas (04/08/2026, Opus)
+
+**Decisao registrada para nao ser revisitada por engano: NAO unificar.** (1) A cadeia critica do
+leilao **ja e coerente** — o risco que motivaria a unificacao nao existe; (2) unificar custa **6
+pontos**, **sem nenhum teste** cobrindo, em codigo do commit inicial, **a 17 dias do leilao**; (3)
+os dois numeros **tem sentidos diferentes e ambos sao legitimos**. **O que faltava nao era o numero:
+era o rotulo.**
+
+- **Vocabulario unico, aplicado em 7 superficies.** `cap ativo` = exclui IR (o que se paga por quem
+  joga). `folha total ⚖️` = inclui IR e **e a REGUA DO LEILAO** — a que `draft_budget` aplica e,
+  por consequencia, a que a keeper sheet (OFF26-2) e a auditoria (OFF26-4) consomem. O rotulo diz
+  isso explicitamente onde cabe (roster, trade, `/team/<id>`).
+
+- **Gate de exibicao — sem IR, sem ruido.** O par so aparece quando `ir_cap > 0` / `has_ir`: **3
+  times hoje**. Os **9 sem IR seguem exibindo um unico numero**, identico ao de antes. Caso
+  concreto conferido: **achane $186 (cap ativo) x $195 (folha total)**, restante $14 → $5;
+  rafaelferreirap $133/$136; Fazenda $176/$178.
+
+- **Superficies:** A4 chip da navbar (valor e **limiar de cor inalterados**; ganha `$195 c/ IR` +
+  `title` com os dois rotulos), A5 banner M1, A6 pagina de roster (2a linha de rotulos sob a barra
+  + o alerta de IR passa a nomear as duas), A7 cards do League Hub, A8 `/team/<id>` (rotulo vira
+  `Cap ativo` + item `Folha total ⚖️`), A9 preview de rollover (os 2 agregados viram `(ativo)`, +2
+  `⚖️ Folha (c/ IR)` so se divergirem), A11 preview de trade (linha `⚖️ Folha total` com o **mesmo
+  delta** — o contrato viaja com o jogador, esteja em IR ou nao).
+
+- ⚠️ **Banner NOVO e aditivo — o caso que o antigo nao pega.** Par (cap ativo ≤ $200, folha total >
+  $200): o banner M1 **silencia** e o time se ve em dia entrando no leilao estourado. Agora avisa.
+  **Nenhum time esta nesse par hoje**, mas um drop ou uma ida para o IR o cria. `own_cap_overrun`
+  segue **identico** — o banner novo e uma segunda condicao, nao uma troca de limiar.
+
+- ✅ **NENHUM VALOR CALCULADO MUDOU (prova mecanica).** O `git diff` das rotas remove **5 linhas,
+  todas estruturais**: 2 `return` de context processor (valores preservados, chaves acrescentadas),
+  a assinatura de `side()` e seus 2 call sites. **Nenhuma linha de calculo foi removida ou
+  alterada** — `active_salary`, as **5 somas inline** (`roster.py:89`, `league.py:22/99`,
+  `admin.py:159/160`) e `draft_budget` estao **byte a byte iguais**.
+
+- **`Team.total_salary()` deixou de ser codigo morto.** Virou a fonte unica da folha total onde ha
+  objeto `Team` (chip, banner, trade). ⚠️ **Desvio consciente do "registrar e parar"**: a
+  alternativa era calcular `cap + ir` em paralelo nesses 3 pontos, criando **uma segunda definicao
+  da mesma regua** — exatamente o vicio que o OFF26-14 documenta e que o OFF26-16 tera de desfazer
+  do outro lado. Nada foi apagado, como o prompt exigia. Registrado como [[OFF26-17]] ⚠️.
+
+- **Correcao de premissa sobre o regulamento, com a leitura anterior PRESERVADA.** O **1.3 NAO e
+  silencioso**: estabelece que os 2 IR **nao sao considerados no total de 22**, logo **22+2 = 24 e
+  composicao legitima e o Manager esta CORRETO**. Nao ha conflito Manager x regulamento — o
+  conflito e **regulamento (24) x sala do leilao (22 vagas)**, que e o [[OFF26-13]]. **Delimitacao
+  para as duas leituras nao se sobreporem de novo:** o 1.3 e explicito sobre **CONTAGEM** e nada
+  diz sobre **SALARIO**; o silencio que a F1 mediu era o de salario, e **permanece**. A F1 media
+  salario; a correcao fala de contagem. As duas valem, em escopos distintos.
+
+- **Dois itens novos escopados e NAO implementados.** [[OFF26-15]] 🔲 **Alta** — a keeper sheet
+  **nao marca quem esta em IR** (zero "IR" no template), e keeper em IR **ocupa designacao no
+  board**: quem transcrever em 20/08 **nao sabe que precisa inclui-los**, e omitir **expoe ao
+  leilao** (achado do OFF26-4). Sao **5 jogadores em 3 times**; o `fa_budget` **ja os conta** —
+  falta so a marcacao visual (+ coluna no CSV, p/ manter a paridade 1:1). [[OFF26-16]] 🔲 **Baixa**
+  — unificar as 6 superficies **pos-leilao**, com **pre-requisito duro: escrever a cobertura
+  antes** (hoje e zero). Unificar sem teste e trocar seis somas silenciosas por uma mudanca de
+  comportamento silenciosa.
+
+- **Validado aqui:** 48/48 (`salary_engine`) + 34/34 (`keeper_audit`), `py_compile` das 6 rotas,
+  parse Jinja dos 8 templates, aritmetica conferida contra o banco em `mode=ro`. ⚠️ **PENDENTE DE
+  SMOKE EM PROD — o item NAO fecha ✅ em localhost:** so producao prova que o par **renderiza** nas
+  7 superficies e **nao aparece** nas 9 sem IR, que o chip nao quebra a navbar no mobile, que a
+  linha nova do preview de trade nao desalinha as 2 colunas e que os 2 cards do rollover cabem no
+  `stat-grid`.
+
+- **Cadeia do leilao INTOCADA:** `draft_budget`, keeper sheet, auditoria OFF26-4, `salary_engine`,
+  schema e sync. Board intacto, draft nao iniciado, `CLAUDE.md` ganhou a secao das duas reguas.
