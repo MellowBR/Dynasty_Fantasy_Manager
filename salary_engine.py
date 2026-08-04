@@ -214,6 +214,22 @@ def apply_season_rollover(player, new_espn_adj: float = None) -> tuple:
     return new_sal, next_yr, rule
 
 
+def roster_salary(team_players: list) -> float:
+    """Folha salarial do time — a ÚNICA régua (OFF26-16, decisão do owner 04/08/2026).
+
+    Soma TODOS os jogadores do elenco, **IR incluído**: jogador no IR conta no cap hit
+    como qualquer outro. `is_dropped` é o único filtro.
+
+    Não existe régua paralela. Até 04/08/2026 conviviam duas — `Team.active_salary()` e
+    5 somas inline que reescreviam `sum(… if not p.is_on_ir)` à mão nas rotas — e a F2 do
+    OFF26-14 chegou a rotulá-las na tela ("cap ativo" × "folha total"). A decisão do owner
+    tornou o número sem IR **sem significado**: ele não media nada. Esta é a substituta
+    das seis. É a mesma regra que `draft_budget` sempre aplicou (filtra só `is_dropped`),
+    agora também nas telas.
+    """
+    return sum(p.salary for p in team_players if not p.is_dropped)
+
+
 def draft_budget(team_players: list) -> dict:
     """Calculate draft budget given a list of player objects."""
     active = [p for p in team_players if not p.is_dropped]

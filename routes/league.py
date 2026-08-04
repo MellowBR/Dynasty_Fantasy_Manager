@@ -9,6 +9,7 @@ from models import (
     db, Team, Player, Pick, SeasonStandings,
     SALARY_CAP, get_current_season, sort_players_by_pos,
 )
+from salary_engine import roster_salary  # OFF26-16: fonte única da folha (inclui IR)
 from dynasty_values import get_dynasty_values, resolve_asset_value
 from routes.roster import _build_players_by_pos as build_players_by_pos, _ACQ_LABELS
 
@@ -19,10 +20,10 @@ def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=Non
     """Monta dict do card de um time. Sem queries — tudo já carregado.
     M17: `is_my_team` deriva do usuário logado (my_team_id = current_user.team_rel.id),
     não mais da flag legada Team.is_my_team."""
-    cap_used = sum(p.salary for p in players if not p.is_on_ir)
-    # OFF26-14: soma de IR p/ exibir a FOLHA TOTAL (cap_used + ir_cap) no card. O
-    # `cap_used` acima segue intocado — isto acrescenta um número, não corrige o outro.
-    ir_cap = sum(p.salary for p in players if p.is_on_ir)
+    # OFF26-16: folha única (IR incluído) via fonte única. `players` já vem filtrado
+    # por `is_dropped=False`. NOTA: o `dynasty_total` abaixo segue excluindo IR — é
+    # valor de ativo, não folha salarial, e está fora do escopo desta decisão.
+    cap_used = roster_salary(players)
     dynasty_total = sum(
         resolve_asset_value(dv_map, p.sleeper_player_id) or 0
         for p in players if not p.is_on_ir
@@ -35,9 +36,6 @@ def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=Non
         "is_my_team": team.id == my_team_id,
         "cap_used": cap_used,
         "cap_space": SALARY_CAP - cap_used,
-        "ir_cap": ir_cap,                                    # OFF26-14
-        "folha_total": cap_used + ir_cap,                    # OFF26-14
-        "folha_space": SALARY_CAP - (cap_used + ir_cap),     # OFF26-14
         "pick_count": pick_count,
         "dynasty_total": dynasty_total,
         "rank": standing.rank if standing else 999,
@@ -100,13 +98,16 @@ def team_detail(team_id):
 
     standing = SeasonStandings.query.filter_by(season=season, team_id=team.id).first()
 
+    # OFF26-16: `active`/`ir` seguem existindo para COMPOSIÇÃO de elenco (contagem e
+    # lista de quem está no IR) — não para folha. A folha é uma só e inclui o IR.
     active = [p for p in players if not p.is_on_ir]
     ir = [p for p in players if p.is_on_ir]
-    cap_used = sum(p.salary for p in active)
-    ir_cap = sum(p.salary for p in ir)
+    cap_used = roster_salary(players)
 
+    # OFF26-16: a quebra por posição percorre TODOS os jogadores — antes somava só os
+    # não-IR e por isso não fechava com o `cap_used` exibido na mesma tela.
     cap_by_pos = defaultdict(float)
-    for p in active:
+    for p in players:
         cap_by_pos[p.position or "OTHER"] += p.salary
 
     is_my_team = bool(
@@ -125,11 +126,8 @@ def team_detail(team_id):
         "picks_by_season": dict(sorted(picks_by_season.items())),
         "cap_used": cap_used,
         "cap_remaining": SALARY_CAP - cap_used,
-        "ir_cap": ir_cap,
-        # OFF26-14: folha total = cap ativo + IR, derivada dos dois valores já calculados.
-        "folha_total": cap_used + ir_cap,
-        "folha_remaining": SALARY_CAP - (cap_used + ir_cap),
         "ir_count": len(ir),
+        "ir_names": [p.name for p in ir],   # OFF26-16: informativo de escalação
         "active_count": len(active),
         "cap_by_pos": dict(cap_by_pos),
         "dv_map": dv_map,

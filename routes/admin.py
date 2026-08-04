@@ -4,7 +4,7 @@ from models import (
     db, Player, Team, User, SalaryHistory, PlayerHistory, SyncLog, ESPNValue, ESPNImportLog,
     CURRENT_SEASON, get_current_season, correct_player_salary, get_config,
 )
-from salary_engine import apply_season_rollover, CONTRACT_LENGTH
+from salary_engine import apply_season_rollover, CONTRACT_LENGTH, roster_salary
 from routes.auth import admin_required
 
 admin_bp = Blueprint("admin", __name__)
@@ -156,19 +156,15 @@ def rollover_preview():
             "is_renewal": p.contract_year >= CONTRACT_LENGTH,
             "salary_delta": new_sal - p.salary,
         })
-    total_current = sum(p.salary for p in players if not p.is_on_ir)
-    total_next = sum(r["new_salary"] for r in preview if not Player.query.get(r["id"]).is_on_ir)
-    # OFF26-14: os totais acima são CAP ATIVO (ligados, excluem IR) e seguem intocados.
-    # Estes são a FOLHA TOTAL — a régua do leilão. Agregados de liga, não por time.
-    total_current_full = sum(p.salary for p in players)
-    total_next_full = sum(r["new_salary"] for r in preview)
+    # OFF26-16: folha única — inclui IR. Além de unificar a régua, some o N+1 que o
+    # filtro antigo fazia (um `Player.query.get` por linha do preview).
+    total_current = roster_salary(players)
+    total_next = sum(r["new_salary"] for r in preview)
     return jsonify({
         "next_season": next_season,
         "player_count": len(preview),
         "total_current": total_current,
         "total_next": total_next,
-        "total_current_full": total_current_full,
-        "total_next_full": total_next_full,
         "renewals": len([r for r in preview if r["is_renewal"]]),
         "players": preview,
     })

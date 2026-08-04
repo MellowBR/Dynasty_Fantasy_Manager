@@ -3274,3 +3274,68 @@ inalterados. Do lado da plataforma, so `GET`.
 
 - **Fora deste fechamento:** o **smoke de producao** das telas que exibem o valor novo (Cap
   Projector e barra da janela de cortes) segue **pendente** — e outra pergunta, nao probatoria.
+
+### MAN-OFF26-16 — regua UNICA de folha: o IR conta no cap, sempre (04/08/2026, Opus)
+
+**Decisao do owner, explicita e final:** *jogador no IR conta no cap hit como qualquer outro*. Nao
+existem duas reguas — existe **uma** folha salarial, que inclui todos os jogadores do time (ativos e
+IR), e e a mesma em toda tela, todo calculo e todo contexto.
+
+- ⛔ **REVERTE a F2 do [[OFF26-14]]** (`f809a68`), que rotulou as duas reguas em vez de unifica-las.
+  O racional daquela decisao — *"os dois numeros tem sentidos diferentes e ambos sao legitimos"* —
+  **caiu**: pela regra do owner, **o numero sem IR nao mede nada**. O racional antigo foi
+  **preservado no registro** (precedente de correcao com historico, nao apagamento). Leitura
+  historica intacta: o filtro `not p.is_on_ir` **nunca foi decisao de ninguem** — a F1 do
+  [[OFF26-1]] anotou "decisao pendente", a pendencia foi para producao no commit inicial, e a F2 deu
+  **rotulo e banner ao acidente**.
+
+- ✅ **PRE-REQUISITO DURO CUMPRIDO — cobertura primeiro.** `cap_regua_test.py`, **14 testes**,
+  escritos e rodados **ANTES** de tocar em qualquer soma. Contra o codigo antigo falharam exatamente
+  onde deviam: **`186 != 195`**, **`14 != 5`**, e a guarda apontando `models.py`, `routes/league.py`
+  e `routes/admin.py`. Classes: `TestRosterSalary` (nucleo puro), `TestTeamSalaryORM` (SQLite **em
+  memoria**, sem tocar o `dynasty.db` — caso achane $195/$5), `TestLeagueCard` (`_build_team_card`,
+  testavel direto por nao ter query) e ⛔ `TestSemReplicaDeFolha` — **guarda anti-replica** que falha
+  se qualquer `sum` de salario voltar a filtrar `is_on_ir` **ou** se `active_salary` ressuscitar. A
+  guarda existe porque a F1 mediu **SEIS** definicoes da mesma regua: o problema deste codigo nunca
+  foi escrever a soma errada uma vez, foi **reescreve-la a mao em cada rota**.
+
+- **AS 6 FONTES VIRARAM 1.** Fonte unica `salary_engine.roster_salary(players)` (pura, sem DB,
+  `is_dropped` e o unico filtro); entrada ORM `Team.total_salary()` delega a ela e `cap_remaining()`
+  deriva. **`Team.active_salary()` REMOVIDO** — o nome mentia. As 5 somas inline (`roster.py:89`,
+  `league.py:22`, `league.py:99`, `admin.py:159`, `admin.py:160`) foram substituidas; no
+  `admin.py:160` **o N+1 saiu junto** (era um `Player.query.get` por linha do preview).
+
+- **+2 correcoes de coerencia que a unificacao expos:** (1) `team_detail.cap_by_pos` somava so os
+  nao-IR e **nao fechava com o `cap_used` exibido na MESMA tela**; agora percorre todos. (2) A chave
+  da API `to_dict()` virou **`salary_total`** (antes `active_salary`), idem em
+  `sync_sleeper._compute_cap_alerts` — consumidor: `templates/trades.html`.
+
+- **O rotulo duplo saiu das 7 superficies.** Removidos: o par rotulado, o **banner aditivo** do par
+  (ativo <= cap, folha > cap), a legenda *"⚖️ e a folha total que vale no leilao"*, as 3 classes CSS
+  da F2, o `g_user_team_folha` e as chaves `folha_*`/`has_ir`/`ir_cap` dos payloads. Chip, barra de
+  progresso e "Restante" operam sobre a folha unica.
+
+- **Banner de IR virou informativo de ESCALACAO:** *"🏥 2 jogador(es) no IR: Michael Penix, Travis
+  Hunter."* Sem aritmetica paralela; em `/team/<id>` o item IR mostra so a contagem, nomes no
+  `title`.
+
+- **Numeros conferidos contra o banco (`mode=ro`):** achane **$186 → $195**, restante **$5**, barra
+  **97,5%**; rafaelferreirap $133 → **$136**; Fazenda $176 → **$178**; **os 9 times sem IR
+  identicos**. Suites: **14/14** (`cap_regua`) + **54/54** (`salary_engine`) + **34/34**
+  (`keeper_audit`); imports das 6 rotas e do `sync_sleeper` OK; parse Jinja dos 9 templates OK.
+
+- **Fora de escopo, deliberado (e por que):** (a) **`dynasty_total` segue excluindo IR** — e **valor
+  de ativo**, nao folha salarial; a decisao do owner e sobre **cap**, e estender seria decidir sem
+  mandato. (b) ⚠️ **OBSERVACAO REGISTRADA:** `renewal_candidates` (`roster.py`) deriva de
+  `active_players`, logo **um jogador em IR no Ano 4 NAO aparece como candidato a renovacao** — e
+  pergunta de **contrato**, nao de folha, e nao foi corrigida aqui. (c) [[OFF26-15]] nao entra.
+  (d) `draft_budget` intocado (formula fechada e confirmada, [[OFF26-18]]). (e) Keeper sheet,
+  auditoria OFF26-4, schema e sync intocados fora do rename de chave.
+
+- ⚠️ **PENDENTE DE SMOKE EM PROD.** So producao prova: achane em **$195/$5** com barra 97,5% e o
+  banner com os dois nomes; os 9 sem IR com tela **identica**; `/team/<id>` sem o custo de IR
+  duplicado; preview de trade e card do League Hub sem residuo de layout; e **`/api/teams` servindo
+  `salary_total`** — se algo externo consumia `active_salary`, quebra ai.
+
+- Board intacto, draft nao iniciado; `CLAUDE.md` teve a secao das duas reguas **substituida** pela
+  da regua unica, e o `cap_regua_test.py` entrou nos comandos e na estrutura do projeto.

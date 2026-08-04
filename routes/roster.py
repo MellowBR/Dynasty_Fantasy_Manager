@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import login_required, current_user
 from models import db, Team, Player, SALARY_CAP, MAX_IR, POS_ORDER, sort_players_by_pos
+from salary_engine import roster_salary  # OFF26-16: fonte única da folha (inclui IR)
 from routes.auth import admin_required
 
 roster_bp = Blueprint("roster", __name__)
@@ -82,47 +83,37 @@ def index():
     for p in all_players:
         p.dynasty_value = resolve_asset_value(dv_map, p.sleeper_player_id)
         p.acquisition_label = _ACQ_LABELS.get(p.acquisition_type, p.acquisition_type or "—")
+    # OFF26-16: `active_players`/`ir_players` seguem existindo para COMPOSIÇÃO de elenco
+    # (candidatos a renovação, lista de quem está no IR) — não para folha.
     active_players = [p for p in all_players if not p.is_on_ir]
     ir_players = [p for p in all_players if p.is_on_ir]
     players_by_pos = _build_players_by_pos(all_players)
 
-    total_cap = sum(p.salary for p in active_players)
-    ir_cap = sum(p.salary for p in ir_players)
+    # OFF26-16: folha única — inclui IR. Barra, "usado" e "restante" operam sobre ela.
+    total_cap = roster_salary(all_players)
     cap_pct = round((total_cap / SALARY_CAP) * 100, 1)
 
     # M1: cap overrun for the user's OWN team (independent of `?team=` viewing).
     # Banner em roster.html é gated por g_offseason_mode (context processor).
     # Threshold estritamente acima do cap; sub-cap = silêncio.
+    # OFF26-16: um único limiar, sobre a folha única (que inclui IR).
     own_cap_overrun = 0
-    # OFF26-14: estouro pela FOLHA TOTAL (régua do leilão) — ADITIVO, não substitui.
-    # `own_cap_overrun` (cap ativo) segue idêntico. O caso perigoso é justamente o par
-    # (ativo ≤ cap, folha > cap): o banner antigo silencia e o time entra no leilão
-    # estourado. Hoje nenhum time está nesse par, mas um drop/IR o cria.
-    own_folha_overrun = 0
     if current_user.is_authenticated and current_user.team_rel:
-        own_active = current_user.team_rel.active_salary()
-        own_folha = current_user.team_rel.total_salary()
-        if own_active > SALARY_CAP:
-            own_cap_overrun = round(own_active - SALARY_CAP, 2)
-        if own_folha > SALARY_CAP:
-            own_folha_overrun = round(own_folha - SALARY_CAP, 2)
+        own_salary = current_user.team_rel.total_salary()
+        if own_salary > SALARY_CAP:
+            own_cap_overrun = round(own_salary - SALARY_CAP, 2)
 
     summary = {
         "team": selected,
         "players_by_pos": players_by_pos,
         "ir_count": len(ir_players),
+        "ir_names": [p.name for p in ir_players],   # OFF26-16: informativo de escalação
         "total_cap": total_cap,
-        "ir_cap": ir_cap,
-        # OFF26-14: folha total = cap ativo + IR. Derivada dos dois valores que esta
-        # rota já calcula — nenhum filtro novo, nenhuma regra nova.
-        "folha_total": total_cap + ir_cap,
         "cap_remaining": SALARY_CAP - total_cap,
-        "folha_remaining": SALARY_CAP - (total_cap + ir_cap),
         "cap_pct": cap_pct,
         "renewal_candidates": [p for p in active_players if p.is_renewal_candidate()],
         "needs_review": [p for p in all_players if p.needs_review],
         "own_cap_overrun": own_cap_overrun,
-        "own_folha_overrun": own_folha_overrun,
     }
     return render_template("roster.html", summary=summary, teams=teams,
                            selected_team=selected.name, cap=SALARY_CAP)

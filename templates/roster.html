@@ -38,25 +38,6 @@
           {% if summary.cap_pct >= 100 %} ⚠️{% endif %}
         </span>
       </div>
-      {# OFF26-14: com IR, o "salary usado" acima é o CAP ATIVO. A régua que vale no
-         leilão é a FOLHA TOTAL — exibida aqui, rotulada. Sem IR, os dois coincidem e
-         esta linha não aparece. #}
-      {% if summary.ir_cap %}
-      <div class="cap-bar-labels cap-bar-folha">
-        <span class="text-dim">Cap ativo (sem IR): <strong>${{ summary.total_cap | int }}</strong></span>
-        <span>Folha total (com IR):
-          <strong class="{{ 'text-danger' if summary.folha_total > cap else '' }}">
-            ${{ summary.folha_total | int }}
-          </strong>
-        </span>
-        <span>Restante:
-          <strong class="{{ 'text-danger' if summary.folha_remaining < 0 else ('text-warn' if summary.folha_remaining < 20 else 'text-ok') }}">
-            ${{ summary.folha_remaining | int }}
-          </strong>
-        </span>
-        <span class="text-dim">⚖️ é a folha total que vale no leilão</span>
-      </div>
-      {% endif %}
       <div class="cap-bar">
         <div class="cap-bar-fill {{ 'cap-danger' if summary.cap_pct >= 100 else ('cap-warn' if summary.cap_pct > 80 else 'cap-ok') }}"
              style="width: {{ [summary.cap_pct, 100] | min }}%"></div>
@@ -92,19 +73,6 @@
 <div class="alert alert-warn">
   ⚠️ <strong>Time está ${{ summary.own_cap_overrun|int }} acima do cap.</strong>
   Cap será aplicado na entrada do FA auction.
-  {% if summary.own_folha_overrun > summary.own_cap_overrun %}
-  Pela <strong>folha total</strong> (com IR), que é a régua do leilão, são
-  <strong>${{ summary.own_folha_overrun|int }}</strong>.
-  {% endif %}
-</div>
-{% endif %}
-
-{# OFF26-14: o caso que o banner acima NÃO pega — cap ativo enquadrado, folha total
-   estourada. Sem esta linha o time se vê em dia e entra no leilão acima do cap. #}
-{% if g_offseason_mode and summary.own_folha_overrun and not summary.own_cap_overrun %}
-<div class="alert alert-warn">
-  ⚠️ <strong>Cap ativo está enquadrado, mas a folha total está ${{ summary.own_folha_overrun|int }} acima do cap.</strong>
-  A folha total inclui o IR e é a régua que vale no FA auction.
 </div>
 {% endif %}
 
@@ -127,11 +95,12 @@
 {% endif %}
 
 {# Roster grouped by position — IR players inline at end of each group #}
+{# OFF26-16: informativo de ESCALAÇÃO — quem está no IR e quantos. Sem aritmética
+   paralela: o salário deles já está no "Salary usado" acima, como o de todo mundo. #}
 {% if summary.ir_count %}
 <div class="alert alert-ir">
-  🏥 <strong>{{ summary.ir_count }} jogador(es) no IR</strong> — salary IR: ${{ summary.ir_cap | int }}.
-  Fora do <em>cap ativo</em> (${{ summary.total_cap | int }}), dentro da
-  <strong>folha total</strong> (${{ summary.folha_total | int }}) — que é a régua do leilão.
+  🏥 <strong>{{ summary.ir_count }} jogador(es) no IR:</strong>
+  {{ summary.ir_names | join(', ') }}.
 </div>
 {% endif %}
 

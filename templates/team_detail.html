@@ -37,21 +37,13 @@
      Progress bar é feature nova em /team/<id> (tela não tinha antes; roster.html já tinha). #}
   <div class="team-status-bar">
     <div class="status-group">
-      {# OFF26-14: com IR, "Cap" é o CAP ATIVO e ganha o rótulo explícito ao lado da
-         FOLHA TOTAL (régua do leilão). Sem IR, os rótulos somem e nada muda. #}
       <span class="status-item">
-        <span class="status-label">{% if ir_cap %}Cap ativo{% else %}Cap{% endif %}</span>
+        <span class="status-label">Cap</span>
         <span class="status-value {% if cap_used > cap %}cap-negative{% endif %}">${{ cap_used|int }}/${{ cap|int }}</span>
       </span>
-      {% if ir_cap %}
-      <span class="status-item" title="Inclui o salário do IR — é a régua que vale no leilão">
-        <span class="status-label">Folha total ⚖️</span>
-        <span class="status-value {% if folha_total > cap %}cap-negative{% endif %}">${{ folha_total|int }}/${{ cap|int }}</span>
-      </span>
-      {% endif %}
       <span class="status-item">
         <span class="status-label">Resto</span>
-        <span class="status-value {% if cap_remaining < 0 %}cap-negative{% endif %}">${{ cap_remaining|int }}{% if ir_cap %} <span class="status-ir-cost">(${{ folha_remaining|int }} c/ IR)</span>{% endif %}</span>
+        <span class="status-value {% if cap_remaining < 0 %}cap-negative{% endif %}">${{ cap_remaining|int }}</span>
       </span>
       <span class="status-item">
         <span class="status-label">Dynasty</span>
@@ -61,9 +53,10 @@
         <span class="status-label">Ativos</span>
         <span class="status-value">{{ active_count }}</span>
       </span>
-      <span class="status-item">
+      {# OFF26-16: contagem de escalação. O salário do IR já está no "Cap" acima. #}
+      <span class="status-item"{% if ir_names %} title="No IR: {{ ir_names | join(', ') }}"{% endif %}>
         <span class="status-label">IR</span>
-        <span class="status-value">{{ ir_count }}<span class="status-ir-cost"> (${{ ir_cap|int }})</span></span>
+        <span class="status-value">{{ ir_count }}</span>
       </span>
     </div>
     {% if cap_by_pos %}

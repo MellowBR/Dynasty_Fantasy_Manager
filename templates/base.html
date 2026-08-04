@@ -69,11 +69,9 @@
   <div class="nav-right">
     <label for="nav-mobile-state" class="nav-mobile-toggle" title="Menu">☰</label>
     {% if g_user_team %}
-    {# OFF26-14: chip mostra o CAP ATIVO (inalterado) e, só quando há IR, a FOLHA
-       TOTAL ao lado — que é a régua do leilão. Sem IR, nada muda visualmente. #}
+    {# OFF26-16: um número só — a folha do time, que inclui o IR. #}
     <span class="cap-chip {{ 'chip-danger' if g_user_team_cap > 190 else ('chip-warn' if g_user_team_cap > 160 else 'chip-ok') }}"
-          id="nav-cap-chip"
-          title="{{ g_user_team.name }} — cap ativo (sem IR): ${{ g_user_team_cap | round | int }}{% if g_user_team_folha > g_user_team_cap %} · folha total (com IR, régua do leilão): ${{ g_user_team_folha | round | int }}{% endif %}">${{ g_user_team_cap | round | int }}/$200{% if g_user_team_folha > g_user_team_cap %}<span class="cap-chip-folha">${{ g_user_team_folha | round | int }} c/ IR</span>{% endif %}</span>
+          id="nav-cap-chip" title="Cap: {{ g_user_team.name }}">${{ g_user_team_cap | round | int }}/$200</span>
     {% endif %}
     <button class="btn-sync" id="btn-sync-nav" onclick="triggerSync()" title="Sincronizar com Sleeper">
       🔄 <span class="sync-label">Sync</span>

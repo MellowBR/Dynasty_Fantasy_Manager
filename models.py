@@ -2,6 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
 from timeutil import utc_iso  # M18: transporte UTC não-ambíguo nos to_dict de display
+from salary_engine import roster_salary  # OFF26-16: fonte única da folha (inclui IR)
 
 db = SQLAlchemy()
 
@@ -93,34 +94,25 @@ class Team(db.Model):
     players = db.relationship("Player", back_populates="team_rel", lazy="dynamic",
                               foreign_keys="Player.team_id")
 
-    # ── OFF26-14: DUAS RÉGUAS DE SALÁRIO — ambas legítimas, nenhuma é "a certa" ──
+    # ── OFF26-16: RÉGUA ÚNICA DE FOLHA — o IR conta no cap, sempre ────────────────
     #
-    #   · active_salary() = CAP ATIVO   — EXCLUI IR. O que o time paga por quem joga.
-    #   · total_salary()  = FOLHA TOTAL — INCLUI IR. É a **RÉGUA DO LEILÃO**: é a que
-    #     `salary_engine.draft_budget` aplica (filtra só `is_dropped`, sem olhar IR) e
-    #     que, por consequência, a keeper sheet (OFF26-2) e a auditoria (OFF26-4)
-    #     consomem. É sobre ela que a decisão de cortes de 20/08 se apoia.
+    # Decisão do owner (04/08/2026), explícita e final: **jogador no IR conta no cap hit
+    # como qualquer outro**. Existe UMA folha salarial — todos os jogadores do elenco,
+    # ativos e IR — e ela é a mesma em toda tela, todo cálculo e todo contexto.
     #
-    # As duas divergem SÓ para time com alguém em IR (3 times / $14 na medição de
-    # 03/08/2026). O regulamento é explícito sobre CONTAGEM (item 1.3 — os 2 IR não
-    # entram no total de 22) e SILENCIOSO sobre salário de IR no cap.
+    # Aritmética em `salary_engine.roster_salary` (fonte ÚNICA, testável sem DB). É a
+    # mesma regra que `draft_budget` sempre aplicou; agora também nas telas.
     #
-    # A F2 (04/08/2026) deliberadamente NÃO unificou as réguas: as telas passaram a
-    # EXIBIR AS DUAS, rotuladas. ⛔ Não trocar uma pela outra sem decisão registrada —
-    # a unificação é item próprio, pós-leilão e com testes (ver OFF26-14/OFF26-16).
-    def active_salary(self):
-        """Régua CAP ATIVO — exclui IR. Não é a régua do leilão (ver bloco acima)."""
-        return sum(
-            p.salary for p in self.players
-            if not p.is_dropped and not p.is_on_ir
-        )
-
+    # ⛔ NÃO recriar uma soma que filtre `is_on_ir` para fins de folha. Havia SEIS
+    # definições da régua sem IR (este helper + 5 somas inline nas rotas) e a F2 do
+    # OFF26-14 chegou a rotulá-las na tela; a decisão do owner tornou o número sem IR
+    # sem significado. `cap_regua_test.TestSemReplicaDeFolha` falha se a réplica voltar.
     def total_salary(self):
-        """Régua FOLHA TOTAL — inclui IR. É a régua do leilão (ver bloco acima)."""
-        return sum(p.salary for p in self.players if not p.is_dropped)
+        """Folha salarial do time — a única régua. Inclui IR; exclui só dropados."""
+        return roster_salary(self.players)
 
     def cap_remaining(self):
-        return SALARY_CAP - self.active_salary()
+        return SALARY_CAP - self.total_salary()
 
     def to_dict(self):
         return {
@@ -130,7 +122,9 @@ class Team(db.Model):
             "owner_name": self.owner_name or "",
             "owner_avatar": self.owner_avatar or "",
             "is_my_team": self.is_my_team,
-            "active_salary": self.active_salary(),
+            # OFF26-16: a chave antiga tinha nome que mentia (excluía IR); virou
+            # `salary_total`. Consumidor: templates/trades.html.
+            "salary_total": self.total_salary(),
             "cap_remaining": self.cap_remaining(),
         }
 

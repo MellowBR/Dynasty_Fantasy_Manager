@@ -24,6 +24,9 @@ python salary_engine_test.py
 # Run keeper audit unit tests (OFF26-4 — núcleo puro, sem Flask/DB/rede)
 python keeper_audit_test.py
 
+# Run cap régua tests (OFF26-16 — folha única com IR; núcleo puro + ORM em memória)
+python cap_regua_test.py
+
 # Seed users (after first deploy)
 python seed_users.py --csv data/users.csv
 python seed_users.py --email user@gmail.com --name "Name" --team-id 1 --admin
@@ -97,21 +100,29 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 - **Renewal (after Year 4):** new 4-year contract, Year 1 = floor(ESPN_adjusted), min $1
 - **Draft budget:** $200 − Σ(keeper salaries), minimum $1 per empty slot
 
-#### Duas réguas de salário — "cap ativo" × "folha total" (OFF26-14)
+#### Régua única de folha — o IR conta no cap, sempre (OFF26-16)
 
-Convivem **duas** contagens de salário usado, **ambas legítimas**, e a UI as exibe **rotuladas**
-(nunca unificadas sem decisão registrada):
+**Decisão do owner (04/08/2026), explícita e final: jogador no IR conta no cap hit como qualquer
+outro.** Existe **UMA** folha salarial — todos os jogadores do elenco, ativos e IR — e ela é a mesma
+em toda tela, todo cálculo e todo contexto.
 
-- **cap ativo** — `Team.active_salary()` (+ 5 somas inline em `roster.py`, `league.py`, `admin.py`):
-  **EXCLUI** `is_on_ir`. É o que o time paga por quem joga.
-- **folha total ⚖️** — `Team.total_salary()` / `cap_ativo + ir_cap`: **INCLUI** IR. **É A RÉGUA DO
-  LEILÃO** — é a que `salary_engine.draft_budget` aplica (filtra só `is_dropped`) e, por
-  consequência, a que a keeper sheet (OFF26-2) e a auditoria (OFF26-4) consomem.
+- **Fonte única:** `salary_engine.roster_salary(players)` — soma tudo, filtra só `is_dropped`.
+  Pura, sem DB, testável (`cap_regua_test.py`).
+- **Entrada ORM:** `Team.total_salary()` (delega ao helper) e `Team.cap_remaining()`.
+  `to_dict()` expõe `salary_total`.
+- É a mesma regra que `salary_engine.draft_budget` sempre aplicou — e que a keeper sheet (OFF26-2)
+  e a auditoria (OFF26-4) já consumiam. **Agora as telas usam a mesma.**
 
-As duas **só divergem para time com alguém em IR**; as telas mostram o par apenas nesse caso
-(`ir_cap > 0` / `has_ir`). O regulamento é **explícito sobre contagem** (item 1.3 — os 2 IR não
-entram no total de 22) e **silencioso sobre salário de IR no cap**; a decisão do owner é que **o IR
-conta no cap**. ⛔ Não trocar uma régua pela outra nem unificá-las sem passar pelo OFF26-16.
+⛔ **Não recriar uma soma que filtre `is_on_ir` para fins de folha.** Havia **seis** definições da
+régua sem IR (`Team.active_salary()` + 5 somas inline em `roster.py`, `league.py` ×2, `admin.py` ×2)
+e a F2 do OFF26-14 chegou a **rotulá-las na tela** ("cap ativo" × "folha total") antes da decisão do
+owner tornar o número sem IR **sem significado**. `cap_regua_test.TestSemReplicaDeFolha` falha se a
+réplica voltar ou se `active_salary` ressuscitar.
+
+`is_on_ir` segue existindo para **composição de elenco** (contagem, lista de quem está no IR,
+`MAX_IR = 2` no `toggle_ir`) — nunca para folha. O regulamento é explícito sobre **contagem** (item
+1.3 — os 2 IR não entram no total de 22) e **silencioso sobre salário de IR no cap**; quem decidiu
+foi o owner.
 
 ### Offseason Workflow (7 steps)
 
@@ -230,6 +241,7 @@ fantasy_manager/
   salary_engine.py                  # Pure salary logic (no DB)
   keeper_audit.py                   # OFF26-4: auditoria pré-leilão (núcleo puro + IO read-only)
   keeper_audit_fixtures.py          # material de TESTE congelado (NÃO é a keeper sheet real)
+  cap_regua_test.py                 # OFF26-16: régua única de folha (IR conta) + guarda anti-réplica
   import_csv.py                     # CSV → DB upsert (reads data/)
   sync_sleeper.py                   # Sleeper API sync
   seed_users.py                     # User seeding (reads data/)

@@ -563,14 +563,14 @@ def _build_team_map_for_league(league_id: str) -> dict:
 def _compute_cap_alerts(affected_team_ids: set) -> list[dict]:
     """M1 — soft-cap alerts for teams affected by a trade leg.
 
-    Computes Team.active_salary() post-movement (within current session, sees
+    Computes Team.total_salary() post-movement (within current session, sees
     pending writes via autoflush). Reports any team strictly above SALARY_CAP.
 
     Soft-cap semantics: hard enforcement only at FA auction entry. M1 alerts,
     never blocks. Caller wraps in try/except so a failure here logs but does
     not abort the sync (Sleeper is source of truth for asset movement).
 
-    Returns list of {"team": str, "active_salary": float, "over_by": float}.
+    Returns list of {"team": str, "salary_total": float, "over_by": float}.
     """
     from salary_engine import SALARY_CAP
     alerts = []
@@ -578,11 +578,11 @@ def _compute_cap_alerts(affected_team_ids: set) -> list[dict]:
         team = db.session.get(Team, tid)
         if not team:
             continue
-        active = team.active_salary()
+        active = team.total_salary()
         if active > SALARY_CAP:
             alerts.append({
                 "team": team.name,
-                "active_salary": round(active, 2),
+                "salary_total": round(active, 2),
                 "over_by": round(active - SALARY_CAP, 2),
             })
     return alerts
