@@ -3233,3 +3233,44 @@ todo time com >= 1 vaga**.
 - **Intocados:** keeper sheet, auditoria OFF26-4, schema, caminho canonico de salario, sync, e as
   reguas cap ativo x folha total do [[OFF26-14]] (a correcao e **ortogonal** a elas). Board intacto,
   draft nao iniciado.
+
+### MAN-OFF26-18-CONF — a formula do fencepost CONFIRMADA por medicao direta (04/08/2026, Opus)
+
+**Registro docs-only.** Nenhum arquivo de codigo tocado: formula, testes, schema, rotas e templates
+inalterados. Do lado da plataforma, so `GET`.
+
+- **O que estava em aberto.** O relatorio do `4bef82a` reportou que o caso de referencia do prompt
+  **nao provava o que afirmava provar**: os lances de 02/08 ($29 aceito; $32/$33/$40 recusados)
+  limitavam o teto real ao intervalo **[29, 31]**, que contem **tanto** o $29 da formula antiga
+  **quanto** o $30 da corrigida. A correcao ficou sustentada **apenas pelo argumento dedutivo** do
+  caso de 1 vaga, e o relatorio indicou qual lance fecharia a medicao.
+
+- ✅ **O teste decisivo foi executado pelo owner, na fantasma real (04/08).** Cenario: **Team 5,
+  $60 gastos, 16 vagas livres**. Formula antiga (`vagas`) preveria teto **200-60-16 = $124**;
+  corrigida (`vagas - 1`), **200-60-15 = $125**. **Designacao de $125 ACEITA** (J. Gibbs, removida
+  em seguida). Como $125 esta **acima** do teto da antiga e **exatamente no** da corrigida, o lance
+  **discrimina as duas** — o que o intervalo [29, 31] nao fazia. **A formula rival nao fica apenas
+  "nao contradita": fica FALSIFICADA.**
+
+- **Estado probatorio final de `teto = 200 - gasto - (vagas - 1)`:** (1) **recusa acima do teto** —
+  $32/$33/$40 num teto de $29, 02/08; (2) **aceite no limiar exato** — $125 num teto previsto de
+  $125, 04/08; (3) **aceite acima do teto da formula rival** — $125 > $124, 04/08. ⇒ alinhada a
+  plataforma **por medicao direta nos dois sentidos**, nao mais por deducao. O teste
+  `TestDraftBudgetFencepost.test_experimento_sleeper_150_gastos_21_vagas`, que assere **$30** no
+  cenario de 02/08, **passa a ter lastro empirico**.
+
+- **Cenario reconferido por leitura read-only do board (nao pela palavra do prompt):** liga
+  `Dynasty SB FA Auction`, `draft_status = pre_draft`, **22 rodadas**, **24 designacoes**; coluna 5
+  com **6 designacoes somando $60** ⇒ `22 - 6 = 16 vagas`, **exatamente o cenario declarado**; e
+  **Gibbs ausente** do board. **Board restaurado**, draft nao iniciado, `draft_id` derivado e nao
+  persistido.
+
+- **Nota de metodo (por que a distincao valeu a pena).** Separar *correcao implementada* de *poder
+  probatorio do caso* evitou registrar como **confirmado** o que ainda era **intervalo** — a formula
+  rival seguiria viva dentro de um item marcado ✅. **O teste decisivo custou um lance**, e foi
+  barato justamente porque a pergunta estava formulada com precisao: nao *"a formula esta certa?"*,
+  mas **"qual lance separa as duas?"**. Padrao a repetir quando uma medicao "confirmar" algo: checar
+  se ela **discrimina** as hipoteses ou apenas **e compativel** com a preferida.
+
+- **Fora deste fechamento:** o **smoke de producao** das telas que exibem o valor novo (Cap
+  Projector e barra da janela de cortes) segue **pendente** — e outra pergunta, nao probatoria.
