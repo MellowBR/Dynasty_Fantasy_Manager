@@ -3172,3 +3172,64 @@ era o rotulo.**
 
 - **Cadeia do leilao INTOCADA:** `draft_budget`, keeper sheet, auditoria OFF26-4, `salary_engine`,
   schema e sync. Board intacto, draft nao iniciado, `CLAUDE.md` ganhou a secao das duas reguas.
+
+### MAN-OFF26-18 — fencepost na reserva de $1 do draft_budget (04/08/2026, Opus)
+
+**O erro.** A reserva de `$1 x vagas` protegia **tambem a vaga que o proprio lance esta
+preenchendo**. Com **1 spot vazio**, o Manager reservava $1 para uma vaga "seguinte" que nao existe
+— tornando **o ultimo dolar impossivel de gastar**. Achado pelo owner simulando no Cap Projector
+com o time reduzido a 1 spot. Consequencia: **o Manager era $1 mais restritivo que o Sleeper em
+todo time com >= 1 vaga**.
+
+- **A correcao** (`salary_engine.py:221`): `min_required = max(0, empty_spots - 1) * MIN_SALARY`.
+  O `max(0, ...)` **nao e defensivo, e obrigatorio**: com **0 vagas** a subtracao daria reserva
+  **-1**, **inflando** o budget em $1 num time completo — trocaria um erro por outro, de sinal
+  contrario.
+
+- **A referencia e comportamento MEDIDO, nao interpretacao.** Experimento na plataforma (02/08):
+  `teto = 200 - gasto - (vagas_restantes - 1)`. O `-1` e a vaga que o lance preenche.
+
+- **Distincao de leitura da 8.3.4, registrada para nao ser revisitada.** O texto — *"pelo menos $1
+  disponivel no CAP para cada jogador a ser draftado (22 - keepers)"* — **ao pe da letra sustenta a
+  formula antiga**. Mas essa leitura reserva $1 **para um jogador que ja esta sendo comprado**, e o
+  efeito e deixar $1 do cap permanentemente inacessivel. Vale a **leitura operacional**, a mesma que
+  a plataforma implementa. **Nao e o regulamento que muda; e qual das duas leituras dele o Manager
+  aplica.**
+
+- **A fonte unica fez o trabalho.** Os **7 consumidores** herdaram a correcao **sem uma linha de
+  mudanca** (Cap Projector GET e POST, janela de cortes, `fa_budget` da keeper sheet, auditoria
+  OFF26-4, importador OFF26-3). `grep` confirma **zero replica**: `cap_projector.html` e `cuts.html`
+  so **exibem** `empty_spots`/`min_required_for_spots` vindos do payload. [[F10]] preservada.
+
+- **Efeito medido no banco (`mode=ro`): +$1 exatamente onde deveria.** Os **6 times com >= 1 vaga**
+  (Cangaceiros, AlexTheDawg, Trust The Process, Tropa, rafaelferreirap, ESPN FANTASY) ganharam
+  **+$1**; os **6 sem vaga** (Pitbull, 3 peat, Fazenda, mongoloides, Miller Time, achane) ficaram
+  **inalterados** — o `max(0, ...)` fazendo o seu trabalho.
+
+- **Casos da validacao, conferidos com salarios REAIS por jogador:** Trust The Process (1 vaga) →
+  reserva **$0**, usavel **$76** = restante inteiro; Miller Time! (0 vagas, exatamente no cap) →
+  reserva **$0**, usavel **$0**, nem -$1 nem $1; Cangaceiros (4 vagas) → reserva **$3**.
+
+- **Testes: 54/54** (era 48 — **+6 bordas** na classe nova `TestDraftBudgetFencepost`: 0 vagas,
+  roster cheio exatamente no cap, 1 vaga, 2 vagas, o experimento do Sleeper e roster estourado >22).
+  Os dois que codificavam a formula antiga (`test_usable_budget_accounts_for_spots`,
+  `test_empty_roster`) foram atualizados. Auditoria **34/34** intacta.
+
+- ⚠️ **CONFERENCIA ARITMETICA — divergencia com o prompt.** Ele registra o experimento ($150
+  gastos, 21 vagas) como *"teto $29 (nao $28, que e o que a formula atual do Manager daria)"*. As
+  contas: **antiga** = 200-150-21 = **$29**; **corrigida** = 200-150-20 = **$30**. Ou seja, **o $29
+  do prompt e o que a formula ANTIGA produz**, e **$28 nao sai de nenhuma das duas**. **Isso NAO
+  invalida a correcao** — invalida so o poder probatorio *daquele* caso: os lances medidos ($29
+  aceito; $32/$33/$40 recusados) limitam o teto real ao intervalo **[29, 31]**, que contem tanto o
+  $29 da antiga quanto o $30 da nova; **$30 e $31 nunca foram testados**. **Quem decide e o caso de
+  1 vaga**, que e dedutivo e independe de medicao. **Teste decisivo sugerido ao owner: tentar $30
+  nesse mesmo cenario** — aceito ⇒ formula nova confirmada; recusado ⇒ o Sleeper usa a antiga e a
+  correcao precisa ser revista.
+
+- ⚠️ **PENDENTE DE SMOKE EM PROD.** So producao prova o Cap Projector e a barra da janela de cortes
+  exibindo o valor novo (o `min $N` ao lado de `spots` deve cair em 1) e o alerta de
+  `insufficient_budget` nao disparando indevidamente para time com vaga.
+
+- **Intocados:** keeper sheet, auditoria OFF26-4, schema, caminho canonico de salario, sync, e as
+  reguas cap ativo x folha total do [[OFF26-14]] (a correcao e **ortogonal** a elas). Board intacto,
+  draft nao iniciado.

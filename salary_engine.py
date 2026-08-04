@@ -33,7 +33,8 @@ Contract renewal (after Year 4):
   Years 2–4: VALORIZAÇÃO.
 
 Draft budget = $200 − sum(keeper salaries)
-Must have at least $1 per empty roster spot (22 − keepers).
+Must have at least $1 per empty roster spot BEYOND the one being filled
+(OFF26-18: reserva = max(0, (22 − keepers) − 1), não `22 − keepers`).
 """
 
 SALARY_CAP = 200
@@ -219,7 +220,19 @@ def draft_budget(team_players: list) -> dict:
     keeper_salaries = sum(p.salary for p in active)
     num_keepers = len(active)
     empty_spots = max(0, MAX_ROSTER - num_keepers)
-    min_required = empty_spots * MIN_SALARY
+
+    # OFF26-18 — FENCEPOST: reserva-se $1 para cada vaga ALÉM da que o lance atual
+    # preenche, não para todas. Com 1 vaga, o lance PODE levar o cap inteiro: não há
+    # vaga seguinte a proteger. É o comportamento medido do Sleeper (02/08/2026):
+    #     teto = 200 − gasto − (vagas_restantes − 1)
+    # O `max(0, …)` é obrigatório: com 0 vagas a subtração daria −1 e INFLARIA o budget
+    # em $1 num time completo. Reserva com zero vagas é zero.
+    # Leitura da 8.3.4: o texto ("$1 para cada jogador a ser draftado, 22 − keepers")
+    # ao pé da letra sustentaria `empty_spots` inteiro — mas essa leitura torna o último
+    # dólar IMPOSSÍVEL de gastar, reservando $1 para um jogador que já está sendo
+    # comprado. Vale a leitura operacional, que é a que a plataforma implementa.
+    min_required = max(0, empty_spots - 1) * MIN_SALARY
+
     raw_budget = SALARY_CAP - keeper_salaries
     usable = raw_budget - min_required
 

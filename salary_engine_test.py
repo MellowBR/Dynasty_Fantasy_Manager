@@ -230,16 +230,99 @@ class TestDraftBudget(unittest.TestCase):
         self.assertTrue(result["over_cap"])
 
     def test_usable_budget_accounts_for_spots(self):
+        # OFF26-18: 11 vagas → reserva 10 (as ALÉM da que o lance preenche), não 11.
         players = [self._make_player(10)] * 11  # 11 keepers, 11 empty spots
         result = draft_budget(players)
-        self.assertEqual(result["min_required_for_spots"], 11)
-        self.assertEqual(result["usable_draft_budget"], result["raw_budget"] - 11)
+        self.assertEqual(result["empty_spots"], 11)
+        self.assertEqual(result["min_required_for_spots"], 10)
+        self.assertEqual(result["usable_draft_budget"], result["raw_budget"] - 10)
 
     def test_empty_roster(self):
         result = draft_budget([])
         self.assertEqual(result["keeper_salaries"], 0)
         self.assertEqual(result["raw_budget"], SALARY_CAP)
-        self.assertEqual(result["min_required_for_spots"], MAX_ROSTER)
+        # OFF26-18: 22 vagas → reserva 21.
+        self.assertEqual(result["min_required_for_spots"], MAX_ROSTER - 1)
+
+
+class TestDraftBudgetFencepost(unittest.TestCase):
+    """OFF26-18 — a reserva é de $1 por vaga ALÉM da que o lance atual preenche.
+
+    Fórmula medida no Sleeper (experimento de 02/08/2026):
+        teto = SALARY_CAP − gasto − (vagas_restantes − 1)
+    O `−1` é a vaga que o próprio lance preenche. Antes desta correção o Manager
+    reservava `vagas` inteiras e ficava $1 mais restritivo que a plataforma em todo
+    time com pelo menos 1 vaga.
+    """
+
+    def _roster(self, n, salary=1):
+        class FakePlayer:
+            pass
+        out = []
+        for _ in range(n):
+            p = FakePlayer()
+            p.salary = salary
+            p.is_dropped = False
+            out.append(p)
+        return out
+
+    def test_zero_spots_reserva_zero(self):
+        """Borda dura: 0 vagas → reserva 0, NUNCA −1 (que inflaria o budget em $1)."""
+        result = draft_budget(self._roster(MAX_ROSTER, salary=5))  # 22 keepers, $110
+        self.assertEqual(result["empty_spots"], 0)
+        self.assertEqual(result["min_required_for_spots"], 0)
+        self.assertEqual(result["usable_draft_budget"], result["raw_budget"])
+
+    def test_roster_cheio_exatamente_no_cap_mostra_zero(self):
+        """22 keepers somando exatamente $200 → usável $0. Nem −$1 nem $1."""
+        # 20 × $9 + 2 × $10 = $200 (inteiros — evita ruído de ponto flutuante)
+        players = self._roster(20, salary=9) + self._roster(2, salary=10)
+        result = draft_budget(players)
+        self.assertEqual(result["keeper_salaries"], SALARY_CAP)
+        self.assertEqual(result["empty_spots"], 0)
+        self.assertEqual(result["min_required_for_spots"], 0)
+        self.assertEqual(result["usable_draft_budget"], 0)
+        self.assertFalse(result["insufficient_budget"])
+
+    def test_uma_vaga_leva_o_restante_inteiro(self):
+        """Caso do owner: com 1 spot vazio não há vaga seguinte a proteger — o lance
+        pode levar TODO o restante do cap."""
+        players = self._roster(MAX_ROSTER - 1, salary=8)  # 21 keepers, $168
+        result = draft_budget(players)
+        self.assertEqual(result["empty_spots"], 1)
+        self.assertEqual(result["min_required_for_spots"], 0)
+        self.assertEqual(result["raw_budget"], SALARY_CAP - 168)
+        self.assertEqual(result["usable_draft_budget"], result["raw_budget"])
+
+    def test_duas_vagas_reserva_um(self):
+        players = self._roster(MAX_ROSTER - 2, salary=5)  # 20 keepers, $100
+        result = draft_budget(players)
+        self.assertEqual(result["empty_spots"], 2)
+        self.assertEqual(result["min_required_for_spots"], 1)
+        self.assertEqual(result["usable_draft_budget"], 100 - 1)
+
+    def test_experimento_sleeper_150_gastos_21_vagas(self):
+        """Experimento de 02/08: $150 gastos, 21 vagas restantes.
+
+        teto = 200 − 150 − (21 − 1) = $30.
+
+        ⚠️ O prompt do OFF26-18 registrou este caso como "$29 (não $28)"; a aritmética
+        das duas fórmulas é $29 (antiga) e $30 (corrigida) — ver a nota de conferência
+        no improvements.md. As recusas medidas ($32/$33/$40) e o aceite de $29 limitam
+        o teto real ao intervalo [29, 31], que contém o $30 desta fórmula.
+        """
+        players = self._roster(1, salary=150)      # 1 keeper de $150 → 21 vagas
+        result = draft_budget(players)
+        self.assertEqual(result["empty_spots"], 21)
+        self.assertEqual(result["min_required_for_spots"], 20)
+        self.assertEqual(result["raw_budget"], 50)
+        self.assertEqual(result["usable_draft_budget"], 30)
+
+    def test_reserva_nunca_negativa_em_roster_estourado(self):
+        """Mais de 22 jogadores (legítimo hoje — ver OFF26-13): reserva segue 0."""
+        result = draft_budget(self._roster(24, salary=5))
+        self.assertEqual(result["empty_spots"], 0)
+        self.assertEqual(result["min_required_for_spots"], 0)
 
 
 class TestEdgeCases(unittest.TestCase):
