@@ -549,16 +549,7 @@ code {
   border-radius: 4px;
   margin-left: 6px;
 }
-.btn-ir-remove {
-  background: rgba(239, 68, 68, .15);
-  color: var(--red);
-  border: 1px solid rgba(239, 68, 68, .3);
-  cursor: pointer;
-  border-radius: 4px;
-  padding: 2px 8px;
-  font-size: .8rem;
-}
-.btn-ir-remove:hover { background: rgba(239, 68, 68, .3); }
+/* IR-CLEANUP: .btn-ir-remove saiu com o toggle de IR (o sync e autoritativo). */
 .alert-ir {
   background: rgba(239, 68, 68, .08);
   border: 1px solid rgba(239, 68, 68, .2);
@@ -1648,7 +1639,6 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 .player-roster-table col.col-espn     { width: 58px; }
 .player-roster-table col.col-proj     { width: 56px; }
 .player-roster-table col.col-acq      { width: 108px; }
-.player-roster-table col.col-actions  { width: 76px; }
 
 .player-roster-table .col-pos { text-align: center; padding-left: .2rem; padding-right: .2rem; }
 .player-roster-table .col-photo { padding-right: 0; }
@@ -1678,10 +1668,6 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 .player-roster-table td.col-acq {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.player-roster-table .col-actions {
-  text-align: right;
   white-space: nowrap;
 }
 .player-roster-table .name-main {
@@ -2116,11 +2102,6 @@ a.player-name:hover {
   white-space: nowrap;
 }
 .team-status-bar .status-value.cap-negative { color: var(--red); }
-.team-status-bar .status-ir-cost {
-  font-weight: 500;
-  color: var(--text-dim);
-  font-size: .8rem;
-}
 .team-status-bar .pos-chip {
   display: inline-flex;
   align-items: baseline;
@@ -2172,7 +2153,6 @@ a.player-name:hover {
   .team-status-bar .status-pos-group { display: none; }
 }
 @media (max-width: 414px) {
-  .team-status-bar .status-ir-cost { display: none; }
 }
 
 /* ── N1: Navbar dropdowns + mobile ──────────────────────────────────────── */

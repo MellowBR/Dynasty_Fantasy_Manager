@@ -3339,3 +3339,70 @@ IR), e e a mesma em toda tela, todo calculo e todo contexto.
 
 - Board intacto, draft nao iniciado; `CLAUDE.md` teve a secao das duas reguas **substituida** pela
   da regua unica, e o `cap_regua_test.py` entrou nos comandos e na estrutura do projeto.
+
+### MAN-IR-CLEANUP — toggle de IR removido + bug de renovacao registrado (04/08/2026, Opus)
+
+**(A) IR-CLEANUP executado — decisao do owner: remover.**
+
+- **O argumento ficou MAIS FORTE que na diagnose original.** O MAN-IR-F1 tratava o toggle como
+  **ruido inocuo**: controle sem efeito persistente, revertido em silencio pelo sync (que reescreve
+  `Player.is_on_ir` de forma autoritativa a partir do array `reserve`, `sync_sleeper.py:290`). Com a
+  **regua unica** do [[OFF26-16]] — em que **o IR conta no cap** — o toggle passou a **aparentar
+  mudar a FOLHA SALARIAL do time** sem mudar nada. **Deixou de ser ruido e virou controle
+  ativamente enganoso**, a 16 dias do leilao.
+
+- **Removidos:** endpoint `POST /api/player/<id>/ir` (`toggle_ir`, `routes/roster.py`), handler
+  `toggleIR` (`roster.html`), os 2 botoes (`↑ Tirar IR` / `IR`, `_macros.html`), **a coluna
+  `col-actions` INTEIRA** (macro + colgroup + `<th>`), o CSS morto (`.btn-ir-remove`,
+  `col.col-actions`, `.col-actions`, e o `.status-ir-cost` que ficara orfao do OFF26-16) e o import
+  orfao de `MAX_IR`. **Efeito colateral bom:** a coluna existia **so** para o toggle, entao `/` e
+  `/team/<id>` passam a ter **exatamente a mesma forma de tabela**.
+
+- **Preservados, como o item exigia:** `Player.is_on_ir` (sync segue escrevendo), badge **🏥 IR**,
+  `MAX_IR` e **toda** a logica de cap (hoje a regua unica). O **banner de escalacao** do OFF26-16
+  (*"🏥 2 jogador(es) no IR: Michael Penix, Travis Hunter."*) **permanece** — e **leitura, nao
+  controle**. `MAX_IR` ficou **sem referencia em codigo** (era validado so dentro do toggle):
+  preservado de proposito **com comentario no `models.py` dizendo por que** — documenta a regra da
+  liga (item 1.3) e e a ancora se algum dia houver validacao local. **Nao e residuo a limpar.**
+
+- **Caveat de UX do registro original — DESCARTADO, com o motivo registrado.** A alternativa era
+  manter o seletor com tooltip *"Sera sobrescrito no proximo sync"*, preservando override offline.
+  O owner decidiu remover: **o custo permanente de um controle enganoso sobre a folha supera a
+  hipotese de operar sem Sleeper** — e **mudar IR se faz no Sleeper**, onde a autoridade sempre
+  esteve.
+
+- **Validacao:** os **5 jogadores em IR seguem em IR** (Kendre Miller, Tory Horton, Michael Penix,
+  Travis Hunter, Zach Charbonnet); badge e banner intactos; **os 12 valores de cap identicos** aos
+  do OFF26-16; `grep` nao encontra endpoint, handler nem controle; `toggle_ir` **nao existe mais no
+  blueprint**. Suites **14/14 + 54/54 + 34/34**; imports e parse Jinja OK.
+
+- ⚠️ **Pendente de smoke em prod:** (1) tabela do roster **sem a coluna de acoes** — conferir que o
+  `colgroup` nao desalinhou larguras; (2) badge 🏥 e banner de escalacao renderizando; (3) um **sync
+  manual** mantendo os 5 em IR — e a prova de que a autoridade do Sleeper segue funcionando sem o
+  toggle.
+
+**(B) [[OFF26-19]] registrado 🔲 Baixa — NAO corrigido.**
+
+- **Mecanismo:** `renewal_candidates` (`routes/roster.py`) deriva de `active_players`, a lista que
+  **exclui quem esta em IR**. E **heranca do mesmo filtro** que o OFF26-16 removeu das telas de cap;
+  sobreviveu ali porque **nao e pergunta de folha, e de contrato** — e por isso ficou fora daquele
+  escopo, deliberadamente.
+
+- **Dano:** jogador **em IR no Ano 4** nao aparece no aviso *"N jogador(es) no Ano 4 — renovar ou
+  cortar"*; o contrato **expira sem decisao registrada** e o salario seguinte sai errado. **Dano
+  silencioso**, familia do [[OFF26-11]]: nao ha erro visivel, ha uma **decisao que ninguem foi
+  convidado a tomar**. O perfil de risco e justamente **fim de contrato + lesao** — o caso que mais
+  exige a decisao de renovar x cortar.
+
+- **Dano HOJE: ZERO, verificado.** Distribuicao da liga: **ano 1 = 50**, **ano 2 = 198**, **ano 4+ =
+  0**. Com tudo em anos 1-2, o primeiro Ano 4 so existe depois de **DOIS rollovers** — ha folga
+  real, e e o que sustenta a prioridade Baixa apesar de o bug tocar salario. **Mas e atemporal:** o
+  bug nao caduca, so esta adormecido.
+
+- **Correcao exige F1 propria** (toca o fluxo de renovacoes): decidir se `is_renewal_candidate()`
+  vale para jogador em IR (provavelmente sim) e **varrer se o mesmo filtro se repete em outras
+  superficies de contrato** — o OFF26-16 so varreu as de folha.
+
+**Intocados:** sync, `is_on_ir`, regua unica, `draft_budget`, keeper sheet, auditoria OFF26-4,
+schema. Board intacto, draft nao iniciado. `CLAUDE.md`: a linha do blueprint `roster` deixou de
+dizer "IR management" e a secao de autoridade de dados ganhou **"IR e read-only no Manager"**.

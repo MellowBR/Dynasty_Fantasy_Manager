@@ -8,6 +8,10 @@ db = SQLAlchemy()
 
 SALARY_CAP = 200
 MAX_ROSTER = 22
+# MAX_IR: informativo. Quem enforça o limite de IR é o Sleeper — o Manager só espelha
+# `reserve` no sync. Sem referência em código desde o IR-CLEANUP (04/08/2026), que removeu
+# o toggle manual onde a constante era validada. Preservado de propósito: documenta a
+# regra da liga (item 1.3 do regulamento) e é a âncora se algum dia houver validação local.
 MAX_IR = 2
 CURRENT_SEASON = 2025  # fallback — prefer get_current_season()
 CONTRACT_LENGTH = 4

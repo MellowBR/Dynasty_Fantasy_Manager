@@ -129,7 +129,6 @@
       <th class="col-espn">ESPN</th>
       <th class="col-proj">Proj 2026</th>
       <th class="col-acq">Aquisição</th>
-      <th class="col-actions"></th>
     </tr>
   </thead>
   <tbody>
@@ -175,19 +174,6 @@ document.addEventListener('click', function(e) {
     document.getElementById('team-dropdown').style.display = 'none';
   }
 });
-
-function toggleIR(playerId, toIR) {
-  fetch(`/api/player/${playerId}/ir`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({is_on_ir: toIR})
-  })
-  .then(r => r.json())
-  .then(d => {
-    if (d.error) { showToast(d.error, 'error'); }
-    else location.reload();
-  });
-}
 
 function showToast(msg, type='info') {
   const t = document.createElement('div');

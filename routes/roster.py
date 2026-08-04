@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import login_required, current_user
-from models import db, Team, Player, SALARY_CAP, MAX_IR, POS_ORDER, sort_players_by_pos
+from models import db, Team, Player, SALARY_CAP, POS_ORDER, sort_players_by_pos
 from salary_engine import roster_salary  # OFF26-16: fonte única da folha (inclui IR)
 from routes.auth import admin_required
 
@@ -145,23 +145,17 @@ def api_roster_by_name(team_name):
     return jsonify([p.to_dict() for p in sort_players_by_pos(players)])
 
 
-@roster_bp.route("/api/player/<int:player_id>/ir", methods=["POST"])
-@admin_required
-def toggle_ir(player_id):
-    player = db.get_or_404(Player, player_id)
-    data = request.get_json() or {}
-    new_state = data.get("is_on_ir", not player.is_on_ir)
-
-    if new_state and not player.is_on_ir:
-        ir_count = Player.query.filter_by(
-            team_id=player.team_id, is_on_ir=True, is_dropped=False
-        ).count()
-        if ir_count >= MAX_IR:
-            return jsonify({"error": f"IR cheio (máx {MAX_IR} slots)"}), 400
-
-    player.is_on_ir = new_state
-    db.session.commit()
-    return jsonify({"success": True, "is_on_ir": player.is_on_ir})
+# IR-CLEANUP (04/08/2026): o toggle manual de IR (`POST /api/player/<id>/ir`) foi
+# REMOVIDO daqui. Não tinha efeito persistente — o sync do Sleeper reescreve
+# `Player.is_on_ir` de forma autoritativa a cada execução, lendo o array `reserve` de
+# cada roster (`sync_sleeper.py:290`), então o admin clicava, a UI mudava, e o próximo
+# sync revertia em silêncio. Com a régua única do OFF26-16 (o IR CONTA no cap) o controle
+# passou a aparentar mexer na FOLHA SALARIAL do time sem mexer em nada: deixou de ser
+# ruído inócuo e virou controle enganoso.
+#
+# `Player.is_on_ir` continua existindo e sendo escrito pelo sync — a autoridade sobre IR
+# é do Sleeper, e mudar isso lá reflete aqui no sync seguinte. `MAX_IR` segue em
+# `models.py` (o Sleeper respeita o limite; aqui era só validação do toggle removido).
 
 
 @roster_bp.route("/api/player/<int:player_id>", methods=["PATCH"])

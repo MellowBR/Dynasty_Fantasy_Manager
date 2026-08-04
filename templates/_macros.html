@@ -37,7 +37,8 @@
 {# player_roster_row(player, context='team_detail', group_first=False)
    Renderiza <tr> compartilhada da tabela de roster (UX4).
    player precisa vir enriquecido com .dynasty_value (int|None) e .acquisition_label (str PT-BR).
-   context: 'team_detail' (sem coluna actions) ou 'roster' (com botão IR + renewal-flag visual).
+   context: 'team_detail' ou 'roster' — hoje difere só pelo renewal-flag visual (a coluna
+   de ações saiu com o toggle de IR, IR-CLEANUP).
    group_first (UX4-d): True se é a 1ª row do grupo de posição — adiciona data-group-first
    para CSS `tr[data-group-first]:not(:first-child)` renderizar separador dashed entre grupos.
    Strip de cor por posição via class pos-* no <tr> (fonte canônica: CSS vars --pos-color-*). #}
@@ -71,22 +72,17 @@
   </td>
   <td class="col-proj">${{ player.projected_next_salary() }}</td>
   <td class="col-acq" title="{{ player.acquisition_label }}">{{ player.acquisition_label }}</td>
-  {%- if context == 'roster' %}
-  <td class="col-actions">
-    {% if player.is_on_ir -%}
-    <button class="btn-sm btn-ir-remove" onclick="toggleIR({{ player.id }}, false)">↑ Tirar IR</button>
-    {%- else -%}
-    <button class="btn-sm btn-danger-sm" onclick="toggleIR({{ player.id }}, true)" title="Mover para IR">IR</button>
-    {%- endif %}
-  </td>
-  {%- endif %}
+  {#- IR-CLEANUP: a coluna de ações existia SÓ para o toggle de IR, que foi removido
+      (o sync do Sleeper é autoritativo sobre `is_on_ir`). As duas telas passam a ter a
+      mesma forma de tabela. O badge 🏥 IR acima permanece — é leitura, não controle. -#}
 </tr>
 {%- endmacro %}
 
 {# player_roster_colgroup(context='team_detail')
    <colgroup> compartilhado para .player-roster-table. Garante larguras explícitas
    e alinhamento vertical entre as múltiplas tabelas por posição (na mesma tela)
-   e entre as 2 telas (/team/<id> e /). context controla presença de col-actions. #}
+   e entre as 2 telas (/team/<id> e /), que hoje têm a MESMA forma — `context` é aceito
+   por compatibilidade das chamadas, sem efeito no colgroup (IR-CLEANUP). #}
 {% macro player_roster_colgroup(context='team_detail') -%}
 <colgroup>
   <col class="col-pos">
@@ -98,9 +94,6 @@
   <col class="col-espn">
   <col class="col-proj">
   <col class="col-acq">
-  {%- if context == 'roster' %}
-  <col class="col-actions">
-  {%- endif %}
 </colgroup>
 {%- endmacro %}
 

@@ -44,6 +44,7 @@ python seed_users.py --list
 ### Data Authority Split
 
 - **Sleeper API** is authoritative for: roster membership, player names/positions/NFL team, IR slots, traded picks
+  - **IR é read-only no Manager** (IR-CLEANUP): `Player.is_on_ir` só é escrito pelo sync, a partir do array `reserve` de cada roster. Não existe toggle na UI — mudar IR se faz **no Sleeper**, e reflete aqui no sync seguinte
 - **Local DB (`dynasty.db`)** is authoritative for: salaries, contract years, acquisition types, ESPN ref values
 - **Sleeper sync never overwrites salary/contract data**
 
@@ -76,7 +77,7 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 | Blueprint | URL | Purpose |
 |-----------|-----|---------|
 | auth | `/login`, `/logout`, `/auth/callback` | Google OAuth authentication |
-| roster | `/`, `/player/<id>` | Team rosters, IR management, cap bar, página dedicada por jogador (M13), banner de cap estourado em offseason (M1) |
+| roster | `/`, `/player/<id>` | Team rosters, cap bar, página dedicada por jogador (M13), banner de cap estourado em offseason (M1), banner informativo de IR (OFF26-16 — leitura, não controle). **IR-CLEANUP: não há toggle de IR** — o Sleeper é autoridade sobre `is_on_ir` e o sync sobrescreve |
 | salary | `/salary`, `/salary_history`, `/cap_projector` | Salary calculator, cap projector, salary history com timeline clicável. **DP1/DP2/DP3:** board de planejamento de rookie draft no cap_projector — lista a **classe entrante capturada** (`RookieEspnValue.in_class=True`, snapshot da captura admin DP3, menos já-rosterados; valorados ESPN no topo, massa a $1 atrás de busca/filtro) via `/api/cap_projector/rookies`; cenário keep/corte + rookies num único POST ao `/budget` canônico (DP2 — o antigo `/simulate` foi removido), projeção pura sem escrever contrato |
 | trades | `/trades`, `/trades/proposta/<uuid>` | Trade simulador puro (T1), preview com dynasty + redraft delta-pointing bars (T2/T3), descrição "de/para" 2-colunas, query params pré-seleção (M14), propostas compartilháveis |
 | picks | `/picks`, `/picks/lottery/<season>` | Grid navegável de picks (M9), auditoria pública do lottery (M8), legenda de odds audit-first — pesos do audit canônico, senão config (M15/M15-FIX), projeção do draft: R1 = lottery, R2/R3 = standings invertido (M16) |
