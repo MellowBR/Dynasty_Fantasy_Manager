@@ -3406,3 +3406,81 @@ IR), e e a mesma em toda tela, todo calculo e todo contexto.
 **Intocados:** sync, `is_on_ir`, regua unica, `draft_budget`, keeper sheet, auditoria OFF26-4,
 schema. Board intacto, draft nao iniciado. `CLAUDE.md`: a linha do blueprint `roster` deixou de
 dizer "IR management" e a secao de autoridade de dados ganhou **"IR e read-only no Manager"**.
+
+### MAN-OFF26-20-F1 — rotulos de aquisicao e regras salariais (04/08/2026, Opus)
+
+**Parte 1 — SMOKE CONSOLIDADO DE PRODUCAO PASSOU nos 6 pontos; o lote FECHA ✅.** Roster do achane
+$195/$5 com banner de nomes e tabela sem coluna de acoes; time sem IR inalterado; Cap Projector com
+**`min $3` em 4 spots e `min $0` em 1 spot** (o fencepost do OFF26-18 **vivo na tela**); `/trades`
+carregando com o rename da chave (`salary_total`); League Hub coerente com o roster; e **sync manual
+mantendo os 5 em IR** — a prova de que a autoridade do Sleeper funciona sem o toggle. Fecham
+[[OFF26-14]]/F2, [[OFF26-16]], [[OFF26-17]], [[OFF26-18]] e [[IR-CLEANUP]]. As 5 secoes detalhadas
+foram **migradas para o `improvements_archive.md`** (regra O3), com nota no cabecalho de que **a F2
+do OFF26-14 foi REVERTIDA pelo OFF26-16** e os dois racionais ficam lado a lado de proposito.
+
+**Parte 2 — diagnose read-only: [[OFF26-20]] registrado 🔲 Alta. A hipotese do owner CAIU.**
+
+- **T1 — censo e procedencia.** 6 tipos em 248 jogadores. O valor vem do campo
+  `Player.acquisition_type`; o rotulo, do dict **unico** `_ACQ_LABELS` (`routes/roster.py:343`, 3
+  consumidores). **Sem derivacao em template, sem fallback do sync.** O truncamento *"Waiver / Free
+  A…"* e **puro CSS** (`text-overflow: ellipsis` em `td.col-acq`, com o texto completo no `title`) —
+  **nao e problema de dado**. Distribuicao: `auction_draft` 96, `free_agent` 39, **`fa_waiver` 37**,
+  `rookie_draft` 31, `fa_auction` 28, `waiver` 17.
+
+- ⛔ **T2 — HIPOTESE FALSIFICADA.** A hipotese era "todo ambiguo esta em Ano 2+, bifurcacao ja
+  passada, cicatriz benigna". **Ha 5 `fa_waiver` em ANO 1** — Chimere Dike, Jaylin Noel, Malik
+  Willis, Oronde Gadsden, Tyler Shough — com a bifurcacao **PENDENTE** para o rollover de 18/08
+  (+ 4 `fa_auction` em Ano 1). O rotulo tambem **nao se correlaciona** com epoca de importacao: os
+  seis tipos convivem em Ano 1 e Ano 2; `fa_waiver` e apenas o enum que o pipeline grava.
+
+- ⛔ **T3 — O BURACO: `fa_waiver` e `fa_auction` NAO estao em `_WAIVER_TYPES`**
+  (`{"waiver","free_agent","fa"}` — e `"fa"` e **enum morto**, nao existe no banco). Os **37**
+  `fa_waiver`, cujo rotulo literalmente diz *"Waiver / Free Agent"*, **nunca recebem** a regra
+  `floor(0,80 x ESPN)` do ano 2 (regulamento **6.6**); caem sempre na valorizacao. **Dano HOJE:
+  zero — por COINCIDENCIA, nao por desenho**: os 5 de Ano 1 tem `espn_ref_value = 1.0` (tabela
+  provisoria) e as duas regras dao $1. ⚠️ **A ESPN definitiva entra em 18/08, o MESMO DIA do
+  rollover**: com valor real o erro escala (ESPN $5 → −$2; $10 → −$3; $20 → −$6) e seria **selado**
+  na keeper sheet de 20/08. **Pergunta de REGRA DE LIGA em aberto:** `fa_auction` tambem entra? A
+  7.1.1 (aquisicao em waiver e por *"Waiver Auction"*) sugere que sim, mas os 4 de Ano 1 tem
+  salarios de lance ($4/$1) enquanto a 6.6 manda ano 1 "sem valor" — **as duas leituras sao
+  defensaveis**.
+
+- ⚠️ **T4/T5 — 2o ACHADO, INDEPENDENTE E MAIOR: a coluna PROJ do roster NAO e o que o rollover
+  fara.** Ha **TRES** funcoes de "proximo salario": (1) `compute_salary_for_year` via
+  `Player.projected_next_salary()` — consumida **so** pela coluna PROJ de `/` e `/team/<id>`
+  (`_macros.html:73`); (2) `salary_engine.project_next_salary` — Cap Projector, porta `/budget`,
+  `to_dict()`; (3) `apply_season_rollover` — preview do admin e **o rollover real**. **(2) e (3)
+  concordam; a (1) discorda em 26 de 248**, **sempre superestimando**, somando **+$62**. Mecanismo:
+  a (1) **reconstroi o contrato do zero e DESCARTA o salario armazenado** — viola diretamente o
+  principio *"o DB e autoridade sobre salarios e anos de contrato"* do `CLAUDE.md`. **Os maiores
+  erros sao de ROOKIE, nao de waiver/FA** (para rookie, `year1_salary` devolve `floor(ESPN)`, entao
+  recalcula o ano 1 com o ESPN de hoje): **Omarion Hampton — tela $44, rollover $26, erro +$18**;
+  McMillan +$15; Egbuka +$13; Skattebo +$13; Judkins +$12.
+
+- **T4 — Watson resolvido.** `free_agent`, ano 2, $1, ESPN 6.0. Os **$4** da tela saem da
+  reconstrucao: ano 1 = $1 (waiver type → MIN_SALARY), ano 2 = `floor(0,8 x 6)` = **4**, ano 3 =
+  `max(4, 3)` = 4 — **o palpite do owner sobre a conta estava certo**. **O rollover fara $3**
+  (`valorization_rule($1, 6)` = `max(1, 3)`). **Resposta direta a pergunta do prompt:** na **tela**,
+  TODO jogador e tratado como aquisicao nova; **no rollover, NAO** — ele respeita o contrato
+  armazenado ⇒ **o dano esta confinado ao display**, o que sera escrito em 18/08 nao e afetado por
+  essa funcao.
+
+- **Premissas contraditas:** (1) "o rotulo ambiguo e cicatriz de importacao" — **falsificada por 5
+  casos em Ano 1**, e o problema real nao e o rotulo (dict correto, truncado por CSS) e sim o enum
+  **nao existir para o motor de salario**; (2) "se a regra de FA nova for aplicada, ha jogadores em
+  ano 2+ tratados como aquisicao nova" — inferencia certa, **lugar errado**: quem faz isso e a
+  coluna PROJ, nao o rollover; (3) "Waiver x FA tem regras salariais diferentes" — no **regulamento**
+  a 6.6 trata os dois **juntos**, e no **codigo** eles estao no **mesmo conjunto**; a distincao real
+  e `fa_waiver`/`fa_auction` **fora** do conjunto x os demais dentro. **Nao previsto:** as 3 funcoes
+  de projecao; os erros de rookie; o `"fa"` morto; o truncamento ser CSS; e **85 jogadores com
+  `contract_start_season = 2025` E `contract_year = 2`** com `current_season = 2025` — ⚠️
+  **observacao a verificar, NAO veredito** (o campo e escrito em 3 pontos e a diagnose nao apurou a
+  semantica pretendida), porem relevante porque `contract_year` alimenta a bifurcacao.
+
+- **Nada corrigido.** Se houver salario a corrigir, o caminho e `correct_player_salary` — nunca
+  patch. **Tres decisoes do owner, em ordem de prazo:** (1) **ate 18/08** — `fa_waiver` (e
+  `fa_auction`?) entra em `_WAIVER_TYPES`? **regra de liga**; (2) **ate 20/08** — a coluna PROJ passa
+  a consumir a fonte (2)/(3)? e correcao de **display**, nao toca o rollover, mas e o numero que guia
+  os cortes; (3) verificar a inconsistencia `contract_start_season` x `contract_year` nos 85.
+
+`git diff` sem arquivo de codigo; board intacto, draft nao iniciado.
