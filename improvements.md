@@ -1,6 +1,7 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 05/08/2026-pt1 (sessão MAN-OFF26-20-F1B, **docs-only**: **a arbitragem pelo regulamento INVERTEU a conclusão da F1, e o owner tinha razão ao recusá-la**. A F1 concluiu *"o rollover está certo, a tela está errada"* **por inferência da arquitetura**, não por medição contra a régua definitiva — e o cenário que o prompt antecipou **se materializou**: para uma coorte grande **o banco está errado**, a função que o respeita **propaga o erro**, e a que reconstrói **acerta**. ⛔ **ACHADO CENTRAL, MUITO MAIOR QUE O DA F1: 73 contratos receberão a REGRA ERRADA no rollover de 18/08 — não 5.** Os **85** suspeitos têm, **todos**, `drop` **e** reaquisição de 2025 **REAIS** no chain do Sleeper (eventos com `sleeper_event_ref`, transações da API). Pela **6.1** (*"o primeiro ano é o ano da aquisição no draft ou nos waivers"*) o contrato **recomeçou em 2025 como ano 1** — o salário $1 armazenado é exatamente o *"sem valor"* da **6.6** — logo **em 2026 estão no ANO 2** e a regra devida é **0,8 × ESPN**. ⇒ **`contract_start_season` é o campo CERTO e `contract_year = 2` é o ERRADO** (inverte a leitura preliminar). A **6.8** é a única defesa possível do `contract_year`, mas exige *"pelo **próprio** owner"*, e **73 dos 85 foram readquiridos por time DIFERENTE** — para esses a 6.8 **não pode** ser invocada. O rollover os tratará como **ano 3** (valorização) ⇒ regra errada, **selada** na keeper sheet de 20/08; o erro **troca de sinal** com o ESPN (hoje sobrecobra $79 no agregado; a ESPN $10 subcobra $131). **T1 — veredito por população:** para os **21 rookies** (dado consistente) **o rollover acerta e a tela erra** (Hampton $26 ✅ × $44); para os **73 readquiridos** **a tela acerta e o rollover erra** (Watson $4 ✅ × $3) ⇒ **nenhuma das duas funções é "a certa": corrigir a tela, o DADO e o enum**. **T2 — causa-raiz do vocabulário, e é ACIDENTE:** o rebuild **F8** grava `event_type` **dentro** de `acquisition_type` (`sync_sleeper.py:1217-1218`), e `_norm_acq` **nunca produz** `fa_waiver`/`fa_auction` — dois vocabulários no mesmo campo, **nunca reconciliados**. Prova: **100%** dos `fa_waiver` (37), `fa_auction` (28) e `free_agent` (39) foram escritos pelo F8; **0%** dos `waiver` (17), `auction_draft` (96) e `rookie_draft` (31). ⚠️ **Os 17 `waiver` que o owner validou são justamente os que o F8 não tocou** — a validação não alcança os 37 `fa_waiver`. Ironia registrada: o comentário em `sync_sleeper.py:1215` mostra que o autor **sabia** que o campo alimenta regra salarial e pôs um guard **de season**; o buraco é de **vocabulário**, no ramo tido como seguro. **T4:** a função da tela tem **um único** consumidor (a coluna PROJ, em `/` e `/team/<id>`); o **Cap Projector usa a conta do backend** ⇒ as duas telas mostram números diferentes para o mesmo jogador, sem aviso. **Premissas contraditas:** *"a tela diverge sempre para cima"* — **falso**, **9 dos 26 subestimam**, até **−$12** (Jeanty); *"o problema é só de classificação"* — há **as duas coisas**; *"rookie entra conforme a rodada"* — a **8.2.7 não modula por rodada**; e a F1 errou ao dizer que o regulamento trata waiver e FA juntos — a **6.8 os separa**, e **a distinção do owner existia**. **Não previsto:** a **6.8 é hoje inimplementável** (falta o dado que distingue "readquirido pelo próprio owner" de "virou FA" — é o [[WV1]], agora **confirmado e agravado**); e **`salary_history` está VAZIA** com `EspnValueStore` só em 2026 ⇒ **não há trilha para auditar salário de anos anteriores**. **Nada corrigido** — correção passa por `correct_player_salary`. **Prioridade do [[OFF26-20]] elevada para CRÍTICA (prazo 18/08).**)
 > Atualizado em: 04/08/2026-pt6 (sessão MAN-OFF26-20-F1, **docs-only**. **Parte 1 — o smoke consolidado de produção PASSOU nos 6 pontos** e **fecha ✅ o lote inteiro**: [[OFF26-14]]/F2, [[OFF26-16]], [[OFF26-17]], [[OFF26-18]] e [[IR-CLEANUP]] (roster do achane $195/$5 com banner de nomes e tabela sem coluna de ações; time sem IR inalterado; Cap Projector com **`min $3` em 4 spots e `min $0` em 1 spot** — o fencepost vivo na tela; `/trades` OK com o rename da chave; League Hub coerente; **sync manual manteve os 5 em IR**). As 5 seções detalhadas foram **migradas para o archive** (regra O3), com nota de que **a F2 do OFF26-14 foi revertida pelo OFF26-16** e os dois racionais ficam lado a lado. **Parte 2 — [[OFF26-20]] 🔲 Alta, e a hipótese do owner CAIU.** ⛔ **`fa_waiver` está FORA de `_WAIVER_TYPES`** (`{"waiver","free_agent","fa"}` — sendo que `"fa"` é **enum morto**, não existe no banco): os **37** jogadores cujo rótulo diz *"Waiver / Free Agent"* **nunca recebem a regra de waiver** (0,8 × ESPN no ano 2). **A hipótese "é cicatriz de importação, bifurcação já passada" foi FALSIFICADA: há 5 em ANO 1** — Dike, Noel, Willis, Gadsden, Shough — com a bifurcação **pendente para o rollover de 18/08**. **Dano hoje é zero por COINCIDÊNCIA**, não por desenho: os 5 têm ESPN provisória 1.0, e as duas regras dão $1 — mas **a tabela ESPN definitiva entra em 18/08, o mesmo dia do rollover**, e com valor real o erro escala (−$2 em ESPN $5, −$6 em ESPN $20), **selado na keeper sheet de 20/08**. ⚠️ **2º achado, independente e MAIOR, que o prompt não previa: a coluna PROJ do roster não é o que o rollover fará.** `Player.projected_next_salary()` usa `compute_salary_for_year`, que **reconstrói o contrato do zero e descarta o salário armazenado** — viola o princípio "o DB é autoridade sobre salário/ano de contrato". Diverge do rollover em **26 dos 248**, **sempre superestimando**, **+$62** no total, com **+$18 num único jogador** (Omarion Hampton: tela **$44**, rollover **$26**) — e os maiores erros são de **ROOKIE**, não de waiver/FA. **Watson explicado:** os $4 são `floor(0,8 × 6)` **dentro da reconstrução** (o palpite do owner estava certo quanto à conta); o rollover fará **$3**. **Resposta direta:** na **tela**, todo jogador é tratado como aquisição nova; **no rollover, não** — ele respeita o contrato armazenado, então **o dano está confinado ao display**. **T5 — três funções de "próximo salário"**: as duas do backend (`project_next_salary`, `apply_season_rollover`) concordam; a da tela não, e é a mais vista. **Observação a verificar (não veredito):** 85 jogadores com `contract_start_season = 2025` **e** `contract_year = 2`, com `current_season = 2025`. Também registrado: o truncamento *"Waiver / Free A…"* é **puro CSS**, não dado; e a distinção Waiver × FA que o prompt supunha **não existe** — no regulamento a 6.6 trata os dois juntos, e no código eles estão no mesmo conjunto. **Nada corrigido**; as três decisões são do owner, a primeira delas **regra de liga e com prazo de 18/08**.)
 > Atualizado em: 04/08/2026-pt5 (sessão MAN-IR-CLEANUP: **(A) toggle de IR REMOVIDO** ([[IR-CLEANUP]] ⚠️, pendente de smoke) **e (B) bug de renovação REGISTRADO** ([[OFF26-19]] 🔲 Baixa, **não corrigido**). **(A)** O argumento ficou **mais forte que na diagnose original**: o MAN-IR-F1 tratava o toggle como **ruído inócuo** (controle sem efeito, revertido em silêncio pelo sync); com a régua única do [[OFF26-16]], em que **o IR conta no cap**, ele passou a **aparentar mudar a folha salarial do time** sem mudar nada — **de ruído a controle ativamente enganoso**, a 16 dias do leilão. Removidos: endpoint `POST /api/player/<id>/ir`, handler `toggleIR`, os 2 botões, **a coluna `col-actions` INTEIRA** (existia **só** para o toggle — efeito colateral bom: `/` e `/team/<id>` passam a ter **exatamente a mesma forma de tabela**), o CSS morto (`.btn-ir-remove`, `col-actions`, e o `.status-ir-cost` que ficara órfão do OFF26-16) e o import órfão de `MAX_IR`. **Preservados como o item exigia:** `Player.is_on_ir` (sync segue escrevendo), badge **🏥 IR**, `MAX_IR` e a régua de cap; o **banner de escalação** do OFF26-16 permanece — **é leitura, não controle**. `MAX_IR` ficou **sem referência em código** (era validado só no toggle): preservado de propósito, **com comentário explicando por quê** — não é resíduo a limpar. **Caveat de UX do registro original DESCARTADO com motivo:** o custo permanente de um controle enganoso sobre a folha supera a hipótese de operar offline — e **mudar IR se faz no Sleeper**, onde a autoridade sempre esteve. **Validação:** os **5 em IR seguem em IR**, badge e banner intactos, **12 valores de cap idênticos** ao OFF26-16, `toggle_ir` não existe mais no blueprint; **14/14 + 54/54 + 34/34**. **(B)** `renewal_candidates` deriva de `active_players` — **herança do mesmo filtro de IR** que o OFF26-16 removeu das telas de cap, sobrevivente por ser pergunta de **contrato**, não de folha ⇒ **jogador em IR no Ano 4 não aparece no aviso "renovar ou cortar"**, o contrato expira **sem decisão registrada** e o salário seguinte sai errado. **Dano HOJE zero, verificado:** a liga inteira está em **ano 1 (50)** e **ano 2 (198)**, **nenhum no Ano 4** — o primeiro só existe após **2 rollovers**, o que sustenta a prioridade Baixa apesar de tocar salário. **Atemporal**: não caduca, está adormecido — e o perfil de risco é justamente **fim de contrato + lesão**, o caso que mais exige decisão. **Correção exige F1 própria.** Sync, `is_on_ir`, régua única, `draft_budget`, keeper sheet e auditoria [[OFF26-4]] **intocados**; board intacto, draft não iniciado.)
 > Atualizado em: 04/08/2026-pt4 (sessão MAN-OFF26-16: **RÉGUA ÚNICA DE FOLHA — o IR conta no cap, sempre**. Decisão do owner, explícita e final, que **REVERTE a F2 do [[OFF26-14]]** (`f809a68`): o racional daquela decisão — *"os dois números têm sentidos diferentes e ambos são legítimos"* — **caiu**, porque pela regra do owner **o número sem IR não mede nada**. Racional antigo **preservado no registro** (precedente de correção com histórico). **Pré-requisito duro CUMPRIDO — cobertura primeiro:** `cap_regua_test.py`, **14 testes**, escritos e rodados **antes** de tocar em qualquer soma; contra o código antigo falharam exatamente onde deviam (**`186 != 195`**, **`14 != 5`**, e a guarda apontando `models.py`/`league.py`/`admin.py`). Inclui ⛔ **guarda anti-réplica** que falha se qualquer `sum` de salário voltar a filtrar `is_on_ir` **ou** se `active_salary` ressuscitar — existe porque o problema nunca foi errar a soma uma vez, foi **reescrevê-la à mão em cada rota**. **AS 6 FONTES VIRARAM 1:** `salary_engine.roster_salary` (pura, sem DB) → `Team.total_salary()`; **`active_salary` REMOVIDO** (o nome mentia) e as 5 somas inline substituídas — no `admin.py:160` **o N+1 saiu junto** (era um `Player.query.get` por linha do preview). **+2 correções de coerência que a unificação expôs:** `cap_by_pos` do `/team/<id>` somava só os não-IR e **não fechava com o `cap_used` da mesma tela**; e a chave da API `active_salary` virou **`salary_total`**. **O rótulo duplo saiu das 7 superfícies** — par rotulado, banner aditivo, legenda "⚖️ vale no leilão", 3 classes CSS, `g_user_team_folha` e as chaves `folha_*`/`has_ir`/`ir_cap`. **Banner de IR virou informativo de escalação** (*"🏥 2 jogador(es) no IR: Michael Penix, Travis Hunter."*), sem aritmética paralela. **Números conferidos:** achane **$195 usado / $5 restante / barra 97,5%**; rafaelferreirap $136; Fazenda $178; **os 9 sem IR idênticos**. **14/14 + 54/54 + 34/34**, imports OK, parse Jinja dos 9 templates OK. **Fora de escopo, deliberado:** `dynasty_total` segue excluindo IR (é **valor de ativo**, não folha — estender seria decidir sem mandato); **observação registrada** — `renewal_candidates` deriva de `active_players`, logo **jogador em IR no Ano 4 não aparece como candidato a renovação** (pergunta de contrato, não de folha); [[OFF26-15]] **não** entra aqui; `draft_budget`, keeper sheet, auditoria [[OFF26-4]], schema e sync **intocados**. ⚠️ Pendente de smoke em prod — inclui conferir `/api/teams` servindo `salary_total` (chave renomeada).)
@@ -157,7 +158,7 @@
 | T2-FIX-2 | Réplica JS pickFcSid em trades.html (fix estrutural — `/api/picks` pré-resolve dynasty_value) | Alta | ✅ 24/04/2026 |
 | IR-CLEANUP | Remover seletor manual de IR no roster (sync Sleeper já é autoritativo) | Baixa | ⚠️ 04/08/2026 — **executado**. Argumento ficou mais forte com o [[OFF26-16]]: com o IR contando no cap, o toggle passou a **aparentar mexer na folha salarial** sem mexer em nada — de ruído inócuo a **controle enganoso**. Removidos endpoint, handler, os 2 botões e **a coluna `col-actions` inteira** (existia só p/ o toggle → `/` e `/team/<id>` agora têm a mesma forma de tabela) + CSS morto + import órfão de `MAX_IR`. **Preservados** `is_on_ir`, badge 🏥, `MAX_IR`, régua de cap e o banner de escalação (leitura, não controle). **Caveat de UX descartado** com motivo registrado. 5 em IR seguem em IR; 12 valores de cap idênticos. ✅ **smoke prod OK 04/08** — inclusive o **sync manual mantendo os 5 em IR**, que é a prova de que a autoridade do Sleeper funciona sem o toggle |
 | OFF26-19 | **Jogador em IR no Ano 4 não aparece como candidato a renovação** — `renewal_candidates` deriva de `active_players` (herança do filtro de IR que o [[OFF26-16]] removeu das telas de cap; sobreviveu por ser pergunta de **contrato**, não de folha). O contrato expiraria **sem decisão registrada** e o salário seguinte sairia errado — dano silencioso, família do [[OFF26-11]]. Perfil de risco é justamente fim de contrato **+** lesão. **Dano hoje: ZERO, verificado** — a liga inteira está em ano 1 (50) e ano 2 (198), **nenhum no Ano 4**; o primeiro só existe depois de **2 rollovers**. Atemporal, porém: não caduca, está adormecido. **Correção exige F1 própria** (toca o fluxo de renovações; verificar se o filtro se repete em outras superfícies de contrato) — MAN-IR-CLEANUP | Baixa | 🔲 |
-| OFF26-20 | ⛔ **`fa_waiver` está FORA de `_WAIVER_TYPES`** — os **37** jogadores cujo rótulo diz *"Waiver / Free Agent"* **nunca recebem a regra de waiver** (0,8 × ESPN no ano 2); caem sempre na valorização. **A hipótese "é cicatriz de importação" foi FALSIFICADA: há 5 em Ano 1** (Dike, Noel, Willis, Gadsden, Shough) com a bifurcação **pendente para o rollover de 18/08**. Dano hoje **zero por coincidência** (ESPN provisória = 1.0 ⇒ as duas regras dão $1) — mas **a ESPN definitiva entra em 18/08, o mesmo dia**, e com valor real o erro chega a −$6 em ESPN $20, **selado na sheet de 20/08**. ⚠️ **2º achado, independente e maior: a coluna PROJ do roster não é o que o rollover fará** — `Player.projected_next_salary()` usa `compute_salary_for_year`, que **reconstrói o contrato do zero e descarta o salário armazenado** (viola "o DB é autoridade sobre salário/ano"); diverge do rollover em **26 dos 248**, sempre superestimando, **+$62** no total e **+$18 num só jogador** (Omarion Hampton: tela $44, rollover $26). Os maiores erros são de **rookie**, não de waiver/FA. **Watson explicado:** $4 = `floor(0,8 × 6)` dentro da reconstrução; o rollover fará **$3**. **T5 — 3 funções de "próximo salário"**: as 2 do backend concordam, a da tela não. Correções são **decisão do owner** (a 1ª é regra de liga) — MAN-OFF26-20-F1 | Alta | 🔲 |
+| OFF26-20 | ⛔ **`fa_waiver` está FORA de `_WAIVER_TYPES`** — os **37** jogadores cujo rótulo diz *"Waiver / Free Agent"* **nunca recebem a regra de waiver** (0,8 × ESPN no ano 2); caem sempre na valorização. **A hipótese "é cicatriz de importação" foi FALSIFICADA: há 5 em Ano 1** (Dike, Noel, Willis, Gadsden, Shough) com a bifurcação **pendente para o rollover de 18/08**. Dano hoje **zero por coincidência** (ESPN provisória = 1.0 ⇒ as duas regras dão $1) — mas **a ESPN definitiva entra em 18/08, o mesmo dia**, e com valor real o erro chega a −$6 em ESPN $20, **selado na sheet de 20/08**. ⚠️ **2º achado, independente e maior: a coluna PROJ do roster não é o que o rollover fará** — `Player.projected_next_salary()` usa `compute_salary_for_year`, que **reconstrói o contrato do zero e descarta o salário armazenado** (viola "o DB é autoridade sobre salário/ano"); diverge do rollover em **26 dos 248**, sempre superestimando, **+$62** no total e **+$18 num só jogador** (Omarion Hampton: tela $44, rollover $26). Os maiores erros são de **rookie**, não de waiver/FA. **Watson explicado:** $4 = `floor(0,8 × 6)` dentro da reconstrução; o rollover fará **$3**. **T5 — 3 funções de "próximo salário"**: as 2 do backend concordam, a da tela não. ⚠️ **F1B (05/08) INVERTEU a conclusão pela arbitragem contra o regulamento:** os **85** têm `drop` **e** reaquisição **REAIS** de 2025 no chain do Sleeper ⇒ pela **6.1** o contrato **recomeçou** (ano 1 em 2025, **ano 2 em 2026**), logo **`contract_start_season` está CERTO e `contract_year=2` está ERRADO**; a **6.8** só salvaria quem foi readquirido pelo **próprio** owner, e **73 foram por time DIFERENTE**. ⛔ **73 contratos receberão a REGRA ERRADA no rollover de 18/08** (valorização em vez de 0,8 × ESPN) e entram **selados** na sheet de 20/08 — e para esses **a TELA acerta e o ROLLOVER erra**; para os 21 rookies é o oposto. ⇒ **corrigir as TRÊS coisas: a tela, o DADO e o enum.** **Causa-raiz do vocabulário:** o rebuild **F8** grava `event_type` **dentro** de `acquisition_type` (`sync_sleeper.py:1217`) — **100%** dos `fa_waiver`/`fa_auction`/`free_agent` nasceram aí e **0%** dos `waiver`/`auction_draft`/`rookie_draft` ⇒ **acidente, não decisão** (e os 17 `waiver` que o owner validou são justamente os que o F8 não tocou). +A tela erra nos **dois sentidos** (Jeanty **−$12**), não "sempre para cima" — MAN-OFF26-20-F1/-F1B | **CRÍTICA** | 🔲 |
 | UX1 | Redesign tabela de roster em /team/<id>: foto, badge acquisition PT-BR, dynasty inline | Média | ✅ 24/04/2026 |
 | UX2 | Acquisition types PT-BR em telas restantes (admin, cap_projector, salary, salary_history) | Baixa | 🔲 (team_detail + roster ✅ via UX1+UX4) |
 | UX3 | Fotos de jogadores em telas densas (team_detail, cap_projector) | Baixa | ✅ 24/04/2026 |
@@ -4361,8 +4362,8 @@ em IR (provavelmente sim), e o mesmo filtro pode existir em outras superfícies 
 
 ---
 
-### OFF26-20 — `fa_waiver` fora do `_WAIVER_TYPES` + a coluna PROJ do roster não é o que o rollover fará
-🔲 **Pendente** — Prioridade **Alta** — diagnose `MAN-OFF26-20-F1` (04/08/2026, read-only)
+### OFF26-20 — Regra salarial errada em 73 contratos + vocabulário de aquisição vazado pelo F8
+🔲 **Pendente** — Prioridade **CRÍTICA (prazo 18/08)** — `MAN-OFF26-20-F1` (04/08) + **`-F1B` (05/08, que INVERTE a conclusão)**
 
 ⚠️ **A hipótese do owner foi FALSIFICADA, e o achado é maior que o rótulo.** O rótulo ambíguo não é
 cicatriz de importação: são **jogadores em Ano 1 com a bifurcação de regra PENDENTE**. E, ao medir,
@@ -4541,6 +4542,206 @@ direto**.
 [[WV1]] (salário de aquisição via waiver sem drop tratado como FA — vizinho direto do `fa_waiver`),
 [[F10]] (a invariante de fonte única, violada aqui pela 3ª definição), [[OFF26-11]] (dano silencioso
 em contrato).
+
+---
+
+## F1B (MAN-OFF26-20-F1B, 05/08/2026) — a arbitragem pelo regulamento INVERTE a conclusão
+
+⚠️ **A conclusão da F1 — *"o rollover está certo e a tela está errada"* — estava PARCIALMENTE
+ERRADA, e o owner tinha razão ao recusá-la.** Ela foi inferida da arquitetura (uma função respeita o
+banco, a outra não), não medida contra o regulamento. Ao aplicar a régua definitiva, caso a caso,
+apareceu **exatamente o cenário que o prompt anterior antecipou**: para uma coorte grande **o banco
+está errado**, a função que o respeita **propaga o erro com convicção**, e a que reconstrói
+**acerta**.
+
+**O achado central é maior que tudo que a F1 reportou:** **73 jogadores** vão receber a **regra
+errada** no rollover de 18/08 — não 5.
+
+### T1 — Regulamento à mão, caso a caso
+
+Árbitro implementado **sem chamar o `salary_engine`**: 6.2/6.3 (valorização), 6.6 (waiver/FA ano 2),
+6.9 (renovação), 6.10 (floor, mín $1). ⚠️ Todos os números usam **ESPN provisória** — o veredito é
+sobre a **regra aplicada**, não sobre o valor final, que só se fecha em 18/08.
+
+**Grupo B — os 21 rookies (dado consistente: `start=2025`, `ano=1`).**
+
+> **Omarion Hampton** — `rookie_draft`, salário $26 (ano 1/2025), ESPN 2026 = 44.
+> Em 2026 é **ano 2**. Rookie **não** é aquisição de waiver/FA ⇒ a 6.6 **não se aplica**; vale a
+> **6.2/6.3**: `MAX(salário anterior, 50% do ESPN)` = `max(26, floor(0,5 × 44) = 22)` = **$26**.
+> **Rollover $26 ✅ · Tela $44 ❌** — a tela descarta o contrato e recalcula o ano 1 como
+> `floor(ESPN de hoje)`, violando a 6.1 (o ano 1 é *"o valor utilizado no Auction"*, não o ESPN
+> corrente). Idêntico para **McMillan** ($15 ✅ × $30), **Egbuka** ($13 ✅ × $26).
+
+⚠️ **E a tela erra nos DOIS sentidos** — a F1 disse "sempre para cima", o que é **falso**:
+
+> **Ashton Jeanty** — `rookie_draft`, $57, ESPN 45. 6.2/6.3: `max(57, 22)` = **$57**.
+> **Rollover $57 ✅ · Tela $45 ❌ — subestima em $12.** Idem **TreVeyon Henderson** ($21 ✅ × $10,
+> −$11). **9 dos 26 subestimam.** É a direção perigosa: leva a manter um contrato que não cabe.
+
+**Grupo A — os 5 divergentes que também estão entre os 85** (todos `free_agent`):
+
+> **Christian Watson** — o histórico do Sleeper (eventos com `sleeper_event_ref`, i.e. transações
+> reais) é: `2024 auction_draft` → `2025 rollover` → **`2025 drop`** → **`2025 free_agent`**.
+> Ou seja: **foi dropado e readquirido como free agent em 2025**.
+> Pela **6.1** (*"o primeiro ano é o ano da aquisição no draft ou nos waivers"*) o contrato
+> **recomeçou em 2025 como ano 1**, salário $1 — que é *"sem valor"*, exatamente como manda a
+> **6.6**. Logo, em **2026 ele está no ANO 2**, e a 6.6 manda **80% do ESPN**:
+> `floor(0,8 × 6)` = **$4**.
+> ⇒ **Tela $4 ✅ · Rollover $3 ❌.** O `contract_year = 2` armazenado está **errado**: deveria ser 1.
+> Idem **Pierce** ($5 ✅ × $3), **Parker Washington** ($4 ✅ × $3), **Stafford** ($3 ✅ × $2),
+> **Michael Wilson** ($2 ✅ × $1).
+
+**Veredito agregado — a resposta a "qual função corrigir":**
+
+| população | quem acerta | o que corrigir |
+|---|---|---|
+| 21 rookies + demais com dado consistente | **rollover** | **a tela** |
+| **73 readquiridos em 2025** (inclui os 5 acima) | **a tela**, por acidente | **o DADO** (`contract_year`) — e a regra que o motor escolhe |
+| 5 `fa_waiver` em ano 1 | ambos, **hoje** | `_WAIVER_TYPES` (latente até a ESPN definitiva) |
+
+⇒ **Corrigir as três coisas: a tela, o dado e o enum.** Nenhuma das duas funções é "a certa".
+
+### T2 — Censo semântico: o vocabulário de EVENTO vazou para o campo de AQUISIÇÃO
+
+| tipo | n | de onde vem | regra que o código aplica | regra devida | diverge? |
+|---|---|---|---|---|---|
+| `auction_draft` | 96 | CSV (`_norm_acq`) — **0 tocados pelo F8** | ano 1 = lance; depois 6.2/6.3 | 6.1 + 6.2/6.3 | não |
+| `rookie_draft` | 31 | CSV — **0 tocados pelo F8** | ano 1 = `floor(ESPN×1,2)`; depois 6.2/6.3 | 8.2.7 + 6.2/6.3 | não |
+| `waiver` | 17 | CSV — **0 tocados pelo F8** | ∈ `_WAIVER_TYPES` ⇒ 6.6 | 6.6 (ou **6.8** se readquirido pelo próprio owner) | **6.8 não é implementável** — falta o dado |
+| `free_agent` | 39 | **F8 — 39/39** | ∈ `_WAIVER_TYPES` ⇒ 6.6 | 6.6 | não |
+| **`fa_waiver`** | 37 | **F8 — 37/37** | ⛔ **fora** de `_WAIVER_TYPES` ⇒ valorização | 6.6 | **SIM** |
+| **`fa_auction`** | 28 | **F8 — 28/28** | ⛔ **fora** ⇒ valorização | 6.6/7.1.1 (a decidir) | **provável** |
+
+⛔ **RESPOSTA À PERGUNTA CENTRAL: é ACIDENTE, não decisão.** O mecanismo está em
+[sync_sleeper.py:1217-1218](sync_sleeper.py#L1217-L1218), no rebuild canônico do F8:
+
+```python
+if ev["season"] >= 2025:
+    new_acq = ev["event_type"]     # ← vocabulário de EVENTO gravado no campo de AQUISIÇÃO
+```
+
+`_norm_acq` ([import_csv.py:30](import_csv.py#L30)) **nunca produz** `fa_waiver` nem `fa_auction` —
+seu contradomínio é `{auction_draft, waiver, free_agent, rookie_draft, unknown}`, e `_WAIVER_TYPES`
+foi escrito contra **esse** vocabulário. O F8 introduziu um **segundo vocabulário** (o de
+`PlayerHistory.event_type`) no mesmo campo, e **os dois nunca foram reconciliados**.
+
+**Prova empírica** (`F8PlayerBackup`, 127 linhas): **100%** dos `fa_waiver`, `fa_auction` e
+`free_agent` foram escritos pelo F8; **0%** dos `auction_draft`, `rookie_draft` e `waiver`. As
+transições incluem `rookie_draft → fa_waiver` (7) e `auction_draft → fa_auction` (25).
+
+**A ironia registrada:** o comentário nas linhas 1215-1216 diz *"Only update acquisition_type if
+last event is >= 2025 (protege year-1 rules do salary_engine para contratos vigentes)"* — o autor
+**sabia** que o campo alimenta regra salarial e pôs um guard **de season**. O buraco é de
+**vocabulário**, e está justamente no ramo que o guard considerou seguro.
+
+### T3 — Os 85: semântica apurada, e ela INVERTE a leitura anterior
+
+**Os dois campos têm escritores e semânticas diferentes:**
+
+- `contract_year` — vem do **CSV do owner** ([import_csv.py:103](import_csv.py#L103),
+  `contract_year_2025`), sob o guard `csv_bootstrap_done`.
+- `contract_start_season` — **derivado** (`CURRENT_SEASON − cyr + 1`,
+  [import_csv.py:105](import_csv.py#L105)) sob o guard **independente** `f8_rebuilt`; e, após o F8,
+  **sobrescrito** por `ev["season"]` = **a season do último evento real**
+  ([sync_sleeper.py:1232](sync_sleeper.py#L1232)).
+
+Não é "erro de importação" nem "convenção legítima": é **colisão semântica entre dois escritores com
+guards independentes**. E a apuração mostra qual dos dois está certo:
+
+✅ **Os 85 têm, TODOS, `drop` real E reaquisição real de 2025** no chain do Sleeper (eventos com
+`sleeper_event_ref`). Não é artefato: são transações da API.
+
+| evento de reaquisição (2025) | n | mesmo time | time diferente |
+|---|---|---|---|
+| `fa_waiver` | 32 | 4 | 28 |
+| `free_agent` | 29 | 7 | 22 |
+| `fa_auction` | 24 | 1 | 23 |
+
+⇒ **`contract_start_season = 2025` está CERTO; `contract_year = 2` está ERRADO** para esses
+jogadores. Pela **6.1**, a aquisição de 2025 abre contrato novo — **ano 1 em 2025, ano 2 em 2026**.
+
+**A 6.8 é a única defesa possível do `contract_year = 2`** — mas ela exige *"adquiridos … **pelo
+próprio owner**"*, e **73 dos 85 foram readquiridos por um time DIFERENTE**. Para esses 73 a 6.8
+**não pode** ser invocada: o contrato novo é inequívoco.
+
+⚠️ **Isso corrige o que a diagnose F1B preliminar (relatada ao owner antes deste prompt) havia dito**
+— que `contract_year` seria o campo autoritativo. Com o histórico de eventos em mãos, é o contrário.
+
+**Exposição no rollover de 18/08** — os 73 serão tratados como **ano 3** (valorização) quando são
+**ano 2** (6.6, `0,8 × ESPN`):
+
+| ESPN 2026 | correto (0,8×E) | rollover fará | erro |
+|---|---|---|---|
+| $1 (hoje) | $73 | $226 | **+$153 a mais** |
+| $5 | $292 | $278 | −$14 |
+| $10 | $584 | $453 | **−$131 a menos** |
+| $20 | $1.168 | $775 | **−$393 a menos** |
+
+**O erro troca de sinal com o nível do ESPN** — hoje o rollover *sobrecobra* $79 no agregado
+(ESPN quase toda 1.0); com valores reais passa a *subcobrar*. Em qualquer cenário, **a regra
+aplicada está errada**, e o resultado entra **selado** na keeper sheet de 20/08.
+
+**Cruzamento com os 26:** **5 dos 26 estão entre os 85** (Watson, Pierce, Stafford, Wilson, Parker
+Washington) — e **sim, a divergência deles se explica por aí**. Os outros **21 não estão**: são
+rookies com dado consistente, onde a tela erra sozinha. **Os outros 80 dos 85 não aparecem entre os
+26 porque as duas funções concordam — e ambas erram**, mascaradas pela ESPN de 1.0. Era exatamente o
+ponto do owner: *concordância prova consistência, não correção*.
+
+⚠️ **Caveat de método:** o corte "mesmo time × time diferente" usa `PlayerHistory.team_name`, que o
+[[S4]] registra como **chave instável**. Os 73 são um piso confiável para o argumento (a maioria
+larga), mas a contagem exata merece conferência por `roster_id` antes de qualquer correção.
+
+### T4 — Alcance da função da tela
+
+| função | consumidores |
+|---|---|
+| `Player.projected_next_salary()` → `compute_salary_for_year` **(a que reconstrói)** | **um único**: [_macros.html:73](templates/_macros.html#L73), a coluna PROJ — que serve **`/` e `/team/<id>`** |
+| `salary_engine.project_next_salary` | **Cap Projector** ([salary.py:87](routes/salary.py#L87)), porta canônica `/budget` ([salary.py:150](routes/salary.py#L150), modo `projected:true`), `Player.to_dict()` |
+| `apply_season_rollover` | preview do admin + **o rollover real** ([offseason.py:681](routes/offseason.py#L681)) |
+
+**O Cap Projector usa a conta do backend** — a mesma do rollover. ⇒ **Cap Projector e coluna PROJ
+mostram números diferentes para o mesmo jogador**, e nenhuma tela avisa disso.
+
+### Refutação de premissas (MAN-METH-REG)
+
+**(a) Contraditas pelo observado:**
+1. ⛔ **"a tela diverge sempre para cima, +$62"** (premissa do prompt, herdada da F1). **Falso:**
+   **9 dos 26 subestimam**, até **−$12** (Jeanty). O +$62 é **saldo líquido**, não direção.
+2. ⛔ **"o problema pode ser só de classificação de tipo, não de contrato errado"** (informação do
+   owner sobre os waivers validados). **Parcialmente falso:** há **as duas coisas**. E note que os
+   **17 `waiver`** — o grupo que o owner validou — são **exatamente os que o F8 não tocou**; a
+   validação não alcança os 37 `fa_waiver`, que **nasceram do F8**.
+3. ⚠️ **"rookie entra a `floor(ESPN × 1,2)` conforme rodada"** (DADOS do prompt). O regulamento
+   **8.2.7** manda ESPN × 1,2 **sem** modulação por rodada — **não há regra por rodada no texto**.
+4. ⚠️ **"o regulamento trata waiver e FA juntos"** (afirmação da própria F1). A **6.6** trata; mas a
+   **6.8** os separa: dropado readquirido **em waiver pelo próprio owner** carrega o contrato
+   anterior. **A distinção do owner existia; a F1 a negou por leitura incompleta.**
+
+**(b) Não previstos pelo prompt:**
+1. **73 jogadores** com a regra errada no rollover — o prompt falava em 5.
+2. O vocabulário de **evento** vazando para `acquisition_type` via F8 (100% dos 3 tipos novos).
+3. `contract_start_season` ser **o campo certo** e `contract_year` o errado — inverso do intuitivo.
+4. O erro dos 73 **troca de sinal** conforme o ESPN.
+5. A **6.8 é hoje inimplementável**: não há campo que distinga "readquirido pelo próprio owner via
+   waiver" de "virou FA" — é o [[WV1]], que esta diagnose **confirma e agrava**.
+6. `salary_history` está **vazia** e o `EspnValueStore` só tem **2026** ⇒ não é possível verificar se
+   a 6.6 foi aplicada nos anos anteriores. A trilha de auditoria do salário **não existe**.
+
+### O que esta diagnose NÃO faz
+
+Não corrige salário, tipo, campo nem função. Correção de salário passa por `correct_player_salary` —
+**nunca patch**.
+
+**Decisões do owner, em ordem de prazo:**
+1. ⛔ **ANTES DE 18/08 — o item mais grave:** os **73** readquiridos em 2025 estão em **ano 2** ou
+   **ano 3** em 2026? Pela 6.1 é ano 2. Se o owner concordar, **`contract_year` precisa ser corrigido
+   antes do rollover**, senão 73 contratos saem com a regra errada e são selados em 20/08.
+2. **Antes de 18/08:** `fa_waiver` (e `fa_auction`?) entram em `_WAIVER_TYPES`? Sem isso, mesmo com
+   o `contract_year` certo, os 37 `fa_waiver` **continuam** sem a 6.6.
+3. **Antes de 20/08:** a coluna PROJ passa a consumir a fonte do backend. Hoje ela contradiz o Cap
+   Projector na mesma tela.
+4. **Estrutural (pós-leilão):** reconciliar os dois vocabulários de `acquisition_type` e criar o
+   dado que a **6.8** exige ([[WV1]]).
 
 ---
 
