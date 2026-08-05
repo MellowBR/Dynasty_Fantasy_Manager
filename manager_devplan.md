@@ -3583,3 +3583,89 @@ respeita **propaga o erro com conviccao**, e a que reconstroi **acerta**.
   que a 6.8 exige ([[WV1]]).
 
 **Prioridade do [[OFF26-20]] elevada de Alta para CRITICA (prazo 18/08).**
+
+### MAN-OFF26-20-F1C — o discriminador e o CANAL: de 73 para 29 (05/08/2026, Opus)
+
+**Registro docs-only.** Nenhum arquivo de codigo tocado; banco lido em `mode=ro`; board intacto.
+
+⚠️ **A F1B usou o CRITERIO ERRADO.** O corte *"readquirido pelo proprio owner x por time
+diferente"* saiu de uma leitura da 6.8 que **nao corresponde a regra real da liga**. Regra
+esclarecida pelo owner em 05/08 (autoridade sobre qualquer leitura do texto): **o discriminador e o
+CANAL de aquisicao, nao a identidade do time.**
+· **Waiver (leilao de FAAB):** o dropado vai a leilao; quem vence **leva com o contrato que ele
+  tinha** — salario e contagem de anos preservados — **para qualquer time**.
+· **Free agent (add gratis pos-lock):** entra **sem contrato**; $0/$1 no ano corrente e, no
+  seguinte, ja como **ano 2**, **0,8 x 1,2 x ESPN**.
+
+- ✅ **T1 — A DISTINCAO NUNCA SE PERDEU, e nao era verificacao manual: e CODIGO VIVO.** Esta em
+  `sync_sleeper.py:911-915` (`_collect_transaction_events`), que mapeia o `tx["type"]` da **propria
+  API** — `"waiver" -> "fa_waiver"`, `"free_agent" -> "free_agent"` — e o preserva em
+  `PlayerHistory.event_type`. Os **117 `fa_waiver`** e **150 `free_agent`** do historico tem
+  **todos** `sleeper_event_ref`: sao transacoes reais, nao reconstrucao. **Unica perda:** o **bid
+  FAAB** (`tx["settings"]["waiver_bid"]`) **nao e capturado** — **inocuo para salario** pela
+  **7.1.8** (*"os valores pagos pelos waivers nao sao considerados na folha salarial"*).
+  ⇒ **Nao era preciso refazer a identificacao.**
+
+- **T2 — Censo pelo canal, confianca ALTA, ZERO indeterminados.** Ultimo evento de aquisicao de
+  cada um dos 85, com trocas resolvidas para a aquisicao anterior (**6.7**): **32 `fa_waiver`**,
+  **29 `free_agent`**, **24 `fa_auction`**. O `acquisition_type` do `Player` **bate com o ultimo
+  evento em 100%** dos casos (32/32, 29/29, 24/24) — o F8 fez esse trabalho corretamente.
+
+- **T3 — os tres grupos, e o impacto real.**
+  · **(a) 32 via waiver — CERTOS.** Carregam contrato legitimamente, mesmo tendo trocado de time;
+    `contract_year = 2` esta correto. **Nada a corrigir.**
+  · **(c) 24 via leilao de 2025 — contagem errada, SALARIO CERTO.** Deveriam ser ano 1 em 2025, mas
+    **o erro nao tem efeito em 2026**: na trilha de valorizacao, `max(salario, 0,5 x ESPN)` da **o
+    mesmo numero em qualquer ano >= 2**. O off-by-one so se materializa na **renovacao (ano 5)**,
+    em 2029.
+  · **(b) 29 via free agent — ERRADOS; e o grupo do prazo.** Deveriam estar em ano 1 (2025) ⇒ **ano
+    2 em 2026** ⇒ `0,8 x 1,2 x ESPN`. O rollover os tratara como ano 3 (valorizacao) e vai
+    **SUBCOBRAR**: delta **+$6** com a ESPN provisoria de hoje, **+$58** a ESPN $5, **+$87** a $10,
+    **+$174** a $20.
+
+- **T4 — AMBIGUIDADE DO 1,2 ELIMINADA.** O fator e aplicado na **fronteira de escrita**, nunca no
+  calculo: `espn_pdf_parser.py:129` (`max(1.0, float(int(espn_raw*1.2)))`) e `routes/admin.py:173`
+  (CSV bulk). `Player.espn_ref_value` guarda o valor **ja ajustado**, e `salary_engine._adj()` e
+  **apenas guard de `None`** — nao multiplica. Logo `waiver_year2_salary` = `floor(0,8 x
+  espn_ref_value)` = **`floor(0,8 x 1,2 x ESPN_raw)`** ✅, e o mesmo vale para valorizacao (0,5) e
+  rookie (1,0). **O codigo ja implementa a formula que o owner descreve.** Confirma a
+  [[MAN-ESPN12]], que ja havia varrido o tema.
+
+- **T5 — revisao item a item da F1B.** ⛔ **"73 contratos errados" CAI** — sao **29**. ⛔ **O achado
+  da F1 sobre `fa_waiver` INVERTE: estar FORA de `_WAIVER_TYPES` esta CERTO** (waiver carrega
+  contrato ⇒ valorizacao), e `free_agent` estar **dentro** tambem esta certo (FA ⇒ 0,8 no ano 2).
+  ⛔ **"5 `fa_waiver` em ano 1 expostos" CAI.** ⚠️ *"`contract_start_season` certo, `contract_year`
+  errado"* **sobrevive PARCIALMENTE**: vale para os 29 e, na contagem, para os 24; **nao vale** para
+  os 32, onde `contract_year = 2` e o correto. ✅ **Sobrevivem intactos:** os **21 rookies** com
+  divergencia de tela (Hampton **$26** rollover ✅ x $44 tela; Jeanty **$57** ✅ x $45), a tela
+  errando nos **dois sentidos**, o **Cap Projector x coluna PROJ** e a **`salary_history` vazia**.
+  ✅ O fato de o **F8 gravar `event_type` em `acquisition_type`** sobrevive, mas ⚠️ **a leitura
+  muda: nao e acidente danoso** — os valores gravados (`fa_waiver`/`free_agent`) **sao exatamente o
+  canal**, e o `_WAIVER_TYPES` os trata **corretamente**. E **acoplamento fragil** (dois
+  vocabularios no mesmo campo), **nao bug ativo**.
+
+- ⚠️ **ACHADO NOVO, DE SINAL TROCADO:** o enum **`waiver`** (17 jogadores, vocabulario do CSV) esta
+  **DENTRO** de `_WAIVER_TYPES` e, pela regra do owner, **nao deveria** — waiver carrega contrato.
+  **Impacto em 2026: ZERO** — todos os 17 estao em `contract_year = 2`, logo `next_yr = 3` e a regra
+  do ano 2 **nao dispara**. **Latente, nao ativo.**
+
+- ⚠️ **INDETERMINADO, declarado como tal (sem inferencia):** os **5 `fa_waiver` em ano 1** (Dike,
+  Noel, Willis, Gadsden, Shough) entraram por waiver **sem contrato previo**. A regra do owner diz o
+  que acontece quando o jogador **tem** contrato (carrega), mas **nao diz** qual e o ano 2 de um
+  contrato que **nasceu** de um claim de waiver. A **6.6** literal (*"Waivers **ou** Free
+  Agents ... no segundo ano, 80%"*) mandaria 0,8; a leitura "waiver != FA" mandaria valorizacao.
+  Hoje as duas dao $1 (ESPN provisoria 1.0); em 18/08 podem divergir. **Decisao do owner.**
+
+- **Premissas refutadas:** *"a identificacao ja foi feita — encontrar onde vive"* — **certo, e
+  melhor do que o prompt supunha**: nao e verificacao manual perdida, e codigo que roda a cada sync
+  alimentado pela API. *"o erro real esta so nos que vieram como FA"* — **quase**: ha tambem os 24
+  do leilao com contagem errada, mas **sem efeito no salario de 2026**. **Nao previsto:** a
+  valorizacao ser **indiferente ao numero do ano** (>=2) — e isso que reduz o problema de 73 para 29,
+  porque o off-by-one so importa na porta do 0,8 (ano 2 de FA) e na renovacao (ano 5).
+
+- **Prioridade do [[OFF26-20]] rebaixada de CRITICA para ALTA** (29 jogadores, delta de $6 hoje) —
+  **o prazo continua 18/08**, e o numero cresce com a ESPN definitiva. **Decisoes do owner:**
+  (1) confirmar que os **29 do canal FA** vao a `contract_year = 1`; (2) decidir o **indeterminado**
+  dos 5; (3) ate 20/08, a coluna PROJ passar a consumir a fonte do backend; (4) sem pressa, os 24 do
+  leilao (efeito so em 2029) e o enum `waiver` no conjunto errado (latente). **Nada a fazer nos 32
+  do waiver — estao certos.** Correcao, se houver, passa por `correct_player_salary` — nunca patch.
