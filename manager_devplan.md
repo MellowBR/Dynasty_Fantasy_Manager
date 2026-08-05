@@ -3743,3 +3743,57 @@ ja passou pela valorizacao de 2025 e "corrigi-lo" quebraria um contrato certo.
 `correct_player_salary`, nunca patch.** Sob a **6.7** (a trade carrega o contrato) os 4 ambiguos de
 "trade depois" (Stafford, Robinson, Stroud, K. Miller) seriam determinados e entrariam em CORRIGIR;
 ficaram fora porque o prompt classificou "trade no meio" como duvida — registrado, nao decidido.
+
+### MAN-OFF26-20-CANAL — Gainwell pelo canal, e o grupo fecha em 22 (05/08/2026, Fable)
+
+**Registro docs-only, read-only ABSOLUTO.** Nenhuma escrita em banco ou plataforma; board intacto.
+
+O owner recusou aprovar sem resolver o Gainwell pelo **canal** — o discriminador que ele proprio
+fixou — em vez do padrao (mesmo owner + 6 dias). A recusa era metodologicamente correta, e o dado
+deu razao a leitura dele.
+
+- ✅ **T1 — Gainwell e `free_agent`, e ENTRA no grupo.** A reaquisicao de 2025-09-01 e
+  `tx:1268069831555424256` (liga 2025, leg 1): `type: "free_agent"`, `status: "complete"`,
+  `settings: null`, `waiver_bid: null` — **reconfirmada AO VIVO na API nesta sessao**, nao so do
+  dump. Prova de contraste na propria historia dele: o waiver claim **failed** de 2024
+  (`tx:1159714113438957568`) veio com `type: "waiver"` e `settings.waiver_bid: 0` — quando e
+  waiver, a API marca. Canal FA ⇒ 6.8 nao se aplica (so existe no canal waiver) ⇒ contrato reabre
+  em 2025 ⇒ `contract_year = 2` errado tambem para ele. ⛔ **A "6.8 literal" da VERIF cai; a
+  leitura do owner (6 dias atravessam o waiver period) esta confirmada pelo dado.**
+
+- ✅ **T2 — canal dos 21 + Bates: `free_agent` em 23/23.** Os 21 CORRIGIR reconfirmados um a um
+  contra a transacao da API (type + status + bid); **nenhum waiver inesperado**. Bates
+  (`tx:1276659069179924480`) tambem `free_agent` — ambiguidade mantida por escopo, mas sob a mesma
+  regua ela se dissolve. **Invariante estrutural medido nas 1125 txs do chain: 225/225 waivers
+  completos tem `settings.waiver_bid`; 661/661 `free_agent` completos nao tem.** O canal e
+  estrutura da API, nao convencao de rotulo.
+
+- **T3 — a conta e o mecanismo.** Os 22 sao **homogeneos**: `cy=2, css=2025, acq=free_agent,
+  sal=$1, needs_review=0`. **A correcao toca UM campo: `Player.contract_year`, 2 → 1.** Salario
+  ($1 = ano-1 FA correto), `contract_start_season` (2025 certo), `acquisition_type` (canal real) e
+  `espn_ref_value` ficam. Como `free_agent ∈ _WAIVER_TYPES`, **a correcao de dado basta** — com
+  `cy=1` o rollover aplica sozinho `0,8 × ESPN REF` no `next_yr=2`; nao precisa mexer no motor
+  para os 22. Conta com ESPN REF atual: **$28 → $33 (+$5)** — Pierce $3→$5, Watson $3→$4,
+  P. Washington $3→$4, Wilson $1→$2; os 16 com ESPN REF 1.0 tem delta $0 **hoje** (correcao de
+  contagem; o valor aparece com a definitiva de 18/08).
+  ⚠️ **Vao canonico declarado:** `correct_player_salary` (models.py:216) so corrige salario; a
+  unica porta que edita `contract_year` com trilha e o approve do M2 (`_REVIEW_ALLOWED_EDITS`,
+  admin.py:1015), que exige `needs_review=True` — e os 22 estao em 0. **O prompt de correcao
+  devera criar a porta no molde do M2:** escrita do campo + `PlayerHistory` de auditoria (old→new
+  nas notes) na mesma transacao. Trilha resultante: 1 linha de `PlayerHistory` por jogador;
+  `SalaryHistory` intocada (sem mudanca de salario; e esta vazia, F1B).
+
+- ⚠️ **T4 — reconferencia contra `/data/dynasty.db`: BLOQUEADA desta maquina.** Sem Render CLI nem
+  API key local; rotas de prod atras de OAuth interativo. O vivo so e alcancavel via Render
+  Dashboard → Shell. **Comando sqlite3 read-only pronto no `improvements.md`** (select das 22
+  linhas por `sleeper_player_id`) — esperado: todas `cy=2, css=2025, acq=free_agent, sal=1,
+  needs_review=0, is_dropped=0`; qualquer divergencia suspende a linha correspondente. O seed
+  lido (git, 01/08) reflete as trades de 28-30/07 — frescor indireto, nao prova.
+
+- **Registrado sem decidir:** a regua do canal generaliza — os flags "6.8 mesmo owner" de
+  **Tucker** e **Bigsby** tambem se dissolvem (openers `free_agent`); **Willis** e **Noel**
+  entraram por waiver real (bid $0) e seguem como estavam — Noel continua o indeterminado
+  legitimo (claim que carrega contrato de leilao 2025).
+
+**Nada corrigido. O grupo final para aprovacao nominal e de 22 — os 21 da VERIF + Gainwell.
+A correcao segue sendo prompt separado, condicionada ao T4 no Render Shell.**
