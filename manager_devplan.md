@@ -2966,6 +2966,29 @@ F2 pronta para disparo em prompt separado.
   iniciado. Próximos disparos esperados: **F2 da urna** e **ensaio do OFF26-1** em prompts
   separados.
 
+### MAN-OFF26-1-ENSAIO — ensaio da janela selada preparado; execução é do owner (06/08/2026, Fable)
+
+**Pré-condição 1 da spec da urna.** Etapa 0 completa; roteiro dry-runado pelo Code antes de
+entregar; execução (localhost → produção com Michel) fica com o owner.
+
+- **ACHADO BLOQUEANTE (Etapa 0.1): não existia desfazer.** E o estado "travada" da janela É a
+  existência do snapshot canônico (`CutWindowAudit.is_canonical`) — ensaio sem reset deixaria
+  o `/open` da **janela real de 20/08 recusando com 409**. Construído `ensaio_janela_selada.py`
+  (molde do runner do FIX): `--status` / `--banner on|off` / `--reset --backup` (gate duro,
+  escopo por season, verificação 0/0/fechada pós-reset). **Comportamento declarado:** o reset
+  apaga a trilha do ensaio de propósito — evidência fica no backup, não no banco vivo.
+- **Rótulo de ensaio (Etapa 0.2, barato → incluído):** AppConfig `cuts_ensaio_banner` →
+  banner "🧪 ENSAIO — NÃO DECLARAR" em `/cuts` e `/cuts/keeper_sheet`. Mecanismo da janela
+  **intocado** (nenhuma rota de declaração/lock/reveal alterada).
+- **Dry-run 41/41 PASS** (cópia do seed, app real via test_client, 3 contas): gate D3 exercido
+  de verdade (o boot local criou 3 needs_review e o /open recusou — 409 correto), sigilo
+  pré-reveal (incl. `?team_id=` ignorado), substituição, lock trava tudo, hash verify, reveal
+  dos 12, keeper sheet + CSV, trilha, **reset devolve pré-ensaio e a janela REABRE**.
+- **Entregas:** `ensaio_janela_selada.py` · `janela_ensaio_test.py` (10) ·
+  `runbook_ensaio_janela_selada.md` (Etapas 1 e 2, checklist com "como verificar", desfazer e
+  restore de último caso). Suítes: **54+34+14+20+17+10 verdes**.
+- Sleeper intocado (ensaio é 100% interno ao Manager); board intacto, draft não iniciado.
+
 ### MAN-OFF26-4-SLOTS — prompt reeditado; o que faltava era transformar o residuo em ITEM (03/08/2026, Opus)
 
 **O prompt pediu (A) a conferencia aritmetica do D2 e (B) o rename dos cards — ambas ja entregues e

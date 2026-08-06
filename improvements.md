@@ -97,7 +97,7 @@
 | M15 | Lottery com 6 seeds (inclusão do 7º colocado com 1 bolinha; pool 96) — MAN-M15-REG | Média | ✅ 05/06/2026 |
 | M15-FIX | Editor de pesos do lottery: pool/legenda não re-renderizam ao editar + legenda /picks pós-sorteio lê canônico, não o audit | Média | ✅ 05/06/2026 |
 | M16 | Lottery aplica ordem sorteada a R2/R3 (deveria ser standings invertido) — corrompe ordem + valores dynasty de R2/R3 — MAN-M16-REG | Alta | ✅ 05/06/2026 |
-| OFF26-1 | Janela de cortes selada no Manager (declaração privada de cortes + budget ao vivo não-projetado + lock/revelação simultânea admin-manual, snapshot M8) — MAN-OFF26-REG/F1/REFINE/F2/SMOKE | Alta | ⚠️ F2 + e2e localhost 23/23; **smoke PARCIAL prod 17/06** (infra+abertura OK: deploy live, tabelas criadas, "Fechada — 0/12", gate `needs_review` zerado, cap soft); lock/hash + cortes reais ficam p/ OFF26-7 |
+| OFF26-1 | Janela de cortes selada no Manager (declaração privada de cortes + budget ao vivo não-projetado + lock/revelação simultânea admin-manual, snapshot M8) — MAN-OFF26-REG/F1/REFINE/F2/SMOKE/**ENSAIO** | Alta | ⚠️ F2 + e2e localhost 23/23; smoke PARCIAL prod 17/06; **ENSAIO PREPARADO (06/08): reset construído (`ensaio_janela_selada.py`, achado bloqueante — sem ele 20/08 ficaria travado), banner de teste, dry-run 41/41, runbook entregue — execução localhost+prod pendente do owner** |
 | OFF26-2 | Keeper sheet consolidada (12 times pós-revelação: keeper+salário+budget FA usable via porta projected:false+status declared, tabela+CSV) — insumo do Cowork — MAN-OFF26-REG/F1/REFINE/F2/SMOKE | Alta | ⚠️ F2 + e2e localhost 20/20; **smoke PARCIAL prod 17/06** (deploy live, `CutWindowAudit` criada); sheet depende da revelação (não travada) → validação completa no OFF26-7 |
 | OFF26-3 | Importador de drafts de liga fantasma (rookie linear + FA auction via API, match por sleeper_player_id, preview + helper atômico) — MAN-OFF26-REG | Alta | ✅ 05/06/2026 |
 | OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only; **gate de integridade do leilão**) — MAN-OFF26-REG/F1/REFINE/PROBE/OWNERCHECK/F2/META | Média | ⚠️ F2 + 34/34 localhost (48/48 do salary_engine intactos) + board REAL atravessando o núcleo; **smoke PARCIAL prod 03/08** (`d83d2f8`: rota+card+seed do `phantom_league_id` OK; o 4º ponto era inalcançável → F2-META expôs a meta da liga sob bloqueio); **falta smoke com sheet real (só a partir de 20/08)**; cobertura do D6 aberta (2/12 sem coluna) |
@@ -1642,7 +1642,36 @@ de OFF26-1/2/4 existirem. OFF26-8 (Cowork aplica os cortes do OFF26-1 no roster 
 ---
 
 ### OFF26-1 — Janela de cortes selada
-⚠️ **F2 implementado (16/06/2026) — aguarda smoke prod** — Prioridade **Alta**
+⚠️ **F2 implementado (16/06/2026); smoke prod PARCIAL (17/06); ENSAIO PREPARADO (06/08 —
+MAN-OFF26-1-ENSAIO), pendente de execução pelo owner** — Prioridade **Alta**
+
+> #### ENSAIO (MAN-OFF26-1-ENSAIO, 06/08/2026) — preparado; execução é do owner
+>
+> Pré-condição 1 da spec da urna ([[OFF26-10]]): lock/hash/reveal nunca rodaram em prod.
+> Roteiro completo em **`runbook_ensaio_janela_selada.md`** (Etapa 1 localhost → Etapa 2
+> produção com Michel, backup + aviso no grupo + reset verificado).
+>
+> - **ACHADO BLOQUEANTE da Etapa 0, resolvido:** não existia caminho de desfazer — e o estado
+>   "travada" É a existência do snapshot canônico, então um ensaio sem reset **bloquearia a
+>   abertura da janela real de 20/08** (o `/open` recusa com 409). Construído
+>   **`ensaio_janela_selada.py`** (molde do runner do OFF26-20-FIX): `--status` (conferência
+>   read-only, sem expor conteúdo de declaração — D6 vale até para o operador), `--banner
+>   on|off`, `--reset --backup <path>` (gate duro: sem backup conferido, nenhuma escrita;
+>   escopo por season; verificação pós-reset 0/0/fechada). **Comportamento declarado: o reset
+>   apaga a trilha do ensaio de propósito** — a evidência fica no backup, não no banco vivo.
+> - **Rótulo de ensaio incluído (custo baixo):** AppConfig `cuts_ensaio_banner` → banner
+>   "🧪 ENSAIO — NÃO DECLARAR" em `/cuts` e `/cuts/keeper_sheet`. Mitiga o risco operacional
+>   real (owner declarar achando que vale) junto com o aviso no grupo.
+> - **Dry-run do Code (06/08, cópia do seed, app real + test_client): 41/41 checks PASS** —
+>   ciclo completo com 3 contas (admin, co-admin, owner comum): gate D3 exercido de verdade
+>   (409 com needs_review pendente), sigilo pré-reveal (inclusive `?team_id=` ignorado),
+>   substituição, lock trava tudo, hash verify, reveal simultâneo dos 12, keeper sheet
+>   (cortado fora + CSV), trilha, **reset devolve estado pré-ensaio e a janela REABRE**.
+> - Testes permanentes: `janela_ensaio_test.py` (10 — núcleo do reset, propriedade crítica
+>   pós-reset, escopo por season, atomicidade, banner nas duas telas).
+> - Mudança de código declarada (escopo Etapa 0): `ensaio_janela_selada.py` (novo),
+>   flag `ensaio_banner` nas 2 rotas de página de `routes/cuts.py`, banner nos 2 templates.
+>   **Mecanismo da janela intocado** (nenhuma rota de lock/reveal/declaração alterada).
 
 **Descrição:** cada owner autenticado vê **apenas o próprio roster** e declara
 keepers/cuts no Manager, com budget resultante (`$200 − keepers`) calculado ao vivo

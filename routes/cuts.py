@@ -114,6 +114,9 @@ def cuts_page():
         teams=teams,
         state=_window_state(season),
         is_admin=current_user.is_admin,
+        # OFF26-1-ENSAIO: rótulo de janela de TESTE (ligado/desligado pelo script
+        # ensaio_janela_selada.py --banner; mitigação de "owner declara achando que vale")
+        ensaio_banner=get_config("cuts_ensaio_banner", "false") == "true",
     )
 
 
@@ -435,7 +438,8 @@ def _build_keeper_sheet(season: int) -> dict:
 def keeper_sheet_page():
     season = get_current_season()
     return render_template("keeper_sheet.html", season=season,
-                           sheet=_build_keeper_sheet(season))
+                           sheet=_build_keeper_sheet(season),
+                           ensaio_banner=get_config("cuts_ensaio_banner", "false") == "true")
 
 
 @cuts_bp.route("/api/cuts/keeper_sheet")

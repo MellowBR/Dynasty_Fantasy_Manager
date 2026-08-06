@@ -2,6 +2,13 @@
 {% block title %}Janela de Cortes{% endblock %}
 
 {% block content %}
+{% if ensaio_banner %}
+{# OFF26-1-ENSAIO: rótulo de janela de TESTE — ligado só durante o ensaio #}
+<div class="alert alert-warn" style="margin-bottom:1rem;font-size:1.05rem;border:2px solid #d9534f">
+  🧪 <strong>ENSAIO DO SISTEMA — NÃO DECLARAR.</strong> Esta janela está aberta em modo de
+  TESTE; qualquer declaração feita agora será apagada. Aguarde a confirmação no grupo.
+</div>
+{% endif %}
 <div class="page-header">
   <h1 class="page-title">✂️ Janela de Cortes Selada</h1>
   <p class="page-subtitle">
