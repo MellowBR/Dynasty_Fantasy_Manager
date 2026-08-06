@@ -2930,6 +2930,42 @@ dono, `pre_draft`). **Modos de falha de ambiente descartados** — nao sao mais 
 - **34/34** e **48/48**; fixtures A/B/C com o mesmo resultado; `draft_id` nao persistido; board
   intacto, draft nao iniciado, so `GET`. **Status do OFF26-4 inalterado (⚠️).**
 
+### MAN-OFF26-10-SPEC — urna do late drop: decisão arbitrada + spec U1–U8 (06/08/2026, Fable)
+
+**Docs-only (exceção deliberada: sessão sem código).** As duas decisões em aberto do pacote
+intertemporada foram **arbitradas pelo owner em 06/08** e registradas; a spec da urna deixa a
+F2 pronta para disparo em prompt separado.
+
+- **[[OFF26-10]] DECIDIDO: a URNA — 2ª mini-janela selada no Manager, para 2026** (molde
+  OFF26-1; sigilo cobre até a **existência** da declaração; bilhete na urna, urna só abre no
+  prazo). **DM ao comissário descartada pelo owner.** Spec **U1–U8** registrada na seção do
+  item: 1 declaração/time (drop ou passo) · não declarar = passo · janela 20/08 (revelação dos
+  cortes) → 22/08 configurável · substituível até o lock · lock+hash+revelação por **REUSO** do
+  mecanismo OFF26-1 · elegibilidade = roster atual (saiu antes do lock → passo com aviso) ·
+  revelação **reemite a keeper sheet definitiva** (a de 20/08 vira provisória na trilha) ·
+  corte executa pelo caminho canônico do OFF26-1, sem paralelo.
+- **U6 × regulamento, conferido no texto (12/08/2025): SILENCIOSO** sobre proteção de rookie de
+  1ª contra drop. O que existe: **8.2.6** (obrigação de draftar na 1ª — o drop imediato
+  esvaziaria a obrigação, leitura defensável **não escrita**) e **8.2.2** (rookie draft "sempre
+  antes os drops" — só sequência). Se o owner quiser a proteção na urna, **arbitra na F2**;
+  default da spec: elegível = está no roster.
+- **Pré-condições de sequência registradas (não executadas):** (1) **smoke real do OFF26-1/2
+  antes da estreia** — lock/reveal nunca rodaram em prod; janela de teste em produção (cortes
+  fictícios → lock → hash → reveal → reset) antes de 20/08, coordenada com owner e co-admin;
+  (2) F2 da urna **entregue e smokada antes de 22/08**, idealmente antes de 20/08.
+- **[[OFF26-11]] DECIDIDO: opção A — Manager fonte única.** Keeper sheet definitiva (pós-urna)
+  como **lista de exclusão**; importador OFF26-3 ingere **só arremates**; keeper nos picks é
+  ignorado por definição; garantia board×sheet = **auditoria OFF26-4 antes do leilão**; **sem
+  reconciliação pós-leilão**. Decisão fechada; código fica para a F2 do item (escopo próprio).
+  O probe pós-draft do `is_keeper` deixa de ser bloqueante (vira confirmação na F2).
+- **Nota no [[OFF26-7]] (sem item novo):** transferência dos arremates para a liga real =
+  **manual, por owner** (keepers já estão nos rosters; ~30–50 adições na liga toda). Checklist
+  pós-leilão: "cada owner adiciona seus arremates antes da semana 1; admin confere contra o
+  import do Manager".
+- `git diff` **não toca código** (improvements.md + este log); board intacto, draft não
+  iniciado. Próximos disparos esperados: **F2 da urna** e **ensaio do OFF26-1** em prompts
+  separados.
+
 ### MAN-OFF26-4-SLOTS — prompt reeditado; o que faltava era transformar o residuo em ITEM (03/08/2026, Opus)
 
 **O prompt pediu (A) a conferencia aritmetica do D2 e (B) o rename dos cards — ambas ja entregues e

@@ -106,8 +106,8 @@
 | OFF26-7 | Dry run E2E da intertemporada: ensaio da cadeia inteira encadeada, foco nas costuras entre módulos (OFF26-6 ⊂ OFF26-7); depende de OFF26-1/2/4 existirem; decisão em aberto (gate único vs. por etapas) — MAN-OFF26-6-7-REG | Alta | 🔲 (op) |
 | OFF26-8 | Agente Cowork aplica os cortes do OFF26-1 no roster real do Sleeper (capability operacional NÃO-código: dirige a UI para dropar os cortados de cada time; irmão de OFF26-6, ⊂ OFF26-7); depende de OFF26-1 (fonte da lista) — MAN-OFF26-8-REG | Média | 🔲 (op) |
 | OFF26-9 | Acoplamento das fases da intertemporada × dependência do ESPN definitivo: o rollover (e a abertura da janela de cortes OFF26-1) depende mesmo do E4-a (ESPN definitivo, deliberadamente tardio) ou só de rollover + `needs_review` zerado? Suspeita do owner: E4-a entrou nas pré-condições por arrasto, atrasando indevidamente o início da intertemporada — investigação (F1 read-only) + correção de redação/microcopy — MAN-OFF26-PHASE-REG/F1/FIX | Alta | ✅ 17/06/2026 (F1 confirmou: abertura só exige `needs_review` zerado, E4-a por arrasto; FIX separou timing × qualidade de dado na D8/pré-condições/microcopy; **smoke do microcopy do passo 6 em prod conferido** — texto lê bem + layout intacto; detalhe no archive) |
-| OFF26-10 | **Late drop pós-lock** na janela selada: o late drop de **22/08** altera o conjunto de keepers **dois dias depois do lock** de 20/08, e keeper sheet, budget de FA e board da liga fantasma derivam todos do snapshot selado → a sheet de 20/08 é **provisória** para quem fechou os cortes acima do cap. Decisão em aberto: 2ª mini-janela selada × correção administrativa pós-lock sobre o snapshot existente — MAN-OFF26-10-11-REG | Alta | 🔲 |
-| OFF26-11 | Importador (OFF26-3) **não distingue keeper de arremate novo**: com keepers designados no board da liga fantasma, os picks do auction vêm misturados, e a porta canônica de aquisição é porta de **contrato ano 1** → ingerir um keeper **zera a idade do contrato** de quem nunca saiu do time (dano silencioso, visível só na renovação). Decisão em aberto: importar só arremates × reconciliar e reportar divergência — MAN-OFF26-10-11-REG | Alta | 🔲 |
+| OFF26-10 | **Late drop pós-lock = a URNA** (2ª mini-janela selada no molde do OFF26-1, no Manager, para 2026): o late drop de **22/08** altera o conjunto de keepers **dois dias depois do lock** de 20/08 → sheet de 20/08 **provisória**, definitiva reemitida pela urna. **✅ DECIDIDO pelo owner (06/08)** — DM ao comissário descartada; spec **U1–U8** registrada + 2 pré-condições de sequência (smoke real do OFF26-1/2 antes; F2 entregue antes de 22/08) — MAN-OFF26-10-11-REG → **-SPEC** | Alta | 🔲 (spec pronta, F2 em prompt separado) |
+| OFF26-11 | Importador (OFF26-3) **não distingue keeper de arremate novo** → ingerir keeper **zera a idade do contrato** (dano silencioso, visível só na renovação). **✅ DECIDIDO pelo owner (06/08): opção A — Manager é fonte única**; keeper sheet definitiva como **lista de exclusão**, importador ingere só arremates; garantia board×sheet = auditoria OFF26-4 **antes** do leilão; **sem reconciliação pós-leilão** — MAN-OFF26-10-11-REG → **-SPEC** | Alta | 🔲 (decisão fechada; F2 escopo próprio) |
 | OFF26-12 | **Keeper em IR conta na reserva de $1?** A **8.3.4** manda reservar `(22 − keepers)` e a **1.3** diz que os 2 IR "não são considerados no total de 22" — a regra **não diz** se keeper em IR entra em "keepers". Manager e Sleeper hoje **contam o IR dentro dos 22** (concordam entre si → auditoria sem falso positivo), mas isso deixa o Manager **até $2 mais permissivo que o regulamento** para time com IR (3 times hoje). **Decisão de REGRA DE LIGA, não de implementação**; se a leitura (b) vencer, o ajuste mexe em `salary_engine.draft_budget` — MAN-OFF26-4-LABELS/SLOTS | Baixa | 🔲 (decisão do owner) |
 | OFF26-13 | **Time com mais de 22 keepers não cabe no board** — F1 03/08: o time é o **achane** (24 = **22 ativos + 2 IR**, ambiguidade dissolvida), e **a hipótese "os cortes resolvem sozinhos" está REFUTADA** (ele está em **$195, abaixo do cap** — nada o obriga a cortar; os 2 times acima do cap **cabem** no board). +**5 times em 22 exatos** (folga zero). **T4: o teto de 22 não é validado em lugar nenhum** (`MAX_ROSTER` só divide no `draft_budget`, e o `max(0,…)` **apaga o excedente**), enquanto `MAX_IR` **é** enforçado — assimetria registrada: o regulamento permite **24** (22 + 2 IR, item 1.3) e o board da fantasma comporta **22 designações** (22 rodadas — slot de IR **não é** slot de draft). **1 time está em 24 hoje** (medido ao vivo); se chegar assim em 20/08, **2 keepers ficam EXPOSTOS ao leilão** pelo achado do [[OFF26-4]]. **Segunda causa de time não populável**, ao lado do teto de budget ([[OFF26-10]]) — e **não se resolve com o late drop** (1 drop não tira 2 excedentes). Decisão em aberto: corte adicional obrigatório × exceção administrativa — MAN-OFF26-4-LABELS/SLOTS | Alta | 🔲 |
 | OFF26-14 | **Duas contagens de cap convivem — as telas de roster EXCLUEM o salário de IR.** Decisão do owner: **o IR CONTA no cap** → o grupo que exclui está desalinhado da regra, e é o que o owner olha para cortar em 20/08 (`$186/$14` na tela × `$195` na régua do leilão; **3 times, $14** de divergência). **T3 — a réplica está toda no lado errado:** o lado que INCLUI IR tem **1 fonte** (`draft_budget`, [[F10]] preservada); o que EXCLUI tem **6** (`active_salary` + **5 somas inline** em `roster.py:89`, `league.py:22/99`, `admin.py:159/160`). **T5 — keeper sheet e auditoria [[OFF26-4]] consomem o MESMO número (com IR), NÃO divergem** — a cadeia do leilão é coerente; o descompasso é **tela do owner × leilão**. **T2 — sem decisão registrada:** filtro explícito desde o commit inicial, **sem comentário e sem teste**, e o gap **já estava anotado na F1 do [[OFF26-1]]** como "decisão pendente". **T6 — regulamento SILENCIOSO** sobre salário de IR no cap (o 1.3 fala de **contagem**, não de folha; a única exclusão de folha é o 7.1.8, sobre FAAB) → não contradiz nem confirma o owner. ⛔ **T4 — a string "cabe até 24" NÃO existe no código**; não há terceiro teto de roster. Laterais: `Team.total_salary()` é **código morto**, a keeper sheet **não marca quem está em IR**, `reserve_slots` nunca é lido — MAN-OFF26-14-F1 | Alta | ⚠️ **F2 04/08: NÃO unificou — rotulou.** As 7 superfícies passam a exibir **"cap ativo" × "folha total"** quando o time tem IR (achane: **$186 × $195**); 9 times sem IR seguem com **um número só**. `active_salary`, as 5 somas inline e `draft_budget` **intocados** (nenhuma linha de cálculo removida). 48/48 + 34/34. ⚠️ **A F2 foi REVERTIDA pelo [[OFF26-16]]** (decisão do owner: régua única) — o item fecha ✅ pelo smoke de 04/08, com o racional preservado no registro |
@@ -3404,6 +3404,12 @@ existirem** (não se ensaia cadeia cujas peças centrais não foram construídas
 antes da intertemporada real, **ou** roda **por etapas** conforme as peças (OFF26-1/2/4) ficam
 prontas? Registrar a decisão antes de iniciar a F1 do item.
 
+> **Nota registrada (06/08/2026, MAN-OFF26-10-SPEC) — transferência dos arremates para a liga
+> real é MANUAL, por cada owner.** Os keepers **já estão** nos rosters reais; movem-se só as
+> **adições novas** do leilão (~30–50 na liga toda — rotina de waiver). Linha no checklist
+> pós-leilão da cadeia: **"cada owner adiciona seus arremates antes da semana 1; admin confere
+> contra o import do Manager"**. Sem item novo — é passo operacional deste dry run/checklist.
+
 ---
 
 ### OFF26-8 — Cowork aplica os cortes no roster real do Sleeper
@@ -3435,9 +3441,9 @@ validação/procedimento operacional não-código que dirige a UI do Sleeper).
 
 ---
 
-### OFF26-10 — Late drop pós-lock na janela selada
-🔲 **Registrado 02/08/2026** — MAN-OFF26-10-11-REG — Prioridade **Alta** (caminho crítico
-**22/08**)
+### OFF26-10 — Late drop pós-lock na janela selada (a URNA)
+🔲 **DECIDIDO E ESPECIFICADO (06/08/2026, MAN-OFF26-10-SPEC) — F2 pronta para disparo em prompt
+separado** — MAN-OFF26-10-11-REG → **-SPEC** — Prioridade **Alta** (caminho crítico **22/08**)
 
 **Calendário da intertemporada 2026, confirmado pelo comissário (02/08/2026):** **17/08**
 rookie draft · **18/08** congelamento ESPN · **20/08** prazo de cortes · **22/08 late drop**
@@ -3502,21 +3508,75 @@ budget" — **deixou de ser probe: foi CONFIRMADA por experimento.**
 keepers posterior ao lock, e o que isso implica para a emissão da keeper sheet, para o budget
 de FA e para a ordem de população do board.
 
-**DECISÃO EM ABERTO (pendente do owner — NÃO arbitrada):** o late drop é uma **segunda
-mini-janela selada**, ou uma **correção administrativa pós-lock** sobre o snapshot existente? A
-escolha determina se há **novo lock/hash**, se a **revelação é simultânea de novo**, e o que a
-**trilha de auditoria** registra. Registrar a decisão antes de iniciar a F1 do item.
+**✅ DECISÃO ARBITRADA PELO OWNER (06/08/2026, MAN-OFF26-10-SPEC): a URNA — segunda mini-janela
+selada, no Manager, para 2026.** O late drop de 22/08 é uma segunda janela selada no molde do
+[[OFF26-1]]: cada owner deposita sua declaração em sigilo; ninguém vê **nada** — nem a existência
+de declarações — até o prazo; revelação simultânea depois. Metáfora do owner: **bilhete na urna,
+e a urna só abre depois do prazo.** A alternativa de baixa tecnologia (**DM ao comissário**) foi
+**DESCARTADA pelo owner** — não funciona; desenvolve-se a ferramenta, há tempo. O ramo "correção
+administrativa pós-lock" morre junto: haverá **novo lock/hash e revelação simultânea de novo**.
 
-**Dependências:** depende do **[[OFF26-1]]** (é o snapshot que o late drop altera); **afeta
-[[OFF26-2]]** (a sheet passa a ter versão provisória × definitiva) e **[[OFF26-4]]** (a
-auditoria compara contra qual versão?). Entra como **etapa do [[OFF26-7]]**, entre o lock e a
-sheet definitiva.
+#### SPEC DA URNA — decisões do owner (06/08/2026), insumo direto da F2
+
+- **U1 — Uma declaração por time, conteúdo selado por completo.** A declaração é: **um jogador do
+  próprio roster** (o late drop) **ou "passo"** (sem drop). Durante a janela, **nada é visível a
+  ninguém** — nem o conteúdo, nem se o time declarou. **O sigilo cobre a existência da
+  declaração** (mais estrito que o OFF26-1, que mostra o agregado "Fechada — N/12").
+- **U2 — Efeito de não declarar = passo.** Quem não depositar nada até o prazo fica sem late
+  drop. Declarar "passo" e não declarar têm o **mesmo efeito revelado** ("sem late drop"); a
+  distinção **pode** existir internamente (trilha), nunca no resultado.
+- **U3 — Janela: abre com a revelação dos cortes de 20/08; fecha em 22/08** em horário
+  **configurável pelo admin**. Fora da janela, a urna **não aceita depósito**.
+- **U4 — Declaração substituível até o lock.** Dentro da janela, o owner troca a própria
+  declaração à vontade (outro jogador, ou passo). **Vale a última antes do lock** — coerente com
+  a janela de cortes.
+- **U5 — Lock + hash + revelação simultânea, no molde do OFF26-1.** **Reuso, não
+  reimplementação** do mecanismo existente (lock, hash de integridade, trilha de auditoria molde
+  M8, revelação). Onde for parametrizável, parametrizar; onde exigir adaptação, adaptar **sem
+  duplicar lógica**.
+- **U6 — Elegibilidade do drop:** apenas jogador **atualmente no roster do time declarante**.
+  Drop declarado de jogador que **saiu do roster entre a declaração e o lock** (trade, p.ex.) é
+  **inválido e tratado como passo, com aviso na revelação**.
+  **O que o regulamento diz (conferido no texto de 12/08/2025):** sobre proteção de rookie de 1ª
+  rodada contra drop, o regulamento é **SILENCIOSO** — não existe regra escrita que proíba dropar
+  o rookie recém-draftado. O que existe: **8.2.6** ("todos os owners são obrigados a draftar na
+  primeira rodada; podem renunciar às picks de 2ª e 3ª") — o drop imediato do rookie de 1ª
+  **esvaziaria de fato a obrigação**, leitura defensável mas **não escrita**; e **8.2.2** (rookie
+  draft "**sempre antes os drops**") — fixa só a sequência do calendário. ⇒ A exclusão "keepers
+  já protegidos por regra" citada na spec **não tem hoje regra escrita que a alimente**; se o
+  owner quiser a proteção do rookie de 1ª na urna, é **decisão de liga a arbitrar na F2**
+  (default da spec, na ausência dela: elegível = está no roster).
+- **U7 — Pós-revelação: keeper sheet definitiva reemitida automaticamente.** A revelação da urna
+  **dispara a reemissão** — é essa sheet que a auditoria [[OFF26-4]] usa como lado do diff e que
+  o Cowork transcreve no board. A sheet anterior (de 20/08) fica marcada como **provisória** na
+  trilha (fecha a motivação original deste item: o artefato provisório deixa de circular com
+  cara de definitivo).
+- **U8 — O efeito do drop no contrato segue o caminho canônico** de corte já existente
+  (devolução integral do salário, **sem dead money** — regra da liga; o regulamento é
+  consistente: o cap deriva dos mantidos, 8.3.3, e o cortado fica disponível para o draft,
+  8.1.3). **A urna declara; a execução do corte na revelação usa o mecanismo de corte do
+  OFF26-1, não um paralelo.**
+
+#### Pré-condições de sequência da F2 (registradas, NÃO executadas aqui)
+
+1. **O smoke real do OFF26-1/2 vem ANTES da estreia da urna.** Lock e reveal **nunca rodaram em
+   produção** (smoke de 17/06 foi parcial: infra+abertura), e a urna reusa exatamente esse
+   mecanismo. Antes de 20/08: **janela de teste em produção** (cortes fictícios → lock → hash →
+   reveal → reset), coordenada com o owner e o co-admin.
+2. A F2 da urna precisa estar **entregue e smokada antes de 22/08** — idealmente antes de
+   **20/08**, para estrear junto com a janela grande já validada.
+
+**Dependências:** depende do **[[OFF26-1]]** (é o snapshot que o late drop altera; e é o
+mecanismo reusado — U5/U8); **afeta [[OFF26-2]]** (sheet provisória 20/08 × definitiva
+pós-urna — U7) e **[[OFF26-4]]** (a auditoria compara contra a definitiva — U7). Entra como
+**etapa do [[OFF26-7]]**, entre o lock e a sheet definitiva.
 
 ---
 
 ### OFF26-11 — Importador distingue keeper de arremate novo
-🔲 **Registrado 02/08/2026** — MAN-OFF26-10-11-REG — Prioridade **Alta** (caminho crítico
-**24/08**)
+🔲 **DECIDIDO (06/08/2026, MAN-OFF26-10-SPEC): opção A — Manager é fonte única; sheet como lista
+de exclusão. Implementação (F2) pendente, escopo próprio** — MAN-OFF26-10-11-REG → **-SPEC** —
+Prioridade **Alta** (caminho crítico **24/08**)
 
 **Descrição:** os keepers **precisam** estar designados no board da liga fantasma — **não é
 opcional**: o Sleeper não tem cap por time, e o cap individual **emerge** dos salários dos
@@ -3577,16 +3637,21 @@ tenha algo próprio a dizer sobre quem é keeper. **Não arbitrar antes do probe
 da liga fantasma, o que é arremate novo (contrato ano 1) e o que é keeper (contrato em
 andamento, a **não** re-criar).
 
-**DECISÃO EM ABERTO (pendente do owner — NÃO arbitrada):** o **Manager permanece fonte única da
-verdade** sobre keepers e o importador ingere **apenas os arremates**? Ou o importador
-**reconcilia os dois lados** e **reporta divergência de salário de keeper**, virando uma
-**segunda auditoria** (sobreposta ao [[OFF26-4]], que audita o mesmo par **antes** do leilão)?
-Registrar a decisão antes de iniciar a F1 do item.
+**✅ DECISÃO ARBITRADA PELO OWNER (06/08/2026, MAN-OFF26-10-SPEC): opção A — Manager é fonte
+única da verdade.** No import pós-leilão, a **keeper sheet definitiva** (a reemitida pela urna,
+U7 do [[OFF26-10]]) é **lista de exclusão**: o importador [[OFF26-3]] ingere **apenas os
+arremates**. **Keeper encontrado nos picks é ignorado por definição** — a garantia de que o
+board confere com a sheet é a **auditoria [[OFF26-4]], que roda ANTES do leilão**. **Sem
+reconciliação pós-leilão** — o ramo "segunda auditoria" morre (pressupunha que o Sleeper tivesse
+algo próprio a dizer sobre quem é keeper, e o indício `is_keeper:false` aponta que não tem).
+A decisão está **fechada como decisão**; **nenhum código neste registro** — o discriminador é a
+sheet, que o importador passa a **receber na F2 do item** (escopo separado, prompt próprio).
 
-**Dependências:** depende do **[[OFF26-3]]** (✅ — é a porta que ingere) e do **mesmo probe
-empírico que o [[OFF26-4]] aguarda**. Entra como **etapa do [[OFF26-7]]** (import do resultado
-do auction). Toca `record_acquisition` **apenas na leitura** (o que se decide ingerir), não na
-porta em si.
+**Dependências:** depende do **[[OFF26-3]]** (✅ — é a porta que ingere) e da **keeper sheet
+definitiva pós-urna** ([[OFF26-10]] U7). O probe pós-draft do `is_keeper` deixa de ser
+**bloqueante da decisão** (já arbitrada) — permanece útil como confirmação na F2. Entra como
+**etapa do [[OFF26-7]]** (import do resultado do auction). Toca `record_acquisition` **apenas na
+leitura** (o que se decide ingerir), não na porta em si.
 
 ---
 
