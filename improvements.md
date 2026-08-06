@@ -4366,7 +4366,7 @@ em IR (provavelmente sim), e o mesmo filtro pode existir em outras superfícies 
 ---
 
 ### OFF26-20 — Contrato carregado indevidamente em 29 free agents + coluna PROJ divergente
-⚠️ **Porta + runner prontos, ensaio 22/22 — aguardando execução do owner no Render Shell** — Prioridade **Alta (prazo 18/08)** — `MAN-OFF26-20-F1` (04/08) → **`-F1B`** (05/08, inverte) → **`-F1C`** (05/08, **corrige o critério: o discriminador é o CANAL, e o problema cai de 73 para 29**) → **`-VERIF`/`-CANAL`** (05/08, grupo fecha em 22, aprovação nominal do owner) → **`-FIX`** (06/08, porta canônica criada + ensaio verde)
+⚠️ **DADO CORRIGIDO EM PRODUÇÃO (06/08, 22/22 ✅) — restam PROJ, enum dos 5 e smoke visual** — Prioridade **Alta (prazo 18/08)** — `MAN-OFF26-20-F1` (04/08) → **`-F1B`** (05/08, inverte) → **`-F1C`** (05/08, **corrige o critério: o discriminador é o CANAL, e o problema cai de 73 para 29**) → **`-VERIF`/`-CANAL`** (05/08, grupo fecha em 22, aprovação nominal do owner) → **`-FIX`** (06/08, porta canônica + ensaio + **execução em prod pelo owner: 22/22, verificação completa**)
 
 ⚠️ **A hipótese do owner foi FALSIFICADA, e o achado é maior que o rótulo.** O rótulo ambíguo não é
 cicatriz de importação: são **jogadores em Ano 1 com a bifurcação de regra PENDENTE**. E, ao medir,
@@ -5233,12 +5233,30 @@ Esperado: `--check` termina em "OK — 22/22 elegíveis, casos vivos conferem"; 
 = linha fora do estado aprovado, deixada intacta de propósito. (`DYNASTY_DB=/data/dynasty.db` já
 está no ambiente do serviço; o deploy que leva o runner precisa estar no ar antes.)
 
-### Pendências (registradas no fechamento do FIX)
+### ✅ EXECUTADO EM PRODUÇÃO (owner, Render Shell, 06/08/2026 ~12:55 UTC)
 
-1. **Execução em prod pelo owner** (acima) → depois marcar ✅ no item.
-2. **Enum dos 5 `fa_waiver`** (Willis/Noel etc.) — decisão separada, aberta.
-3. **Coluna PROJ** das telas de roster (T2 do F1) — etapa seguinte, depois do dado.
-4. **Smoke visual pós-deploy** (roster/salary_history dos corrigidos).
+Sequência integral rodada pelo owner em `/data/dynasty.db` (transcript conferido nesta sessão):
+
+- **Backup:** `/data/pre_off26_20_fix.db`, 606.208 bytes, `ls -la` conferido ANTES da escrita.
+- **`--check`:** 22/22 elegíveis, guarda exata, casos vivos conferem — prod ainda ≡ estado T4.
+- **`--apply`:** **22 corrigidos (`contract_year 2 -> 1`); 22 linhas alteradas na tabela inteira
+  (só `contract_year`+`updated_at`); 22 linhas de trilha** em `player_history`
+  (`event_type='contract_year_correction'`, `sleeper_event_ref='fix:off26-20'`); dry-run do
+  rollover com **Pierce $5, Watson $4, P. Washington $4, Wilson $2** ✓ — terminou em "✅ OK".
+- Salário, `contract_start_season`, `acquisition_type`, `espn_ref_value`, `needs_review`:
+  intocados (verificação por diff de tabela inteira, conexão independente). `SalaryHistory`
+  não tocada. Board intacto, draft não iniciado.
+- Nota: os nomes de time na trilha refletem prod ("Tropa do Jarra 🏆" — renomeado vs. seed).
+- **O seed do git segue PRÉ-correção nos 22** (inofensivo: `init_data.py` nunca sobrescreve o
+  vivo; corrigir o seed é opcional e só faria diferença num redeploy do zero).
+
+### Pendências (após a execução)
+
+1. **Enum dos 5 `fa_waiver`** (Willis/Noel etc.) — decisão separada, aberta.
+2. **Coluna PROJ** das telas de roster (T2 do F1) — etapa seguinte, agora com o dado certo.
+3. **Smoke visual pós-deploy** (roster/salary_history dos corrigidos — "Ano 1/4" e trilha).
+4. (Opcional) Alinhar o seed do git ao pós-correção — rodar o runner no seed local, ou
+   substituir o seed por um backup de prod, quando o owner quiser.
 
 ---
 
