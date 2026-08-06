@@ -4366,7 +4366,7 @@ em IR (provavelmente sim), e o mesmo filtro pode existir em outras superfícies 
 ---
 
 ### OFF26-20 — Contrato carregado indevidamente em 29 free agents + coluna PROJ divergente
-⚠️ **DADO CORRIGIDO EM PRODUÇÃO (06/08, 22/22 ✅) — restam PROJ, enum dos 5 e smoke visual** — Prioridade **Alta (prazo 18/08)** — `MAN-OFF26-20-F1` (04/08) → **`-F1B`** (05/08, inverte) → **`-F1C`** (05/08, **corrige o critério: o discriminador é o CANAL, e o problema cai de 73 para 29**) → **`-VERIF`/`-CANAL`** (05/08, grupo fecha em 22, aprovação nominal do owner) → **`-FIX`** (06/08, porta canônica + ensaio + **execução em prod pelo owner: 22/22, verificação completa**)
+⚠️ **DADO ✅ EM PROD (22/22) · ENUM + PROJ IMPLEMENTADOS · Bryant/censo resolvidos — resta smoke pós-deploy** — Prioridade **Alta (prazo 18/08)** — `MAN-OFF26-20-F1` (04/08) → **`-F1B`** (05/08, inverte) → **`-F1C`** (05/08, **corrige o critério: o discriminador é o CANAL, e o problema cai de 73 para 29**) → **`-VERIF`/`-CANAL`** (05/08, grupo fecha em 22, aprovação nominal do owner) → **`-FIX`** (06/08, porta canônica + ensaio + **execução em prod pelo owner: 22/22**) → **`-CLOSE`** (06/08, **enum `fa_waiver` + PROJ na fonte única + Bryant/censo fechados**)
 
 ⚠️ **A hipótese do owner foi FALSIFICADA, e o achado é maior que o rótulo.** O rótulo ambíguo não é
 cicatriz de importação: são **jogadores em Ano 1 com a bifurcação de regra PENDENTE**. E, ao medir,
@@ -5252,11 +5252,84 @@ Sequência integral rodada pelo owner em `/data/dynasty.db` (transcript conferid
 
 ### Pendências (após a execução)
 
-1. **Enum dos 5 `fa_waiver`** (Willis/Noel etc.) — decisão separada, aberta.
-2. **Coluna PROJ** das telas de roster (T2 do F1) — etapa seguinte, agora com o dado certo.
-3. **Smoke visual pós-deploy** (roster/salary_history dos corrigidos — "Ano 1/4" e trilha).
+1. ~~Enum dos 5 `fa_waiver`~~ → **✅ resolvido no CLOSE** (decisão do owner 06/08, ver abaixo).
+2. ~~Coluna PROJ~~ → **✅ resolvido no CLOSE** (fonte única, ver abaixo).
+3. **Smoke visual pós-deploy** (roster/salary_history dos corrigidos — "Ano 1/4" e trilha;
+   + PROJ e enum, ver pendências do CLOSE).
 4. (Opcional) Alinhar o seed do git ao pós-correção — rodar o runner no seed local, ou
    substituir o seed por um backup de prod, quando o owner quiser.
+
+## CLOSE (MAN-OFF26-20-CLOSE, 06/08/2026) — enum `fa_waiver` + PROJ na fonte única + Bryant/censo
+
+### T2 — `fa_waiver ∈ _WAIVER_TYPES` (decisão do owner, 06/08)
+
+**Regra do owner:** quem entra por waiver **sem contrato prévio a carregar** segue a trilha de FA
+(ano 1 = $1, ano 2 = 0,8 × ESPN REF) — a regra de carregar contrato existe para impedir
+reestruturação via FAAB; sem contrato anterior, não há o que proteger. `fa_waiver` é justamente o
+que o **sync grava** para waiver claims ([sync_sleeper.py:912](sync_sleeper.py#L912)) — o enum
+alinha o motor ao vocabulário do sync.
+
+- **Guarda de alcance revalidada NA HORA (06/08, seed):** `fa_waiver` vivos = **5 em ano 1**
+  (Dike 12540, Noel 12536, Willis 8161, Gadsden 12493, Shough 12545 — todos $1, ESPN REF 1.0,
+  css 2025) + **32 em ano 2** (contrato carregado; `next_yr = 3` ⇒ **nunca** entram no ramo 0,8 —
+  VALORIZAÇÃO, inalterados). Contagem **idêntica à de 04/08** — nenhuma trade mudou o quadro.
+  O efeito da mudança alcança **exatamente os 5**.
+- Hoje os 5 dão $1 → $1 no rollover (0,8×1,0 trunca no piso) — o efeito aparece quando a ESPN
+  definitiva de 18/08 entrar.
+- **Nota Noel (registrada):** waiver $0 pelo próprio time que o draftou — padrão 6.8, efeito
+  prático hoje nulo; incluído na trilha FA **por decisão explícita do owner**.
+- `_WAIVER_TYPES` vive só no `salary_engine` (4 pontos, todos coerentes); testes em
+  `trilha_fa_proj_test.py` fixam: ano 1 = $1, 1→2 = 0,8, contrato carregado inalterado,
+  alcance do 0,8 restrito à transição 1→2, projeção ≡ rollover.
+
+### T3 — Pat Bryant: CORRETO fora dos 22; censo: zero casos novos
+
+**Bryant (12492) resolvido pela API, mesmo método do arco:** rookie draft 2025 (liga
+1224848075609100288, round 3 pick 28) → **drop 01/10/2025** (`tx:1279129013574451200`) →
+**reaquisição 22/10/2025 pelo canal FA**: `tx:1286718252017258496`, `type='free_agent'`,
+`status='complete'`, `settings=None`, `waiver_bid=None` (o invariante estrutural 225/661
+confirma o canal). Contrato vigente abre em 2025 por FA ⇒ estado correto =
+`free_agent/css 2025/**ano 1**` — **exatamente o que o banco já tem**. Os 22 estavam errados
+em ano 2; Bryant sempre esteve em ano 1. **Nada a corrigir.**
+
+**Censo `free_agent` + `css=2025` vivos (seed):** 39 = **22 corrigidos** + 17 fora:
+- **10 em ano 1** (Borregales, Cam Little, Cam Ward, C. Rodriguez, J. Lane, Hollins, **Bryant**,
+  Ewers, Shedeur, Tez Johnson) — mesma forma do Bryant, **já corretos**;
+- **7 em ano 2** (B. Robinson, Stroud, Bates, K. Miller, Stafford, Bigsby, Tucker) — **os 7
+  ambíguos/excluídos que a VERIF já tinha** (29 do F1C = 22 + estes 7). **Zero casos novos.**
+
+**Premissas do prompt refutadas:** (a) *"se é FA de 2025, deveria ter entrado na correção"* —
+⛔ só se estivesse em ano 2; ele está em ano 1 (o próprio prompt antecipou a hipótese, confirmada);
+(b) *"FA de 2025 sem passagem anterior pela liga"* — ⛔ Bryant TEVE passagem (draftado e dropado
+em 2025); e o censo mostra que **não há** o caso hipotético em estado errado.
+
+### T4 — Coluna PROJ na fonte única
+
+`Player.projected_next_salary()` ([models.py](models.py#L176)) agora **delega** a
+`salary_engine.project_next_salary` — a mesma fonte do Cap Projector, da porta `/budget` e do
+rollover real. A reconstrução via `compute_salary_for_year` (descartava o salário armazenado;
+26/248 divergentes, +$62 sempre superestimando) **morreu nesse método** — `compute_salary_for_year`
+segue existindo **só** para a calculadora/`full_contract_table` (exibição de contrato completo,
+uso legítimo). Consumidor único da coluna ([_macros.html:73](templates/_macros.html#L73))
+inalterado — muda a fonte, não a tela. **Guarda anti-réplica** (molde OFF26-16):
+`trilha_fa_proj_test.TestGuardaAntiReplica` falha se `compute_salary_for_year` reaparecer em
+`models.py`.
+
+Validação pelos casos conhecidos (dados do seed): **Hampton $26** (não $44), **Jeanty $57** (não
+$45 — o caso que SOBE), **Egbuka $13** (não $26), **McMillan $15** (não $30), **Watson ano 2 → $3**
+(não $4 — o caso que abriu a F1). Os 22 corrigidos passam a exibir o valor do dry-run (Pierce $5)
+— **em prod**; no seed local seguem pré-correção.
+
+### Suítes (06/08): 54 + 34 + 14 + 20 + **17 novas** (`trilha_fa_proj_test.py`) — todas verdes
+
+### Pendências de smoke (prod, pós-deploy)
+
+1. **PROJ nas telas:** `/` e `/team/<id>` — conferir Hampton $26, Jeanty $57, Egbuka $13 e um dos
+   22 (Pierce $5).
+2. **Enum no dry-run de prod:** os 5 `fa_waiver` de ano 1 com regra "Waiver Ano 2" no preview do
+   rollover (hoje $1 → $1 pelo piso).
+3. Revalidar a contagem 5/32 em prod na hora do rollover:
+   `sqlite3 /data/dynasty.db "select contract_year, count(*) from players where acquisition_type='fa_waiver' and is_dropped=0 group by 1;"`
 
 ---
 

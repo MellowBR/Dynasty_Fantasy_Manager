@@ -11,9 +11,9 @@ Rules:
   - Contract = 4 years.
 
 Year 1 salary:
-  auction_draft           → value paid at auction
-  rookie_draft            → floor(espn_adj), min $1
-  waiver / free_agent     → $1
+  auction_draft                      → value paid at auction
+  rookie_draft                       → floor(espn_adj), min $1
+  waiver / free_agent / fa_waiver    → $1
 
 Note: "keeper" deprecated as acquisition_type (F6, 22/04/2026) — players mantidos
 são auction_draft. O termo "keeper" permanece no contexto do draft_budget()
@@ -42,7 +42,13 @@ MAX_ROSTER = 22
 MIN_SALARY = 1
 CONTRACT_LENGTH = 4
 
-_WAIVER_TYPES  = {"waiver", "free_agent", "fa"}
+# `fa_waiver` (o que o sync grava para waiver claims) segue a trilha de FA — decisão do
+# owner (OFF26-20, 06/08/2026): quem entra por waiver SEM contrato prévio a carregar abre
+# contrato novo (ano 1 = $1, ano 2 = 0,8×ESPN REF). A regra de carregar contrato existe para
+# impedir reestruturação via FAAB; sem contrato anterior, não há o que proteger. No rollover
+# o ramo 0,8 só alcança quem está em ano 1 (next_yr == 2) — os de contrato carregado (ano 2+)
+# seguem em VALORIZAÇÃO, inalterados.
+_WAIVER_TYPES  = {"waiver", "free_agent", "fa", "fa_waiver"}
 _AUCTION_TYPES = {"auction_draft"}
 _ROOKIE_TYPES  = {"rookie_draft"}
 

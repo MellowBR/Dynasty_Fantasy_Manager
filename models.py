@@ -174,17 +174,11 @@ class Player(db.Model):
         return self.contract_year >= CONTRACT_LENGTH
 
     def projected_next_salary(self):
-        from salary_engine import compute_salary_for_year
-        espn = self.espn_ref_value or 0.0
-        if not espn:
-            return int(self.salary)
-        next_yr = self.contract_year + 1
-        return compute_salary_for_year(
-            acq_type=self.acquisition_type,
-            year1_value=self.salary,
-            espn=espn,
-            target_yr=next_yr,
-        )
+        # OFF26-20 T4: fonte ÚNICA de projeção — a mesma do Cap Projector, da porta /budget
+        # e do rollover real (respeita o salário armazenado; a reconstrução do contrato do
+        # zero superestimava a coluna PROJ em 26/248 jogadores, até +$18 num único rookie).
+        from salary_engine import project_next_salary
+        return project_next_salary(self)
 
     def to_dict(self):
         from salary_engine import project_next_salary
