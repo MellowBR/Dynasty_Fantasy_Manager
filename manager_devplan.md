@@ -2989,6 +2989,32 @@ entregar; execução (localhost → produção com Michel) fica com o owner.
   restore de último caso). Suítes: **54+34+14+20+17+10 verdes**.
 - Sleeper intocado (ensaio é 100% interno ao Manager); board intacto, draft não iniciado.
 
+### MAN-OFF26-1-POSENSAIO — Etapa 1 executada 10/10; fix do --db + manter-todos e hierarquia (06/08/2026, Fable)
+
+**Etapa 1 do ensaio EXECUTADA pelo owner (06/08, checklist 10/10)** — gate D3 real, ciclo
+completo, hash `5024b17a…` conferido, reset devolvendo 0/0/fechada com reabertura. Etapa 2
+(prod, com Michel) autorizada e pendente. Os dois achados do owner viraram código:
+
+- **(A) `--db` relativo** abria banco errado em silêncio: exists() checava o cwd, a URI do
+  SQLAlchemy resolvia contra outro diretório e o SQLite criava banco VAZIO ("no such table"
+  mascarava). Fix: `--db`/`--backup` resolvem para **absoluto antes de qualquer conexão**;
+  inexistente → **recusa** clara. Runbook atualizado.
+- **(B) Manter-todos explícito + hierarquia owner > admin** (decisão de desenho do owner):
+  botão "✋ Não vou cortar ninguém" (declaração ativa, conta no N/12; default silencioso D2
+  preservado); 3º status na sheet `owner_kept_all` = "Declarou (manteve todos)"; suprimento
+  admin sobre time que **declarou pessoalmente** → **RECUSA SECA 409** ("este time já declarou
+  pessoalmente"), expondo só existência+autoria, nunca conteúdo (D6); owner sempre sobrescreve
+  suprimento de admin. **Herança registrada na spec da urna** ([[OFF26-10]]).
+- Mecanismo selado (lock/hash/reveal/snapshot) **INTOCADO** — mudança na camada de declaração
+  + script do ensaio, como o prompt restringe.
+- **Validação:** suíte da janela 22; suítes completas 54+34+14+20+17+22; dry-run re-executado
+  **51/51 PASS** (novos: --db relativo/inexistente, manter-todos, hierarquia sem vazamento,
+  3º status). **Armadilha de teste registrada:** test_client reusa app context externo
+  empurrado e o flask_login cacheia o usuário em `g` — testes de rota não podem manter
+  contexto persistente (o dry-run original passou por não ter um; a 1ª versão da classe de
+  rota caiu nisso).
+- Runbook ganhou o **adendo da Etapa 2** (checks 11–13: manter-todos, hierarquia, 3º status).
+
 ### MAN-OFF26-4-SLOTS — prompt reeditado; o que faltava era transformar o residuo em ITEM (03/08/2026, Opus)
 
 **O prompt pediu (A) a conferencia aritmetica do D2 e (B) o rename dos cards — ambas ja entregues e

@@ -218,7 +218,12 @@ def admin_close_window():
 def admin_declare_for_team():
     """D5: admin supre ausente / adequa, ESCREVENDO pelo time alvo. É escrita pelo
     time (não leitura do alheio — D6): valida cut_ids contra o roster PÚBLICO do alvo
-    e grava; não devolve o conteúdo prévio da declaração."""
+    e grava; não devolve o conteúdo prévio da declaração.
+
+    POSENSAIO (hierarquia owner > admin, decisão do owner 06/08/2026): se o time alvo
+    JÁ DECLAROU PESSOALMENTE (cortes ou manter-todos), o suprimento é RECUSADO — recusa
+    seca. A decisão do dono não morre por sobrescrita cega. O aviso expõe só existência
+    e autoria, nunca o conteúdo (D6). Time silencioso ou suprido por admin: como antes."""
     season = get_current_season()
     if _window_locked(season):
         return jsonify({"error": "Janela já travada."}), 409
@@ -229,6 +234,13 @@ def admin_declare_for_team():
         return jsonify({"error": "team_id inválido"}), 400
     if not db.session.get(Team, team_id):
         return jsonify({"error": "Time não encontrado"}), 404
+
+    existing = CutDeclaration.query.filter_by(season=season, team_id=team_id).first()
+    if (existing and existing.declared and existing.editor
+            and existing.editor.team_id == team_id):
+        return jsonify({"error": "Este time já declarou pessoalmente — a declaração do "
+                                 "owner prevalece e o suprimento foi recusado. "
+                                 "(O conteúdo permanece selado.)"}), 409
 
     cut_ids, invalid = _sanitize_cut_ids(data.get("cut_ids"), team_id)
     if invalid:
@@ -367,8 +379,11 @@ def cuts_audit_verify():
 # a página exibe o timestamp do lock + aviso. Status `declared` por time (D6).
 
 # Labels PT do status de declaração (D6) — chave estável p/ CSV/tabela.
+# POSENSAIO: "owner_kept_all" distingue o manter-todos ATIVO (owner declarou zero cortes)
+# do silêncio (default D2) — a diferença que a hierarquia owner > admin precisa enxergar.
 _DECL_STATUS_LABEL = {
     "owner_declared": "Declarou",
+    "owner_kept_all": "Declarou (manteve todos)",
     "default_zero": "Default (manteve todos)",
     "admin_supplied": "Admin supriu",
 }
@@ -384,6 +399,8 @@ def _declared_status(snap_team: dict, season: int) -> str:
         season=season, team_id=snap_team["team_id"]).first()
     if decl and decl.editor and decl.editor.team_id != snap_team["team_id"]:
         return "admin_supplied"  # escrito por quem não é dono daquele time (D5)
+    if not snap_team.get("cut_ids"):
+        return "owner_kept_all"  # manter-todos ATIVO (POSENSAIO) — não é o default D2
     return "owner_declared"
 
 

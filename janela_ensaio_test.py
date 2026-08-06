@@ -138,6 +138,177 @@ class TestResetDoEnsaio(unittest.TestCase):
         self.assertEqual(window_report(2026)["state"], "closed")
 
 
+class TestDbPathResolucao(unittest.TestCase):
+    """POSENSAIO (A): --db relativo abria o banco errado — o exists() checava o cwd,
+    mas a URI do SQLAlchemy resolvia contra OUTRO diretório e o SQLite criava um banco
+    VAZIO em silêncio ("no such table"). Agora tudo resolve para absoluto ANTES."""
+
+    def test_relativo_resolve_contra_o_cwd(self):
+        from ensaio_janela_selada import _db_path
+        p = _db_path("ensaio_local.db")
+        self.assertTrue(p.is_absolute())
+        self.assertEqual(p, Path.cwd() / "ensaio_local.db")
+
+    def test_absoluto_passa_intacto(self):
+        from ensaio_janela_selada import _db_path
+        alvo = (BASE_DIR / "dynasty.db").resolve()
+        self.assertEqual(_db_path(str(alvo)), alvo)
+
+    def test_env_relativa_tambem_resolve(self):
+        import os
+        from ensaio_janela_selada import _db_path
+        old = os.environ.get("DYNASTY_DB")
+        os.environ["DYNASTY_DB"] = "rel_env.db"
+        try:
+            self.assertTrue(_db_path().is_absolute())
+        finally:
+            if old is None:
+                os.environ.pop("DYNASTY_DB", None)
+            else:
+                os.environ["DYNASTY_DB"] = old
+
+    def test_banco_inexistente_e_recusado(self):
+        """Criar banco novo nunca é intenção de quem passa --db — recusa clara, exit 1."""
+        from ensaio_janela_selada import main
+        rc = main(["--status", "--db", "nao_existe_mesmo_12345.db"])
+        self.assertEqual(rc, 1)
+
+    def test_reset_sem_backup_recusado_antes_de_qualquer_escrita(self):
+        from ensaio_janela_selada import main
+        rc = main(["--reset", "--db", str(BASE_DIR / "dynasty.db")])
+        self.assertEqual(rc, 1)
+
+
+class TestHierarquiaOwnerAdmin(unittest.TestCase):
+    """POSENSAIO (B): declaração pessoal do owner (cortes OU manter-todos) prevalece —
+    o suprimento do admin sobre time que declarou pessoalmente é RECUSADO (recusa seca),
+    sem vazar conteúdo. Time silencioso ou suprido por admin: funciona como antes.
+
+    Estrutura deliberada: NENHUM app context fica empurrado durante os requests — o
+    flask_login cacheia o usuário em `g` (escopo de app context), e um contexto externo
+    persistente faria todos os requests herdarem o usuário do primeiro."""
+
+    @classmethod
+    def setUpClass(cls):
+        from flask import Flask
+        from flask_login import LoginManager
+        from models import db, User
+        from routes.cuts import cuts_bp
+
+        cls.app = Flask(__name__)
+        cls.app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        cls.app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        cls.app.config["SECRET_KEY"] = "teste"
+        db.init_app(cls.app)
+        lm = LoginManager()
+        lm.init_app(cls.app)
+
+        @lm.user_loader
+        def load_user(user_id):
+            return db.session.get(User, int(user_id))
+
+        cls.app.register_blueprint(cuts_bp)
+
+    def setUp(self):
+        from models import db, Team, Player, User, set_config
+        with self.app.app_context():
+            db.drop_all()
+            db.create_all()
+            t_owner = Team(name="Time do Owner")
+            t_silent = Team(name="Time Silencioso")
+            db.session.add_all([t_owner, t_silent])
+            db.session.commit()
+            admin = User(email="admin@x.com", team_id=None, is_admin=True)
+            owner = User(email="owner@x.com", team_id=t_owner.id, is_admin=False)
+            jogador = Player(name="Kicker Ficticio", position="K", salary=1.0,
+                             team_id=t_owner.id)
+            db.session.add_all([admin, owner, jogador])
+            set_config("cuts_window_open", "true")
+            db.session.commit()
+            # IDs como ints puros — nada de instância ORM viva fora de contexto.
+            self.admin_id, self.owner_id = admin.id, owner.id
+            self.t_owner_id, self.t_silent_id = t_owner.id, t_silent.id
+            self.jogador_id = jogador.id
+
+    def _as(self, user_id):
+        c = self.app.test_client()
+        with c.session_transaction() as s:
+            s["_user_id"] = str(user_id)
+            s["_fresh"] = True
+        return c
+
+    def test_manter_todos_explicito_declara_e_conta(self):
+        c = self._as(self.owner_id)
+        r = c.post("/api/cuts/declaration", json={"cut_ids": []})
+        self.assertTrue(r.get_json()["success"])
+        state = c.get("/api/cuts/state").get_json()
+        self.assertEqual(state["declared_count"], 1)   # manter-todos conta no N/12
+        self.assertTrue(state["i_declared"])
+
+    def test_admin_nao_sobrescreve_manter_todos_do_owner(self):
+        self._as(self.owner_id).post("/api/cuts/declaration", json={"cut_ids": []})
+        r = self._as(self.admin_id).post("/api/cuts/admin/declare",
+                                         json={"team_id": self.t_owner_id, "cut_ids": []})
+        self.assertEqual(r.status_code, 409)
+        self.assertIn("declarou pessoalmente", r.get_json()["error"])
+
+    def test_admin_nao_sobrescreve_cortes_do_owner_e_nao_vaza_conteudo(self):
+        self._as(self.owner_id).post("/api/cuts/declaration",
+                                     json={"cut_ids": [self.jogador_id]})
+        r = self._as(self.admin_id).post("/api/cuts/admin/declare",
+                                         json={"team_id": self.t_owner_id, "cut_ids": []})
+        self.assertEqual(r.status_code, 409)
+        corpo = r.get_data(as_text=True)
+        self.assertNotIn("Kicker", corpo)      # nem o nome do jogador declarado
+        self.assertNotIn("cut_ids", corpo)     # nem a estrutura da declaração
+        self.assertIn("selado", corpo)         # a resposta afirma o sigilo
+
+    def test_admin_supre_time_silencioso_como_antes(self):
+        r = self._as(self.admin_id).post("/api/cuts/admin/declare",
+                                         json={"team_id": self.t_silent_id, "cut_ids": []})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.get_json()["success"])
+
+    def test_admin_reajusta_o_proprio_suprimento(self):
+        """Suprimento sobre suprimento anterior do admin segue permitido (não é do owner)."""
+        a = self._as(self.admin_id)
+        a.post("/api/cuts/admin/declare", json={"team_id": self.t_silent_id, "cut_ids": []})
+        r = a.post("/api/cuts/admin/declare", json={"team_id": self.t_silent_id, "cut_ids": []})
+        self.assertEqual(r.status_code, 200)
+
+    def test_owner_sobrescreve_suprimento_do_admin(self):
+        """A hierarquia no outro sentido: o dono sempre pode retomar a própria declaração."""
+        r = self._as(self.admin_id).post("/api/cuts/admin/declare",
+                                         json={"team_id": self.t_owner_id, "cut_ids": []})
+        self.assertEqual(r.status_code, 200)   # suprimento sobre silêncio: permitido
+        r = self._as(self.owner_id).post("/api/cuts/declaration",
+                                         json={"cut_ids": [self.jogador_id]})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.get_json()["success"])
+
+    def test_sheet_distingue_os_tres_manteve_todos(self):
+        """3º status (POSENSAIO): 'Declarou (manteve todos)' ≠ 'Declarou' ≠ 'Default'."""
+        self._as(self.owner_id).post("/api/cuts/declaration", json={"cut_ids": []})
+        self._as(self.admin_id).post("/api/cuts/admin/declare",
+                                     json={"team_id": self.t_silent_id, "cut_ids": []})
+
+        from routes.cuts import _declared_status, _DECL_STATUS_LABEL
+        from models import get_current_season
+        with self.app.app_context():
+            season = get_current_season()
+            s_owner_empty = {"team_id": self.t_owner_id, "declared": True, "cut_ids": []}
+            s_owner_cuts = {"team_id": self.t_owner_id, "declared": True,
+                            "cut_ids": [self.jogador_id]}
+            s_silent = {"team_id": self.t_silent_id, "declared": False, "cut_ids": []}
+            s_admin = {"team_id": self.t_silent_id, "declared": True, "cut_ids": []}
+
+            self.assertEqual(_declared_status(s_owner_empty, season), "owner_kept_all")
+            self.assertEqual(_declared_status(s_owner_cuts, season), "owner_declared")
+            self.assertEqual(_declared_status(s_silent, season), "default_zero")
+            self.assertEqual(_declared_status(s_admin, season), "admin_supplied")
+        self.assertEqual(_DECL_STATUS_LABEL["owner_kept_all"], "Declarou (manteve todos)")
+
+
 class TestRotuloDeEnsaio(unittest.TestCase):
     """O banner existe nas duas telas e as rotas passam a flag (guarda de fonte)."""
 

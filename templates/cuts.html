@@ -51,13 +51,15 @@
     </tbody>
   </table>
 
-  <div class="step-actions" style="margin-top:1rem;display:flex;gap:.75rem;align-items:center">
+  <div class="step-actions" style="margin-top:1rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
     <button id="save-btn" class="btn btn-primary" onclick="saveDeclaration()">💾 Salvar minha declaração</button>
+    <button id="keep-all-btn" class="btn btn-secondary" onclick="declareKeepAll()">✋ Não vou cortar ninguém (manter todos)</button>
     <span id="save-result" class="text-dim"></span>
   </div>
   <p class="text-dim" style="margin-top:.5rem;font-size:.85rem">
-    Sem declaração = zero cortes (mantém todos). A validação de cap (8.3.4) é só alerta aqui;
-    a adequação é resolvida no FA auction.
+    Declarar <strong>manter todos</strong> registra ativamente a sua decisão (com autor e hora) —
+    diferente do silêncio, que entra como default. Sem declaração = zero cortes (mantém todos).
+    A validação de cap (8.3.4) é só alerta aqui; a adequação é resolvida no FA auction.
   </p>
 </div>
 {% else %}
@@ -146,9 +148,19 @@ function saveDeclaration() {
   }).then(r => r.json()).then(d => {
     const el = document.getElementById('save-result');
     if (d.error) { el.textContent = '❌ ' + d.error; return; }
-    el.textContent = '✅ Declarado (' + d.cut_ids.length + ' cortes).';
+    el.textContent = d.cut_ids.length === 0
+      ? '✅ Declarado: MANTER TODOS (0 cortes).'
+      : '✅ Declarado (' + d.cut_ids.length + ' cortes).';
     loadState();
   });
+}
+
+// POSENSAIO: manter-todos ATIVO — desmarca tudo e declara zero cortes de forma explícita.
+function declareKeepAll() {
+  if (!confirm('Declarar que você NÃO vai cortar ninguém? Isso registra ativamente a decisão de manter o roster inteiro.')) return;
+  document.querySelectorAll('.cut-box').forEach(b => { b.checked = false; });
+  recalc();
+  saveDeclaration();
 }
 
 function loadMyDeclaration() {
@@ -171,6 +183,8 @@ function loadState() {
     // owner só edita quando aberta
     const saveBtn = document.getElementById('save-btn');
     if (saveBtn) saveBtn.disabled = (d.state !== 'open');
+    const keepAllBtn = document.getElementById('keep-all-btn');
+    if (keepAllBtn) keepAllBtn.disabled = (d.state !== 'open');
     const gate = document.getElementById('admin-gate');
     if (gate) gate.innerHTML = d.pending_review > 0
       ? '⛔ ' + d.pending_review + ' jogador(es) em needs_review — abertura bloqueada até zerar.'

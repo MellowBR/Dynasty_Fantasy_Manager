@@ -20,6 +20,9 @@
 
 Em localhost, acrescente `--db <caminho>` para apontar para um banco de teste
 (sem `--db`, usa a env `DYNASTY_DB`, senão o `dynasty.db` local).
+**POSENSAIO (06/08):** caminho **relativo funciona** — é resolvido contra o diretório de onde
+você invoca (o bug da Etapa 1, que abria um banco vazio em outro diretório, foi corrigido);
+e `--db` para arquivo **inexistente é recusado** com mensagem clara (nunca cria banco novo).
 
 ⚠️ **Por que o reset apaga a trilha do ensaio (comportamento esperado, decidido):** o estado
 "travada" da janela É a existência do snapshot canônico — snapshot de ensaio deixado no banco
@@ -111,6 +114,19 @@ python app.py
    Prova final: abrir a janela na UI **funciona** (e fechar em seguida sem revelar) — é a
    garantia de que 20/08 não ficou bloqueado.
 5. **Confirmação no grupo:** *"teste encerrado — podem ignorar o que apareceu"*.
+
+### Adendo POSENSAIO — conferências EXTRAS na Etapa 2 (deploy de 06/08 no ar)
+
+O deploy pós-Etapa-1 acrescentou o **manter-todos explícito** e a **hierarquia owner > admin**.
+Se ele estiver no ar quando a Etapa 2 rodar (recomendado), acrescentar ao ciclo:
+
+| # | O que provar | Como verificar |
+|---|---|---|
+| 11 | Manter-todos explícito | Michel usa **"✋ Não vou cortar ninguém"** em vez de marcar corte → confirma → "Declarado: MANTER TODOS"; conta no "N/12" |
+| 12 | Hierarquia owner > admin | Erico tenta **"Suprir/ajustar pelo time"** no time do Michel → recusa "este time já declarou pessoalmente" **sem mostrar o conteúdo**; num time silencioso, o suprimento funciona |
+| 13 | 3º status na sheet | Pós-reveal, `/cuts/keeper_sheet` mostra o time do Michel como **"Declarou (manteve todos)"** — distinto de "Default (manteve todos)" |
+
+(O reset da Etapa 2 desfaz tudo igual — os três itens não mudam o desfazer.)
 
 **Se algo der errado no meio:** parar, não improvisar. O reset desfaz qualquer estado parcial
 (declarações sem lock, lock sem reset anterior — tudo). Em último caso, o backup de

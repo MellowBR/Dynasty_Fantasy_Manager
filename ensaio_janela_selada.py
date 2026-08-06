@@ -39,7 +39,14 @@ WINDOW_KEY = "cuts_window_open"
 
 
 def _db_path(cli_db: str = None) -> Path:
-    return Path(cli_db or os.environ.get("DYNASTY_DB") or (BASE_DIR / "dynasty.db"))
+    """Resolve o banco para caminho ABSOLUTO (relativo ao cwd de quem invocou).
+
+    POSENSAIO (bug vivido na Etapa 1): com caminho relativo, o exists() do main
+    passava (cwd) mas o SQLAlchemy resolvia a URI contra OUTRO diretório — e o
+    SQLite criava lá um banco VAZIO em silêncio, mascarando a causa como
+    "no such table". Resolver antes de qualquer conexão elimina a bifurcação."""
+    return Path(cli_db or os.environ.get("DYNASTY_DB")
+                or (BASE_DIR / "dynasty.db")).expanduser().resolve()
 
 
 def _make_app(db_path: Path):
@@ -218,7 +225,9 @@ def main(argv=None) -> int:
 
     db_path = _db_path(args.db)
     if not db_path.exists():
+        # Criar banco novo NUNCA é intenção de quem passa --db — recusar com a causa clara.
         print(f"⛔ Banco não encontrado: {db_path}")
+        print("   (caminho relativo é resolvido contra o diretório ATUAL; confira o cwd ou use absoluto)")
         return 1
     if args.reset and not args.backup:
         print("⛔ --reset exige --backup <caminho do backup feito antes>. Nenhuma escrita.")
@@ -228,7 +237,7 @@ def main(argv=None) -> int:
         return cmd_status(db_path)
     if args.banner:
         return cmd_banner(db_path, args.banner)
-    return cmd_reset(db_path, Path(args.backup))
+    return cmd_reset(db_path, Path(args.backup).expanduser().resolve())
 
 
 if __name__ == "__main__":

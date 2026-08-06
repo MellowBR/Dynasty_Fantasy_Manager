@@ -97,7 +97,7 @@
 | M15 | Lottery com 6 seeds (inclusão do 7º colocado com 1 bolinha; pool 96) — MAN-M15-REG | Média | ✅ 05/06/2026 |
 | M15-FIX | Editor de pesos do lottery: pool/legenda não re-renderizam ao editar + legenda /picks pós-sorteio lê canônico, não o audit | Média | ✅ 05/06/2026 |
 | M16 | Lottery aplica ordem sorteada a R2/R3 (deveria ser standings invertido) — corrompe ordem + valores dynasty de R2/R3 — MAN-M16-REG | Alta | ✅ 05/06/2026 |
-| OFF26-1 | Janela de cortes selada no Manager (declaração privada de cortes + budget ao vivo não-projetado + lock/revelação simultânea admin-manual, snapshot M8) — MAN-OFF26-REG/F1/REFINE/F2/SMOKE/**ENSAIO** | Alta | ⚠️ F2 + e2e localhost 23/23; smoke PARCIAL prod 17/06; **ENSAIO PREPARADO (06/08): reset construído (`ensaio_janela_selada.py`, achado bloqueante — sem ele 20/08 ficaria travado), banner de teste, dry-run 41/41, runbook entregue — execução localhost+prod pendente do owner** |
+| OFF26-1 | Janela de cortes selada no Manager (declaração privada de cortes + budget ao vivo não-projetado + lock/revelação simultânea admin-manual, snapshot M8) — MAN-OFF26-REG/F1/REFINE/F2/SMOKE/**ENSAIO** | Alta | ⚠️ F2 + e2e 23/23; smoke PARCIAL prod 17/06; ensaio preparado (06/08: reset `ensaio_janela_selada.py` + banner + runbook); **ETAPA 1 EXECUTADA pelo owner (06/08, 10/10) → POSENSAIO: fix `--db` relativo + manter-todos explícito (3º status na sheet) + hierarquia owner>admin (recusa seca no suprimento), dry-run 51/51 — falta a Etapa 2 (prod, com Michel)** |
 | OFF26-2 | Keeper sheet consolidada (12 times pós-revelação: keeper+salário+budget FA usable via porta projected:false+status declared, tabela+CSV) — insumo do Cowork — MAN-OFF26-REG/F1/REFINE/F2/SMOKE | Alta | ⚠️ F2 + e2e localhost 20/20; **smoke PARCIAL prod 17/06** (deploy live, `CutWindowAudit` criada); sheet depende da revelação (não travada) → validação completa no OFF26-7 |
 | OFF26-3 | Importador de drafts de liga fantasma (rookie linear + FA auction via API, match por sleeper_player_id, preview + helper atômico) — MAN-OFF26-REG | Alta | ✅ 05/06/2026 |
 | OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only; **gate de integridade do leilão**) — MAN-OFF26-REG/F1/REFINE/PROBE/OWNERCHECK/F2/META | Média | ⚠️ F2 + 34/34 localhost (48/48 do salary_engine intactos) + board REAL atravessando o núcleo; **smoke PARCIAL prod 03/08** (`d83d2f8`: rota+card+seed do `phantom_league_id` OK; o 4º ponto era inalcançável → F2-META expôs a meta da liga sob bloqueio); **falta smoke com sheet real (só a partir de 20/08)**; cobertura do D6 aberta (2/12 sem coluna) |
@@ -1642,8 +1642,44 @@ de OFF26-1/2/4 existirem. OFF26-8 (Cowork aplica os cortes do OFF26-1 no roster 
 ---
 
 ### OFF26-1 — Janela de cortes selada
-⚠️ **F2 implementado (16/06/2026); smoke prod PARCIAL (17/06); ENSAIO PREPARADO (06/08 —
-MAN-OFF26-1-ENSAIO), pendente de execução pelo owner** — Prioridade **Alta**
+⚠️ **F2 (16/06); smoke prod PARCIAL (17/06); ensaio preparado (06/08) e ETAPA 1 EXECUTADA
+PELO OWNER (06/08, 10/10) + achados implementados (POSENSAIO) — falta a Etapa 2 (produção,
+com Michel)** — Prioridade **Alta**
+
+> #### POSENSAIO (MAN-OFF26-1-POSENSAIO, 06/08/2026) — Etapa 1 executada 10/10; dois achados, implementados
+>
+> **Etapa 1 (localhost) executada pelo owner em 06/08 — checklist 10/10:** gate D3 exercitado
+> de verdade (3 needs_review bloquearam; fila zerada em /admin/review liberou), declaração,
+> substituição, lock, hash conferido (`5024b17a…`, match), revelação, keeper sheet com CSV,
+> trilha com 1 snapshot CANÔNICO, e o reset devolvendo 0/0/fechada com a janela reabrindo.
+> **Etapa 2 (produção, com o co-admin) segue autorizada e pendente.**
+>
+> **(A) Bug corrigido — `--db` relativo abria o banco errado e falhava em silêncio:** o
+> `exists()` checava contra o cwd, mas a URI do SQLAlchemy resolvia contra OUTRO diretório —
+> e o SQLite criava lá um banco VAZIO ("no such table" mascarava a causa). Agora `--db` e
+> `--backup` resolvem para **absoluto (contra o cwd de quem invocou) antes de qualquer
+> conexão**, e arquivo inexistente é **recusado** com mensagem clara (criar banco novo nunca
+> é intenção de quem passa `--db`). Runbook atualizado.
+>
+> **(B) Manter-todos explícito + hierarquia owner > admin (decisão de desenho do owner):**
+> - Tela da janela ganhou **"✋ Não vou cortar ninguém (manter todos)"** — declaração ativa
+>   (autor + timestamp), distinta do silêncio; conta no "N/12". O default silencioso (D2)
+>   **continua existindo** para quem sumir.
+> - Keeper sheet ganhou o **3º status**: `owner_kept_all` → **"Declarou (manteve todos)"**,
+>   distinto de "Declarou" e de "Default (manteve todos)". ("Admin supriu" inalterado.)
+> - **Hierarquia no suprimento (desenho escolhido: RECUSA SECA):** `/api/cuts/admin/declare`
+>   sobre time que **já declarou pessoalmente** (cortes ou manter-todos) devolve **409**
+>   "este time já declarou pessoalmente" — expõe só existência+autoria, **nunca conteúdo**
+>   (D6). Time silencioso ou suprido por admin: funciona como antes; e o owner **sempre**
+>   pode sobrescrever o suprimento do admin (o outro sentido da hierarquia).
+> - **Propagado à spec da urna** ([[OFF26-10]]): a urna herda a mesma hierarquia.
+>
+> **Validação:** suíte da janela **22 testes** (10 do ensaio + 5 do fix A + 7 da hierarquia B,
+> incl. não-vazamento na recusa); dry-run re-executado **51/51 PASS** (41 originais + --db
+> relativo/inexistente + manter-todos + hierarquia + 3º status na sheet). Mecanismo selado
+> (lock/hash/reveal/snapshot) **intocado**. Nota de teste: request de test_client reusa app
+> context externo se houver um empurrado, e o flask_login cacheia o usuário em `g` — os
+> testes de rota NÃO mantêm contexto persistente (armadilha registrada no próprio teste).
 
 > #### ENSAIO (MAN-OFF26-1-ENSAIO, 06/08/2026) — preparado; execução é do owner
 >
@@ -3585,6 +3621,14 @@ administrativa pós-lock" morre junto: haverá **novo lock/hash e revelação si
   consistente: o cap deriva dos mantidos, 8.3.3, e o cortado fica disponível para o draft,
   8.1.3). **A urna declara; a execução do corte na revelação usa o mecanismo de corte do
   OFF26-1, não um paralelo.**
+
+> **Herança registrada (06/08/2026, MAN-OFF26-1-POSENSAIO): a urna herda a hierarquia
+> owner > admin da janela de cortes.** A declaração pessoal do owner (drop OU passo)
+> **prevalece** sobre a escrita do admin: suprimento admin sobre time que já declarou
+> pessoalmente é **recusado** (recusa seca, molde da janela), com aviso que expõe só
+> **existência e autoria** — nunca o conteúdo. O "passo" do U1 é o análogo do
+> "manter todos" explícito da janela (POSENSAIO), e como lá, **distingue-se do silêncio**
+> (U2) na trilha e no resultado revelado. A F2 da urna nasce com isso.
 
 #### Pré-condições de sequência da F2 (registradas, NÃO executadas aqui)
 
