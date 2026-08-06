@@ -4366,7 +4366,7 @@ em IR (provavelmente sim), e o mesmo filtro pode existir em outras superfícies 
 ---
 
 ### OFF26-20 — Contrato carregado indevidamente em 29 free agents + coluna PROJ divergente
-🔲 **Pendente** — Prioridade **Alta (prazo 18/08)** — `MAN-OFF26-20-F1` (04/08) → **`-F1B`** (05/08, inverte) → **`-F1C`** (05/08, **corrige o critério: o discriminador é o CANAL, e o problema cai de 73 para 29**)
+⚠️ **Porta + runner prontos, ensaio 22/22 — aguardando execução do owner no Render Shell** — Prioridade **Alta (prazo 18/08)** — `MAN-OFF26-20-F1` (04/08) → **`-F1B`** (05/08, inverte) → **`-F1C`** (05/08, **corrige o critério: o discriminador é o CANAL, e o problema cai de 73 para 29**) → **`-VERIF`/`-CANAL`** (05/08, grupo fecha em 22, aprovação nominal do owner) → **`-FIX`** (06/08, porta canônica criada + ensaio verde)
 
 ⚠️ **A hipótese do owner foi FALSIFICADA, e o achado é maior que o rótulo.** O rótulo ambíguo não é
 cicatriz de importação: são **jogadores em Ano 1 com a bifurcação de regra PENDENTE**. E, ao medir,
@@ -5185,6 +5185,60 @@ suspende a linha correspondente.
    indeterminado legítimo.
 4. ✅ **`fa_auction` não contamina o grupo:** nenhum dos 22 tem evento de leilão FA em 2025 como
    opener — os 24 do `fa_auction` são população disjunta (F1C).
+
+## FIX (MAN-OFF26-20-FIX, 06/08/2026) — porta canônica criada + ensaio 22/22; prod aguarda o owner
+
+**Aprovação nominal do owner (05/08/2026)** sobre o estado conferido no T4 (prod ≡ seed, 22/22).
+O vão canônico declarado no CANAL foi preenchido e a correção foi ensaiada de ponta a ponta em
+cópia do seed. **A escrita em produção é do owner, no Render Shell** (passo a passo abaixo).
+
+### O que nasceu
+
+- **`contract_year_correction.py` — a porta canônica** (molde M2/`correct_player_salary`):
+  núcleo **puro** (`guard_mismatches`/`plan_correction` — sem Flask/DB) + camada ORM
+  (`apply_contract_year_correction`) que encena `Player.contract_year` novo + `PlayerHistory`
+  (`event_type='contract_year_correction'`, old→new nas notes, `sleeper_event_ref`) **na mesma
+  transação, SEM commit** — o chamador comita, ou rollback desfaz escrita e trilha juntas.
+  Guarda pré-escrita inegociável: linha que não case o estado esperado é **pulada e reportada**
+  (ausente e ambíguo — inclusive duplicata dropada — também pulam). IDs sempre string
+  (DEFs por sigla).
+- **`off26_20_fix.py` — runner one-shot** com os 22 travados por `sleeper_player_id`, guarda =
+  estado aprovado no T4, `event_ref='fix:off26-20'`. `--check` (read-only: guarda + dry-run do
+  rollover) e `--apply` (**recusa escrever sem `--backup` conferido**: existência + tamanho).
+  Pós-commit, verificação por conexão independente: diff da tabela inteira (só os elegíveis
+  mudaram, e só `contract_year`+`updated_at`), contagem de trilha, casos vivos do rollover.
+  Não roda o boot do app.py (app Flask mínimo — zero efeito colateral de import/sync).
+- **`contract_year_correction_test.py` — 20 testes** (núcleo puro / ORM em memória / config do
+  runner): guarda campo a campo, normalização SQL↔ORM, atomicidade via rollback, idempotência
+  (2ª passada pula tudo), DEF por sigla, fora-da-lista intocado, casos vivos pelo motor real.
+
+### Ensaio (06/08, cópia do seed — o seed do git NÃO foi tocado)
+
+`--check`: 22/22 elegíveis. `--apply`: 22 corrigidos, **22 linhas alteradas na tabela inteira**
+(só `contract_year`+`updated_at`), 22 linhas de trilha, dry-run com os 4 casos vivos conferindo
+(**Pierce $5, Watson $4, P. Washington $4, Wilson $2**), exit 0. Segunda `--apply`: 22 pulados
+pela guarda (`contract_year=1`), zero escrita, exit 1. Suítes: **54 + 34 + 14 + 20 verdes**.
+
+### Execução em produção (owner, Render Shell) — nesta ordem
+
+```
+sqlite3 /data/dynasty.db ".backup '/data/pre_off26_20_fix.db'"
+ls -la /data/pre_off26_20_fix.db
+python off26_20_fix.py --check
+python off26_20_fix.py --apply --backup /data/pre_off26_20_fix.db
+```
+
+Esperado: `--check` termina em "OK — 22/22 elegíveis, casos vivos conferem"; `--apply` termina em
+"✅ OK" com "22 corrigidos; 22 linhas alteradas; 22 linhas de trilha". Qualquer PULADO no relatório
+= linha fora do estado aprovado, deixada intacta de propósito. (`DYNASTY_DB=/data/dynasty.db` já
+está no ambiente do serviço; o deploy que leva o runner precisa estar no ar antes.)
+
+### Pendências (registradas no fechamento do FIX)
+
+1. **Execução em prod pelo owner** (acima) → depois marcar ✅ no item.
+2. **Enum dos 5 `fa_waiver`** (Willis/Noel etc.) — decisão separada, aberta.
+3. **Coluna PROJ** das telas de roster (T2 do F1) — etapa seguinte, depois do dado.
+4. **Smoke visual pós-deploy** (roster/salary_history dos corrigidos).
 
 ---
 
