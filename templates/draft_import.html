@@ -7,6 +7,29 @@
   <p class="page-subtitle">Rookie (linear) ou FA Auction. Preview obrigatório → confirmação. Idempotente.</p>
 </div>
 
+{# ── OFF26-11: lista de exclusão. Só o modo AUCTION a consome; o rookie linear é intocado. #}
+<div class="card">
+  <h2 class="card-title">🧊 Lista de exclusão do leilão (keepers)</h2>
+  <p class="text-dim small-text">
+    No import do <strong>FA auction</strong> os picks vêm <strong>misturados</strong>: keepers designados no
+    board e arremates novos. A keeper sheet <strong>congelada</strong> diz quem é keeper — esses picks
+    <strong>não são ingeridos</strong> (a porta de aquisição é de contrato <strong>ano 1</strong>; ingerir um keeper
+    zeraria a idade do contrato de quem nunca saiu do time).
+    <br>
+    ⚠️ <strong>Congele antes do leilão.</strong> Depois dele cada owner adiciona seus arremates na liga real —
+    um sync passaria a mostrá-los como keepers, e eles seriam excluídos da ingestão (o dano invertido).
+  </p>
+  <div id="exclusion-box" class="text-dim">⏳ lendo estado…</div>
+  <div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap;align-items:center">
+    <input type="text" id="freeze-reason" class="input-sm" style="width:280px"
+           placeholder="justificativa (só se já houver lista congelada)">
+    <button class="btn btn-primary" onclick="doFreeze()">🧊 Congelar lista de exclusão</button>
+    <button class="btn btn-secondary" onclick="doUnfreeze()">♻️ Descongelar</button>
+    <a class="btn btn-secondary" href="/cuts/keeper_sheet">📋 Keeper sheet</a>
+  </div>
+  <div id="freeze-result" class="result-box" style="display:none;margin-top:.6rem"></div>
+</div>
+
 <div class="card">
   <label>Identificador do draft (Sleeper draft_id):</label>
   <div style="display:flex;gap:.5rem;margin-top:.4rem;flex-wrap:wrap">
@@ -19,8 +42,34 @@
 
 <div id="budget-alerts"></div>
 
+<div class="card" id="pendencies-card" style="display:none;border:2px solid #d9534f">
+  <h2 class="card-title">⛔ Pendências — confirmação bloqueada</h2>
+  <p class="text-dim small-text">
+    Picks que o discriminador de keeper <strong>não consegue classificar</strong>. Não há resolução aqui de
+    propósito: o importador não arbitra sozinho de quem é o jogador. Resolva no board / na sheet e recarregue
+    o preview.
+  </p>
+  <table class="data-table">
+    <thead><tr><th>Pick</th><th>Jogador</th><th>Time do pick</th><th>Motivo</th></tr></thead>
+    <tbody id="pendencies-body"></tbody>
+  </table>
+</div>
+
+<div class="card" id="excluded-card" style="display:none">
+  <h2 class="card-title">🧊 Keepers excluídos <span id="excluded-count" class="badge"></span></h2>
+  <p class="text-dim small-text">
+    Constam na lista congelada <strong>para o mesmo time do pick</strong>. Nada é escrito para eles: sem contrato,
+    sem salário, sem histórico. <strong>Sem reconciliação</strong> — o salário do board não é comparado com o do
+    Manager (isso é a <a href="/admin/keeper_audit">auditoria pré-leilão</a>, que roda antes).
+  </p>
+  <table class="data-table">
+    <thead><tr><th>Pick</th><th>Jogador</th><th>Time</th><th>Salário na sheet</th></tr></thead>
+    <tbody id="excluded-body"></tbody>
+  </table>
+</div>
+
 <div class="card" id="matched-card" style="display:none">
-  <h2 class="card-title">Picks com match</h2>
+  <h2 class="card-title">Picks com match <span class="text-dim small-text">(arremates a ingerir)</span></h2>
   <table class="data-table">
     <thead><tr><th>Pick</th><th>Jogador</th><th>Time</th><th>Lance</th><th>Salário</th><th>Status</th></tr></thead>
     <tbody id="matched-body"></tbody>
@@ -29,7 +78,7 @@
 
 <div class="card" id="unmatched-card" style="display:none">
   <h2 class="card-title">⚠️ Picks sem match — ação obrigatória</h2>
-  <p class="text-dim small-text">Cada pick precisa ser resolvido (pular com justificativa, ou criar novo jogador) antes de confirmar. Nenhum pulo silencioso.</p>
+  <p class="text-dim small-text">Cada pick precisa ser resolvido (pular com justificativa, criar novo jogador, ou reativar o contrato de um jogador dropado) antes de confirmar. Nenhum pulo silencioso.</p>
   <table class="data-table">
     <thead><tr><th>Pick</th><th>Jogador (Sleeper)</th><th>Time</th><th>Causa</th><th>Ação</th><th>Justificativa (se pular)</th></tr></thead>
     <tbody id="unmatched-body"></tbody>
@@ -53,6 +102,69 @@ function show(msg, ok) {
   b.innerHTML = msg;
 }
 
+function showFreeze(msg, ok) {
+  const b = document.getElementById('freeze-result');
+  b.style.display = 'block';
+  b.className = 'result-box ' + (ok ? 'result-ok' : 'result-error');
+  b.innerHTML = msg;
+}
+
+// ── Lista de exclusão ───────────────────────────────────────────────────────
+function loadExclusion() {
+  fetch('/api/draft_import/exclusion').then(r => r.json()).then(d => {
+    const box = document.getElementById('exclusion-box');
+    const s = d.source || {};
+    let html = '';
+    if (d.frozen) {
+      const ok = d.frozen_season_matches;
+      html += `<div class="alert ${ok ? 'alert-ok' : 'alert-warn'}">
+        ${ok ? '🧊' : '⚠️'} <strong>Lista CONGELADA</strong> — season ${d.frozen.season}
+        · ${d.frozen.num_keepers} keepers em ${d.frozen.num_teams} times
+        · sheet ${d.frozen.source_stage}
+        · congelada em <time class="js-localtime" datetime="${d.frozen.frozen_at}">${d.frozen.frozen_at}</time>
+        · sync da sheet <time class="js-localtime" datetime="${d.frozen.sync_timestamp || ''}">${d.frozen.sync_timestamp || '—'}</time>
+        <br><span class="text-dim small-text">hash ${d.frozen.hash}</span>
+        ${ok ? '' : `<br>⚠️ A season congelada não é a corrente (${d.season}) — o import fica bloqueado.`}
+      </div>`;
+    } else {
+      html += `<div class="alert alert-warn">⚠️ <strong>Nenhuma lista congelada.</strong>
+        O import do FA auction fica <strong>bloqueado</strong> até haver uma.</div>`;
+    }
+    html += `<div class="text-dim small-text">Sheet ao vivo: <strong>${s.stage_label || '—'}</strong>
+      · ${s.num_keepers} keepers · ${s.num_teams} times
+      · sync <time class="js-localtime" datetime="${s.sync_timestamp || ''}">${s.sync_timestamp || 'nenhum'}</time></div>`;
+    if ((s.keepers_sem_id || []).length) {
+      html += `<div class="alert alert-error">⛔ ${s.keepers_sem_id.length} keeper(s) sem sleeper_player_id: ` +
+        s.keepers_sem_id.map(k => `${k.name} (${k.team_name})`).join(', ') +
+        ` — sem id eles seriam lidos como arremate. Congelamento recusado.</div>`;
+    }
+    box.innerHTML = html;
+    applyLocalTimes(box);   // base.html — fonte única do fuso/formato (M18)
+  });
+}
+
+function doFreeze() {
+  const reason = document.getElementById('freeze-reason').value.trim();
+  showFreeze('⏳ congelando…', true);
+  fetch('/api/draft_import/exclusion/freeze', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({reason})
+  }).then(r => r.json()).then(d => {
+    if (d.error) { showFreeze('❌ ' + d.error, false); loadExclusion(); return; }
+    showFreeze(`✅ Lista congelada: ${d.frozen.num_keepers} keepers · hash ${d.frozen.hash}`, true);
+    loadExclusion();
+  });
+}
+
+function doUnfreeze() {
+  fetch('/api/draft_import/exclusion', {method: 'DELETE'})
+    .then(r => r.json()).then(() => {
+      showFreeze('♻️ Lista descongelada — o import do auction volta a ficar bloqueado.', true);
+      loadExclusion();
+    });
+}
+
+// ── Preview / confirm ───────────────────────────────────────────────────────
 function doPreview() {
   const id = document.getElementById('draft-id').value.trim();
   if (!id) { show('❌ Informe o draft_id.', false); return; }
@@ -61,26 +173,62 @@ function doPreview() {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({draft_id: id})
   }).then(r => r.json()).then(d => {
-    if (d.error) { show('❌ ' + d.error, false); hideAll(); return; }
+    if (d.error) {
+      let msg = '❌ ' + d.error;
+      if (d.exclusion_state) {
+        const s = d.exclusion_source || {};
+        msg += `<br><span class="small-text">estado: <strong>${d.exclusion_state}</strong>` +
+               ` · sheet: ${s.stage_label || 'indisponível'}` +
+               ` · sync: ${s.sync_timestamp || 'nenhum'}</span>`;
+      }
+      show(msg, false); hideAll(); return;
+    }
     PREVIEW = d;
     renderPreview(d);
   });
 }
 
 function hideAll() {
-  ['matched-card','unmatched-card','confirm-card'].forEach(i => document.getElementById(i).style.display = 'none');
+  ['matched-card','unmatched-card','confirm-card','excluded-card','pendencies-card']
+    .forEach(i => document.getElementById(i).style.display = 'none');
   document.getElementById('budget-alerts').innerHTML = '';
 }
 
 function renderPreview(d) {
   document.getElementById('preview-meta').textContent =
-    `Tipo: ${d.type} (${d.acquisition_type}) · season ${d.season} · ${d.n_matched} com match · ${d.n_unmatched} sem match · ${d.n_already} já importados`;
-  show(`✅ Preview pronto. Nada foi escrito.`, true);
+    `Tipo: ${d.type} (${d.acquisition_type}) · season ${d.season} · ${d.n_matched} com match · ` +
+    `${d.n_unmatched} sem match · ${d.n_already} já importados` +
+    (d.exclusion ? ` · ${d.n_keepers_excluded} keepers excluídos · ${d.n_pendencies} pendências` : '');
+  show(d.n_pendencies
+    ? `⛔ Preview pronto, mas há ${d.n_pendencies} pendência(s) — a confirmação está bloqueada. Nada foi escrito.`
+    : `✅ Preview pronto. Nada foi escrito.`, !d.n_pendencies);
 
-  // budget alerts
+  // budget alerts (OFF26-11: soma só ARREMATES — keepers já saíram de `matched`)
   const ba = document.getElementById('budget-alerts');
   ba.innerHTML = (d.budget_alerts || []).map(a =>
     `<div class="alert alert-warn">⚠️ ${a.team}: ${a.over_cap ? 'cap estourado' : ''} ${a.insufficient_budget ? 'budget insuficiente' : ''} (bid máximo $${a.usable_draft_budget}) — alerta soft, não bloqueia.</div>`
+  ).join('');
+
+  // pendências (bloqueiam)
+  const pc = document.getElementById('pendencies-card');
+  const pend = d.pendencies || [];
+  pc.style.display = pend.length ? '' : 'none';
+  document.getElementById('pendencies-body').innerHTML = pend.map(p =>
+    `<tr><td>${p.pick_no}</td>
+     <td>${p.player_name} <span class="text-dim small-text">(${p.sleeper_player_id || 'sem id'})</span></td>
+     <td>${p.team ?? '—'}</td>
+     <td><strong>${p.kind}</strong><br><span class="small-text">${p.reason}` +
+     (p.sheet_team ? ` <em>Sheet diz: ${p.sheet_team} ($${p.sheet_salary}).</em>` : '') +
+     `</span></td></tr>`
+  ).join('');
+
+  // keepers excluídos
+  const ec = document.getElementById('excluded-card');
+  const exc = d.keepers_excluded || [];
+  ec.style.display = exc.length ? '' : 'none';
+  document.getElementById('excluded-count').textContent = `${exc.length}`;
+  document.getElementById('excluded-body').innerHTML = exc.map(k =>
+    `<tr><td>${k.pick_no}</td><td>${k.keeper_name}</td><td>${k.keeper_team}</td><td>$${k.sheet_salary}</td></tr>`
   ).join('');
 
   // matched
@@ -94,11 +242,18 @@ function renderPreview(d) {
   uc.style.display = d.unmatched.length ? '' : 'none';
   document.getElementById('unmatched-body').innerHTML = d.unmatched.map(u => {
     if (u.already_imported) return `<tr><td>${u.pick_no}</td><td>${u.player_name}</td><td>${u.team ?? '—'}</td><td>${u.cause}</td><td colspan="2">⏭️ já importado</td></tr>`;
+    // Caso canônico do owner: dropado na janela e recomprado no leilão → contrato ANO 1
+    // no MESMO Player (criar novo duplicaria a linha e perderia o histórico).
+    const reuse = u.suggested_player_id
+      ? `<option value="${u.suggested_player_id}">Reativar ${u.suggested_name} (ano 1)</option>` : '';
+    const hint = u.suggested_player_id
+      ? `<br><span class="text-dim small-text">no banco: ${u.suggested_name}, ano ${u.suggested_contract_year}, $${u.suggested_salary}</span>` : '';
     return `<tr data-sid="${u.sleeper_player_id}">
-      <td>${u.pick_no}</td><td>${u.player_name} <span class="text-dim small-text">(${u.sleeper_player_id})</span></td>
+      <td>${u.pick_no}</td><td>${u.player_name} <span class="text-dim small-text">(${u.sleeper_player_id})</span>${hint}</td>
       <td>${u.team ?? '—'}</td><td>${u.cause}</td>
       <td><select class="u-action">
         <option value="">— escolher —</option>
+        ${reuse}
         <option value="skip">Pular</option>
         <option value="create">Criar novo</option>
       </select></td>
@@ -106,7 +261,7 @@ function renderPreview(d) {
     </tr>`;
   }).join('');
 
-  document.getElementById('confirm-card').style.display = '';
+  document.getElementById('confirm-card').style.display = pend.length ? 'none' : '';
 }
 
 function doConfirm() {
@@ -121,16 +276,21 @@ function doConfirm() {
   show('⏳ Confirmando...', true);
   fetch('/api/draft_import/confirm', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({draft_id: PREVIEW.draft_id, resolutions, skip_reasons})
+    body: JSON.stringify({draft_id: PREVIEW.draft_id, resolutions, skip_reasons,
+                          exclusion_hash: (PREVIEW.exclusion || {}).hash || ''})
   }).then(r => r.json()).then(d => {
     if (d.error) {
       let msg = '❌ ' + d.error;
       if (d.unresolved) msg += '<br>' + d.unresolved.map(u => `• pick ${u.pick_no} ${u.player_name}: ${u.reason}`).join('<br>');
+      if (d.pendencies) msg += '<br>' + d.pendencies.map(p => `• pick ${p.pick_no} ${p.player_name}: ${p.kind}`).join('<br>');
       show(msg, false); return;
     }
-    show(`✅ Importado: ${d.created} criados, ${d.already_imported} já existentes, ${d.skipped.length} pulados.`, true);
+    show(`✅ Importado: ${d.created} criados, ${d.already_imported} já existentes, ` +
+         `${d.skipped.length} pulados, ${d.keepers_excluded} keepers excluídos (nada escrito).`, true);
     setTimeout(doPreview, 800);  // re-preview mostra idempotência
   });
 }
+
+loadExclusion();
 </script>
 {% endblock %}

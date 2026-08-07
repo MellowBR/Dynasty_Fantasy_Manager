@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 07/08/2026-pt4 (MAN-OFF26-10-SMOKE, **docs-only**: **smoke da urna APROVADO em produção** (owner + Rafa, backup 630.784 B) — escape do banner exercitado de fato, **depósito pelo celular sem pop-up** (U-CONF provado resolvido no mesmo aparelho que travara em 06/08), **fechamento automático pelo horário provado por acidente** (a agenda de 6 min expirou e a urna encerrou sozinha), sigilo cruzado só com o agregado, hierarquia, revelação completa, sheet provisória com o aviso, reset limpo. **Trio fechado:** [[OFF26-10]] ✅ · [[OFF26-2]] ✅ · [[OFF26-15]] ✅; **[[OFF26-1]] ✅** com motivo (prova tripla do mecanismo + porta aposentada no ar). Resíduo virou **[[OFF26-21]] 🔲 Baixa** (bloco admin de `/cuts` ficou sem consumidor após o U7). **Fotografia de prontidão 17–24/08 registrada: o código está completo, o que resta é operação.** Migração O3 dos 4 itens ao archive.)
+> Última atualização: 08/08/2026 (MAN-OFF26-11-F2: **último item de código do caminho crítico de 24/08 entregue** — o importador passa a ingerir **só arremates**, com a keeper sheet **CONGELADA** como lista de exclusão (`keeper_exclusion.py`: núcleo puro + IO, discriminador único, nenhuma segunda definição de "quem é keeper"). **A decisão de peso foi congelar, e o porquê:** derivar a lista ao vivo no import faria o arremate readicionado pelo owner na liga real aparecer como keeper e ser **excluído da ingestão** — o **dano invertido**, em que o contrato ano 1 simplesmente não nasce. ⛔ **Premissa do prompt que CAIU:** o caso canônico ($50 dropado → recomprado) **não era ingerível pela UI** (`find_player_by_sleeper_id` filtra `is_dropped=False`, e a tela só oferecia Pular/Criar novo — que duplicaria o Player); corrigido com a ação *"Reativar (ano 1)"*. Sheet ausente/provisória/não-congelada **bloqueia** o import; keeper de outro time, pick sem id e roster não mapeado viram **pendência sem resolução**. Modo linear **byte-a-byte idêntico ao HEAD** (provado contra o rookie 2025 real). Achado lateral virou **[[OFF26-22]] 🔲**: a auditoria do OFF26-4 audita sheet **PROVISÓRIA** como se fosse definitiva (gate virou código morto no U7). Board da fantasma relido só por `GET` (24 designações, `is_keeper:false` 24/24) — ⛔ **pós-draft segue NÃO OBSERVADO**. **36 testes novos, 261 verdes.** [[OFF26-11]] 🔲 → ⚠️: **✅ só depois do leilão de 24/08**.)
+> Anterior: 07/08/2026-pt4 (MAN-OFF26-10-SMOKE, **docs-only**: **smoke da urna APROVADO em produção** (owner + Rafa, backup 630.784 B) — escape do banner exercitado de fato, **depósito pelo celular sem pop-up** (U-CONF provado resolvido no mesmo aparelho que travara em 06/08), **fechamento automático pelo horário provado por acidente** (a agenda de 6 min expirou e a urna encerrou sozinha), sigilo cruzado só com o agregado, hierarquia, revelação completa, sheet provisória com o aviso, reset limpo. **Trio fechado:** [[OFF26-10]] ✅ · [[OFF26-2]] ✅ · [[OFF26-15]] ✅; **[[OFF26-1]] ✅** com motivo (prova tripla do mecanismo + porta aposentada no ar). Resíduo virou **[[OFF26-21]] 🔲 Baixa** (bloco admin de `/cuts` ficou sem consumidor após o U7). **Fotografia de prontidão 17–24/08 registrada: o código está completo, o que resta é operação.** Migração O3 dos 4 itens ao archive.)
 > Anterior: 07/08/2026-pt3 (MAN-OFF26-10-AJUSTES: **contagem agregada de volta** ("N/12 depositaram"; drop e passo contam igual, agregado devolve números e não times, com teste de lista branca de chaves) e **bloqueio mútuo urna × rollover em código** nos dois sentidos — bilhete é escopado por season, virar a season no meio deixaria a revelação **vazia sem erro**; libera após a revelação; limpar a agenda é sempre permitido; **escape pelo banner de ensaio** para o smoke poder rodar antes do rollover. 47 → **64 testes**, E2E **42/42**.)
 > Anterior: 07/08/2026-pt2 (MAN-OFF26-10: **F2 da URNA entregue** — tabelas próprias, flag de estado própria (⛔ `cuts_window_open` não é o gate, com teste que falha se reusarem), escolha única, horário do admin, lock/hash/reveal reusando `compute_cut_snapshot_hash`, flag de rookie de 1ª **OFF**, confirmação **inline** em todo o caminho, hierarquia herdada, sigilo sem contagem agregada. **Keeper sheet passou a nascer do SYNC** (crítico para 20/08): keepers = roster vivo, provisória × definitiva pelo carimbo do sync, coluna **IR** ([[OFF26-15]] fecha), sheet **@admin_required**. Acabamentos: urna no menu, **"Budget usável" → "Bid Máximo"**, Bid Máximo nos cards do Hub com selo **PROV**. Bug corrigido: `_table_exists` pelo engine desfazia a transação do `stage_reset`. **47 testes + E2E 38/38**; suítes verdes; Sleeper intocado.)
 > Anterior: 07/08/2026 (MAN-OFF26-1-ETAPA2: **ensaio da janela selada APROVADO em produção** — Etapa 2 com o co-admin **Rafa**, 12 declarações, hierarquia e manter-todos exercitados, hash `52274d01…`, reset limpo ⇒ **pré-condição 1 da urna cumprida**. **Redesenho decidido pelo owner: o modelo selado vale só para o LATE DROP** — cortes de 20/08 no Sleeper, Manager só fotografa por sync e entra em 22/08 como a urna; **U1/U3/U7 reescritos + U-CONF** (confirmação inline: o `confirm()` nativo falhou no celular e barrou uma declaração); ⛔ urna não pode reusar `cuts_window_open`. **Tela de declaração múltipla APOSENTADA** (motor fica como ferramenta admin rotulada legado — é o único produtor de sheet até a F2). Suítes 22+34+34+54 verdes; Sleeper intocado.)
@@ -4059,3 +4060,65 @@ deu razao a leitura dele.
 
 **Nada corrigido. O grupo final para aprovacao nominal e de 22 — os 21 da VERIF + Gainwell.
 A correcao segue sendo prompt separado, condicionada ao T4 no Render Shell.**
+
+### MAN-OFF26-11-F2 — o importador ingere só arremates: a keeper sheet CONGELADA como lista de exclusão (08/08/2026, Opus)
+
+**O item fecha o último buraco de código do caminho crítico de 24/08.** A decisão de produto já
+estava arbitrada (06/08, opção A — Manager é fonte única). O que esta sessão decidiu foi **como**.
+
+- **O discriminador nasceu em módulo próprio (`keeper_exclusion.py`), não dentro do importador.**
+  Núcleo puro (`build_index`/`classify_pick`/`compute_exclusion_hash`) + IO, no molde do
+  `salary_engine`/`keeper_audit`. Regra única: **pick cujo jogador consta na lista para o MESMO
+  time do pick é keeper**. A lista vem dos **dois produtores já existentes** da sheet — nenhuma
+  segunda definição de "quem é keeper".
+
+- **A decisão de peso: CONGELAR a lista, e por que.** A sheet nasce do **roster vivo**, e depois do
+  leilão cada owner adiciona seus arremates **na liga real**. Derivar a exclusão ao vivo no import
+  faria o arremate readicionado aparecer como keeper — e ele seria **excluído da ingestão**. Isso é
+  o **dano invertido**, simétrico ao que o item existe para evitar: em vez de zerar a idade de um
+  contrato, o contrato ano 1 simplesmente **não nasce**. O congelamento é ato explícito de admin,
+  entre o sync final e o leilão, com hash e carimbos. Descartadas: derivar ao vivo (é o bug), gatear
+  por carimbo de sync (recusa o import justamente quando ele é correto), snapshotar automático no
+  1º preview (congela sem que ninguém tenha declarado o momento).
+  **O que não cobre, declarado:** congelar **tarde** — mitigação é operacional, e por isso o passo
+  entrou no runbook com hora marcada.
+
+- ⛔ **Premissa do prompt que CAIU: o caso canônico não era ingerível pela UI.**
+  `find_player_by_sleeper_id` filtra `is_dropped=False` → o jogador dropado na janela cai em
+  *unmatched* ("jogador dropado no banco"), e o `<select>` só oferecia **Pular** e **Criar novo**.
+  A API já aceitava resolver para um `player_id` existente; **nada na tela expunha isso**, e "criar
+  novo" duplicaria o Player com o mesmo `sleeper_id`. Sem corrigir, a validação central do item
+  ($50 dropado → recomprado → **ano 1**) era impossível de executar. Corrigido com
+  `suggested_player_id` no preview + ação *"Reativar &lt;nome&gt; (ano 1)"*.
+  **Padrão recorrente:** a capacidade existia no backend e morria na tela — mesma família do
+  U-CONF (o `confirm()` que barrou uma declaração no celular).
+
+- **Achado lateral virou item ([[OFF26-22]] 🔲 Média):** `keeper_audit.build_sheet` ainda tem
+  `if not raw.get("revealed")`, mas o U7 fez `_build_keeper_sheet` devolver `revealed: True`
+  **sempre**. O ramo é código morto — e com ele morreu o único bloqueio da auditoria por falta de
+  insumo: **o gate do leilão hoje audita sheet PROVISÓRIA como se fosse definitiva**. O estágio
+  está calculado; `build_sheet` só o descarta. Não tocado por estar sob restrição desta F2.
+
+- **Réplica de leitura de picks: 3 sítios, 3 coerções do lance** (`float`/1.0 no importador,
+  string→`_to_int`/0 na auditoria, `int`/None no sync). Já era o achado P6 do probe de 03/08 e
+  **segue aberto** — unificar mexeria em sync e auditoria, ambos fora do escopo. O fix do
+  discriminador **não precisa** alcançá-los: nenhum dos dois cria contrato.
+
+- **Dupla contagem latente fechada de graça:** `_budget_alerts` somava `matched` inteiro, e o
+  keeper já está no roster corrente que serve de base — no caminho novo ele contaria **duas vezes**.
+  Com a exclusão, a soma passa a ser só de arremates, sem tocar a fórmula.
+
+- **Confirmação empírica oportunista (só `GET`):** board da fantasma ainda populado — `draft_id`
+  derivado do `league_id`, **24 designações**, totais **$148/$95/$60**, **`is_keeper: false` em
+  24/24**. ⛔ **Draft em `pre_draft`: o pós-draft segue NÃO OBSERVADO**, e não foi forçado (rodar o
+  draft é escrita na plataforma, ato do owner). O discriminador **não lê** o campo — há teste que
+  falha se a string aparecer no módulo.
+
+- **Regressão do modo linear provada, não argumentada:** preview do rookie 2025 real
+  (`1224848075617484800`) sobre cópia temporária do banco, comparando o código novo com o **HEAD
+  carregado do git** — dicionários **idênticos** campo a campo (33 matched / 3 unmatched / causas /
+  salários / alertas), 0 escritas.
+
+**Estado:** [[OFF26-11]] **🔲 → ⚠️**. 36 testes novos; **261 verdes** no total. **✅ só depois do
+leilão de 24/08** — o smoke real é o único que exercita 12 times, board pós-draft e o congelamento
+no momento certo do calendário.

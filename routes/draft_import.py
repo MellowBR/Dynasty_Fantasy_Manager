@@ -15,16 +15,26 @@ Duas etapas OBRIGATÓRIAS:
 Idempotente por sleeper_event_ref ('draft:<id>:<pick_no>') gravado em
 AuctionLog.notes. Leitura da Sleeper API é read-only (reusa sync_sleeper._get).
 Cap é soft: budget gera alerta, nunca bloqueia.
+
+OFF26-11 (modo auction SOMENTE) — a keeper sheet congelada é LISTA DE EXCLUSÃO:
+  · pick cujo jogador consta na lista PARA O MESMO TIME → keeper: não é ingerido,
+    não gera contrato, não toca salário/contract_year/histórico;
+  · pick cujo jogador consta para OUTRO time, sem id, ou sem time local → PENDÊNCIA
+    que BLOQUEIA a confirmação (o importador não arbitra sozinho);
+  · sem lista congelada utilizável → import BLOQUEADO (nunca "ingerir tudo").
+Sem reconciliação: não se compara salário de keeper (isso é a auditoria OFF26-4, que
+roda ANTES do leilão). O modo linear é intocado — ver `keeper_exclusion.py`.
 """
 from types import SimpleNamespace
 from flask import Blueprint, render_template, request, jsonify
-from flask_login import login_required
+from flask_login import login_required, current_user
 from models import (db, Player, Team, get_current_season,
                     record_acquisition, acquisition_already_recorded,
                     rookie_espn_adjusted)
 from player_lookup import find_player_by_sleeper_id
 from salary_engine import year1_salary, draft_budget
 from routes.auth import admin_required
+import keeper_exclusion as kx
 import sync_sleeper as ss
 
 draft_import_bp = Blueprint("draft_import", __name__)
@@ -49,12 +59,21 @@ def _team_by_roster(league_id):
     return out
 
 
-def _classify_missing(sid, acquisition_type):
+def _dropped_by_sid(sid):
+    """Player DROPADO com este sleeper_id, se houver. `find_player_by_sleeper_id` filtra
+    `is_dropped=False` — logo o CASO CANÔNICO do owner (jogador dropado na janela e
+    recomprado no leilão pelo mesmo time) NUNCA cai em `matched`, e sem esta consulta a
+    tela só ofereceria 'criar novo' (que duplicaria o Player e perderia o histórico)."""
+    if not sid:
+        return None
+    return Player.query.filter_by(sleeper_player_id=str(sid), is_dropped=True).first()
+
+
+def _classify_missing(sid, acquisition_type, dropped=None):
     """Causa do pick sem match (taxonomia observada em 2025)."""
     if sid and not str(sid).isdigit():
         return "DST/defesa (id não-numérico)"
-    dropped = Player.query.filter_by(sleeper_player_id=str(sid), is_dropped=True).first()
-    if dropped:
+    if dropped is not None:
         return "jogador dropado no banco"
     if acquisition_type == "rookie_draft":
         return "rookie ainda não cadastrado"
@@ -62,7 +81,11 @@ def _classify_missing(sid, acquisition_type):
 
 
 def _budget_alerts(matched):
-    """Alertas de budget por time via draft_budget canônico (soft — não bloqueia)."""
+    """Alertas de budget por time via draft_budget canônico (soft — não bloqueia).
+
+    OFF26-11: `matched` já vem SEM keepers (foram excluídos antes). Isso conserta uma
+    dupla contagem que existiria no caminho novo — o keeper já está no roster corrente
+    (base da simulação) e, se também entrasse como pick adicionado, contaria duas vezes."""
     alerts = []
     by_team = {}
     for m in matched:
@@ -105,7 +128,18 @@ def build_preview(draft_id):
         season = get_current_season()
     by_roster = _team_by_roster(league_id) if league_id else {}
 
-    matched, unmatched = [], []
+    # ── OFF26-11: lista de exclusão (SÓ modo auction; linear intocado) ──────────
+    exclusion_index, frozen, gate = None, None, None
+    if not is_rookie:
+        exclusion_index, frozen, gate = kx.exclusion_gate(season)
+        if gate:
+            # Sheet ausente/provisória/não congelada BLOQUEIA o import — jamais degradar
+            # para "ingerir tudo" (cada keeper viraria contrato ano 1).
+            return {"error": gate["error"], "exclusion_state": gate["state"],
+                    "exclusion_source": _source_brief(gate.get("source")),
+                    "draft_id": str(draft_id), "acquisition_type": acquisition_type}
+
+    matched, unmatched, excluded, pendencies = [], [], [], []
     for pk in picks:
         sid = str(pk.get("player_id") or "")
         pick_no = pk.get("pick_no")
@@ -121,6 +155,28 @@ def build_preview(draft_id):
             "team_id": team.id if team else None, "amount": amount,
             "event_ref": ev_ref, "already_imported": already,
         }
+
+        # Discriminador ANTES de qualquer resolução de identidade local: o keeper não é
+        # "um pick que não casou" — é um pick que NÃO SE INGERE por definição.
+        if exclusion_index is not None:
+            kind = kx.classify_pick(sid, team.id if team else None, exclusion_index)
+            if kind == kx.KIND_KEEPER:
+                kp = exclusion_index[sid]
+                excluded.append({**base, "keeper_name": kp["name"],
+                                 "keeper_team": kp["team_name"],
+                                 "keeper_position": kp.get("position"),
+                                 "sheet_salary": kp["salary"]})
+                continue
+            if kind in kx.PENDING_KINDS:
+                item = {**base, "kind": kind, "reason": kx.KIND_REASON[kind]}
+                if kind == kx.KIND_KEEPER_OTHER:
+                    kp = exclusion_index[sid]
+                    item["sheet_team"] = kp["team_name"]
+                    item["sheet_team_id"] = kp["team_id"]
+                    item["sheet_salary"] = kp["salary"]
+                pendencies.append(item)
+                continue
+
         if team is None:
             unmatched.append({**base, "cause": "roster não mapeado a um time local"})
             continue
@@ -128,7 +184,15 @@ def build_preview(draft_id):
         if player is None:
             # E2: rookie ainda não no DB — mostrar o salário projetado a partir do
             # store de valores ESPN (resolvido no import), se houver, p/ a decisão.
-            entry = {**base, "cause": _classify_missing(sid, acquisition_type)}
+            dropped = _dropped_by_sid(sid)
+            entry = {**base, "cause": _classify_missing(sid, acquisition_type, dropped)}
+            if dropped is not None:
+                # CASO CANÔNICO ($50): contrato antigo morreu, nasce contrato ANO 1 no
+                # mesmo Player — resolver para o id existente, nunca 'criar novo'.
+                entry["suggested_player_id"] = dropped.id
+                entry["suggested_name"] = dropped.name
+                entry["suggested_contract_year"] = dropped.contract_year
+                entry["suggested_salary"] = dropped.salary
             store_espn = rookie_espn_adjusted(sid, season) if is_rookie else None
             if store_espn:
                 entry["store_espn_adjusted"] = store_espn
@@ -156,8 +220,31 @@ def build_preview(draft_id):
         "matched": matched, "unmatched": unmatched,
         "n_matched": len(matched), "n_unmatched": len(unmatched),
         "n_already": sum(1 for m in matched if m["already_imported"]),
+        # OFF26-11 — transparência SEM reconciliação: os keepers excluídos aparecem
+        # separados dos arremates, e nada do salário do board é comparado com o Manager.
+        "keepers_excluded": excluded, "n_keepers_excluded": len(excluded),
+        "pendencies": pendencies, "n_pendencies": len(pendencies),
+        "exclusion": _frozen_brief(frozen),
+        # `matched` já exclui keepers → a soma é de ARREMATES apenas (ver _budget_alerts)
         "budget_alerts": _budget_alerts([m for m in matched if not m["already_imported"]]),
     }
+
+
+def _frozen_brief(frozen):
+    """Cabeçalho da lista congelada — sem despejar os keepers no payload do preview."""
+    if not frozen:
+        return None
+    return {k: frozen.get(k) for k in (
+        "season", "frozen_at", "source_stage", "sync_timestamp", "hash",
+        "num_keepers", "num_teams", "late_drop_executed_at", "reason")}
+
+
+def _source_brief(source):
+    """Diagnóstico do estado da sheet quando o import está bloqueado."""
+    if not source:
+        return None
+    return {k: source.get(k) for k in (
+        "season", "available", "stage", "stage_label", "sync_timestamp", "num_teams")}
 
 
 # ── Rotas ─────────────────────────────────────────────────────────────────────
@@ -184,7 +271,7 @@ def preview():
 def confirm():
     """
     Body: {draft_id, resolutions: {sid: <player_id> | 'create' | 'skip'},
-           skip_reasons: {sid: '...'}}
+           skip_reasons: {sid: '...'}, exclusion_hash: '<hash do preview>'}
     Toda pick sem match precisa de resolução; skip exige justificativa.
     Escreve via record_acquisition; idempotente por event_ref.
     """
@@ -198,6 +285,24 @@ def confirm():
     prev = build_preview(draft_id)
     if "error" in prev:
         return jsonify(prev), 400
+
+    # OFF26-11 — pendências BLOQUEIAM a confirmação e NÃO têm caminho de resolução: o
+    # importador não arbitra keeper de outro time, nem classifica sem identidade.
+    if prev.get("pendencies"):
+        return jsonify({
+            "error": (f"{len(prev['pendencies'])} pick(s) que o discriminador de keeper "
+                      f"não pode classificar — confirmação bloqueada. Resolva no board / "
+                      f"na sheet e recarregue o preview."),
+            "pendencies": prev["pendencies"],
+        }), 400
+
+    # A lista congelada não pode trocar entre o preview que o admin leu e o confirm.
+    sent_hash = (data.get("exclusion_hash") or "").strip()
+    cur_hash = ((prev.get("exclusion") or {}).get("hash") or "")
+    if sent_hash and cur_hash and sent_hash != cur_hash:
+        return jsonify({"error": "A lista de exclusão foi re-congelada depois deste "
+                                 "preview. Recarregue o preview e confira antes de "
+                                 "confirmar."}), 409
 
     # Gate: nenhum pulo silencioso — cada unmatched precisa de ação explícita.
     unresolved = []
@@ -271,7 +376,61 @@ def confirm():
     return jsonify({
         "success": True, "created": len(created),
         "already_imported": already, "skipped": skipped,
+        # keepers excluídos: contados, nunca escritos
+        "keepers_excluded": prev.get("n_keepers_excluded", 0),
+        "exclusion_hash": cur_hash or None,
     })
+
+
+# ── OFF26-11: lista de exclusão (congelamento) ────────────────────────────────
+
+@draft_import_bp.route("/api/draft_import/exclusion")
+@admin_required
+def exclusion_state():
+    """Estado da lista congelada + diagnóstico da sheet ao vivo (read-only)."""
+    season = get_current_season()
+    frozen = kx.get_frozen_exclusion()
+    src = kx.build_exclusion_source(season)
+    return jsonify({
+        "season": season,
+        "frozen": _frozen_brief(frozen),
+        "frozen_season_matches": bool(frozen and frozen.get("season") == season),
+        "source": {
+            "available": src["available"], "stage": src["stage"],
+            "stage_label": src["stage_label"], "sync_timestamp": src["sync_timestamp"],
+            "num_teams": src["num_teams"], "num_keepers": len(src["keepers"]),
+            "late_drop": src["late_drop"],
+            "keepers_sem_id": [{"name": k["name"], "team_name": k["team_name"]}
+                               for k in src["keepers_sem_id"]],
+        },
+    })
+
+
+@draft_import_bp.route("/api/draft_import/exclusion/freeze", methods=["POST"])
+@admin_required
+def exclusion_freeze():
+    """Congela a keeper sheet DEFINITIVA como lista de exclusão do leilão de 24/08.
+
+    Ato explícito de admin: é ele que fixa QUAL instante vale. Depois do leilão os owners
+    adicionam os arremates na liga real, e uma lista derivada ao vivo passaria a chamá-los
+    de keeper — excluindo da ingestão exatamente o que precisa entrar."""
+    season = get_current_season()
+    data = request.get_json() or {}
+    res = kx.freeze_exclusion_list(
+        season,
+        executed_by=(current_user.id if current_user.is_authenticated else None),
+        reason=(data.get("reason") or ""))
+    if "error" in res:
+        return jsonify({k: v for k, v in res.items() if k != "source"}), 409
+    return jsonify({"success": True, "frozen": _frozen_brief(res["frozen"])})
+
+
+@draft_import_bp.route("/api/draft_import/exclusion", methods=["DELETE"])
+@admin_required
+def exclusion_clear():
+    """Descongela. O import volta a ficar bloqueado até novo congelamento."""
+    kx.clear_frozen_exclusion()
+    return jsonify({"success": True, "frozen": None})
 
 
 def _as_float(amount):

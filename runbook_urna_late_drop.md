@@ -149,10 +149,40 @@ até fechar. Quem não depositar fica sem late drop. **Ninguém vê nada** até 
 > Com a urna revelada, o **rollover volta a ser liberado** (o snapshot está congelado; virar a
 > season já não perde nada).
 
+### 22–24/08 — 🧊 **CONGELAR a lista de exclusão** (OFF26-11)
+
+**Passo novo e obrigatório, e ele tem HORA: depois do sync final, ANTES do leilão.**
+
+1. `/draft_import` → card **"Lista de exclusão do leilão (keepers)"** → **🧊 Congelar**.
+2. Conferir o que a tela mostra: **season**, **nº de keepers**, selo **definitiva**, carimbo do
+   **sync** e o **hash**. Se recusar, a mensagem diz o motivo (sheet ainda PROVISÓRIA · keeper sem
+   `sleeper_player_id`) — resolva, não contorne.
+3. Re-congelar depois disso **exige justificativa** e só faz sentido se o board mudar de verdade.
+
+⛔ **Por que a hora importa.** A keeper sheet nasce do **roster vivo**. Depois do leilão cada owner
+adiciona seus arremates **na liga real** — e o primeiro sync passa a mostrar esses arremates como
+se fossem keepers. Uma lista tirada naquele momento **excluiria da ingestão exatamente o que
+precisa entrar** (o caso canônico: dropado por $50, recomprado por $50, contrato **ano 1**).
+Congelar antes do leilão é o que impede isso. **Sem lista congelada o import de 24/08 fica
+bloqueado** — de propósito.
+
 ### 24/08 — leilão
 
 Board 100% populado e auditado. ⛔ **Abrir o leilão com qualquer time não populado expõe os
 keepers desse time** (achado do OFF26-4).
+
+**Depois do leilão — import do resultado** (`/draft_import`, com o `draft_id` do auction):
+
+1. **Preview.** Conferir os três blocos: **keepers excluídos** (nada é escrito para eles),
+   **arremates a ingerir** e — se houver — **⛔ pendências**.
+2. **Pendência bloqueia a confirmação e não tem botão de resolver.** As três causas:
+   keeper designado no time **errado** (é a classe grave da auditoria acontecendo ao vivo),
+   pick **sem `player_id`**, roster **não mapeado** a time do Manager. Resolva no board / na sheet
+   e recarregue o preview.
+3. **Jogador dropado na janela e recomprado no leilão** aparece em *picks sem match* com a ação
+   **"Reativar &lt;nome&gt; (ano 1)"** — use essa, **nunca "Criar novo"** (duplicaria o jogador).
+4. **Confirmar.** O resultado informa criados · já importados · pulados · **keepers excluídos**.
+5. Só então cada owner adiciona os arremates na liga real. A ordem é essa.
 
 ---
 

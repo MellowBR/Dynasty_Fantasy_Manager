@@ -18,7 +18,7 @@ pip install -r requirements.txt
 # (bootstrap one-shot, F12: boots seguintes preservam edições in-app; flag csv_bootstrap_done)
 python app.py
 
-# Run salary engine unit tests
+# Run salary engine unit tests (54)
 python salary_engine_test.py
 
 # Run keeper audit unit tests (OFF26-4 — núcleo puro, sem Flask/DB/rede)
@@ -32,6 +32,9 @@ python late_drop_test.py
 
 # Run janela selada / runner do ensaio (OFF26-1 — 22 testes)
 python janela_ensaio_test.py
+
+# Run lista de exclusão do importador (OFF26-11 — 36 testes; núcleo puro + ORM em memória)
+python keeper_exclusion_test.py
 
 # Seed users (after first deploy)
 python seed_users.py --csv data/users.csv
@@ -90,7 +93,7 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 | auction | `/auction` | FA auction & rookie draft registration |
 | admin | `/admin`, `/admin/users`, `/admin/review`, `/admin/keeper_audit` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1), PlayerHistory canonical rebuild (F8), dynasty values refresh (T2), revisão admin auditável Cat A/B (M2), **auditoria de keepers pré-leilão (OFF26-4 — read-only, ver `keeper_audit.py`)** |
 | offseason | `/offseason` | 7-step offseason workflow com lottery auditável (M8), 6 seeds via fonte única (M15), editor de pesos reativo com render single-source JS (M15-FIX) |
-| draft_import | `/draft_import` | OFF26-3: importa drafts via API read-only — **rookie linear (roda na liga REAL)** / **FA auction (roda na liga fantasma permanente)**; preview→confirm, match por sleeper_player_id, idempotente, escreve só via `record_acquisition`. ⚠️ OFF26-11 🔲: com keepers designados no board da fantasma os picks vêm misturados, e a porta é de **contrato ano 1** — ingerir keeper zera a idade do contrato |
+| draft_import | `/draft_import` | OFF26-3: importa drafts via API read-only — **rookie linear (roda na liga REAL)** / **FA auction (roda na liga fantasma permanente)**; preview→confirm, match por sleeper_player_id, idempotente, escreve só via `record_acquisition`. **OFF26-11 ⚠️ (modo auction SÓ):** a keeper sheet **congelada** é **lista de exclusão** — keeper do mesmo time do pick não é ingerido; keeper de **outro** time, pick sem id e roster não mapeado viram **pendência que bloqueia a confirmação**; sheet ausente/provisória/não-congelada **bloqueia o import** (⛔ nunca degradar para "ingerir tudo"). Congelamento: `POST /api/draft_import/exclusion/freeze` (ver `keeper_exclusion.py`). **Modo linear intocado.** Jogador dropado e recomprado resolve-se por *"Reativar (ano 1)"* — nunca "criar novo" |
 | late_drop | `/late_drop` | **OFF26-10: a URNA do late drop (22/08) — única porta de declaração do Manager em 2026.** Um bilhete por time (um jogador do próprio roster **ou** passo), lista de **escolha única**; janela por **horário do admin** (`late_drop_opens_at`/`closes_at`); lock + hash + revelação simultânea reusando `compute_cut_snapshot_hash`; hierarquia owner > admin (recusa seca 409). **Sigilo: o selado é QUEM e O QUÊ** — a contagem agregada "N/12 depositaram" é pública e conta **drop e passo indistintamente** (nem inclinação vaza); `/api/late_drop/state` devolve **números, não times**. ⛔ **Bloqueio mútuo com o rollover** (bilhete é escopado por `current_season`): rollover recusado com urna viva e não revelada; agendamento recusado com `rollover_done` pendente — escape pelo banner de ensaio. A revelação produz a **lista de drops a executar**; ⛔ **a execução é MANUAL no Sleeper**. Flag admin "bloquear rookie de 1ª rodada" nasce **OFF**. ⛔ Nenhum `window.confirm()` no caminho de declaração (`confirmarInline`) |
 | cuts | `/cuts`, `/cuts/keeper_sheet` | OFF26-1: mecanismo da janela selada — lock/revelação simultânea admin-manual com snapshot auditável molde M8 (`CutWindowAudit`), hash verificável, write-by-team do admin com **hierarquia owner > admin** (recusa seca 409), gate de abertura = `needs_review` zerado (D3). **⚠️ A PORTA DE DECLARAÇÃO DO OWNER FOI APOSENTADA (MAN-OFF26-1-ETAPA2, 07/08/2026):** os cortes de 20/08 acontecem **direto no Sleeper** e o Manager só fotografa por sync; a tela não renderiza mais roster/checkbox/botão de declarar — sobra a explicação do fluxo e, para admin, o **motor rotulado "legado"**. As **rotas** de declaração seguem vivas de propósito (são o mecanismo que a urna do OFF26-10 reusa e a rede de regressão da hierarquia). ⛔ **A urna não pode reusar a flag `cuts_window_open`** — reabriria a porta antiga. **OFF26-2 (origem reescrita em 07/08, U7 do OFF26-10): a keeper sheet nasce do SYNC** — `keepers = roster vivo`, sem gate de snapshot; **provisória × definitiva pelo carimbo do sync** (definitiva = sync POSTERIOR à revelação da urna); coluna **IR** na tabela e no CSV (OFF26-15); **@admin_required** (artefato de transcrição/auditoria, não consulta de owner). A chave `revealed` do payload permanece por ser o contrato que o núcleo puro do OFF26-4 lê |
 | league | `/league`, `/team/<id>` | League Hub (L1): grid de 12 times com cap/picks/dynasty/record + detalhe por time (roster, picks, cap breakdown) |
@@ -227,6 +230,38 @@ sheet)` é puro** (sem DB, sem rede — é o que os testes exercem); `fetch_boar
 - **Fixtures:** `keeper_audit_fixtures.py` é **material de teste congelado — NÃO é a keeper sheet
   real** (essa nasce da revelação da janela de cortes e vive no banco). Nenhum caminho de produção
   o importa.
+- ⚠️ **OFF26-22 🔲:** `build_sheet` ainda tem o gate `if not raw.get("revealed")`, mas desde o U7
+  `_build_keeper_sheet` devolve `revealed: True` **sempre** — o ramo é código morto, e a auditoria
+  passou a auditar sheet **PROVISÓRIA** como se fosse definitiva.
+
+### Lista de exclusão do importador — a sheet CONGELADA (OFF26-11)
+
+`keeper_exclusion.py` é o **discriminador único** de keeper × arremate no import do FA auction.
+Mesma separação do `salary_engine`: **núcleo puro** (`build_index` / `classify_pick` /
+`compute_exclusion_hash` — sem DB, sem rede) + IO. Regra única: **pick cujo jogador consta na lista
+para o MESMO time do pick é keeper** — não ingerido, não gera contrato, não toca salário,
+`contract_year` nem histórico.
+
+- ⛔ **A lista é CONGELADA, não derivada ao vivo — é requisito de correção.** A keeper sheet nasce
+  do **roster vivo** (U7), e depois do leilão cada owner adiciona seus arremates **na liga real**:
+  um sync entre leilão e import faria o arremate aparecer como keeper e ele seria **excluído da
+  ingestão** — o **dano invertido**. O snapshot (`AppConfig["keeper_exclusion_frozen"]`, com hash +
+  `sync_timestamp` + `frozen_at`) é gravado por **ato explícito de admin** entre o sync final e o
+  leilão. O que isso **não cobre**: congelar tarde (mitigação é operacional — runbook).
+- **Fonte da lista:** os **dois** produtores já existentes — `keeper_audit.build_sheet` (keepers com
+  `sleeper_player_id`) e `routes.cuts._build_keeper_sheet` (o selo `stage`). ⛔ Não criar uma
+  terceira definição de "quem é keeper".
+- **Bloqueios:** sheet indisponível · **PROVISÓRIA** · não congelada · congelada de outra season →
+  import bloqueado, cada um com `exclusion_state` e mensagem própria. ⛔ **Nunca degradar para
+  "ingerir tudo".** Congelar recusa sheet provisória e keeper sem `sleeper_player_id`.
+- **Pendências que bloqueiam a confirmação e NÃO têm resolução** (`PENDING_KINDS`): keeper de
+  **outro** time · pick sem `player_id` · roster não mapeado. Uma quarta classe seria arbitragem que
+  o importador não tem autoridade para fazer — há teste que falha se alguém criá-la.
+- ⛔ **`is_keeper` do Sleeper é registro, nunca insumo** (`false` em 24/24 designações; pós-draft
+  **não observado**). Teste falha se a string aparecer no módulo.
+- **Escopo:** **modo auction apenas.** O linear (rookie na liga real) é intocado.
+- ⛔ **Sem reconciliação:** salário de keeper do board **não** é comparado com o Manager — isso é a
+  auditoria OFF26-4, que roda **antes** do leilão, como gate (decisão A do owner, 06/08/2026).
 
 ### Audit Trails
 
@@ -248,6 +283,8 @@ fantasy_manager/
   app.py, wsgi.py, models.py       # Core app
   salary_engine.py                  # Pure salary logic (no DB)
   keeper_audit.py                   # OFF26-4: auditoria pré-leilão (núcleo puro + IO read-only)
+  keeper_exclusion.py               # OFF26-11: sheet CONGELADA = lista de exclusão do importador
+  keeper_exclusion_test.py          # OFF26-11: discriminador keeper × arremate (36)
   late_drop_test.py                 # OFF26-10: urna do late drop + keeper sheet via sync (47)
   janela_ensaio_test.py             # OFF26-1: runner do ensaio/reset da janela e da urna (22)
   ensaio_janela_selada.py           # OFF26-1/10: status · banner · reset (janela E urna)

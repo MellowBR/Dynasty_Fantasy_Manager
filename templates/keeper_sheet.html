@@ -51,7 +51,19 @@
   <a class="btn btn-primary" href="/api/cuts/keeper_sheet.csv">⬇️ Baixar CSV</a>
   <a class="btn btn-secondary" href="/admin/keeper_audit">🔍 Auditoria pré-leilão</a>
   <a class="btn btn-secondary" href="/late_drop">🗳️ Urna do late drop</a>
+  <a class="btn btn-secondary" href="/draft_import">🧊 Congelar lista de exclusão</a>
 </div>
+
+{# OFF26-11: quando esta sheet vira DEFINITIVA, ela precisa ser CONGELADA antes do leilão —
+   é ela que o importador usa como lista de exclusão. Depois do leilão os owners adicionam
+   os arremates na liga real, e um sync passaria a mostrá-los como keepers. #}
+{% if sheet.stage == 'definitiva' %}
+<div class="alert alert-warn" style="margin-bottom:1rem">
+  🧊 <strong>Antes do leilão:</strong> congele esta sheet como <strong>lista de exclusão</strong> em
+  <a href="/draft_import">Importar Draft</a>. Sem o congelamento o import do FA auction fica bloqueado —
+  e congelar <em>depois</em> do leilão pegaria os arremates já adicionados pelos owners como se fossem keepers.
+</div>
+{% endif %}
 
 {% for t in sheet.teams %}
 <div class="card" style="margin-bottom:1rem">
