@@ -18,12 +18,18 @@
         <span class="pos-badge pos-{{ player.position|replace('/','') }}">{{ player.position or '?' }}</span>
         {{ player.name }}
       </h1>
+      {# O2 Batch 1 — time NFL (fonte única: Player.nfl_team) + idade (pool; some se ausente) #}
+      <div class="player-detail-nfl text-dim">
+        🏈 {{ player.nfl_team or '—' }}{% if nfl_ctx.age %} · {{ nfl_ctx.age }} anos{% endif %}
+      </div>
       <div class="player-detail-team">
         {% if team %}
           {% if team.owner_avatar %}
           <img src="https://sleepercdn.com/avatars/{{ team.owner_avatar }}" class="owner-avatar-sm" onerror="this.style.display='none'">
           {% endif %}
-          <strong>{{ team.name }}</strong>
+          {# O2 Batch 1 — nome do time da liga vira link p/ /team/<id> (L1) #}
+          <strong><a href="{{ url_for('league.team_detail', team_id=team.id) }}"
+                     title="Abrir página do time">{{ team.name }}</a></strong>
           {% if team.owner_name %}<span class="text-dim">({{ team.owner_name }})</span>{% endif %}
           {% if player.is_on_ir %}<span class="tag tag-review">IR</span>{% endif %}
           {% if player.is_dropped %}<span class="tag tag-review">Dropado</span>{% endif %}
@@ -79,6 +85,35 @@
     </div>
   </div>
 </div>
+
+{# O2 Batch 1 — depth chart do time NFL, derivado do pool (nfl_context). Só renderiza se
+   houver linhas (~25% dos skill não têm depth_chart_order; DEF nunca tem — sem bloco, sem
+   erro). Time/posição do chart vêm da entrada do jogador NO POOL (autoridade do chart);
+   divergência com Player.nfl_team é o staleness documentado na seção O2. #}
+{% if nfl_ctx.depth_chart %}
+<div class="card">
+  <h2 class="card-title">🏈 Depth chart — {{ nfl_ctx.position }} do {{ nfl_ctx.team }}</h2>
+  <table class="data-table">
+    <thead>
+      <tr><th style="width:3rem">#</th><th>Jogador</th><th>Slot</th></tr>
+    </thead>
+    <tbody>
+      {% for row in nfl_ctx.depth_chart %}
+      <tr{% if row.is_self %} style="font-weight:700"{% endif %}>
+        <td>{{ row.order }}</td>
+        <td>{{ row.name }}{% if row.is_self %} <span class="tag tag-current">este jogador</span>{% endif %}</td>
+        <td class="text-dim">{{ row.depth_chart_position or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if not nfl_ctx.in_chart %}
+  <p class="text-dim" style="margin-top:.5rem;font-size:.8rem">
+    {{ player.name }} não tem posição registrada neste depth chart.
+  </p>
+  {% endif %}
+</div>
+{% endif %}
 
 <div class="card">
   <h2 class="card-title">📈 Timeline</h2>

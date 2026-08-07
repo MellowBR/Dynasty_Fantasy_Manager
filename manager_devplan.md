@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 08/08/2026-pt7 (MAN-UX12-REFINE, **docs-only**: **roteamento (b) do [[UX12]] executado — item fecha ✅ ROTEADO** (despachado em [[M10]] busca + [[O2]] perfil; decisão do owner). **O2 refinado in-place**: absorve campos 2+5 do UX12, **quita a dívida de absorção** (F1 do MAN-O2-F1 de 28/04 sai do handoff descartável e passa a viver na seção — disponibilidade por dimensão, endpoints sem `/v1/`, 2 batches, cache strategy com nota pós-F13, reuso), **corrige a afirmação falsa do depth chart** (zero consumo em produção; dado no pool 75%/94%, coluna não bastaria — derivação do pool TTL 168h) e registra as guardas ([[OFF26-16]], [[S4]]) + Q5 (página existente). [[M10]] só validação de demanda (Michel, 2º usuário; spec intocada). Transbordos: [[UX11]] candidato a **F2 direta de causa conhecida** (payload já tem `nfl_team`; resta staleness) · [[UX10]] estreitado à hipótese (a). Seção UX12 migrada **verbatim** ao archive ([[O3]]); Status Rápido com **só a linha UX12 mudada**. Zero código.)
+> Última atualização: 08/08/2026-pt8 (MAN-O2-F2-B1: **Batch 1 do perfil do jogador entregue** — time NFL + idade no header, link do time da liga, card de depth chart (destaque por **sid**, nunca nome). Novo `nfl_context.py` (núcleo puro + IO, 19 testes). Decisões: ⛔ página **nunca faz rede** (cache F13, sem download; ausente → degrada sem erro); pool vencido **serve** (stale-while-usable); **zero cache novo em disco** (índice em memória, mtime só como chave de invalidação); **idade derivada de `birth_date`, não persistida**; chart deriva do POOL (Q2: rivais não são Players do DB), header segue `Player.nfl_team` (fonte única Q1). Smoke local: DJ Moore completo, link p/ franquia DELE, DEF e fora-do-pool degradando limpo. Guardas OK (54/54 folha; zero schema; rotas intactas). Suítes verdes. [[O2]] 🔲 → ⚠️ — falta smoke prod (PROC1); Batch 2 pendente.)
+> Anterior: 08/08/2026-pt7 (MAN-UX12-REFINE, **docs-only**: **roteamento (b) do [[UX12]] executado — item fecha ✅ ROTEADO** (despachado em [[M10]] busca + [[O2]] perfil; decisão do owner). **O2 refinado in-place**: absorve campos 2+5 do UX12, **quita a dívida de absorção** (F1 do MAN-O2-F1 de 28/04 sai do handoff descartável e passa a viver na seção — disponibilidade por dimensão, endpoints sem `/v1/`, 2 batches, cache strategy com nota pós-F13, reuso), **corrige a afirmação falsa do depth chart** (zero consumo em produção; dado no pool 75%/94%, coluna não bastaria — derivação do pool TTL 168h) e registra as guardas ([[OFF26-16]], [[S4]]) + Q5 (página existente). [[M10]] só validação de demanda (Michel, 2º usuário; spec intocada). Transbordos: [[UX11]] candidato a **F2 direta de causa conhecida** (payload já tem `nfl_team`; resta staleness) · [[UX10]] estreitado à hipótese (a). Seção UX12 migrada **verbatim** ao archive ([[O3]]); Status Rápido com **só a linha UX12 mudada**. Zero código.)
 > Anterior: 08/08/2026-pt6 (MAN-UX12-F1, **diagnose read-only** do [[UX12]] — zero código, zero chamada externa. **Achado central: 3 dos 7 campos pedidos JÁ EXISTEM na página atual** (trade com os dois times pré-selecionados/M14 · cap hit · Timeline de `PlayerHistory` com trades clicáveis) — o gap real é NFL no header, link p/ time, idade e depth chart, **metade já no Batch 1 do [[O2]]**. **Q0 recomenda (b) despachar**: busca → [[M10]] (spec de 28/04 conferida inteira e viva), perfil → [[O2]] refinado in-place absorvendo campos 2+5 + a F1 do MAN-O2-F1 (hoje num handoff “descartável”). **Q1 refuta a réplica temida** (time = fonte única `Player.nfl_team`, 8 sítios lendo a mesma coluna; foto = 2 construtores espelhados) e **responde de carona a F1 do [[UX11]]** — o payload do quadro de trades já contém `nfl_team`, falta só renderizar — além de **estreitar o [[UX10]]** (URL de foto sem componente de temporada/time → hipóteses b/c sem mecanismo local). **Q2:** `depth_chart_order` **não é consumido em produção** (afirmação do O2 falsa) mas está no pool (75% skill; idade 94%) — e **coluna não bastaria**: os rivais de posição não são Players do DB, deriva-se do pool. **Q3–Q5:** histórico como está = zero acoplamento novo com o [[S4]]; cap hit já lê as fontes canônicas; enriquecer a página existente (2 helpers + 6 links inline apontam para ela). Listas (a)/(b) da regra MAN-METH-REG aplicadas: 3 premissas contraditas, 4 omissões com parecer. Status segue 🔲; decisão de roteamento é do owner.)
 > Anterior: 08/08/2026-pt5 (MAN-UX12-REG, **docs-only**: registro do **[[UX12]] 🔲 Média — busca de jogador + página de perfil enriquecida**, pedido do **co-admin Michel**. Dois sintomas: **não existe caminho de busca** (é preciso já saber em que franquia o jogador está para conseguir abri-lo) e a página que abre não traz o que se usa para avaliá-lo — 7 campos pedidos (time NFL + franquia, link p/ a página do time, link p/ trade **com o time já pré-selecionado**, cap hit, idade, **depth chart na NFL**, histórico de `PlayerHistory`). ⚠️ **O achado do registro é de sobreposição, e ficou explícito em vez de silenciado:** o escopo atravessa **dois itens 🔲 que já existem** — [[M10]] **é** a busca (endpoint `GET /api/player/search` **já existe**; o caso de uso registrado lá é **o mesmo sintoma**, reportado em 28/04 pelo owner e agora pelo Michel) e [[O2]] **é** o perfil (já inclui **time NFL no header** e **depth chart**). O UX12 acrescenta os campos **2, 3, 5 e 7**, o agrupamento como experiência única e a demanda de um **segundo usuário**. **Roteamento NÃO arbitrado** (guarda-chuva × despachar em M10/O2 × ficar só com o resto) e registrado como **questão 0**; ⛔ implementar em paralelo a M10/O2 seria a enésima réplica. Demais questões abertas: **réplica de fonte** do time do jogador (mesma do [[UX11]], que a F1 pode absorver ou despachar), **o sync persiste depth chart e idade?** (⛔ conferir, não herdar a afirmação do O2), página nova × enriquecer a `/player/<id>` do [[M13]], superfície da busca e homônimos (⛔ exibição por nome, **identidade por `sleeper_player_id`** — precedente Brown) e foto herdando o [[UX10]] **sem acoplar**. **Exceção de commit docs-only logada.** Zero código; nenhum status existente alterado.)
 > Anterior: 08/08/2026-pt4 (MAN-UX10-UX11-REG 2ª parte, **docs-only**: **enxugamento do backlog ativo a pedido do owner**. Medição antes de mexer, e o maior ofensor **não era conteúdo de item**: o bloco `> Atualizado em:` somava **66 entradas / 114 KB = 22%** do arquivo, duplicando o que o log de decisões do devplan e o `git log` já registram (19 das 20 sessões do cabeçalho do devplan estavam lá, com 6,5× o tamanho). 61 entradas → **`improvements_sessions.md`** (verbatim; ativo mantém as 5 últimas) + **dívida da regra [[O3]] quitada** (OFF26-5, OFF26-6, F8 → archive). **522 KB → 377 KB (-28%)**, com integridade **provada**: soma dos 3 arquivos preservada, cada seção 1× no archive e 0× no ativo, 61 linhas conferidas verbatim, **Status Rápido byte-idêntico**. Esquema do O3 vai de 2 para 3 arquivos, regra do cabeçalho no checklist — e **aplicada na própria sessão que a escreveu**. Registrado sem agir: [[OFF26-4]] sozinha é 13% do ativo (sai quando fechar) e ~30 dos 81 `###` são sub-cabeçalhos de diagnose que deveriam ser `####`. Zero código.)
@@ -4401,3 +4402,56 @@ nenhum status mudou além do UX12 (🔲 → ✅ ROTEADO).
 de roteamento documental, sem código pendente e sem nada a smokar. Validações: Status Rápido com
 1 linha alterada e contagem preservada; seções UX10/UX11 com texto pré-existente byte-idêntico
 (transbordos são appends); migração verbatim conferida.
+
+### MAN-O2-F2-B1 — Batch 1 do perfil do jogador: contexto NFL derivado do pool (08/08/2026, Fable)
+
+F2 da camada 1 do [[O2]], conforme a spec refinada em `3dde0ab`. As 4 dimensões do Batch 1
+estão na `/player/<id>`; [[O2]] vai a **⚠️** — smoke em produção pendente (gate PROC1), Batch 2
+(stats históricas + schedule) segue como escopo aberto.
+
+- **O que entrou.** Header ganhou a linha `🏈 <time NFL> · <idade> anos` (time de
+  `Player.nfl_team` — a **fonte única** mapeada na Q1 da UX12-F1; idade do pool); o nome do time
+  da liga virou **link p/ `/team/<id>`** (rota L1 existente, `url_for` — nada hardcoded); card
+  novo de **depth chart** do time NFL com o jogador destacado — match por **sid**, nunca por nome
+  (há dois “DJ Moore” no pool real; o homônimo CB de 1987 não contamina).
+
+- **`nfl_context.py` na mesma separação do salary_engine.** Núcleo puro (`build_slim_index`,
+  `compute_age`, `build_depth_chart`, `assemble_context` — sem DB/rede/FS; `today` é parâmetro)
+  + IO mínima. **19 testes** em `nfl_context_test.py` cobrem ordenação/desempate, degradações
+  (sem ordem, sem birth_date, fora do pool, DEF), homônimos e normalização DST→DEF.
+
+- **As três decisões de desenho, e por quê.** (1) ⛔ **O caminho de página nunca faz rede**: lê
+  o cache do pool pelo caminho único do F13 (`sync_sleeper._player_cache_path`) e **não dispara
+  download** — um GET de página não pode pagar 15 MB de fetch nem depender da Sleeper estar de
+  pé; pool ausente → contexto vazio e página normal. Pool **vencido ainda serve**
+  (stale-while-usable): chart de 8 dias > bloco sumindo, e o staleness já é ressalva registrada
+  da seção. Renovar é papel do sync (TTL 168h). (2) **Nenhum cache novo em disco** — a nota
+  pós-F13 satisfeita por vacuidade: índice enxuto (7 campos × ~12k entradas) em memória de
+  processo, invalidado por `(mtime, size)` **como chave de invalidação, nunca como validade** (a
+  lição do F13 — rebuild espúrio pós-deploy é inócuo). (3) **Idade derivada, não persistida**
+  (a F1 deixara a escolha): zero schema, e calculada de `birth_date` — não do campo `age` do
+  pool, que envelhece entre fetches.
+
+- **Autoridades separadas, como a seção pede:** o time do **header** vem de `Player.nfl_team`
+  (fonte única, escrita só pelo sync); o time do **chart** vem da entrada do jogador **no pool**
+  (autoridade do depth chart). Divergência entre eles é o staleness documentado — não foi criada
+  uma segunda derivação de exibição.
+
+- **Smoke local (GET-only, test client logado).** DJ Moore (âncora): `🏈 BUF · 29 anos`
+  (birth_date 1997-04-14 confere), chart WR do BUF com ele em **#1 destacado**, link para a
+  franquia **dele** (`/team/4`) e não a do usuário logado (`/team/5`). DEF (Atlanta): sem card,
+  sem erro. **3 rosterados fora do pool** (Gainwell, Hollywood Brown, Cameron Ward) — página
+  normal sem idade/chart, sem erro: a degradação exigida pela spec foi exercitada com dado real.
+  Nota: nenhum skill rosterado está hoje sem `depth_chart_order` (os ~25% sem o campo são fundo
+  de elenco do pool) — o caminho “chart parcial” fica coberto pelos testes unitários.
+
+- **Guardas e regressão.** Zero coluna nova; folha/cap intocados — `salary_engine_test` **54/54**
+  (o prompt citava 48; a suíte tem 54 desde o OFF26-16); Timeline/`PlayerHistory` e rotas
+  intactas. Suítes completas verdes: 34 (audit) + 25 (stage) + 36 (exclusion) + 64 (urna) + 22
+  (ensaio) + 14 (régua) + 19 (novos). As 2 “falhas” do `janela_ensaio_test` no console são
+  **artefato cp1252 pré-existente** (print de ⛔) — 22/22 com `PYTHONIOENCODING=utf-8`; nenhum
+  arquivo desta sessão toca aquele caminho.
+
+**Commit único código+docs** (regra do prompt). CLAUDE.md sincronizado (comando de teste novo,
+estrutura, linha do blueprint roster). **[[O2]] ⚠️ até o smoke em produção confirmar o hash
+live (PROC1).**

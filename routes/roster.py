@@ -393,10 +393,19 @@ def player_detail(player_id):
 
     acquisition_label = _ACQ_LABELS.get(player.acquisition_type, player.acquisition_type or "—")
 
+    # O2 Batch 1: idade + depth chart derivados do POOL do Sleeper (nfl_context —
+    # leitura pura do cache F13, sem rede no caminho de página). Jogador fora do pool
+    # ou sem birth_date/depth_chart → dicionário vazio e a página renderiza sem os
+    # blocos, sem erro (degradação explícita da spec). O time NFL do HEADER segue
+    # vindo de Player.nfl_team (fonte única da Q1 da UX12-F1) — o pool manda só no chart.
+    from nfl_context import get_player_nfl_context
+    nfl_ctx = get_player_nfl_context(player.sleeper_player_id)
+
     return render_template("player_detail.html",
                            player=player,
                            team=team,
                            my_team_name=my_team_name,
                            dynasty_value=dynasty_value,
                            can_propose_trade=can_propose_trade,
-                           acquisition_label=acquisition_label)
+                           acquisition_label=acquisition_label,
+                           nfl_ctx=nfl_ctx)

@@ -1797,6 +1797,12 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   font-size: 1.35rem;
 }
 
+/* O2 Batch 1 — linha de contexto NFL no header (time NFL + idade) */
+.player-detail-nfl {
+  margin: 0 0 .35rem;
+  font-size: .88rem;
+}
+
 .player-detail-team {
   display: flex;
   align-items: center;
@@ -1808,6 +1814,17 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 
 .player-detail-team strong {
   color: var(--text, #e0e0e0);
+}
+
+/* O2 Batch 1 — nome do time da liga é link p/ /team/<id>, sem perder a cor de texto */
+.player-detail-team strong a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dashed var(--text-dim, #888);
+}
+
+.player-detail-team strong a:hover {
+  border-bottom-style: solid;
 }
 
 .player-contract-grid {
