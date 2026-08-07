@@ -320,12 +320,13 @@ fantasy_manager/
   manager_vision.md                 # Motivação e casos de uso
   improvements.md                   # Backlog ATIVO (🔲/⚠️) + Status Rápido completo
   improvements_archive.md           # Histórico de itens ✅ (detalhe movido verbatim — O3)
+  improvements_sessions.md          # Cabeçalhos `Atualizado em` antigos (O3, 08/08) — changelog
   runbook_cowork_liga_fantasma.md   # OFF26-5: runbook operacional Cowork (montar/popular a liga fantasma na UI do Sleeper)
   runbook_urna_late_drop.md         # OFF26-10: smoke da urna + roteiro de 20, 22 e 24/08 (execução manual)
   runbook_ensaio_janela_selada.md   # OFF26-1: registro histórico do ensaio (fluxo principal mudou)
 ```
 
-**Esquema de dois arquivos do backlog (item O3, 11/06/2026 — Manager-only):**
+**Esquema de TRÊS arquivos do backlog (item O3, 11/06/2026; 3º arquivo em 08/08/2026 — Manager-only):**
 `improvements.md` é o backlog **ativo** — cabeçalho + **Status Rápido completo** (todos os IDs,
 inclusive ✅; é o namespace e a baseline de dedupe) + seções detalhadas **só de itens 🔲/⚠️**.
 `improvements_archive.md` guarda as seções detalhadas dos itens **✅**, movidas **verbatim** (registro
@@ -333,6 +334,13 @@ de evidência para diagnoses futuras: incidente Brown, post-mortem T2-FIX, decis
 que precise do histórico de um item fechado deve ler o archive.** **Regra de migração (entra no
 checklist de fim de sessão):** ao marcar um item ✅ (validado em prod), mover sua seção detalhada para
 o archive no fechamento da sessão; **⚠️ nunca migra** (fica no ativo até ✅).
+
+`improvements_sessions.md` (08/08/2026) guarda as entradas `> Atualizado em:` antigas do cabeçalho.
+**O ativo mantém só as 5 mais recentes** — o bloco havia chegado a **66 entradas / 114 KB = 22% do
+arquivo**, duplicando o que o log de decisões do `manager_devplan.md` e o `git log` já registram.
+**Regra (entra no mesmo checklist):** ao adicionar a entrada da sessão, empurrar a 6ª para o
+`improvements_sessions.md` (verbatim, mais recente primeiro). ⛔ **Esse arquivo é changelog, não
+backlog — não lê-lo em diagnose.**
 
 ## Version Control
 

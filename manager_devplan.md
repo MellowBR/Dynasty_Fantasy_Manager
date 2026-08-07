@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 08/08/2026-pt3 (MAN-UX10-UX11-REG, **docs-only**: dois itens de UI reportados pelo owner entram no backlog, **fora do caminho crítico de 24/08** e sem diagnose iniciada. **[[UX10]] 🔲 Baixa** — fotos de jogadores desatualizadas (caso-âncora: **David Montgomery**); cosmético (identidade segue por `sleeper_id`), mas a F1 registra as **três hipóteses NÃO arbitradas** — cache × URL construída com componente desatualizado × fonte keyed fora do `sleeper_id` —, que levam a fixes **incompatíveis**. **[[UX11]] 🔲 Média** — quadro de trades sem a franquia NFL do jogador. Os dois carregam a **pergunta de réplica** que virou rotina: a lógica existe em mais de um lugar? No UX11 isso tem consequência de desenho imediata — se cada tela deriva a sua, acrescentar mais uma **piora** o problema. Suspeita de raiz comum registrada sem afirmar. **Exceção de commit docs-only logada.** Zero código; nenhum status existente alterado.)
+> Última atualização: 08/08/2026-pt4 (MAN-UX10-UX11-REG 2ª parte, **docs-only**: **enxugamento do backlog ativo a pedido do owner**. Medição antes de mexer, e o maior ofensor **não era conteúdo de item**: o bloco `> Atualizado em:` somava **66 entradas / 114 KB = 22%** do arquivo, duplicando o que o log de decisões do devplan e o `git log` já registram (19 das 20 sessões do cabeçalho do devplan estavam lá, com 6,5× o tamanho). 61 entradas → **`improvements_sessions.md`** (verbatim; ativo mantém as 5 últimas) + **dívida da regra [[O3]] quitada** (OFF26-5, OFF26-6, F8 → archive). **522 KB → 377 KB (-28%)**, com integridade **provada**: soma dos 3 arquivos preservada, cada seção 1× no archive e 0× no ativo, 61 linhas conferidas verbatim, **Status Rápido byte-idêntico**. Esquema do O3 vai de 2 para 3 arquivos, regra do cabeçalho no checklist — e **aplicada na própria sessão que a escreveu**. Registrado sem agir: [[OFF26-4]] sozinha é 13% do ativo (sai quando fechar) e ~30 dos 81 `###` são sub-cabeçalhos de diagnose que deveriam ser `####`. Zero código.)
+> Anterior: 08/08/2026-pt3 (MAN-UX10-UX11-REG, **docs-only**: dois itens de UI reportados pelo owner entram no backlog, **fora do caminho crítico de 24/08** e sem diagnose iniciada. **[[UX10]] 🔲 Baixa** — fotos de jogadores desatualizadas (caso-âncora: **David Montgomery**); cosmético (identidade segue por `sleeper_id`), mas a F1 registra as **três hipóteses NÃO arbitradas** — cache × URL construída com componente desatualizado × fonte keyed fora do `sleeper_id` —, que levam a fixes **incompatíveis**. **[[UX11]] 🔲 Média** — quadro de trades sem a franquia NFL do jogador. Os dois carregam a **pergunta de réplica** que virou rotina: a lógica existe em mais de um lugar? No UX11 isso tem consequência de desenho imediata — se cada tela deriva a sua, acrescentar mais uma **piora** o problema. Suspeita de raiz comum registrada sem afirmar. **Exceção de commit docs-only logada.** Zero código; nenhum status existente alterado.)
 > Anterior: 08/08/2026-pt2 (MAN-OFF26-22: **a auditoria de keepers deixa de emitir veredito de gate sobre sheet PROVISÓRIA**. Decisão do owner — **rodar e desqualificar** (opção b): a execução antecipada tem valor (a auditoria roda 3× ou mais entre 20 e 24/08), mas **"ABERTURA LIBERADA" fica impossível** enquanto a sheet ainda vai mudar. Três estados; `gate_qualified` (bool) é o campo a ler. ⛔ **A mudança inteira mora FORA do núcleo:** `qualify` roda depois de `audit()`, e o carimbo viaja em `stage_meta` que `run_audit` **remove antes** da chamada — **34/34 sem editar teste nem fixture**, com teste que espiona a chamada e falha se o carimbo vazar. ⛔ Nenhuma segunda definição de "definitiva" — a regra segue calculada só em `routes/cuts.py`. **Premissa ajustada:** o ramo "sheet ausente" não tinha comportamento a preservar (era **inalcançável** — `revealed` e `available` são hardcoded `True` na fonte); foi **revivido** com condição que dispara. **A causa estrutural vale mais que o bug:** os 34 testes exercem `audit()` direto e **nenhum** tocava `build_sheet`/`run_audit` — a camada de leitura estava **sem teste nenhum**, e foi ali que o U7 deixou código morto sem que nada acusasse. **25 testes novos · 286 verdes.** Smoke local contra a liga fantasma real só por `GET`: página 200, selo PROVISÓRIA, veredito de conferência antecipada. [[OFF26-22]] 🔲 → ⚠️ — falta a conferência em prod.)
 > Anterior: 08/08/2026 (MAN-OFF26-11-F2: **último item de código do caminho crítico de 24/08 entregue** — o importador passa a ingerir **só arremates**, com a keeper sheet **CONGELADA** como lista de exclusão (`keeper_exclusion.py`: núcleo puro + IO, discriminador único, nenhuma segunda definição de "quem é keeper"). **A decisão de peso foi congelar, e o porquê:** derivar a lista ao vivo no import faria o arremate readicionado pelo owner na liga real aparecer como keeper e ser **excluído da ingestão** — o **dano invertido**, em que o contrato ano 1 simplesmente não nasce. ⛔ **Premissa do prompt que CAIU:** o caso canônico ($50 dropado → recomprado) **não era ingerível pela UI** (`find_player_by_sleeper_id` filtra `is_dropped=False`, e a tela só oferecia Pular/Criar novo — que duplicaria o Player); corrigido com a ação *"Reativar (ano 1)"*. Sheet ausente/provisória/não-congelada **bloqueia** o import; keeper de outro time, pick sem id e roster não mapeado viram **pendência sem resolução**. Modo linear **byte-a-byte idêntico ao HEAD** (provado contra o rookie 2025 real). Achado lateral virou **[[OFF26-22]] 🔲**: a auditoria do OFF26-4 audita sheet **PROVISÓRIA** como se fosse definitiva (gate virou código morto no U7). Board da fantasma relido só por `GET` (24 designações, `is_keeper:false` 24/24) — ⛔ **pós-draft segue NÃO OBSERVADO**. **36 testes novos, 261 verdes.** [[OFF26-11]] 🔲 → ⚠️: **✅ só depois do leilão de 24/08**.)
 > Anterior: 07/08/2026-pt4 (MAN-OFF26-10-SMOKE, **docs-only**: **smoke da urna APROVADO em produção** (owner + Rafa, backup 630.784 B) — escape do banner exercitado de fato, **depósito pelo celular sem pop-up** (U-CONF provado resolvido no mesmo aparelho que travara em 06/08), **fechamento automático pelo horário provado por acidente** (a agenda de 6 min expirou e a urna encerrou sozinha), sigilo cruzado só com o agregado, hierarquia, revelação completa, sheet provisória com o aviso, reset limpo. **Trio fechado:** [[OFF26-10]] ✅ · [[OFF26-2]] ✅ · [[OFF26-15]] ✅; **[[OFF26-1]] ✅** com motivo (prova tripla do mecanismo + porta aposentada no ar). Resíduo virou **[[OFF26-21]] 🔲 Baixa** (bloco admin de `/cuts` ficou sem consumidor após o U7). **Fotografia de prontidão 17–24/08 registrada: o código está completo, o que resta é operação.** Migração O3 dos 4 itens ao archive.)
@@ -4203,3 +4204,37 @@ no caminho crítico de 24/08.
 **Exceção de commit registrada (regra da checklist de fim de sessão):** commit **docs-only**,
 deliberado — sessão de registro puro, sem código pendente e sem nada a smokar. Nenhum status de
 item existente foi alterado.
+
+### MAN-UX10-UX11-REG (2ª parte) — enxugamento do backlog ativo (08/08/2026, Opus) · docs-only
+
+Pedido do owner: *"o tamanho do arquivo improvements.md está me incomodando"*.
+
+- **Medir antes de mexer, e o maior ofensor não era conteúdo de item.** 522 KB / 5.248 linhas. O
+  bloco `> Atualizado em:` somava **66 entradas / 114 KB = 22% do arquivo** — média de 1.664
+  caracteres por entrada, a maior com 4.057. E era **duplicado**: 19 das 20 sessões que o cabeçalho
+  do devplan lista também estavam ali, com **6,5× o tamanho**; o registro durável são as seções
+  `### MAN-...` do log de decisões e o `git log`. Um changelog de sessão custando um quinto do
+  backlog.
+
+- **Duas ações, nenhuma perdendo informação.** (1) 61 entradas antigas → **`improvements_sessions.md`**
+  (verbatim, mais recente primeiro; o ativo mantém as 5 últimas + ponteiro). (2) **Dívida da regra
+  [[O3]] quitada**: 3 seções ✅ que nunca migraram (**OFF26-5**, **OFF26-6**, **F8** — 41 KB) foram
+  para o archive. **522 KB → 377 KB (-28%).**
+
+- **Como a integridade foi provada, e não afirmada:** soma dos três arquivos preservada
+  (1.038.314 → 1.039.130 B; os +816 são os cabeçalhos novos); cada seção migrada aparece **1× no
+  archive e 0× no ativo**; as 61 linhas conferidas **verbatim** uma a uma; **Status Rápido
+  byte-idêntico** (128 linhas, comparação de lista). As 5 linhas de tabela que "sumiram" do ativo
+  são tabelas **dentro** das seções migradas — o archive ganhou exatamente 5.
+
+- **O esquema do O3 vai de 2 para 3 arquivos**, com a regra do cabeçalho no checklist de fim de
+  sessão (ao adicionar a entrada da sessão, a 6ª desce). `CLAUDE.md` sincronizado — e a regra foi
+  **aplicada na própria sessão que a escreveu**: a entrada desta sessão empurrou a de 07/08-pt3.
+
+- **Registrado sem agir, porque estava fora do que o owner pediu:** a seção do [[OFF26-4]] sozinha
+  ocupa **69 KB = 13%** do ativo e sai pelo caminho normal quando o item fechar (nada a fazer
+  agora); e **~30 dos 81 `###` não são itens** — são sub-cabeçalhos de diagnose (`T1`/`T2`/`T3`/
+  "Refutação de premissas") que deveriam ser `####`. Não custam bytes, mas fazem o arquivo parecer
+  ter 81 itens quando tem ~50. Fica como observação, não como item — o owner não pediu.
+
+**Zero código. Nenhum status de item alterado** (o O3 segue ✅, com o esquema estendido).

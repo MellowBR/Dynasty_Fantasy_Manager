@@ -6775,3 +6775,542 @@ no CSV, para manter a paridade 1:1 que o `keeper_sheet_csv` promete).
 
 **Cross-refs:** [[OFF26-13]] (keeper em IR ocupa designação), [[OFF26-4]] (o achado que dá a
 gravidade), [[OFF26-2]] (a sheet e a paridade CSV), [[OFF26-14]] (de onde saiu).
+
+---
+
+### OFF26-5 — Runbook do procedimento Cowork
+✅ **17/06/2026 — runbook criado (`runbook_cowork_liga_fantasma.md`), reconciliado com as
+decisões do OFF26-6** — MAN-OFF26-6-7-REG/MAN-OFF26-5 — Prioridade **Média** — **item de
+documentação (não é código)**
+
+> **Critério de ✅:** documento de runbook criado no local/convenção do projeto, com os detalhes
+> operacionais do PoC preservados — **sem código, sem smoke prod aplicável**.
+
+**Descrição:** passo a passo operacional da transcrição supervisionada da keeper
+sheet para a liga fantasma via **Cowork + Claude in Chrome**, incluindo pré-requisitos
+de acesso (sessão do comissário detentor dos direitos no Sleeper, ou co-comissário),
+gravação do workflow na primeira execução para reuso anual, e o gatilho da auditoria
+(OFF26-4) ao término.
+
+**Motivação:** o procedimento é supervisionado e anual; um runbook torna-o
+reproduzível e reduz dependência de memória entre temporadas.
+
+**Escopo resumido:** documento de runbook (pré-requisitos de acesso → gravação do
+workflow → execução → gatilho da auditoria OFF26-4).
+
+**Dependências:** documentação; depende conceitualmente de **OFF26-2** e **OFF26-4**
+para fazer sentido completo.
+
+#### Entrega (MAN-OFF26-5, 17/06/2026) — ✅ runbook criado
+
+Arquivo **`runbook_cowork_liga_fantasma.md`** (raiz, convenção `manager_*.md`/`*_*.md` do
+projeto). Conteúdo-base escrito pelo **Cowork** logo após o PoC ([[OFF26-6]]), com detalhes
+operacionais fiéis **preservados** (edição do preço com **Ctrl+A**, anti-homônimo por **sigla
+NFL** — dois Josh Allen, conexão da **extensão** Claude in Chrome, anatomia do **board**,
+**SET PLAYERS** → board, **não clicar START DRAFT**, checklist **TL;DR**).
+
+**3 reconciliações aplicadas (decisões do [[OFF26-6]]), sem perder detalhe operacional:**
+1. **Config de roster espelha a liga real** — ajuste **WR 2→3 marcado como OBRIGATÓRIO** (não
+   opcional); alvo 1QB/2RB/3WR/1TE/1FLEX/1DEF/1K (+ banco/IR reais); preservado o "como" (+/–).
+2. **Liga PERMANENTE + mapa por owner** — liga criada **uma vez** com os 12 owners reais;
+   identidade por **`sleeper_owner_id`/handle**, nunca por nome nem "Team N = roster N"; o
+   bloqueio "times sem dono não renomeáveis" rebaixado a **nota histórica do PoC** (não-aplicável
+   na liga permanente).
+3. **SETUP ÚNICO × TRABALHO ANUAL separados** — Fase A (criar liga, roster, Auction+Budget,
+   convidar owners) vs. Fase B (só popular keepers da [[OFF26-2]] no board); **reset de rosters é
+   automático** (redraft); **gatilho da auditoria [[OFF26-4]] ao término**, antes do auction.
+
+**Cross-refs:** [[OFF26-2]] (keeper sheet — fonte dos keepers/salários), [[OFF26-4]] (auditoria —
+gatilho ao término), [[OFF26-6]] (PoC que originou o runbook). **Sem código.**
+
+#### Correção do runbook contra a UI real (02/08/2026 — MAN-OFF26-10-11-REG) — **status ✅ mantido**
+
+> Correção de **texto factual** de um item fechado: o runbook descrevia um caminho que **não existe**
+> na interface atual. **O status não é reaberto** — o documento existe e cumpre sua função; o que
+> mudou é o conteúdo, agora conferido contra uma transcrição real cronometrada.
+
+**Origem:** a liga fantasma permanente foi **criada de fato** em 02/08/2026 — **Dynasty SB FA
+Auction**, Redraft, 12 times, draft **Auction**, budget **$200**, **22 rodadas**, roster espelhando
+a real (**3 WR**). O Cowork então transcreveu **1 time completo (10 keepers)** e, no caminho,
+descobriu que a Fase B do runbook estava errada.
+
+**8 correções aplicadas em `runbook_cowork_liga_fantasma.md`:**
+1. **O caminho documentado NÃO EXISTE.** Não há engrenagem → Draft Settings → *SET
+   KEEPERS/DYNASTY PLAYERS* → *SET PLAYERS*. O board **já está em modo de designação** no
+   pré-draft; o fluxo real é clicar **direto na célula vazia** da coluna do time → menu → **Set
+   Player**.
+2. Dentro do Set Player, clicar no **"+" da linha, NUNCA no nome** — clicar no nome abre o perfil
+   do jogador, e fechar o perfil **cancela o fluxo inteiro** sem setar nada.
+3. **K e DEF ficam abaixo da dobra** do board; revelar pela **seta ▼** do canto direito — o
+   **scroll do mouse não move o board**.
+4. Para K e DEF, usar o **filtro de posição** em vez de digitar o nome.
+5. O campo de preço **já vem com $1** → para keepers de $1 **não é preciso editar**.
+6. **Ctrl+A antes de digitar funcionou em 100% dos casos** → rebaixado de **alerta** a **nota**.
+7. **Homônimo:** o pool de designação traz **apenas ofensivos elegíveis**, então o Josh Allen
+   **LB/JAX não aparece**. Alerta **suavizado, não removido** — dois ofensivos homônimos
+   continuariam ambíguos.
+8. Nome correto da liga: **Dynasty SB FA Auction**.
+
+**Estado da liga (atualizado — MAN-OFF26-RUNBOOK-REG-PT2, 02/08/2026):** após o reset, a **2ª
+execução do Cowork repopulou o board** com **Team 3 ($148)**, **Team 4 ($95)** e **Team 5 ($60)**
+— dados de **teste**. **Novo RESET DRAFT pendente antes do uso real**, e ele **trocará o
+`draft_id` outra vez**. Identificadores: **`league_id` = `1389725099556372481`** (estável) ·
+**`draft_id` atual = `1389755381567213568`** — o anterior (`1389725100684611584`) **está morto**,
+com a URL travando em LOADING. Tabela completa e a **restrição de desenho** decorrente no bloco do
+pacote OFF26 e na seção do [[OFF26-4]]; **nada persistido em código** — a parametrização é decisão
+em aberto do OFF26-4.
+*(A URL do draft morto "travando em LOADING" é comportamento do **app web**; **pela API ela dá 404
+limpo** — ver a correção de premissa do **D1** na spec do [[OFF26-4]].)*
+
+#### ⛔ PROPAGAÇÃO (MAN-OFF26-4-REFINE-PT2, 03/08/2026) — board incompleto NÃO é estado aceitável
+
+> Correção de conteúdo do runbook (**status ✅ mantido**), de peso operacional alto.
+
+O [[OFF26-4]] registrou que **um keeper fora do board é JOGADOR LEILOÁVEL**: o Sleeper o trata como
+**disponível**, qualquer owner pode **nomeá-lo** e o **lance é processado normalmente**. Isso muda o
+peso de uma instrução que o runbook **já tinha** (*"NÃO clicar em START DRAFT até tudo estar
+populado"*): deixa de ser **higiene de processo** e vira **integridade do leilão**.
+
+**Aplicado em `runbook_cowork_liga_fantasma.md`: board incompleto NÃO é estado aceitável para
+iniciar o leilão.** Cada keeper não designado é **um jogador com contrato vigente exposto a ser
+arrematado por outro time, ao vivo, sem desfazer limpo**. Vale inclusive — e sobretudo — para o
+caso do **[[OFF26-10]]**: times **bloqueados pelo teto** ficam com **todos os seus keepers
+expostos** até serem populados após o late drop.
+
+**Também registrado no runbook (resolução do owner, 03/08):** **keeper em IR se designa
+normalmente**; os excedentes caem no **banco** e a vaga é atribuída **automaticamente por posição**
+— a fantasma **não tem slot de IR** e isso **não é problema**. Detalhe e a alternativa descartada na
+seção do [[OFF26-4]].
+
+#### Medição de esforço e decisão de método (02/08/2026 — MAN-OFF26-10-11-REG)
+
+**Medido, não estimado:** transcrição de **1 time (10 keepers)** pelo Cowork = **20 min 32 s**
+totais, dos quais **~9 min de overhead único** de descoberta do caminho. **Ritmo de regime:
+~75 s/jogador ≈ 12,5 min/time → ~2,5 h para os 12 times.** Comparação: a transcrição **manual** do
+ano anterior consumiu **uma tarde inteira**.
+
+**Decisão do owner (registrada):**
+- **2026 → via Cowork**, com o runbook corrigido.
+- **Script determinístico de transcrição → item de melhoria para 2027.** O argumento que o
+  justificaria — *"não cabe na janela de 48 h entre o late drop (22/08) e o leilão (24/08)"* —
+  **cai** diante dos **2,5 h medidos**. Registrado aqui, e **não** como linha do Status Rápido, por
+  restrição do prompt de registro (só OFF26-10/11 entram); **candidato natural a ID próprio** na
+  próxima sessão de registro.
+- **Caminho via API interna não documentada: DELIBERADAMENTE DESCARTADO.** Sem contrato → quebra
+  sem aviso; provável **violação de termos de uso**; e **expõe a conta de comissário da liga real**.
+  Registrado para que não seja re-proposto como "otimização óbvia" em 2027.
+
+#### 2ª execução do Cowork — runbook corrigido VALIDADO (MAN-OFF26-RUNBOOK-REG-PT2, 02/08/2026)
+
+Segunda rodada no mesmo dia, agora **com o runbook já corrigido** e **com a lista de keepers
+pré-ordenada na sequência do board**. Populados **Team 3 (10 keepers, $148)**, **Team 4 (8, $95)** e
+**Team 5 (6, $60)** — **todos os totais conferindo**.
+
+**Objetivo duplo — um resultado e uma perda:** o runbook corrigido **foi validado** (o fluxo real
+descrito no `MAN-OFF26-10-11-REG` levou o agente ao fim três vezes, sem redescoberta de caminho);
+a **medição de tempo foi perdida** por instabilidade de ambiente (ver bloco próprio abaixo).
+
+##### ⛔ FALSO ACHADO — NÃO APLICAR: "rebaixar o check anti-homônimo"
+
+> **Este é o registro mais importante desta entrada.** O relatório do Cowork **recomenda enfraquecer
+> uma proteção**, e a recomendação **está errada**.
+
+**O que o relatório diz:** que a sigla do time NFL exibida pelo Sleeper **diverge** da keeper sheet
+(observado: **Waddle exibido como DEN**, **Hill sem sigla**), e que portanto o check anti-homônimo
+da §B.3 deveria ser rebaixado.
+
+**Por que está errado:** a causa foi a **lista de teste**, montada manualmente pelo owner-side com
+**times de temporadas anteriores**. É **dado velho na lista**, não divergência da plataforma. Na
+execução **real**, a keeper sheet sai do **Manager**, que **sincroniza do Sleeper** — os dois lados
+**bebem da mesma fonte** e a sigla **bate**.
+
+**A orientação correta é a INVERSA da recomendada:** se a sigla divergir na execução real, isso é
+**sinal de problema no sync ou na sheet** → **parar e reportar**, não seguir em frente. Uma
+divergência de sigla é **sintoma**, não ruído.
+
+**Decisão registrada: o check anti-homônimo da §B.3 permanece INALTERADO**, sem nenhum
+enfraquecimento. Nada foi aplicado no runbook a partir desta recomendação.
+
+**Nota de método (família [[MAN-METH-REG]]):** *recomendação de melhoria vinda de execução com
+**dados sintéticos** precisa ser conferida contra a **origem do dado** antes de virar correção de
+documento.* Sem essa conferência, **uma proteção teria sido enfraquecida na véspera do uso real por
+artefato de teste** — e o enfraquecimento pareceria justificado, porque a observação era verdadeira
+(a sigla **de fato** divergiu). O erro não estava no que se viu; estava em **de onde o dado vinha**.
+
+##### 5 correções aplicadas ao runbook
+
+1. **Identificação de coluna com times placeholder — os DOIS estados.** Enquanto os times não
+   tiverem donos reais, os cabeçalhos das colunas são **avatares vazios, sem rótulo de texto** — não
+   há "Team N" escrito em lugar nenhum. A verificação canônica nesse estado é o **menu de contexto
+   da célula**, que exibe *"Manually set a player for Team N"*. A orientação anterior ("identifique
+   pelo owner") **pressupõe rótulos que só existirão quando os owners reais entrarem**.
+2. **Reescala do board após a primeira interação.** O board **desloca/reescala**, o que **quebra
+   referência posicional**. Mitigação observada: revelar **FLEX/K/DEF pela seta ▼ antes** de mirar
+   as linhas de baixo, e **confirmar o time pelo menu de contexto antes de cada designação**.
+3. **Atribuição de vaga é POR POSIÇÃO.** Escolher o jogador o coloca na vaga correta
+   automaticamente (um **RB entra no FLEX** quando as vagas de RB estão cheias). **Clicar a célula
+   exata é conveniência, não obrigação** — reduz a criticidade do item 2.
+4. **O campo de preço nasce em `$1` SEMPRE**, inclusive quando o `$PROJ` é maior. **Regra
+   generalizada:** vale para **qualquer keeper de $1**, não só K/DEF (o registro anterior sugeria
+   escopo menor).
+5. **Filtro de posição para K/DEF confirmado como mais rápido**, com propriedade útil descoberta:
+   kickers e defesas **já designados somem do filtro** → "pegar o primeiro disponível" é **limpo e
+   sem colisão**.
+
+##### Ganho da lista ordenada — validado qualitativamente
+
+A lista pré-ordenada na sequência do board **eliminou busca, deliberação e navegação**; a execução
+virou **descida linha a linha**. **6 dos 24 keepers dispensaram edição de preço** (keepers de $1).
+→ **Vira melhoria concreta do [[OFF26-2]]** (ordenar a sheet na sequência do board, marcando os de
+$1), registrada lá **sem implementação**.
+
+##### ⚠️ Medição PERDIDA + risco de variância de ambiente
+
+**Tempos de relógio:** Team 3 = **26min52s** (10 keepers) · Team 4 = **14min13s** (8) · Team 5 =
+**13min58s** (6) · **total 58min26s**. **Estes números NÃO medem o procedimento:** o ambiente do
+Cowork acumulou **dezenas de timeouts de captura de tela, de 30 s cada**, que **dominam o relógio**.
+
+**Evidência de que o gargalo é o ambiente, não o método:**
+- o **Team 4 foi mais rápido por jogador que o Team 3**, e o **Team 5 voltou a subir** — por
+  **concentração de timeouts**, não por regressão de fluxo (a curva de aprendizado não sobe);
+- a execução **anterior**, no **mesmo dia**, **sem** runbook corrigido e **sem** lista ordenada,
+  rendeu **~75 s/jogador**. **Nenhuma explicação plausível sustenta que corrigir o documento e
+  pré-ordenar a lista tenha tornado o trabalho mais lento.**
+
+**Risco operacional registrado:** as duas execuções rodaram **no mesmo ambiente**, com resultados
+**muito diferentes** e **sem causa identificada**. A instabilidade é **imprevisível**. Projeção por
+ritmo de regime: **~2 h para 12 times**; numa execução degradada como a segunda, **~5 h** — e **não
+há como saber qual será antes de começar**.
+
+**Mitigação registrada: fatiar a transcrição POR TIME**, cada um uma **unidade verificável** — se a
+sessão degradar, a seguinte **retoma do time seguinte sem refazer nada**. É a mitigação certa
+justamente porque o modo de falha é *lentidão*, não *erro*: o trabalho já feito permanece válido.
+
+##### Efeito sobre a decisão Cowork-2026 / script-2027 — reconsideração PARCIAL, em aberto
+
+- **A decisão vigente NÃO muda:** 2026 roda **via Cowork**.
+- **O argumento original do script segue caído:** "não cabe na janela de 48 h" — o **tempo médio
+  cabe**.
+- **Mas surge um argumento NOVO, de natureza diferente: VARIÂNCIA.** O script determinístico **não
+  tem esse modo de falha**. O risco deixou de ser "demora demais" e passou a ser "**não dá para
+  prever quanto demora**" — e é a imprevisibilidade, não a duração, que ameaça uma janela de 48 h.
+- **Contra-argumentos preservados (seguem válidos):** **fragilidade de seletores** (script que
+  dirige UI quebra com mudança de front-end — e a UI **já mudou uma vez** entre junho e agosto);
+  **competição por prazo** com [[OFF26-4]] e [[OFF26-11]], que estão no caminho crítico; e
+  **estreia no dia do uso** como pior cenário possível.
+- **Status: reconsideração parcial ABERTA.** Não arbitrada aqui.
+
+
+---
+
+### OFF26-6 — PoC de viabilidade do Cowork montando a liga fantasma
+✅ **17/06/2026 — PoC executado em liga de teste descartável; mecânica central validada +
+decisões de design arbitradas** — MAN-OFF26-6-7-REG/PoC — Prioridade **Alta** — **validação
+operacional (NÃO é código do Manager)** — **GATE PASSOU**
+
+> **Critério de ✅:** validação operacional com resultado documentado — **sem código, sem smoke
+> prod aplicável** (a prova é o experimento na UI do Sleeper, registrado abaixo).
+
+**Descrição:** prova de conceito, em liga de **teste descartável** e com antecedência,
+de que **Cowork + Claude in Chrome** conseguem, dirigindo a UI do Sleeper, montar a liga
+fantasma de ponta a ponta: **criar sala → popular 12 times → configurar draft auction →
+setar keepers como rosters + budgets**. Produz um **roteiro de experimento** + **registro
+estruturado do resultado** (onde o procedimento trava, que intervenção manual exige).
+
+**Motivação:** a API do Sleeper é **read-only** — a montagem só é possível dirigindo a UI
+pelo navegador, frágil por natureza e **nunca validada**. O runbook OFF26-5 já documenta
+esse procedimento **assumindo que ele funciona**; falta o passo anterior, que prova **SE e
+COMO** funciona. É premissa não testada no **caminho crítico** (a FA auction real depende
+dela).
+
+**Escopo resumido:** roteiro do experimento (passos da montagem na UI) + execução numa liga
+de teste com **dados fake** (não precisa da keeper sheet real) + registro estruturado do
+resultado (sucesso/trava por etapa, intervenções manuais necessárias). Testa a **mecânica
+pura** da montagem, isolada das demais peças.
+
+**Função de GATE:** deve **passar antes** de confiar a FA auction real ao procedimento Cowork.
+
+**Dependências:** nenhuma para rodar (testa a mecânica isolada, dados fake). **Relação com
+OFF26-5:** o resultado do PoC é o **insumo** do runbook (o runbook documenta o caminho
+**comprovado** pelo PoC). **Relação com OFF26-7:** é um **subconjunto** dele (a etapa "Cowork
+monta a liga" dentro do ensaio E2E maior).
+
+#### Resultado do PoC (MAN-OFF26-6-PoC, 17/06/2026) — ✅ GATE passou
+
+PoC executado pelo owner em **liga de teste descartável**. A **mecânica central foi validada**
+e emergiram **decisões de design** que reformulam a estratégia da liga fantasma. Sem código.
+
+**(a) Validado (Cowork + Claude in Chrome dirige a UI sozinho):**
+- **Cria a liga no Sleeper** via wizard: Fantasy Football → nome → 12 times → Redraft →
+  **Auction no Step 4**.
+- **Seta keeper com salário**, descobrindo o mecanismo sozinho: Settings → Draft Settings →
+  **"SET KEEPERS/DYNASTY PLAYERS"** → SET PLAYERS → draft board → slot do time → Set Player →
+  busca jogador → define salário → **SET PLAYER**.
+  > **⚠️ Anexo (02/08/2026 — MAN-OFF26-10-11-REG):** este **caminho não existe mais** na UI atual.
+  > A transcrição real de 02/08 mostrou que o board **já está em modo de designação** no pré-draft —
+  > clica-se **direto na célula vazia** → menu → **Set Player**. O registro acima é **preservado como
+  > estado da UI em 17/06/2026**; o caminho vigente está no `runbook_cowork_liga_fantasma.md`
+  > (corrigido) e na seção do [[OFF26-5]]. **A conclusão do PoC — o Cowork consegue designar keeper
+  > com salário sozinho — permanece válida e agora está confirmada em escala** (10 keepers
+  > cronometrados).
+- **Confere nome completo + time NFL antes de adicionar** (comportamento anti-homônimo;
+  ex.: Mahomes QB-KC, Bijan RB-ATL confirmados) — mesma higiene da classe "Brown" na camada de
+  operação manual.
+
+**(b) Decisões de design (arbitradas pelo owner a partir do PoC):**
+- **Liga fantasma passa a ser PERMANENTE** (redraft fixa, com os 12 owners reais dentro), **não
+  recriada a cada ano**. Motivo empírico: times **sem dono** (placeholders) **não são
+  renomeáveis/gerenciáveis** pela UI — bloqueio observado no PoC. Liga permanente com owners
+  reais elimina o bloqueio.
+- **Reset de roster NÃO é trabalho do Cowork:** o formato **redraft reseta rosters
+  automaticamente** na virada de season. O trabalho **anual** do Cowork = **apenas popular o
+  pré-draft com os keepers**.
+- **Config de roster da liga fantasma DEVE espelhar a liga real:** **1QB, 2RB, 3WR, 1TE, 1 FLEX
+  (RB/WR/TE), 1DEF, 1K** (+ banco/IR conforme a liga real). Achado: a liga de teste nasceu com
+  **2 WR** (padrão Sleeper) ≠ **3 WR** da liga real — **config exata é requisito**.
+- **Mapeamento owner↔time ancorado em `sleeper_owner_id`** (chave canônica), **NUNCA no nome do
+  time** (mutável). Mesma família de risco do "Brown" (id canônico vs. nome), aplicada à camada
+  de **owner**.
+
+**(c) Achados técnicos (impacto a jusante — ver [[OFF26-4]] / [[OFF26-5]] / [[OFF26-8]]):**
+- **"Salary cap" no Sleeper não é toggle separado:** é o **budget do auction** (Draft Settings →
+  Budget, **$200 global**). O cap individual **emerge** dos salários dos keepers consumindo o
+  budget global.
+- **Cap restante por time só é visível AO VIVO durante o auction;** no estado pré-draft **não há
+  número de budget restante na tela**. → **Impacto [[OFF26-4]]:** a auditoria deve **CALCULAR**
+  (`$200 − Σ salários dos keepers`), **não ler** um número pronto da liga fantasma.
+- **Keepers ficam como designação de board no pré-draft;** só **populam o roster quando o draft
+  roda**. → **Impacto [[OFF26-4]]:** a auditoria lê **designações de keeper**, não o roster.
+- **Ponte de identidade de OWNER já existe no Manager:** `Team.sleeper_owner_id` (populado pelo
+  Sleeper sync; vínculo **M12** ✅). → **Impacto [[OFF26-4]]:** a ponte de **owner está
+  resolvida**; resta investigar na F1 **apenas a ponte de JOGADOR** (se
+  `/api/cuts/keeper_sheet` expõe `sleeper_player_id`).
+
+**Cross-refs de desfecho:**
+- **[[OFF26-4]]** (auditoria de keepers pré-leilão): a auditoria **calcula** o budget (não lê),
+  **lê designações de keeper** (não roster); **ponte de owner resolvida** via `sleeper_owner_id`;
+  **resta a ponte de jogador** (escopo da F1 do OFF26-4).
+- **[[OFF26-5]]** (runbook): documentar o caminho **comprovado** acima — incl. a config de roster
+  espelhando a real (3 WR etc.), o modelo de **liga permanente** e o trabalho anual reduzido a
+  **popular keepers no pré-draft**.
+- **[[OFF26-8]]** (Cowork aplica cortes no Sleeper): mesma natureza operacional (dirigir a UI);
+  o anti-homônimo (nome+time NFL) validado aqui vale para a aplicação de cortes.
+
+**Status:** ✅ — GATE de viabilidade **passou** (a FA auction real pode ser confiada ao
+procedimento Cowork, observadas as decisões de design acima). Sem smoke prod aplicável (a prova
+é o experimento operacional registrado).
+
+---
+
+### F8 — Reconstruir PlayerHistory a partir da Sleeper API
+✅ **Concluído (22/04/2026)** — F8a + F8b + F8c. Prioridade **Alta**
+
+**Problema:** `PlayerHistory` tem informação fictícia para qualquer jogador que trocou de mão entre temporadas. O backfill atual (`_backfill_player_history()` em `routes/admin.py:428-503`) e o `import_csv.py` usam snapshot do CSV + estado atual do `Player` para inventar histórico, sem consultar `/drafts/<id>/picks` nem `/transactions/<week>` do Sleeper, que têm a verdade factual.
+
+**Descoberto em:** 22/04/2026, verificando histórico do A.J. Brown (reconciliação do F7) + 3 outros casos apontados pelo owner.
+
+**4 casos verificados via Sleeper API (evidência concreta):**
+
+**1. Brandon Aiyuk (pid=106, sid=6803)**
+- DB atual: `auction_draft` 2024 team=ESPN $8, `rollover` 2025 $8
+- Verdade Sleeper:
+  - 2024 startup auction r5p53 roster=5 (**Cangaceiros**) **$29**
+  - 2025 W1 drop free_agent de roster 5
+  - 2025 FA auction r6p62 roster=12 (**ESPN FANTASY LEAGUE**) **$8**
+- Gap: salary 2024 errado ($8 em vez de $29), team 2024 errado, falta drop + re-auction. `contract_start_season=2024` devia ser 2025.
+
+**2. Brock Bowers (pid=276, sid=11604)**
+- DB atual: `keeper` 2024 team=Trust $21 ❌ (não foi keeper)
+- Verdade Sleeper:
+  - 2024 startup auction r5p57 roster=5 (**Cangaceiros**) $21
+  - 2025 W5 trade roster 5→8 (Cangaceiros→Trust The Process) ✅ (capturado pelo S1 hoje)
+- Gap: `acquisition_type=keeper` errado (foi `auction_draft`). Team 2024 errado.
+- Nota: user lembra que trade foi pelo McBride + outra peça — verificar no payload da trade.
+
+**3. Buffalo Bills DST (pid=47, sid=BUF)**
+- DB atual: `rookie_draft` 2024 team=3 peat $1 ❌ (DST não participa de rookie draft)
+- Verdade Sleeper:
+  - 2024 startup auction r7p78 roster=7 (AlexTheDawg) $1
+  - 2024 W5-W6: múltiplos waivers/free_agent entre rosters 7, 5 (e reinserção em 7)
+  - 2025 W1 drop de roster 7
+  - 2025 FA auction r3p27 roster=3 (Fazenda) $1
+  - 2025 W5-W6: mais rotações (3 peat, mongoloides, Fazenda)
+- Gap: `acquisition_type` totalmente errado. History tem só 2 rows lineares quando na verdade houve **7 transações**.
+
+**4. C.J. Stroud (pid=162, sid=9758)**
+- DB atual: `rookie_draft` 2024 team=mongoloides $1 ❌
+- Verdade Sleeper:
+  - 2024 startup auction r2p14 roster=5 (**Cangaceiros**) **$19** (user: "preço alto")
+  - 2025 W1 drop Cangaceiros; W2 drop Tropa; W3 free_agent para achane
+  - 2025 FA auction r4p47 roster=9 (Tropa) $1
+  - 2025 W11 trade achane→mongoloides
+- Gap: `acquisition_type=rookie_draft` errado, salary 2024 errado ($1 vs $19 real), team 2024 errado, `contract_start_season=2024` devia ser 2025, falta registrar drop/re-auction/trade.
+
+**Causa raiz:**
+- `_backfill_player_history()` usa `p.contract_start_season` + `p.fantasy_team` (estado atual) + `p.acquisition_type` do CSV para inventar events. Quando o player trocou de time entre temporadas, tudo isso diverge da história real.
+- `acquisition_type='rookie_draft'` foi atribuído indevidamente a vários jogadores que foram FA-auction ou startup-auction (qualquer player com year-1 salary=$1, aparentemente).
+- CSV `dynasty_rosters_clean.csv` tem dados stale: campo `team` é snapshot mid-2025 inconsistente; `contract_year_2025=2` + `orig_draft_season=2024` não distingue "contrato mantido desde 2024" vs "re-auctionado em 2025".
+
+**Consequências:**
+- Trade Manager pode calcular cap errado via `contract_start_season`
+- Auditoria pública (ex: F1 3 Browns bug, F8 aqui) fica comprometida
+- Projeção de VALORIZAÇÃO OK (usa `Player.salary` e `Player.contract_year` atuais que batem com realidade)
+- UX do `/salary_history` narra eventos falsos (A.J. Brown foi corrigido no F7 mas os 4+ casos acima ainda mostram história fictícia)
+
+**Proposta:**
+
+**F8a — Rebuild via Sleeper chain:**
+1. Walk chain: `current_league → previous_league_id → ... → startup_league`
+2. Por liga: coletar `drafts` + `drafts/<id>/picks` + `transactions/<week 0..18>`
+3. Reconstruir `PlayerHistory` canonicamente por `sleeper_player_id`:
+   - Evento `auction_draft`/`rookie_draft`/`fa_auction` derivado de `draft.type` + rodadas + timing (startup auction = draft com N rodadas igual roster size; rookie draft = linear; FA auction = auction pós-rookie com ~8 rodadas)
+   - Eventos `fa_waiver`/`trade`/`drop` de transactions (S1 já resolve trades novas; F8 faz backfill retroativo)
+   - `team_name` do evento = time no momento do evento (map via roster_id + `Team.sleeper_owner_id`)
+   - `salary` do evento: `metadata.amount` do pick (auction) ou regra do salary_engine (waiver/FA = $1, etc.)
+4. Corrigir `Player.contract_start_season` + `Player.acquisition_type` quando divergir
+
+**F8b — Revisar uso do CSV:**
+- Manter CSV como fonte inicial só para valores que Sleeper não sabe (salary/contract atuais)
+- Parar de derivar histórico do CSV — histórico vem exclusivamente da Sleeper chain
+- Avaliar deprecar `dynasty_rosters_clean.csv` após F8a estabilizar
+
+**F8c — Backfill one-time em produção:**
+- Endpoint admin `POST /api/admin/player_history/rebuild` (`@admin_required`)
+- Idempotente via UNIQUE constraint `(sleeper_player_id, season, event_type, team_name)` ou equivalente
+- Padrão similar ao `sync_trades/backfill` do S1
+
+**Escopo estimado:** 2-3 sessões. Similar em complexidade a S1+F7 combinados. Requer leitura pesada das convenções Sleeper (draft types, transaction types, metadata fields).
+
+#### F8a — Core rebuild via Sleeper chain ✅ 22/04/2026
+
+**Implementado:**
+- Migration 5 em `_run_migrations()` (app.py): adicionou coluna `sleeper_event_ref` TEXT + backfill das 78 trade rows (S1) e 220 rollover rows + pré-limpeza de duplicatas + `CREATE UNIQUE INDEX uq_player_history_event ON player_history(player_id, season, event_type, team_name, sleeper_event_ref)`.
+- Funções novas em `sync_sleeper.py`: `_walk_league_chain`, `_classify_draft`, `_collect_draft_events`, `_collect_transaction_events`, `_snapshot_player_history`, `_rebuild_player_history(dry_run=False)`.
+- Modelo `F8PlayerBackup` em `models.py` (tabela auxiliar de rollback com `old_contract_start_season` e `old_acquisition_type` por player).
+
+**Decisões de escopo:**
+1. **Quintupleto UNIQUE via `sleeper_event_ref`** em vez de quadrupleto simples. Justificativa: quadrupleto `(player_id, season, event_type, team_name)` colapsa casos reais como BUF DST com múltiplos drops/waivers do mesmo time. `sleeper_event_ref` com formato `'tx:<id>' | 'draft:<id>:<pick>' | 'rollover:<season>'` é auditor-friendly.
+2. **Heurística de draft validada contra dados reais:** `type=linear → rookie_draft` (não snake — achado da Fase 2); `type=auction + rounds≥20 + primeira liga da chain → auction_draft (startup)`; demais auction → `fa_auction`. 2025 tem 7 drafts complete (6 fa_auctions + 1 rookie linear), não 1 como assumido inicialmente.
+3. **Delete-and-rebuild preservando S1 + rollover:** DELETE apenas rows com `sleeper_event_ref IS NULL` (fictícias do `_backfill_player_history`). Preserva 78 trades do S1 e 220 rollover events do F7.
+4. **Trades delegadas 100% ao S1:** `_rebuild_player_history` chama `_sync_trades(league_id)` por liga na chain (idempotente via S1 UNIQUE), garantindo cobertura retroativa. `_collect_transaction_events` explicitamente pula `type=trade`.
+5. **Reconciliação de Player.acquisition_type só para eventos >= 2025:** protege year-1 salary rules do `salary_engine.py` para contratos vigentes.
+6. **Reconciliação usa Trade.trade_date como timestamp real** para trades preservadas do S1 — sem isso, acquisition_type de players tradados em legs tardias (ex: Stroud leg 11) seria overridden por eventos de leg anterior (ex: free_agent leg 3).
+
+**Resultado do rebuild local:**
+- `ligas_visitadas: [2024, 2025, 2026]` (2026 é pre_draft, sem events)
+- `events_written: 794` | `deleted_legacy: 320` | `players_corrected: 180`
+- Total PlayerHistory pós: 1092 rows (vs 578 antes) — 269 draft + 603 tx (trades + waivers + FA + drops) + 220 rollover preservado.
+- Snapshot salvo em `data/.player_history_snapshot_20260422_182651.json`.
+
+**4 casos de validação (todos batem com proposta F8 em improvements.md):**
+
+| Pid | Player | ANTES | DEPOIS |
+|-----|--------|-------|--------|
+| 106 | Aiyuk | 2 rows, acq=auction_draft, start=2024 | 4 rows (auction $29 Cangaceiros 2024 + drop 2025 + fa_auction $8 ESPN 2025 + rollover preservado), acq=fa_auction, start=2025 |
+| 276 | Bowers | 2 rows, acq=keeper, start=2024 | 3 rows (auction $21 Cangaceiros 2024 + rollover preservado + trade 2025 preservada), acq=trade, start=2025 |
+| 47  | BUF DST | 2 rows, acq=rookie_draft, start=2024 | 8 rows (auction $1 AlexTheDawg 2024 + drop/add 2024 + drop 2025 + fa_auction $1 Fazenda 2025 + drop + fa_waiver 3peat 2025 + rollover preservado), acq=fa_waiver, start=2025 |
+| 162 | Stroud | 3 rows, acq=rookie_draft, start=2024 | 7 rows (auction $19 Cangaceiros 2024 + drop 2025 + fa_auction $1 Tropa 2025 + drop 2025 + free_agent achane 2025 + rollover preservado + trade 2025 preservada), acq=trade, start=2025 |
+
+**Validação regression:**
+- `python salary_engine_test.py` → 49 testes passam (zero regressões)
+- Player.salary e contract_year atuais dos 4 casos inalterados
+- Re-run do rebuild → `events_written=0, events_skipped=794` (idempotência confirmada via UNIQUE)
+
+**Warnings aceitos (30 total):**
+- 2 players sem sleeper_player_id (Hollywood Brown pid=279, Cameron Ward pid=280) — skip esperado
+- 217 sleeper_player_ids sem match no DB local (sample: 10216, 10218, 10223, etc.) — players dropados antes da criação do Manager, não bloqueantes
+- Warnings do S1 (pick de season passada drafada) — esperados
+
+**Arquivos modificados:** `models.py` (PlayerHistory.sleeper_event_ref + UniqueConstraint + F8PlayerBackup), `app.py` (Migration 5 em 5 sub-blocos idempotentes), `sync_sleeper.py` (6 funções novas + helper `_count_players_to_correct`).
+
+#### F8c — Endpoint admin + UI + ajuste do boot ✅ 22/04/2026
+
+**Implementado:**
+1. **3 endpoints em `routes/admin.py`**:
+   - `POST /api/admin/player_history/rebuild` (`@admin_required`) — chama `_rebuild_player_history(dry_run=False)`. Retorna summary JSON.
+   - `POST /api/admin/player_history/rebuild?dry_run=1` — simula sem gravar. Retorna `{events_written, events_skipped, warnings, players_corrected, ligas_visitadas, deleted_legacy, dry_run}`.
+   - `POST /api/admin/player_history/restore` (`@admin_required`) — restaura último snapshot JSON em `data/`, reverte `Player.contract_start_season` e `acquisition_type` via `f8_player_backup`, limpa backup e flag. Retorna `{success, restored_rows, players_reverted, snapshot}`.
+   - Helpers `_latest_snapshot_path()` e `_snapshot_info()` consultam `data/.player_history_snapshot_*.json` via glob — admin_page passa info para o template.
+
+2. **UI card `Histórico Canônico (F8)` em `templates/admin.html`**:
+   - Posicionado antes do card "Trades Históricas (Backfill)" pra agrupar ferramentas de backfill canônico.
+   - 3 botões: "Simular (dry-run)" (cinza), "Executar Rebuild" (azul), "Restaurar Snapshot" (vermelho, `disabled` se não há snapshot).
+   - Banner verde "Rebuild já foi executado neste DB" quando `AppConfig.f8_rebuilt='true'`.
+   - Timestamp do último snapshot exposto em small-text abaixo dos botões quando existe.
+   - Confirms em JS: rebuild tem confirm mencionando snapshot automático; restore tem confirm explicando reversão.
+   - Resultado inline com contagens e warnings truncados (primeiros 3), seguindo padrão do card S1.
+
+3. **EVENT_LABELS + EVENT_BADGES em `templates/salary_history.html`**: adicionados `drop → Dropado` (badge review), `free_agent → Free Agent (add)` (badge trade), `commissioner → Ajuste do comissário` (badge review). `fa_auction` já existia. Os 3 novos tipos são emitidos por `_collect_transaction_events` do F8a e não tinham label — apareciam crus na tela `/salary_history`.
+
+4. **Skip condicional no boot em `app.py`**: dentro do block `if fresh_import:`, antes de chamar `_backfill_player_history()`, verifica `get_config('f8_rebuilt', 'false')`. Se `'true'`, loga `[boot] F8 rebuild já executado — _backfill_player_history ignorado` e skipa. Função em si não removida — continua disponível como legacy para DBs novos.
+
+**Validação (22/04/2026) via Flask test_client com admin mockado:**
+- `POST /rebuild?dry_run=1` → 200, summary correto, DB inalterado (PlayerHistory permanece 1092).
+- `POST /rebuild` → 200, snapshot criado em `data/`, flag `f8_rebuilt='true'`, `f8_player_backup` com 182 rows.
+- `POST /restore` → 200, 1092 rows restauradas do snapshot, 182 players revertidos (Aiyuk/Bowers/BUF/Stroud voltam aos valores do CSV), flag removida, backup zerado.
+- Re-rebuild após restore → 200, 182 players novamente corrigidos, idempotência preservada (events_written=0 se nenhum mudou).
+- `GET /admin` → 200, card F8 renderizado, banner de flag ativo, botão restore habilitado.
+- `python salary_engine_test.py` → 49/49 passam.
+
+**Observação sobre boot skip:** em DB maduro (sem `fresh_import`), o block inteiro de post-sync não executa, então o guard é no-op. O guard só age em DB novo (primeiro deploy Render, dev do zero) que já rodou F8 manualmente antes — cenário raro mas coberto. DBs novos sem F8 (default Render first boot) executam legacy normalmente.
+
+**Arquivos modificados:** `routes/admin.py` (+~90 linhas: imports, helpers, 2 endpoints, snapshot_info passado para template), `templates/admin.html` (+~35 linhas card + ~95 linhas JS), `templates/salary_history.html` (+3 entradas em cada mapa), `app.py` (+5 linhas skip condicional), `manager_vision.md` (+~40 linhas seção Calendário Operacional da Liga).
+
+#### F8-NOTES — Notas legíveis + trade context na timeline ✅ 22/04/2026
+
+**Problema:** Timeline do `/salary_history` exibia strings cruas como `"auction_draft r6p65 (draft 1107510815168729088)"` e `"Trade sleeper_sync tx=1260798906057375745 (...)"` ilegíveis para owners. Trades sem contexto (contraparte + assets).
+
+**Implementado em `routes/roster.py`:**
+- Função `_format_event_display(h, trade_by_tx)`: rótulo PT-BR por event_type.
+  - `auction_draft`: `Startup Auction · Rd {R}, Pick {P} · ${salary}`
+  - `fa_auction`: `FA Auction · Rd {R}, Pick {P} · ${salary}`
+  - `rookie_draft`: `Rookie Draft · Rd {R}, Pick {P}`
+  - `fa_waiver`: `Waiver Add`  |  `free_agent`: `Free Agent Add`
+  - `drop`: `Dropado por {team_name}`
+  - `rollover`: `Valorização (Ano {contract_year})`
+  - `trade`: `Trade com {counterparty} · {assets_resumidos}` via join com Trade table pelo `sleeper_transaction_id` extraído do `sleeper_event_ref`.
+- Round/pick extraídos via regex `r(\d+)p(\d+)` do campo `notes` atual.
+- Counterparty de trade: o lado de `Trade.team_a/team_b` que não bate com `h.team_name`.
+- Resumo de assets: parseia `Trade.description` em boundaries `;` e trunca com `…` em ~100 chars.
+- Prefetch de Trade rows em 1 query `IN(tx_ids)` por request.
+- Payload inclui campo novo `display_notes` sem alterar `notes` cru (debugging preservado).
+
+**Template (`templates/salary_history.html`):**
+- `renderEventRow` usa `e.display_notes || e.notes` com fallback.
+- Coluna `event-amount` removida — display_notes já carrega a info relevante por event_type (evita ruído `$0 · Ano 0` em drops).
+
+#### F8-GAP — Backfill de trades órfãs (restore side-effect) ✅ 22/04/2026
+
+**Problema:** 18 trades de 2024 existiam em `Trade` table mas sem rows em `PlayerHistory`. Investigação mostrou causa raiz: durante testes do F8c, chamadas a `/api/admin/player_history/restore` apagaram `player_history` restaurando o snapshot, mas mantiveram as `Trade` rows criadas pelo run anterior. Re-runs do `_sync_trades` skipam via idempotência de `Trade.sleeper_transaction_id`, então os events nunca foram recriados.
+
+**Implementado em `sync_sleeper.py`:**
+- Função `_backfill_missing_trade_history()`: query para Trade rows sem PlayerHistory correspondente, walking da Sleeper chain para resolver qual liga/leg cada tx pertence, criação de rows com `season` real (da liga), idempotente via UNIQUE. NÃO atualiza `Player.team_id/fantasy_team/via_trade` (backfill retroativo só cria rastro histórico).
+
+**Endpoint + UI:**
+- `POST /api/admin/player_history/backfill_trades` em `routes/admin.py` (`@admin_required`).
+- Botão "🔗 Backfill de Trades Órfãs" no card F8 do `/admin`, entre Rebuild e Restore.
+
+**Validado em dev (22/04/2026):** 18 trades processadas, 40 PlayerHistory events criados. Distinct `tx:` refs em player_history: 29 → 45 (2 tx sobraram órfãs por terem só assets de jogadores já dropados do DB — trades tx=1154533231048630272 e tx=1152430188438040576, esperadas). Casos testados: Tank Dell (agora mostra trade 2024 Pitbull→Cangaceiros), Chase Brown, Ladd McConkey, Chuba Hubbard, D'Andre Swift — todos com timeline completa pós-backfill.
+
+#### F8b — Guard em import_csv.py (AppConfig.f8_rebuilt) ✅ 22/04/2026
+
+**Problema resolvido:** `run_import()` rodava a cada boot e fazia upsert de `acquisition_type` + `contract_start_season` a partir do CSV, revertendo as 180 correções do F8a no próximo boot.
+
+**Implementado:**
+1. `_rebuild_player_history(dry_run=False)` em `sync_sleeper.py` agora chama `set_config('f8_rebuilt', 'true')` no fim do path bem-sucedido.
+2. `run_import()` em `import_csv.py` lê `get_config('f8_rebuilt', 'false')` no início. Se `true`, log "F8b guard active — skipping acquisition_type and contract_start_season on existing players" e pula essas duas atribuições no update path. Todos os outros campos (salary, contract_year, espn, position, etc.) continuam normais.
+
+**Decisões de escopo:**
+- **AppConfig em vez de coluna nova em Player:** flag é estado global do DB ("rebuild já rodou neste banco"), não metadata per-player. `AppConfig` já existe (key/value pattern) e `get_config`/`set_config` são a API canônica — zero schema change.
+- **Guard só no update path, não no create path:** player novo adicionado ao CSV pós-F8 (ex: rookie adicionado mid-season) precisa dos valores iniciais do CSV. F8 re-run depois reconcilia se necessário via Sleeper chain.
+- **Guard inativo em DB sem a flag:** comportamento original preservado para DBs novos (flag ausente → `false` default → nenhuma proteção). Importante para primeiro deploy em Render quando DB novo é criado.
+
+**Validado (22/04/2026) em 3 cenários:**
+1. **Flag setada pelo rebuild:** `_rebuild_player_history(dry_run=False)` → `AppConfig.f8_rebuilt == 'true'` ✓
+2. **Reboot preserva correções F8a:** re-importa Flask app com flag ativa → `run_import()` skipa os 2 campos → 4 casos permanecem corrigidos (Aiyuk/Bowers/BUF/Stroud com `acq` e `css` do F8a) ✓
+3. **DB sem flag reverte:** deletar AppConfig row + chamar `run_import()` → CSV sobrescreve os 2 campos (Aiyuk volta a `auction_draft 2024`, Bowers a `keeper 2024`, etc.) — comportamento original preservado ✓
+
+**Arquivos modificados:** `sync_sleeper.py` (+2 linhas: `from models import set_config; set_config("f8_rebuilt", "true")` no fim de `_rebuild_player_history`), `import_csv.py` (+4 linhas: import `get_config`, leitura da flag, log condicional, `if not f8_rebuilt` wrap nas duas atribuições).
+
+---
+
