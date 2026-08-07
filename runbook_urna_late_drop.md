@@ -25,6 +25,12 @@
 Abrir a urna **não** reabre a porta de declaração antiga — e há teste que falha se alguém
 "simplificar" reusando `cuts_window_open`.
 
+⚠️ **Não rodar o Season Rollover com a urna aberta.** Bilhetes e snapshot são escopados por
+`current_season` (mesma propriedade da janela de cortes). Se a season virar entre o depósito e o
+lock, os bilhetes ficam órfãos na season antiga e a revelação sai vazia. **Ordem segura:**
+rollover **antes** de abrir a urna, ou **depois** do leilão — nunca no meio de 20→22/08.
+(Conferir a season corrente no rodapé do `/offseason` ou no `--status` do runner.)
+
 ---
 
 ## (A) Smoke em produção — antes de 20/08
