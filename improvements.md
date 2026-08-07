@@ -1,6 +1,7 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 07/08/2026 (sessão MAN-OFF26-1-ETAPA2: **o ensaio da janela selada foi APROVADO em PRODUÇÃO e a arquitetura do fluxo de cortes MUDOU**. **(A)** Etapa 2 executada em 06/08 pelo owner + co-admin **Rafa** (o runbook nomeava o Michel — corrigido): ciclo completo com **12 declarações** de contas distintas, **manter-todos** e **hierarquia owner>admin** exercitados (suprimento sobre time que declarou pessoalmente **recusado**, sem vazar conteúdo — desenho **confirmado em campo**), sigilo cruzado, lock+revelação, hash **`52274d01…`**, keeper sheet, e **reset verificado** (12 declarações + 1 snapshot apagados → 0/0/fechada → janela reabrindo); backup `/data/pre_ensaio_off26_1.db` (**618.496 B**). ⇒ **pré-condição 1 da urna CUMPRIDA** — lock/hash/reveal **rodaram em prod**. **(B)** Achado de UI: o **`confirm()` nativo falhou no celular** e **impediu uma declaração** → **U-CONF** na spec da urna (confirmação **inline**, botão vira "confirmar?"; ⛔ nenhum `window.confirm()` no caminho de declaração), padrão já implementado em `confirmarInline()`. **(C) REDESENHO decidido pelo owner — o modelo selado vale APENAS para o late drop:** os cortes de **20/08 acontecem direto no Sleeper** (públicos e graduais; o sigilo que a regra exige é só o do late drop) e o **Manager só fotografa por sync**; entra **só em 22/08, como a urna**. Linha do tempo: cortes no Sleeper → sync → sheet **provisória** → urna 20→22/08 → lock+reveal = **lista de drops** → **execução MANUAL no Sleeper** + conferência do admin → **sync final** → sheet **definitiva** (gate do [[OFF26-4]]; se um revelado não executar, a auditoria acusa — correto). **U1** (escolha única com aparência de checkbox, "Não vou dropar ninguém" como item da lista), **U3** (abre por horário do admin, sem encadeamento com revelação) e **U7** (sheet definitiva nasce do **sync**, não da revelação) **reescritos**; ⛔ a urna **não pode reusar** `cuts_window_open`, senão a porta antiga reabre. **(D)** Destino da tela de declaração múltipla **decidido e executado: APOSENTADA** — `/cuts` não renderiza mais roster/checkbox/botão de declarar; motor (lock/hash/reveal/suprir) fica como **ferramenta administrativa rotulada legado**, porque hoje é o **único produtor de keeper sheet** (`_build_keeper_sheet` exige snapshot). Rotas preservadas = mecanismo da urna + rede de regressão. **(E)** [[OFF26-8]] **esvaziado** (não há lista revelada a aplicar; resíduo é manual). Suítes: 22 (janela) + 34 + 34 + 54 verdes; `/cuts` 200 sem resquício. Sleeper **intocado**.)
 > Atualizado em: 05/08/2026-pt4 (sessão MAN-OFF26-20-CANAL, **docs-only, read-only absoluto**: rodada final de certeza — **Gainwell resolvido pelo CANAL, e ele ENTRA: o grupo fecha em 22**. A reaquisição de 2025-09-01 é `tx:1268069831555424256`, **`type: "free_agent"`, sem bid, sem settings** — reconfirmada **ao vivo** na API; a leitura do owner (6 dias atravessam o waiver period) está **confirmada pelo dado**, e a "6.8 literal" da VERIF **cai** (a 6.8 só existe no canal waiver). Prova de contraste na própria história dele: o waiver claim failed de 2024 veio com `type: "waiver"` + `settings.waiver_bid` — quando é waiver, a API marca. **T2: 21/21 CORRIGIR reconfirmados `free_agent` um a um; Bates também é `free_agent`** (ambiguidade mantida por escopo, mas sob a mesma régua ela se dissolve). ✅ **Invariante estrutural medido nas 1125 txs: 225/225 waivers têm `settings.waiver_bid`, 661/661 `free_agent` não têm** — o canal é estrutura da API, não rótulo. **T3: os 22 são homogêneos** (`cy=2, css=2025, acq=free_agent, sal=$1, needs_review=0`) e a correção toca **UM campo só: `contract_year` 2→1** — salário, `contract_start_season`, `acquisition_type` e `espn_ref_value` ficam; como `free_agent ∈ _WAIVER_TYPES`, **a correção de dado basta** (o rollover aplica sozinho o 0,8 no `next_yr=2`). Conta: **$28 → $33 hoje (+$5)**, escalando com a ESPN definitiva. ⚠️ **Vão canônico declarado:** `correct_player_salary` não toca `contract_year`, e a única porta que o edita (approve M2) exige `needs_review=True` — **o prompt de correção deverá criar a porta no molde do M2** (escrita + `PlayerHistory` old→new na mesma transação). **T4 BLOQUEADA desta máquina** (sem Render CLI/API key; rotas atrás de OAuth) — **comando sqlite3 read-only pronto no doc** para o owner colar no Render Shell e reconferir as 22 linhas antes da correção. Registrado sem decidir: a régua do canal também dissolve os flags 6.8 de Tucker/Bigsby; Willis/Noel entraram por waiver real (bid $0) e seguem como estavam. **Nada escrito; board intacto. Aguardando aprovação nominal dos 22.**)
 > Atualizado em: 05/08/2026-pt3 (sessão MAN-OFF26-20-VERIF, **docs-only, read-only absoluto**: verificação nominal dos **34** contra a API do Sleeper, caso a caso, antes de qualquer correção. Baixado o **chain inteiro** (2026→2025→2024), **1125 transações** e **9 drafts**; os **173 refs `tx:`** do `PlayerHistory` desses 34 resolvem **todos**. ✅ **A premissa da data está CONFIRMADA: 34 de 34 abrem em 2025, ZERO em 2024** — a hipótese que faria a correção quebrar contratos certos **não se materializou como regra**. ⛔ **Mas a F1C errou o EIXO, e isso muda a correção:** não são "29 errados + 5 indeterminados". Os **29 `free_agent`** têm o **DADO** errado (`contract_year=2`, devia ser 1); os **5 `fa_waiver`** têm o **dado CERTO** e são expostos pelo **MOTOR** (`fa_waiver` ∉ `_WAIVER_TYPES`). **Os 34 receberão valorização no rollover e os 34 deveriam receber 0,8 × ESPN REF — por causas OPOSTAS.** ✅ **Achado que simplifica a correção:** pôr `fa_waiver` em `_WAIVER_TYPES` alcança **exclusivamente os 5** — os outros 32 estão todos em `contract_year=2` ⇒ `next_yr=3` ⇒ o ramo do 0,8 nunca os toca; a régua da F1C ("estar fora está certo") é **verdadeira para os 32 e falsa para os 5**, e o enum serve aos dois. ⛔ **O "+$6" da F1C é ilusão do ESPN provisório** — **134 dos 248** jogadores estão com `espn_ref_value ≤ 1.0`, e a tabela definitiva entra **18/08, o mesmo dia do rollover**: hoje só **5 dos 34** divergem, com ESPN real **32 dos 34**, e o delta vai a **+$33** (ESPN 4), **+$87** (10), **+$168** (20) — o rollover **subcobra** em todos os cenários. **Veredito: 21 CORRIGIR** (cada um com `tx:` de 2025 + data citados), **3 CORRETO** quanto ao dado (Dike, Gadsden, Shough — exposição é do enum), **10 AMBÍGUO**. ⚠️ **A falsificação parcial que o owner pediu para destacar: duas aberturas de 2024 candidatas.** **Kenny Gainwell** foi adicionado por `ESPN FANTASY LEAGUE` em **2024-11-27**, dropado em 2025-08-26 e **readquirido pelo mesmo owner** 6 dias depois — é a **6.8 literal**, e sob ela 2026 = ano 3 ⇒ **o banco está CERTO**; as duas leituras dão respostas **opostas**. **Jake Bates** é candidato mais fraco (2024-10-08, mas com dono intermediário). **Premissas refutadas:** ⛔ *"os 5 `fa_waiver` entraram sem contrato prévio"* — **falso para Jaylin Noel**, draftado no leilão de 2025 (r2p17, $1) pelo próprio Fazenda Pederasta e devolvido a ele por waiver $0 (6.8 pura, sem efeito prático — abre em 2025 de todo jeito); ⛔ *"o bid FAAB não foi capturado"* — verdade quanto ao **sync**, mas o dado **está na API** e foi lido (Dike $8, Gadsden $16, Shough $18, Tucker $66, Stafford $35), é recuperável; ✅ **`team_name` instável CONFIRMADO** — `Vila Gugu FC` (2024) e `achane` (2025/26) são o **mesmo `owner_id`**, e esta verificação resolveu times por `owner_id`, não por nome. ⚠️ **Ressalva de fonte:** o banco lido é o **seed local** (01/08), não `/data/dynasty.db`; reflete as trades de 28-30/07/2026, mas **a lista deve ser reconferida contra o vivo antes de corrigir**. **Nada escrito; board em `pre_draft`.**)
 > Atualizado em: 05/08/2026-pt2 (sessão MAN-OFF26-20-F1C, **docs-only**: **o critério da F1B estava errado, e o problema encolhe de 73 para 29**. Regra esclarecida pelo owner (autoridade sobre a leitura do texto): **o discriminador é o CANAL de aquisição, não a identidade do time** — **waiver (leilão de FAAB) CARREGA o contrato** para qualquer time; **free agent (add grátis pós-lock) entra SEM contrato**, $0/$1 no ano corrente e **0,8 × 1,2 × ESPN** no seguinte, já como ano 2. **T1 — a distinção NUNCA se perdeu, e não era verificação manual: é código vivo.** Vive em `sync_sleeper.py:911-915`, que mapeia o `tx["type"]` da própria API (`waiver`→`fa_waiver`, `free_agent`→`free_agent`) e o preserva em `PlayerHistory.event_type`; os 117 `fa_waiver` e 150 `free_agent` do histórico **têm todos `sleeper_event_ref`** — transações reais. Única perda: o **bid FAAB não é capturado** — inócuo para salário pela **7.1.8**. **T2 — censo pelo canal (confiança ALTA, zero indeterminados):** dos 85, **32 `fa_waiver`**, **29 `free_agent`**, **24 `fa_auction`**, com trocas resolvidas pela **6.7**; o `acquisition_type` bate com o último evento em **100%**. **T3 — os três grupos:** **(a) 32 waiver = CERTOS**, carregam contrato legitimamente mesmo trocando de time, nada a corrigir; **(c) 24 do leilão de 2025 = contagem errada mas SEM efeito no salário de 2026** — na trilha de valorização `max(sal, 0,5×ESPN)` dá **o mesmo número em qualquer ano ≥ 2**, o off-by-one só pesa na renovação (2029); **(b) 29 FA = ERRADOS**, é o grupo do prazo — o rollover os tratará como ano 3 e **subcobrará**: delta **+$6** com a ESPN de hoje, **+$87** a ESPN $10, **+$174** a $20. **T4 — ambiguidade do 1,2 ELIMINADA:** o fator é aplicado na **fronteira de escrita** (`espn_pdf_parser.py:129`, `admin.py:173`) e `_adj()` é só guard de `None` ⇒ `0.80 × espn_ref_value` **já é** `0,8 × 1,2 × ESPN_raw` ✅; confirma a [[MAN-ESPN12]]. **T5 — revisão item a item:** ⛔ **"73 errados" CAI** (são 29); ⛔ **o achado da F1 sobre `fa_waiver` INVERTE — estar fora de `_WAIVER_TYPES` está CERTO** (waiver carrega contrato ⇒ valorização), e `free_agent` dentro também está certo; ⛔ **os "5 `fa_waiver` em ano 1 expostos" CAI**; ⚠️ "`contract_year` errado" **sobrevive parcialmente** (vale para os 29 e, na contagem, para os 24; **não vale** para os 32); ✅ **sobrevivem intactos** os 21 rookies com a tela errada (Hampton $26 ✅ × $44; Jeanty $57 ✅ × $45), a tela errando nos **dois sentidos**, o Cap Projector × PROJ e a `salary_history` vazia; ✅ o fato de o F8 gravar `event_type` em `acquisition_type` sobrevive, mas **a leitura muda: não é acidente danoso** — os valores gravados **são exatamente o canal** e o `_WAIVER_TYPES` os trata **corretamente**; é acoplamento frágil, não bug ativo. **Achado novo de sinal trocado:** o enum **`waiver`** (17) está **DENTRO** de `_WAIVER_TYPES` e não deveria — **impacto 2026 ZERO** (todos em ano 2 ⇒ `next_yr=3`, a regra não dispara), latente. ⚠️ **Indeterminado declarado como tal:** os **5 `fa_waiver` em ano 1** entraram por waiver **sem contrato prévio**, e a regra do owner não diz qual é o ano 2 de um contrato *nascido* de claim — a **6.6** literal mandaria 0,8, a leitura "waiver ≠ FA" mandaria valorização; **não infiro**. **Prioridade rebaixada de CRÍTICA para Alta.** Nada corrigido; board intacto.)
@@ -97,16 +98,16 @@
 | M15 | Lottery com 6 seeds (inclusão do 7º colocado com 1 bolinha; pool 96) — MAN-M15-REG | Média | ✅ 05/06/2026 |
 | M15-FIX | Editor de pesos do lottery: pool/legenda não re-renderizam ao editar + legenda /picks pós-sorteio lê canônico, não o audit | Média | ✅ 05/06/2026 |
 | M16 | Lottery aplica ordem sorteada a R2/R3 (deveria ser standings invertido) — corrompe ordem + valores dynasty de R2/R3 — MAN-M16-REG | Alta | ✅ 05/06/2026 |
-| OFF26-1 | Janela de cortes selada no Manager (declaração privada de cortes + budget ao vivo não-projetado + lock/revelação simultânea admin-manual, snapshot M8) — MAN-OFF26-REG/F1/REFINE/F2/SMOKE/**ENSAIO** | Alta | ⚠️ F2 + e2e 23/23; smoke PARCIAL prod 17/06; ensaio preparado (06/08: reset `ensaio_janela_selada.py` + banner + runbook); **ETAPA 1 EXECUTADA pelo owner (06/08, 10/10) → POSENSAIO: fix `--db` relativo + manter-todos explícito (3º status na sheet) + hierarquia owner>admin (recusa seca no suprimento), dry-run 51/51 — falta a Etapa 2 (prod, com Michel)** |
-| OFF26-2 | Keeper sheet consolidada (12 times pós-revelação: keeper+salário+budget FA usable via porta projected:false+status declared, tabela+CSV) — insumo do Cowork — MAN-OFF26-REG/F1/REFINE/F2/SMOKE | Alta | ⚠️ F2 + e2e localhost 20/20; **smoke PARCIAL prod 17/06** (deploy live, `CutWindowAudit` criada); sheet depende da revelação (não travada) → validação completa no OFF26-7 |
+| OFF26-1 | Janela de cortes selada no Manager (declaração privada de cortes + budget ao vivo não-projetado + lock/revelação simultânea admin-manual, snapshot M8) — MAN-OFF26-REG/F1/REFINE/F2/SMOKE/**ENSAIO**/**ETAPA2** | Alta | ⚠️ **MECANISMO PROVADO EM PRODUÇÃO — Etapa 2 do ensaio (06/08): ciclo completo com 12 declarações de contas distintas, manter-todos e hierarquia owner>admin exercitados, sigilo cruzado, lock+reveal, hash `52274d01…`, sheet, reset limpo (0/0/fechada) e janela reabrindo; backup `/data/pre_ensaio_off26_1.db` (618.496 B)**. Etapa 1 (localhost, 06/08) 10/10. **REDESENHO: a porta de declaração do owner foi APOSENTADA** (cortes de 20/08 vão para o Sleeper; Manager só fotografa — ver OFF26-10); motor legado mantido para admin. **⚠️ só por causa do smoke do código desta sessão (PROC1)** |
+| OFF26-2 | Keeper sheet consolidada (12 times: keeper+salário+budget FA usable via porta projected:false+status declared, tabela+CSV) — insumo do Cowork — MAN-OFF26-REG/F1/REFINE/F2/SMOKE/**ETAPA2** | Alta | ⚠️ F2 + e2e localhost 20/20; **sheet GERADA EM PRODUÇÃO no ensaio de 06/08** (12 times, a partir da revelação real). **⚠️ pela MUDANÇA DE FONTE:** a definitiva passa a nascer do **sync** (U7 novo do OFF26-10), e `_build_keeper_sheet` ainda exige snapshot canônico → sem janela grande, não sai sheet. Rework é escopo da F2 da urna |
 | OFF26-3 | Importador de drafts de liga fantasma (rookie linear + FA auction via API, match por sleeper_player_id, preview + helper atômico) — MAN-OFF26-REG | Alta | ✅ 05/06/2026 |
 | OFF26-4 | Auditoria de keepers pré-leilão (diff keeper sheet × config real da liga fantasma via API read-only; **gate de integridade do leilão**) — MAN-OFF26-REG/F1/REFINE/PROBE/OWNERCHECK/F2/META | Média | ⚠️ F2 + 34/34 localhost (48/48 do salary_engine intactos) + board REAL atravessando o núcleo; **smoke PARCIAL prod 03/08** (`d83d2f8`: rota+card+seed do `phantom_league_id` OK; o 4º ponto era inalcançável → F2-META expôs a meta da liga sob bloqueio); **falta smoke com sheet real (só a partir de 20/08)**; cobertura do D6 aberta (2/12 sem coluna) |
 | OFF26-5 | Runbook do procedimento Cowork (documentação da transcrição supervisionada da keeper sheet → liga fantasma) — MAN-OFF26-REG/MAN-OFF26-5 | Média | ✅ 17/06/2026 (doc — `runbook_cowork_liga_fantasma.md`; reconciliado c/ OFF26-6: roster espelha real 3WR obrigatório, liga permanente + mapa por `sleeper_owner_id`, setup único × trabalho anual, gatilho OFF26-4) |
 | OFF26-6 | PoC de viabilidade do Cowork montando a liga fantasma no Sleeper (validação operacional NÃO-código: roteiro de experimento + registro do resultado; gate antes de confiar a FA auction real ao procedimento) — MAN-OFF26-6-7-REG/PoC | Alta | ✅ 17/06/2026 (op — GATE passou: Cowork cria liga + seta keeper/salário sozinho; decisões: liga PERMANENTE redraft, config espelha real 3WR, mapa por `sleeper_owner_id`; achados → OFF26-4 calcula budget/lê designações) |
 | OFF26-7 | Dry run E2E da intertemporada: ensaio da cadeia inteira encadeada, foco nas costuras entre módulos (OFF26-6 ⊂ OFF26-7); depende de OFF26-1/2/4 existirem; decisão em aberto (gate único vs. por etapas) — MAN-OFF26-6-7-REG | Alta | 🔲 (op) |
-| OFF26-8 | Agente Cowork aplica os cortes do OFF26-1 no roster real do Sleeper (capability operacional NÃO-código: dirige a UI para dropar os cortados de cada time; irmão de OFF26-6, ⊂ OFF26-7); depende de OFF26-1 (fonte da lista) — MAN-OFF26-8-REG | Média | 🔲 (op) |
+| OFF26-8 | Agente Cowork aplica os cortes do OFF26-1 no roster real do Sleeper (capability operacional NÃO-código) — MAN-OFF26-8-REG | ~~Média~~ **Baixa** | 🔲 (op) **ESVAZIADO pelo redesenho de 06/08**: os cortes de 20/08 são feitos pelos owners direto no Sleeper (não há lista revelada a aplicar). Resíduo = execução **manual** dos drops revelados pela urna (≤1/time) + conferência do admin antes do sync final |
 | OFF26-9 | Acoplamento das fases da intertemporada × dependência do ESPN definitivo: o rollover (e a abertura da janela de cortes OFF26-1) depende mesmo do E4-a (ESPN definitivo, deliberadamente tardio) ou só de rollover + `needs_review` zerado? Suspeita do owner: E4-a entrou nas pré-condições por arrasto, atrasando indevidamente o início da intertemporada — investigação (F1 read-only) + correção de redação/microcopy — MAN-OFF26-PHASE-REG/F1/FIX | Alta | ✅ 17/06/2026 (F1 confirmou: abertura só exige `needs_review` zerado, E4-a por arrasto; FIX separou timing × qualidade de dado na D8/pré-condições/microcopy; **smoke do microcopy do passo 6 em prod conferido** — texto lê bem + layout intacto; detalhe no archive) |
-| OFF26-10 | **Late drop pós-lock = a URNA** (2ª mini-janela selada no molde do OFF26-1, no Manager, para 2026): o late drop de **22/08** altera o conjunto de keepers **dois dias depois do lock** de 20/08 → sheet de 20/08 **provisória**, definitiva reemitida pela urna. **✅ DECIDIDO pelo owner (06/08)** — DM ao comissário descartada; spec **U1–U8** registrada + 2 pré-condições de sequência (smoke real do OFF26-1/2 antes; F2 entregue antes de 22/08) — MAN-OFF26-10-11-REG → **-SPEC** | Alta | 🔲 (spec pronta, F2 em prompt separado) |
+| OFF26-10 | **Late drop = a URNA** (mini-janela selada no Manager, 2026). **REDESENHADO em 06–07/08 (MAN-OFF26-1-ETAPA2): o modelo selado vale APENAS para o late drop** — os cortes de 20/08 acontecem **no Sleeper** (públicos, graduais) e o Manager **só fotografa por sync**; a janela grande sai do caminho. Linha do tempo: 20/08 cortes no Sleeper → sync → sheet **provisória** → urna 20→22/08 → lock+reveal 22/08 = **lista de drops** → **execução manual no Sleeper** → sync final → sheet **definitiva** (gate do OFF26-4). **U1/U3/U7 reescritos + U-CONF** (confirmação inline — o `confirm()` nativo falhou no celular e barrou uma declaração no ensaio); ⛔ urna **não** pode reusar `cuts_window_open` (porta única). Pré-condição 1 (smoke real do OFF26-1/2) **✅ CUMPRIDA** — MAN-OFF26-10-11-REG → -SPEC → **-ETAPA2** | Alta | 🔲 (spec pronta; F2 em prompt separado — agora crítica também para **20/08**, pois a sheet provisória depende dela) |
 | OFF26-11 | Importador (OFF26-3) **não distingue keeper de arremate novo** → ingerir keeper **zera a idade do contrato** (dano silencioso, visível só na renovação). **✅ DECIDIDO pelo owner (06/08): opção A — Manager é fonte única**; keeper sheet definitiva como **lista de exclusão**, importador ingere só arremates; garantia board×sheet = auditoria OFF26-4 **antes** do leilão; **sem reconciliação pós-leilão** — MAN-OFF26-10-11-REG → **-SPEC** | Alta | 🔲 (decisão fechada; F2 escopo próprio) |
 | OFF26-12 | **Keeper em IR conta na reserva de $1?** A **8.3.4** manda reservar `(22 − keepers)` e a **1.3** diz que os 2 IR "não são considerados no total de 22" — a regra **não diz** se keeper em IR entra em "keepers". Manager e Sleeper hoje **contam o IR dentro dos 22** (concordam entre si → auditoria sem falso positivo), mas isso deixa o Manager **até $2 mais permissivo que o regulamento** para time com IR (3 times hoje). **Decisão de REGRA DE LIGA, não de implementação**; se a leitura (b) vencer, o ajuste mexe em `salary_engine.draft_budget` — MAN-OFF26-4-LABELS/SLOTS | Baixa | 🔲 (decisão do owner) |
 | OFF26-13 | **Time com mais de 22 keepers não cabe no board** — F1 03/08: o time é o **achane** (24 = **22 ativos + 2 IR**, ambiguidade dissolvida), e **a hipótese "os cortes resolvem sozinhos" está REFUTADA** (ele está em **$195, abaixo do cap** — nada o obriga a cortar; os 2 times acima do cap **cabem** no board). +**5 times em 22 exatos** (folga zero). **T4: o teto de 22 não é validado em lugar nenhum** (`MAX_ROSTER` só divide no `draft_budget`, e o `max(0,…)` **apaga o excedente**), enquanto `MAX_IR` **é** enforçado — assimetria registrada: o regulamento permite **24** (22 + 2 IR, item 1.3) e o board da fantasma comporta **22 designações** (22 rodadas — slot de IR **não é** slot de draft). **1 time está em 24 hoje** (medido ao vivo); se chegar assim em 20/08, **2 keepers ficam EXPOSTOS ao leilão** pelo achado do [[OFF26-4]]. **Segunda causa de time não populável**, ao lado do teto de budget ([[OFF26-10]]) — e **não se resolve com o late drop** (1 drop não tira 2 excedentes). Decisão em aberto: corte adicional obrigatório × exceção administrativa — MAN-OFF26-4-LABELS/SLOTS | Alta | 🔲 |
@@ -1642,9 +1643,54 @@ de OFF26-1/2/4 existirem. OFF26-8 (Cowork aplica os cortes do OFF26-1 no roster 
 ---
 
 ### OFF26-1 — Janela de cortes selada
-⚠️ **F2 (16/06); smoke prod PARCIAL (17/06); ensaio preparado (06/08) e ETAPA 1 EXECUTADA
-PELO OWNER (06/08, 10/10) + achados implementados (POSENSAIO) — falta a Etapa 2 (produção,
-com Michel)** — Prioridade **Alta**
+⚠️ **MECANISMO SELADO PROVADO EM PRODUÇÃO (Etapa 2 do ensaio, 06/08/2026 — ciclo completo,
+12 declarações, hash `52274d01…`, reset limpo). O que mantém ⚠️: o código desta sessão
+(aposentadoria da porta de declaração, MAN-OFF26-1-ETAPA2) ainda não foi smokado em prod
+([[PROC1]]) — e só isso** — Prioridade **Alta**
+
+> #### ETAPA 2 (MAN-OFF26-1-ETAPA2, 06–07/08/2026) — ensaio APROVADO em produção; a porta de declaração foi APOSENTADA
+>
+> **Etapa 2 executada em produção em 06/08 pelo owner e pelo co-admin — que foi o RAFA, não o
+> Michel** (o runbook nomeava o Michel; corrigido lá). **Ciclo completo passou:** banner de
+> ensaio ON, janela aberta, **declarações reais de contas distintas** (o Rafa usou o caminho
+> novo do **manter-todos** — team 1 com `num_cuts=0` na trilha), **sigilo cruzado conferido**,
+> **hierarquia owner > admin exercitada com sucesso** (o suprimento admin sobre time que
+> declarou pessoalmente foi **recusado**, com a mensagem expondo só existência + autoria —
+> desenho **confirmado em campo** pelo owner), **lock + revelação**, **hash canônico
+> `52274d01…`**, keeper sheet gerada, e **reset verificado**: **12 declarações e 1 snapshot
+> apagados → 0/0/fechada/banner off → janela reabrindo em seguida**. Backup
+> `/data/pre_ensaio_off26_1.db` (**618.496 bytes**) conferido antes de tudo.
+>
+> ⇒ **A pré-condição 1 da spec da urna está CUMPRIDA:** lock, hash e reveal **rodaram em
+> produção**, com 12 declarações e trilha íntegra. O que era ⚠️ por "nunca rodaram em prod"
+> **está resolvido**.
+>
+> **Achado de UI 1 — o `confirm()` nativo falha no celular (BLOQUEANTE de fluxo, não cosmético).**
+> No desktop funciona; **no mobile o pop-up impediu a declaração do Rafa** (ele precisou ir ao
+> computador). Como **em 22/08 a maioria declara pelo celular**, o padrão de confirmação passa a
+> ser **inline** (o botão vira "confirmar?" e só executa no 2º clique): **obrigatório na urna**
+> ([[OFF26-10]], U-CONF), e já aplicado ao único `confirm()` que sobreviveu nesta tela (o
+> `adminLock`) como padrão a copiar — `confirmarInline()` em `templates/cuts.html`.
+>
+> **Achado de UI 2 — a recusa da hierarquia apareceu como desenhada** (existência + autoria, sem
+> conteúdo) e **o owner validou o comportamento em campo**. Nada a corrigir; o desenho da recusa
+> seca deixa de ser hipótese testada em localhost e passa a ser **comportamento confirmado**.
+>
+> **APOSENTADORIA DA PORTA (consequência do redesenho de arquitetura — ver [[OFF26-10]]):** os
+> cortes de 20/08 passam a acontecer **direto no Sleeper**, e o Manager entra **só em 22/08**
+> como a urna. A tela de declaração múltipla **sai do caminho**: `/cuts` não renderiza mais
+> roster, checkbox de corte nem botão de declarar; sobra a explicação do fluxo de 2026 e, para
+> admin, o **motor rotulado como legado** (abrir/fechar/lock/revelação/suprir), com aviso
+> explícito de que abri-lo em 20–22/08 criaria uma **segunda porta**.
+> **As ROTAS de declaração seguem vivas de propósito** — são o mecanismo que a urna reusa
+> (U5/U8) e a **rede de regressão** da hierarquia owner > admin (7 testes). Sem janela aberta,
+> `POST /api/cuts/declaration` já recusa com **409**: a porta única é **estrutural**, desde que
+> a urna **não reuse a flag `cuts_window_open`** (restrição registrada na spec da F2).
+> **Reversível por git** se uma temporada futura voltar a querer a janela grande.
+>
+> **Validação:** `janela_ensaio_test.py` **22/22 verde** (nenhuma rota tocada — só a camada de
+> tela); `cap_regua_test` 34, `keeper_audit_test` 34, `salary_engine_test` 54 verdes; `/cuts`
+> renderiza **200** como admin sem resquício de `saveDeclaration`/`declareKeepAll`/`recalc`.
 
 > #### POSENSAIO (MAN-OFF26-1-POSENSAIO, 06/08/2026) — Etapa 1 executada 10/10; dois achados, implementados
 >
@@ -1980,7 +2026,21 @@ exceção à regra cega.
 ---
 
 ### OFF26-2 — Keeper sheet exportável
-⚠️ **F2 implementado (16/06/2026) — aguarda smoke prod** — Prioridade **Alta**
+⚠️ **F2 (16/06/2026); a sheet FOI GERADA EM PRODUÇÃO no ensaio de 06/08 (12 times, a partir da
+revelação real). O que mantém ⚠️: a fonte da sheet MUDA no redesenho — a definitiva passa a
+nascer do SYNC, não da revelação (U7 novo do [[OFF26-10]]), e hoje `_build_keeper_sheet`
+devolve `{"revealed": false}` sem snapshot canônico** — Prioridade **Alta**
+
+> **Consequência do redesenho de 06/08 (MAN-OFF26-1-ETAPA2) — fato verificado no código:**
+> `routes/cuts.py::_build_keeper_sheet` exige um `CutWindowAudit` canônico para produzir
+> qualquer sheet. Com os cortes de 20/08 acontecendo **no Sleeper** (sem declaração, sem lock,
+> sem snapshot), **não haverá snapshot da janela grande** — e a sheet, do jeito que está, não
+> sai. O caminho novo é mais simples e é **escopo da F2 da urna** (U7): pós-sync, **keepers =
+> roster vivo**, sem inversão de cortes e sem gate de revelação; a sheet **provisória** (20/08)
+> e a **definitiva** (pós-execução do late drop) são a mesma função em dois momentos, separadas
+> pelo carimbo do sync. **Até a F2:** o único produtor de sheet é o motor legado em `/cuts`
+> (abrir → lock com zero declarações → revelação), razão pela qual o bloco admin **não** foi
+> removido junto com a porta de declaração do owner.
 
 **Descrição:** relatório por time gerado a partir da revelação do OFF26-1 — keepers,
 salários e budget resultante para o FA Auction.
@@ -3478,8 +3538,17 @@ prontas? Registrar a decisão antes de iniciar a F1 do item.
 ---
 
 ### OFF26-8 — Cowork aplica os cortes no roster real do Sleeper
-🔲 **Registrado 16/06/2026** — MAN-OFF26-8-REG — Prioridade **Média** — **capability
-operacional (NÃO é código do Manager)**
+🔲 **Registrado 16/06/2026; ESVAZIADO PELO REDESENHO DE 06/08/2026 (MAN-OFF26-1-ETAPA2) —
+Prioridade Média → BAIXA** — MAN-OFF26-8-REG — **capability operacional (NÃO é código do
+Manager)**
+
+> **Emenda (06–07/08/2026): este item perdeu quase todo o objeto.** Os cortes de 20/08 passam a
+> ser feitos **pelos próprios owners, direto no Sleeper** — não existe mais "lista de cortes
+> revelada pelo Manager" para o Cowork aplicar. **Sobra um resíduo, e ele é MANUAL por decisão
+> do owner:** a **execução dos drops revelados pela urna** em 22/08 (U7 do [[OFF26-10]]) —
+> poucos drops (**no máximo 1 por time**), feitos pelo owner/admin, com **conferência do admin**
+> de que sumiram dos rosters antes do sync final. **Não há automação a construir aqui**; se
+> algum dia voltar, é sobre a lista da urna, não sobre a janela grande.
 
 **Descrição:** a partir da **lista de cortes** revelada pelo OFF26-1 (janela selada),
 um agente **Cowork + Claude in Chrome** dirige a UI do Sleeper para **dropar os jogadores
@@ -3507,8 +3576,11 @@ validação/procedimento operacional não-código que dirige a UI do Sleeper).
 ---
 
 ### OFF26-10 — Late drop pós-lock na janela selada (a URNA)
-🔲 **DECIDIDO E ESPECIFICADO (06/08/2026, MAN-OFF26-10-SPEC) — F2 pronta para disparo em prompt
-separado** — MAN-OFF26-10-11-REG → **-SPEC** — Prioridade **Alta** (caminho crítico **22/08**)
+🔲 **DECIDIDO E ESPECIFICADO (06/08) + REDESENHADO (06–07/08, MAN-OFF26-1-ETAPA2): o modelo
+selado vale APENAS para o late drop — os cortes de 20/08 acontecem no Sleeper e o Manager só
+fotografa. U1/U3/U7 reescritos, U-CONF acrescentado; F2 pronta para disparo em prompt
+separado** — MAN-OFF26-10-11-REG → **-SPEC** → **MAN-OFF26-1-ETAPA2** — Prioridade **Alta**
+(caminho crítico **20/08 e 22/08** — a sheet provisória agora também depende desta F2)
 
 **Calendário da intertemporada 2026, confirmado pelo comissário (02/08/2026):** **17/08**
 rookie draft · **18/08** congelamento ESPN · **20/08** prazo de cortes · **22/08 late drop**
@@ -3519,6 +3591,14 @@ revelação simultânea**. O **late drop de 22/08** altera o conjunto de keepers
 depois do lock**, e keeper sheet ([[OFF26-2]]), budget de FA e board da liga fantasma derivam
 **todos** do snapshot selado (`CutWindowAudit`). O item registra esse descompasso entre o
 desenho vigente e o calendário real.
+
+> **⚠️ Emenda de premissa (06–07/08/2026, MAN-OFF26-1-ETAPA2):** a Descrição acima e a Motivação
+> abaixo descrevem o **descompasso original** — e ele **deixou de existir por dissolução, não
+> por remendo**: com os cortes de 20/08 acontecendo **no Sleeper**, **não há lock de 20/08 nem
+> snapshot da janela grande** para o late drop desencontrar. A "sheet provisória" continua
+> existindo, mas por outro motivo (é a foto do sync **antes** do late drop). Ler o bloco
+> **REDESENHO DE ARQUITETURA** abaixo como a premissa vigente; o texto original fica como
+> registro do terreno que gerou o item.
 
 **Motivação:** consequência operacional **já identificada** — a keeper sheet emitida em 20/08 é
 **provisória** para os times que fecharam os cortes **acima do cap**, tornando-se definitiva só
@@ -3581,17 +3661,84 @@ e a urna só abre depois do prazo.** A alternativa de baixa tecnologia (**DM ao 
 **DESCARTADA pelo owner** — não funciona; desenvolve-se a ferramenta, há tempo. O ramo "correção
 administrativa pós-lock" morre junto: haverá **novo lock/hash e revelação simultânea de novo**.
 
+#### ⛔ REDESENHO DE ARQUITETURA (MAN-OFF26-1-ETAPA2, 06/08/2026) — o modelo selado vale APENAS para o late drop
+
+**Decisão do owner, durante o ensaio de produção:** os **cortes principais de 20/08 acontecem
+direto no Sleeper** — **públicos e graduais, sem sigilo e sem declaração no Manager**. Confirmado
+explicitamente: **o sigilo que a regra da liga exige é só o do late drop**. **O Manager entra
+apenas em 22/08, como a urna.**
+
+**Princípio que a arquitetura preserva:** o **Sleeper é a única fonte de roster o tempo todo** —
+o Manager **nunca escreve roster, só fotografa**. A urna é **protocolo de sigilo e revelação**;
+a **execução fica onde sempre esteve**.
+
+**Linha do tempo operacional decidida:**
+
+| Quando | Onde | O quê |
+|---|---|---|
+| **20/08** | **Sleeper** | cada owner corta no próprio roster, em público e no seu tempo |
+| **20/08 (após o prazo)** | Manager | **sync** → o Manager fotografa os rosters → **keeper sheet provisória** (nasce do sync, **não** de declarações) |
+| **20→22/08** | Manager | **urna aberta**: um late drop **ou** passo, por time, em sigilo total |
+| **22/08** | Manager | **lock + revelação** da urna → produz a **lista de drops a executar** |
+| **22/08 (após a revelação)** | **Sleeper** | **execução manual** dos drops revelados (owner/admin) |
+| **22/08 (após a execução)** | Manager | **sync final** → **keeper sheet definitiva** → é ela que o Cowork transcreve e que a auditoria [[OFF26-4]] usa como gate |
+| **24/08** | Sleeper (fantasma) | FA auction |
+
+**Janela de execução manual (entra no runbook do dia):** revelou → **owners executam no
+Sleeper** → **admin confere que os drops revelados sumiram dos rosters** → **sync final** →
+sheet definitiva. **Se um revelado não executar, a auditoria [[OFF26-4]] acusa** (o jogador
+aparece na sheet e/ou no board fora do esperado) — **comportamento correto, registrado como
+tal**: a detecção existe e é a rede.
+
+**PORTA ÚNICA durante a urna (exigência, não preferência):** enquanto a urna estiver aberta,
+**nenhuma outra tela pode aceitar declaração**. Duas consequências já executadas/registradas:
+1. **A tela de declaração múltipla de cortes foi APOSENTADA** (feito nesta sessão — ver o
+   destino declarado logo abaixo).
+2. ⛔ **A urna NÃO pode reusar a flag `cuts_window_open`.** Ela precisa do **próprio estado**
+   (chave AppConfig própria). Motivo verificado no código: `POST /api/cuts/declaration` só
+   aceita quando `cuts_window_open == "true"`; se a urna ligasse essa mesma flag, **reabriria a
+   porta antiga** e a porta única deixaria de ser estrutural — viraria promessa de UI.
+
+**DESTINO DA TELA DE DECLARAÇÃO MÚLTIPLA — decidido e executado (07/08/2026): APOSENTADA
+(porta do owner removida), motor mantido como ferramenta administrativa rotulada.**
+- **Removido da tela `/cuts`:** roster com checkbox de corte, "💾 Salvar minha declaração",
+  "✋ Não vou cortar ninguém", barra de budget ao vivo e todo o JS associado. No lugar: a
+  **explicação do fluxo de 2026** (Sleeper 20/08 → sync → urna 22/08 → execução manual → sync
+  final) e o link para a keeper sheet.
+- **Mantido (admin, rotulado "legado — fora do fluxo"):** abrir/fechar janela, **lock +
+  revelação**, suprir/ajustar pelo time, revelação + verificação de hash. **Por que não removi
+  tudo:** hoje **o motor legado é o único produtor de keeper sheet** (`_build_keeper_sheet`
+  exige snapshot canônico — ver [[OFF26-2]]); removê-lo antes da F2 deixaria a liga **sem
+  sheet nenhuma** se a F2 escorregar. Aviso explícito na tela: **abrir esta janela em 20–22/08
+  criaria uma segunda porta**.
+- **Rotas de declaração preservadas** (não é porta na tela): são o mecanismo que a urna reusa e
+  a rede de regressão da hierarquia owner > admin (7 testes de `janela_ensaio_test.py`).
+  Reversível por git.
+
 #### SPEC DA URNA — decisões do owner (06/08/2026), insumo direto da F2
 
-- **U1 — Uma declaração por time, conteúdo selado por completo.** A declaração é: **um jogador do
-  próprio roster** (o late drop) **ou "passo"** (sem drop). Durante a janela, **nada é visível a
-  ninguém** — nem o conteúdo, nem se o time declarou. **O sigilo cobre a existência da
-  declaração** (mais estrito que o OFF26-1, que mostra o agregado "Fechada — N/12").
+> **Os itens U1, U3 e U7 foram REESCRITOS em 06–07/08/2026 pelo redesenho acima.** O texto
+> vigente é este; a versão anterior (urna encadeada à revelação da janela grande) **não vale
+> mais**.
+
+- **U1 (REESCRITO) — Uma declaração por time, conteúdo selado por completo, em lista de escolha
+  única.** A declaração é: **um jogador do próprio roster** (o late drop) **ou "passo"** (sem
+  drop). **Decisão de interface do owner:** lista de **escolha única com aparência de checkbox**
+  — **marcar um desmarca o anterior** —, com a opção destacada **"Não vou dropar ninguém"** como
+  **item da própria lista** (N jogadores **+ 1** passo; **uma marcação sempre**). Declarar dois
+  é **tecnicamente impossível pela interface**, não apenas validado no servidor (a validação
+  continua existindo, como rede). Durante a janela, **nada é visível a ninguém** — nem o
+  conteúdo, nem se o time declarou. **O sigilo cobre a existência da declaração** (mais estrito
+  que o OFF26-1, que mostra o agregado "Fechada — N/12").
 - **U2 — Efeito de não declarar = passo.** Quem não depositar nada até o prazo fica sem late
   drop. Declarar "passo" e não declarar têm o **mesmo efeito revelado** ("sem late drop"); a
   distinção **pode** existir internamente (trilha), nunca no resultado.
-- **U3 — Janela: abre com a revelação dos cortes de 20/08; fecha em 22/08** em horário
-  **configurável pelo admin**. Fora da janela, a urna **não aceita depósito**.
+- **U3 (REESCRITO) — Janela: abre por HORÁRIO DEFINIDO PELO ADMIN**, depois do prazo dos cortes
+  no Sleeper **e do sync** que fotografa os rosters; fecha em **22/08**, também em horário
+  configurável. **Não há encadeamento com revelação de janela grande — ela não existirá.**
+  Fora da janela, a urna **não aceita depósito**. (O gate útil aqui é o **sync recente**: sem
+  ele, a lista de elegíveis do U6 mostra roster velho — jogador já cortado no Sleeper apareceria
+  como dropável.)
 - **U4 — Declaração substituível até o lock.** Dentro da janela, o owner troca a própria
   declaração à vontade (outro jogador, ou passo). **Vale a última antes do lock** — coerente com
   a janela de cortes.
@@ -3611,11 +3758,20 @@ administrativa pós-lock" morre junto: haverá **novo lock/hash e revelação si
   já protegidos por regra" citada na spec **não tem hoje regra escrita que a alimente**; se o
   owner quiser a proteção do rookie de 1ª na urna, é **decisão de liga a arbitrar na F2**
   (default da spec, na ausência dela: elegível = está no roster).
-- **U7 — Pós-revelação: keeper sheet definitiva reemitida automaticamente.** A revelação da urna
-  **dispara a reemissão** — é essa sheet que a auditoria [[OFF26-4]] usa como lado do diff e que
-  o Cowork transcreve no board. A sheet anterior (de 20/08) fica marcada como **provisória** na
-  trilha (fecha a motivação original deste item: o artefato provisório deixa de circular com
-  cara de definitivo).
+- **U7 (REESCRITO) — A sheet definitiva nasce do SYNC PÓS-EXECUÇÃO, não da revelação.** A
+  revelação da urna produz a **lista de drops a executar** (não a sheet). Sequência: revelação →
+  **execução manual no Sleeper** → **admin confere** que os drops sumiram dos rosters → **sync
+  final** → **keeper sheet definitiva**. É essa sheet que a auditoria [[OFF26-4]] usa como lado
+  do diff e que o Cowork transcreve no board.
+  **Consequência de implementação (escopo da F2, fato verificado no código):**
+  `routes/cuts.py::_build_keeper_sheet` hoje **exige um `CutWindowAudit` canônico** e inverte
+  cortes (`keepers = roster_live − cut_ids`). No desenho novo **não há snapshot da janela
+  grande**, então a sheet passa a ser **`keepers = roster vivo`**, sem gate de revelação e sem
+  inversão — a **provisória** (20/08) e a **definitiva** (pós-execução) são a **mesma função em
+  dois momentos**, distinguidas pelo **carimbo do sync** exibido na página. A distinção
+  provisória × definitiva **continua sendo o coração deste item** (o artefato provisório não
+  pode circular com cara de definitivo) — só muda **de onde ela vem**: do timestamp do sync, não
+  do lock.
 - **U8 — O efeito do drop no contrato segue o caminho canônico** de corte já existente
   (devolução integral do salário, **sem dead money** — regra da liga; o regulamento é
   consistente: o cap deriva dos mantidos, 8.3.3, e o cortado fica disponível para o draft,
@@ -3629,15 +3785,41 @@ administrativa pós-lock" morre junto: haverá **novo lock/hash e revelação si
 > **existência e autoria** — nunca o conteúdo. O "passo" do U1 é o análogo do
 > "manter todos" explícito da janela (POSENSAIO), e como lá, **distingue-se do silêncio**
 > (U2) na trilha e no resultado revelado. A F2 da urna nasce com isso.
+>
+> **Confirmado em campo na Etapa 2 (06/08):** a recusa apareceu exatamente como desenhada
+> (existência + autoria, **sem conteúdo**) e **o owner validou o comportamento**. Deixa de ser
+> desenho testado em localhost e passa a ser **comportamento observado em produção**.
 
-#### Pré-condições de sequência da F2 (registradas, NÃO executadas aqui)
+- **U-CONF (NOVO, 06/08/2026 — achado da Etapa 2) — confirmação INLINE, nunca `confirm()`
+  nativo.** No ensaio, o **pop-up nativo falhou no celular** e **impediu a declaração** do
+  co-admin (funcionou no desktop; ele precisou ir ao computador). Como **em 22/08 a maioria
+  declara pelo celular**, na urna a confirmação é **obrigatoriamente inline**: o botão **vira
+  "confirmar?"** e só executa no **2º clique** (com reversão automática por timeout). ⛔
+  **Nenhum `window.confirm()` no caminho de declaração da urna.** Padrão já implementado e
+  disponível para copiar: `confirmarInline()` em `templates/cuts.html`
+  (MAN-OFF26-1-ETAPA2).
 
-1. **O smoke real do OFF26-1/2 vem ANTES da estreia da urna.** Lock e reveal **nunca rodaram em
-   produção** (smoke de 17/06 foi parcial: infra+abertura), e a urna reusa exatamente esse
-   mecanismo. Antes de 20/08: **janela de teste em produção** (cortes fictícios → lock → hash →
-   reveal → reset), coordenada com o owner e o co-admin.
-2. A F2 da urna precisa estar **entregue e smokada antes de 22/08** — idealmente antes de
-   **20/08**, para estrear junto com a janela grande já validada.
+#### Pré-condições de sequência da F2 (registradas)
+
+1. ✅ **CUMPRIDA (06/08/2026) — o smoke real do OFF26-1/2 rodou em produção.** A Etapa 2 do
+   ensaio executou o **ciclo completo em prod** (12 declarações, sigilo cruzado, hierarquia,
+   lock, hash `52274d01…`, revelação, sheet, reset verificado). O mecanismo que a urna reusa
+   está **provado**, não suposto — ver o bloco ETAPA 2 no [[OFF26-1]].
+2. A F2 da urna precisa estar **entregue e smokada antes de 22/08** — e agora **antes de 20/08**
+   por um motivo novo: com a janela grande fora do fluxo, **a keeper sheet provisória de 20/08
+   também depende da F2** (U7 — sheet a partir do sync). Sem F2, o único produtor de sheet é o
+   motor legado de `/cuts` (abrir → lock com zero declarações → revelação), que é fallback, não
+   plano.
+
+#### O que o redesenho SIMPLIFICA (registro, 06/08/2026)
+
+O fluxo de **declaração/lock/reveal da janela grande deixa de ser usado no caminho principal** —
+mas o **mecanismo** (lock, hash, snapshot, reset, banner de ensaio, hierarquia owner > admin) é
+**exatamente o motor da urna**, e este ensaio o **provou em produção**. **Nada do que foi
+construído se perde**; o que muda é **qual tela o aciona**. Some do caminho crítico: a coleta de
+12 declarações múltiplas sob prazo, a adequação de cap dentro da janela, e o risco de a sheet de
+20/08 circular como definitiva (agora a distinção é o carimbo do sync). Fica: **um bilhete por
+time, uma abertura, uma revelação.**
 
 **Dependências:** depende do **[[OFF26-1]]** (é o snapshot que o late drop altera; e é o
 mecanismo reusado — U5/U8); **afeta [[OFF26-2]]** (sheet provisória 20/08 × definitiva

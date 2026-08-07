@@ -95,22 +95,26 @@ def _upsert_declaration(season, team_id, cut_ids, editor_id):
 @cuts_bp.route("/cuts")
 @login_required
 def cuts_page():
+    """MAN-OFF26-1-ETAPA2 (07/08/2026): a PORTA DE DECLARAÇÃO DO OWNER foi APOSENTADA.
+
+    Decisão do owner (06/08/2026): os cortes de 20/08 acontecem direto no Sleeper
+    (públicos e graduais); o Manager só fotografa por sync e sela o LATE DROP de 22/08
+    na urna ([[OFF26-10]]). Em 22/08 tem de existir UMA porta só — a urna —, então a
+    tela de declaração múltipla sai do caminho. O template não renderiza mais roster,
+    checkbox de corte nem botão de declarar; sobra a explicação do fluxo e, para admin,
+    o MOTOR (abrir/fechar/lock/revelação/suprir) rotulado como legado, fora do fluxo.
+
+    As ROTAS de declaração seguem vivas de propósito: são o mecanismo que a urna reusa
+    (U5/U8) e a rede de regressão da hierarquia owner > admin. Sem a janela aberta,
+    `save_my_declaration` já recusa com 409 — a porta única é estrutural, desde que a
+    urna NÃO reuse a flag `cuts_window_open` (restrição registrada na spec da F2)."""
     season = get_current_season()
     my_team = current_user.team_rel
-    my_roster = []
-    if my_team:
-        players = Player.query.filter_by(team_id=my_team.id, is_dropped=False).all()
-        my_roster = [{
-            "id": p.id, "name": p.name, "position": p.position,
-            "salary": p.salary, "contract_display": p.contract_display(),
-            "is_on_ir": p.is_on_ir, "needs_review": p.needs_review,
-        } for p in sorted(players, key=lambda p: (-p.salary, p.name))]
     teams = Team.query.order_by(Team.name).all() if current_user.is_admin else []
     return render_template(
         "cuts.html",
         season=season,
         my_team=my_team,
-        my_roster=my_roster,
         teams=teams,
         state=_window_state(season),
         is_admin=current_user.is_admin,

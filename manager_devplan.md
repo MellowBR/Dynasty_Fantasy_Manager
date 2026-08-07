@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 03/08/2026-pt3 (MAN-OFF26-4-REFINE-PT2: **absorção dos achados do probe + achado de maior peso do arco**. ⛔ **KEEPER FORA DO BOARD É JOGADOR LEILOÁVEL** — o Sleeper o trata como disponível e **processa o lance normalmente**; jogador com dono é arrematado **ao vivo**, sem desfazer limpo. **Não é contabilidade a corrigir depois — é transação inválida em tempo real** → o **OFF26-4 vira GATE DE INTEGRIDADE DO LEILÃO** e a classe "keeper ausente do board" fica **bloqueante**, não escolha da F2. **Propagado ao OFF26-10** (time bloqueado pelo teto = **keepers expostos** → **população completa do board é PRÉ-CONDIÇÃO DE ABERTURA**; a decisão em aberto do item **não foi arbitrada**) e ao **OFF26-5 + runbook** (nova §B.5: board incompleto **não é estado aceitável**). **IR resolvido:** designar normalmente, excedentes no banco, vaga automática por posição; **descartado** descontar do budget (não resolve — o problema é disponibilidade — e some da auditoria). **D2:** sala = **22 slots** (metade fechada), **8.3.4 pendente**, com caso concreto do IR. **D1 corrigido (texto preservado):** a falha silenciosa **não existe pela API** (404 em 0,2 s; LOADING é do app web) → **timeout vira boa prática**; **não persistir `draft_id` permanece**. **D5:** classe "slot errado" **não existe**. **D6:** construção **liberada** contra placeholders; só a **costura `roster_id` ↔ time** espera os aceites. **Nota de método:** 3ª premissa da família *observação verdadeira, procedência errada*. Sem código)  
+> Última atualização: 07/08/2026 (MAN-OFF26-1-ETAPA2: **ensaio da janela selada APROVADO em produção** — Etapa 2 com o co-admin **Rafa**, 12 declarações, hierarquia e manter-todos exercitados, hash `52274d01…`, reset limpo ⇒ **pré-condição 1 da urna cumprida**. **Redesenho decidido pelo owner: o modelo selado vale só para o LATE DROP** — cortes de 20/08 no Sleeper, Manager só fotografa por sync e entra em 22/08 como a urna; **U1/U3/U7 reescritos + U-CONF** (confirmação inline: o `confirm()` nativo falhou no celular e barrou uma declaração); ⛔ urna não pode reusar `cuts_window_open`. **Tela de declaração múltipla APOSENTADA** (motor fica como ferramenta admin rotulada legado — é o único produtor de sheet até a F2). Suítes 22+34+34+54 verdes; Sleeper intocado.)
+> Anterior: 03/08/2026-pt3 (MAN-OFF26-4-REFINE-PT2: **absorção dos achados do probe + achado de maior peso do arco**. ⛔ **KEEPER FORA DO BOARD É JOGADOR LEILOÁVEL** — o Sleeper o trata como disponível e **processa o lance normalmente**; jogador com dono é arrematado **ao vivo**, sem desfazer limpo. **Não é contabilidade a corrigir depois — é transação inválida em tempo real** → o **OFF26-4 vira GATE DE INTEGRIDADE DO LEILÃO** e a classe "keeper ausente do board" fica **bloqueante**, não escolha da F2. **Propagado ao OFF26-10** (time bloqueado pelo teto = **keepers expostos** → **população completa do board é PRÉ-CONDIÇÃO DE ABERTURA**; a decisão em aberto do item **não foi arbitrada**) e ao **OFF26-5 + runbook** (nova §B.5: board incompleto **não é estado aceitável**). **IR resolvido:** designar normalmente, excedentes no banco, vaga automática por posição; **descartado** descontar do budget (não resolve — o problema é disponibilidade — e some da auditoria). **D2:** sala = **22 slots** (metade fechada), **8.3.4 pendente**, com caso concreto do IR. **D1 corrigido (texto preservado):** a falha silenciosa **não existe pela API** (404 em 0,2 s; LOADING é do app web) → **timeout vira boa prática**; **não persistir `draft_id` permanece**. **D5:** classe "slot errado" **não existe**. **D6:** construção **liberada** contra placeholders; só a **costura `roster_id` ↔ time** espera os aceites. **Nota de método:** 3ª premissa da família *observação verdadeira, procedência errada*. Sem código)  
 > Anterior: 03/08/2026-pt2 (MAN-OFF26-4-PROBE: **probe read-only na liga fantasma real — o bloqueador do §2 da F1 do OFF26-4 CAIU**. Zero escrita, draft não iniciado, board intacto. **Derivação `league_id → draft_id` funciona por 2 caminhos** (`league.draft_id` no topo, 1 request; e `/drafts` com 1 item — o morto não aparece). **Premissa do D1 refutada para a API:** draft morto = **404 limpo em 0,2 s**, não trava (o LOADING é do app web). **Designações expostas pré-draft** em `/draft/{did}/picks` (mesma superfície já usada), 24 registros com **`metadata.amount`** — **totais $148/$95/$60 reconstruídos exatos**. Jogador por `player_id`=`sleeper_player_id`, **⚠️ DEF vem como sigla (`"LAR"`)**; time por `roster_id`; **`owner_id` nulo em 11/12** (D6 confirmado como bloqueio de validação, mas a auditoria casa por roster). **Sem campo de budget por time** → soma, como o D2 já dizia. **Réplica dupla** de leitura de picks (`draft_import.py:39` × `sync_sleeper.py:872`, coerção `float` × `int`), **ambos gateados em `status=="complete"` — era o gate, não a API**. Não previstos: **`is_keeper:false` nas 24**; **`pick_no`/`round` não indicam vaga → D5 sem classe "slot errado"**; **22 slots (10+12 BN)** medem o lado Sleeper da ressalva do D2; **fantasma sem IR** × liga real com IR = divergência concreta. Status 🔲; sem código)  
 > Anterior: 03/08/2026 (MAN-OFF26-4-REFINE: **spec do OFF26-4 sincronizada** com a evidência de 02/08 — bloco D1–D7 no padrão do OFF26-2, cada decisão rotulada (**arbitrada** / **resolvida por evidência** / **delegada com critério**); F1 e ATUALIZAÇÃO EMPÍRICA **intactas** abaixo, status segue **🔲**. **D1:** `league_id` em `AppConfig`, **`draft_id` NUNCA persistido** (derivado a cada uso, com timeout explícito — URL morta trava em LOADING); a F2 herda a pendência de que `league_id → draft_id` nunca foi exercitado. **D2:** base = `usable_draft_budget` (resolvida por evidência), com a **ressalva aritmética 22 rodadas × 8.3.4 pendente**. **D3:** ponte de jogador **delegada** com critério "não tocar o OFF26-2". **D4/D5:** 12 times de uma vez; **não populado = estado próprio**, não divergência; 4 classes + severidade na F2. **D6:** só `sleeper_owner_id`; ⛔ **times ainda placeholders (owner_id nulo, convites de 03/08) → F2 não validável contra placeholders**. **D7:** probe exige board populado — janela aberta agora, fecha no próximo reset. Sem código)  
 > Anterior: 02/08/2026-pt8 (MAN-OFF26-RUNBOOK-REG-PT2: **2ª execução do Cowork** — runbook corrigido **validado** (Team 3/4/5 populados, totais conferindo). **`draft_id` NÃO é estável**: o reset gerou id novo e **matou o registrado no pt7** (atual `1389755381567213568`; `league_id` estável), com **falha silenciosa** (URL velha trava em LOADING) → **restrição de desenho na decisão 1 do OFF26-4: persistir `draft_id` está descartado por evidência**; persiste-se `league_id` e deriva-se o draft. **⛔ Falso achado rejeitado:** rebaixar o check anti-homônimo — causa era **lista de teste com dados velhos**; check **mantido** e orientação **invertida** (divergência real = parar e reportar). 5 correções de runbook + não fixar URL de board. **Melhoria do OFF26-2** registrada (ordenar a sheet na sequência do board). **Medição perdida** por timeouts de ambiente → risco de **variância imprevisível** (~2 h × ~5 h), mitigação **fatiar por time**; decisão Cowork-2026 **mantida** com reconsideração parcial **aberta**. Sem código)  
@@ -3014,6 +3015,63 @@ completo, hash `5024b17a…` conferido, reset devolvendo 0/0/fechada com reabert
   contexto persistente (o dry-run original passou por não ter um; a 1ª versão da classe de
   rota caiu nisso).
 - Runbook ganhou o **adendo da Etapa 2** (checks 11–13: manter-todos, hierarquia, 3º status).
+
+### MAN-OFF26-1-ETAPA2 — ensaio aprovado em produção + redesenho da urna (06–07/08/2026, Opus)
+
+**Etapa 2 do ensaio EXECUTADA EM PRODUÇÃO em 06/08 pelo owner e pelo co-admin RAFA** (o runbook
+nomeava o Michel — corrigido). **Ciclo completo passou:** banner ON, janela aberta, **12
+declarações** de contas distintas (o Rafa usou o **manter-todos** — team 1 com `num_cuts=0` na
+trilha), **sigilo cruzado** conferido, **hierarquia owner > admin exercitada com sucesso**
+(suprimento sobre time que declarou pessoalmente **recusado**, expondo só existência + autoria),
+lock + revelação, **hash `52274d01…`**, keeper sheet, e **reset verificado** (12 declarações +
+1 snapshot apagados → 0/0/fechada/banner off → janela reabrindo). Backup
+`/data/pre_ensaio_off26_1.db`, **618.496 bytes**, conferido antes de tudo.
+
+⇒ **Pré-condição 1 da urna CUMPRIDA:** lock, hash e reveal **rodaram em produção**. O ⚠️ que
+dizia "nunca rodaram em prod" morre aqui.
+
+- **Achado de UI 1 (vira spec):** o **`confirm()` nativo falhou no celular** e **impediu a
+  declaração** do co-admin (desktop OK). Como **em 22/08 a maioria declara pelo celular**, a
+  urna passa a exigir **confirmação inline** (botão vira "confirmar?", 2º clique executa) —
+  **U-CONF** no [[OFF26-10]]; ⛔ nenhum `window.confirm()` no caminho de declaração. Padrão já
+  implementado como `confirmarInline()` em `templates/cuts.html`, para a F2 copiar.
+- **Achado de UI 2:** a recusa da hierarquia apareceu **como desenhada** e o **owner validou em
+  campo** — de "testado em localhost" para "observado em produção".
+
+**REDESENHO DE ARQUITETURA (decisão do owner, 06/08): o modelo selado vale APENAS para o late
+drop.** Os **cortes de 20/08 acontecem direto no Sleeper** — públicos, graduais, sem declaração
+no Manager (o sigilo que a regra da liga exige é **só** o do late drop). **O Manager entra em
+22/08, como a urna.** Linha do tempo: cortes no Sleeper → **sync** → keeper sheet **provisória**
+→ **urna 20→22/08** → lock + revelação = **lista de drops a executar** → **execução MANUAL no
+Sleeper** + conferência do admin → **sync final** → keeper sheet **definitiva** (é a que o
+Cowork transcreve e a que o [[OFF26-4]] usa como gate). Se um revelado não executar, **a
+auditoria acusa** — comportamento correto. **Princípio preservado:** o Sleeper é a única fonte
+de roster; o Manager **nunca escreve roster, só fotografa**.
+
+- **U1/U3/U7 reescritos** na spec do [[OFF26-10]]: U1 = lista de **escolha única com aparência
+  de checkbox** (marcar um desmarca o outro), com **"Não vou dropar ninguém"** como item da
+  própria lista — declarar dois vira **impossível pela interface**; U3 = abre por **horário do
+  admin** (após o prazo dos cortes + sync), **sem** encadeamento com revelação de janela grande;
+  U7 = a sheet definitiva nasce do **sync pós-execução**, não da revelação.
+- ⛔ **Restrição nova, verificada no código:** a urna **não pode reusar a flag
+  `cuts_window_open`** — `POST /api/cuts/declaration` só aceita com ela ligada, então reusá-la
+  **reabriria a porta antiga**. Porta única tem de ser **estrutural**, não promessa de UI.
+
+**Destino da tela de declaração múltipla — decidido e EXECUTADO: aposentada.** `/cuts` não
+renderiza mais roster, checkbox de corte, botão de declarar nem barra de budget; no lugar,
+a explicação do fluxo de 2026 + link da sheet. O bloco **admin** fica **rotulado "legado — fora
+do fluxo"** (com aviso de que abri-lo em 20–22/08 criaria segunda porta) porque **hoje é o único
+produtor de keeper sheet** (`_build_keeper_sheet` exige snapshot canônico — [[OFF26-2]]);
+removê-lo antes da F2 deixaria a liga sem sheet. **Rotas de declaração preservadas**: são o
+mecanismo que a urna reusa e a rede de regressão da hierarquia (7 testes). Reversível por git.
+
+- **[[OFF26-8]] esvaziado** (Média → Baixa): sem lista revelada pelo Manager, não há cortes a
+  aplicar por Cowork; o resíduo é a **execução manual** dos drops da urna (≤1/time).
+- **Validação:** `janela_ensaio_test.py` **22/22**, `cap_regua_test` 34, `keeper_audit_test` 34,
+  `salary_engine_test` 54 — verdes. `/cuts` renderiza **200** como admin, sem resquício de
+  `saveDeclaration`/`declareKeepAll`/`recalc`/`loadMyDeclaration`. **Mecanismo selado
+  (lock/hash/reveal/snapshot) INTOCADO** — mudou só a camada de tela. Sleeper **não tocado**;
+  draft não iniciado; nenhum RESET DRAFT.
 
 ### MAN-OFF26-4-SLOTS — prompt reeditado; o que faltava era transformar o residuo em ITEM (03/08/2026, Opus)
 

@@ -10,71 +10,56 @@
 </div>
 {% endif %}
 <div class="page-header">
-  <h1 class="page-title">✂️ Janela de Cortes Selada</h1>
+  <h1 class="page-title">✂️ Janela de Cortes Selada <span class="badge">aposentada em {{ season }}</span></h1>
   <p class="page-subtitle">
-    Declare em sigilo os cortes do seu roster {{ season }}. A revelação é simultânea —
-    ninguém vê os cortes alheios antes do lock do admin.
+    Esta tela <strong>não recebe mais declarações de corte</strong>. Os cortes de 20/08
+    acontecem direto no Sleeper; o único ato selado do Manager é o
+    <strong>late drop de 22/08</strong>, na urna.
   </p>
 </div>
 
 {# ── Banner de estado da janela ── #}
 <div id="state-banner" class="alert" style="margin-bottom:1rem">Carregando…</div>
 
-{# ── Seção do OWNER ── #}
-{% if my_team %}
+{# ── APOSENTADORIA DA PORTA DE DECLARAÇÃO (MAN-OFF26-1-ETAPA2, 07/08/2026) ──
+     Decisão do owner (06/08): o fluxo principal de cortes é PÚBLICO e GRADUAL no
+     Sleeper; o Manager só fotografa (sync) e sela o late drop (urna, OFF26-10).
+     A porta de declaração múltipla do owner sai do caminho para que, em 22/08,
+     exista UMA porta só — a urna. O motor (lock/hash/reveal/snapshot) fica. #}
 <div class="card" style="margin-bottom:1.5rem">
-  <h2 style="margin-top:0">Seu roster — {{ my_team.name }}</h2>
-
-  {# barra de budget (consome a porta canônica em modo NÃO-PROJETADO) #}
-  <div id="budget-bar" class="cap-summary-card" style="display:none;margin-bottom:1rem">
-    <div class="cap-summary-grid">
-      <div class="cap-summary-item"><span class="cap-label">Keepers (mantidos)</span><span class="cap-value" id="b-keepers">—</span></div>
-      <div class="cap-summary-item"><span class="cap-label">Budget Bruto</span><span class="cap-value" id="b-raw">—</span></div>
-      <div class="cap-summary-item"><span class="cap-label">Budget Usável</span><span class="cap-value" id="b-usable">—</span></div>
-      <div class="cap-summary-item"><span class="cap-label">Spots vazios</span><span class="cap-value" id="b-spots">—</span></div>
-    </div>
-    <div id="b-alert" style="margin-top:.5rem"></div>
-  </div>
-
-  <table class="data-table">
-    <thead><tr><th>Cortar?</th><th>Jogador</th><th>Pos</th><th>Salário</th><th>Contrato</th></tr></thead>
-    <tbody>
-      {% for p in my_roster %}
-      <tr>
-        <td><input type="checkbox" class="cut-box" value="{{ p.id }}" onchange="recalc()"></td>
-        <td>{{ p.name }}{% if p.is_on_ir %} <span class="badge">IR</span>{% endif %}</td>
-        <td>{{ p.position }}</td>
-        <td>${{ p.salary|int }}</td>
-        <td>{{ p.contract_display }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  <div class="step-actions" style="margin-top:1rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
-    <button id="save-btn" class="btn btn-primary" onclick="saveDeclaration()">💾 Salvar minha declaração</button>
-    <button id="keep-all-btn" class="btn btn-secondary" onclick="declareKeepAll()">✋ Não vou cortar ninguém (manter todos)</button>
-    <span id="save-result" class="text-dim"></span>
-  </div>
-  <p class="text-dim" style="margin-top:.5rem;font-size:.85rem">
-    Declarar <strong>manter todos</strong> registra ativamente a sua decisão (com autor e hora) —
-    diferente do silêncio, que entra como default. Sem declaração = zero cortes (mantém todos).
-    A validação de cap (8.3.4) é só alerta aqui; a adequação é resolvida no FA auction.
-  </p>
+  <h2 style="margin-top:0">Como funciona o corte em {{ season }}</h2>
+  <ol style="margin:.5rem 0 .75rem 1.1rem;line-height:1.7">
+    <li><strong>20/08 — no Sleeper.</strong> Cada owner corta no próprio roster, em público
+      e no seu tempo. O Manager <strong>não</strong> recebe declaração de corte.</li>
+    <li><strong>Sync → keeper sheet provisória.</strong> O admin sincroniza e o Manager
+      fotografa os rosters: keepers = quem sobrou.</li>
+    <li><strong>20→22/08 — urna (aqui no Manager).</strong> Um late drop <em>ou</em> passo,
+      por time, em sigilo total. Revelação simultânea em 22/08.</li>
+    <li><strong>Execução do drop revelado é manual, no Sleeper</strong> → sync final →
+      <strong>keeper sheet definitiva</strong> (é essa que o Cowork transcreve).</li>
+  </ol>
+  <a class="btn btn-primary btn-sm" href="/cuts/keeper_sheet">📋 Keeper Sheet</a>
+  <span class="text-dim" style="font-size:.85rem">
+    {% if my_team %}Seu time: {{ my_team.name }} — o roster vive no Sleeper.{% else %}
+    Você não tem time vinculado — fale com o admin.{% endif %}
+  </span>
 </div>
-{% else %}
-<div class="alert alert-warn">Você não tem time vinculado — fale com o admin.</div>
-{% endif %}
 
-{# ── Seção do ADMIN ── #}
+{# ── Seção do ADMIN (mecanismo legado, fora do fluxo de 2026) ── #}
 {% if is_admin %}
 <div class="card" style="margin-bottom:1.5rem;border:1px solid var(--border)">
-  <h2 style="margin-top:0">🔧 Admin — janela</h2>
+  <h2 style="margin-top:0">🔧 Admin — mecanismo da janela <span class="badge">legado</span></h2>
+  <p class="alert alert-warn" style="font-size:.85rem">
+    ⚠️ <strong>Fora do fluxo de {{ season }}.</strong> Este é o motor que a urna reusa
+    (lock · hash · revelação · snapshot), mantido aqui como ferramenta administrativa —
+    <strong>não</strong> como etapa do calendário. Abrir esta janela em 20–22/08 criaria
+    uma segunda porta de declaração: não abra.
+  </p>
   <div id="admin-gate" class="text-dim" style="margin-bottom:.75rem"></div>
   <div class="step-actions" style="display:flex;flex-wrap:wrap;gap:.75rem">
     <button class="btn btn-secondary" onclick="adminOpen()">🔓 Abrir janela</button>
     <button class="btn btn-secondary" onclick="adminClose()">🔒 Fechar (sem revelar)</button>
-    <button class="btn btn-danger" onclick="adminLock()">🎬 Lock + Revelação</button>
+    <button class="btn btn-danger" onclick="adminLock(this)">🎬 Lock + Revelação</button>
   </div>
   <div id="admin-result" class="result-box" style="display:none;margin-top:.75rem"></div>
 
@@ -106,71 +91,27 @@
 
 {% block scripts %}
 <script>
-const MY_TEAM = {% if my_team %}{{ my_team.name | tojson }}{% else %}null{% endif %};
 const SEASON = {{ season }};
 let adminRosterIds = [];
 
-function rosterIds() {
-  return Array.from(document.querySelectorAll('.cut-box')).map(b => parseInt(b.value));
-}
-function cutIds() {
-  return Array.from(document.querySelectorAll('.cut-box:checked')).map(b => parseInt(b.value));
-}
-
-// Budget ao vivo: kept = roster − cortes (diferença de seleção, NÃO aritmética de cap).
-// A conta de cap vem 100% da porta canônica em modo não-projetado (salário já rollado).
-function recalc() {
-  if (!MY_TEAM) return;
-  const cuts = new Set(cutIds());
-  const kept = rosterIds().filter(id => !cuts.has(id));
-  fetch('/api/cap_projector/' + encodeURIComponent(MY_TEAM) + '/budget', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({kept_ids: kept, projected: false}),
-  }).then(r => r.json()).then(d => {
-    if (d.error) return;
-    const b = d.budget;
-    document.getElementById('budget-bar').style.display = 'block';
-    document.getElementById('b-keepers').textContent = '$' + b.keeper_salaries + ' (' + b.num_keepers + ')';
-    document.getElementById('b-raw').textContent = '$' + b.raw_budget;
-    document.getElementById('b-usable').textContent = '$' + b.usable_draft_budget;
-    document.getElementById('b-spots').textContent = b.empty_spots + ' (min $' + b.min_required_for_spots + ')';
-    const al = document.getElementById('b-alert');
-    if (b.insufficient_budget) al.innerHTML = '<span class="alert alert-warn">⚠️ Budget insuficiente: faltam $' + d.shortfall + ' para preencher ' + b.empty_spots + ' spots (alerta — não trava).</span>';
-    else if (b.over_cap) al.innerHTML = '<span class="alert alert-warn">⚠️ Acima do cap (alerta).</span>';
-    else al.innerHTML = '';
-  });
-}
-
-function saveDeclaration() {
-  fetch('/api/cuts/declaration', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({cut_ids: cutIds()}),
-  }).then(r => r.json()).then(d => {
-    const el = document.getElementById('save-result');
-    if (d.error) { el.textContent = '❌ ' + d.error; return; }
-    el.textContent = d.cut_ids.length === 0
-      ? '✅ Declarado: MANTER TODOS (0 cortes).'
-      : '✅ Declarado (' + d.cut_ids.length + ' cortes).';
-    loadState();
-  });
-}
-
-// POSENSAIO: manter-todos ATIVO — desmarca tudo e declara zero cortes de forma explícita.
-function declareKeepAll() {
-  if (!confirm('Declarar que você NÃO vai cortar ninguém? Isso registra ativamente a decisão de manter o roster inteiro.')) return;
-  document.querySelectorAll('.cut-box').forEach(b => { b.checked = false; });
-  recalc();
-  saveDeclaration();
-}
-
-function loadMyDeclaration() {
-  if (!MY_TEAM) return;
-  fetch('/api/cuts/declaration').then(r => r.json()).then(d => {
-    if (d.error) return;
-    const set = new Set(d.cut_ids || []);
-    document.querySelectorAll('.cut-box').forEach(b => { b.checked = set.has(parseInt(b.value)); });
-    recalc();
-  });
+// Confirmação INLINE (achado da Etapa 2 do ensaio, 06/08/2026): o confirm() nativo
+// falha em parte dos celulares — o pop-up foi bloqueado e a declaração não saiu. O
+// botão vira "confirmar?" e só executa no 2º clique. Padrão a ser reusado pela urna.
+function confirmarInline(btn, texto, acao) {
+  if (btn.dataset.armed === '1') {
+    clearTimeout(parseInt(btn.dataset.timer));
+    btn.dataset.armed = '0';
+    btn.textContent = btn.dataset.original;
+    acao();
+    return;
+  }
+  btn.dataset.original = btn.textContent;
+  btn.dataset.armed = '1';
+  btn.textContent = texto;
+  btn.dataset.timer = String(setTimeout(() => {
+    btn.dataset.armed = '0';
+    btn.textContent = btn.dataset.original;
+  }, 8000));
 }
 
 function loadState() {
@@ -179,12 +120,7 @@ function loadState() {
     const label = {closed: '🔒 Fechada', open: '🔓 Aberta', locked: '🎬 Revelada'}[d.state] || d.state;
     banner.className = 'alert ' + (d.state === 'open' ? 'alert-ok' : 'alert-warn');
     banner.innerHTML = '<strong>Janela: ' + label + '</strong> — ' + d.declared_count + '/' + d.total_teams +
-      ' declararam' + (d.i_declared ? ' · você já declarou ✅' : '');
-    // owner só edita quando aberta
-    const saveBtn = document.getElementById('save-btn');
-    if (saveBtn) saveBtn.disabled = (d.state !== 'open');
-    const keepAllBtn = document.getElementById('keep-all-btn');
-    if (keepAllBtn) keepAllBtn.disabled = (d.state !== 'open');
+      ' declararam (mecanismo legado; a declaração de cortes não passa mais por esta tela)';
     const gate = document.getElementById('admin-gate');
     if (gate) gate.innerHTML = d.pending_review > 0
       ? '⛔ ' + d.pending_review + ' jogador(es) em needs_review — abertura bloqueada até zerar.'
@@ -206,9 +142,9 @@ function adminPost(url, body, cb) {
 }
 function adminOpen() { adminPost('/api/cuts/admin/open'); }
 function adminClose() { adminPost('/api/cuts/admin/close'); }
-function adminLock() {
-  if (!confirm('Lock + revelação simultânea? Congela o snapshot canônico de TODOS os times.')) return;
-  adminPost('/api/cuts/admin/lock');
+function adminLock(btn) {
+  confirmarInline(btn, '⚠️ Confirmar lock + revelação?',
+                  () => adminPost('/api/cuts/admin/lock'));
 }
 function adminLoadRoster(teamId) {
   const box = document.getElementById('admin-roster');
@@ -259,6 +195,5 @@ function verifyHash() {
 }
 
 loadState();
-loadMyDeclaration();
 </script>
 {% endblock %}

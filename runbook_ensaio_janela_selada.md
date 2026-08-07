@@ -8,6 +8,28 @@
 > **Dry-run do Code (06/08, cópia do seed): 41/41 checks PASS** — o roteiro abaixo foi
 > executado de ponta a ponta antes de ser entregue, incluindo o desfazer.
 
+## ✅ ENSAIO CONCLUÍDO — Etapas 1 e 2 executadas em 06/08/2026
+
+- **Etapa 1 (localhost, owner):** checklist **10/10**, hash `5024b17a…`.
+- **Etapa 2 (produção, owner + co-admin RAFA):** **ciclo completo aprovado** — **12 declarações**
+  de contas distintas (o Rafa usou o **manter-todos**), sigilo cruzado conferido, **hierarquia
+  owner > admin recusando o suprimento** como desenhado, lock + revelação, hash **`52274d01…`**,
+  keeper sheet, e **reset verificado** (0/0/fechada, banner off, janela reabrindo). Backup
+  `/data/pre_ensaio_off26_1.db` = **618.496 bytes**.
+- **Achado de campo:** o **`confirm()` nativo falhou no celular** e impediu a declaração do Rafa
+  (no desktop funcionou) → a urna usa **confirmação inline**, nunca pop-up nativo (U-CONF do
+  OFF26-10).
+
+## ⚠️ ESTE RUNBOOK É REGISTRO HISTÓRICO — o fluxo principal MUDOU (06/08/2026)
+
+Decisão do owner, tomada durante a Etapa 2: **os cortes de 20/08 acontecem direto no Sleeper**
+(públicos e graduais) e **o Manager só fotografa por sync**. A **tela de declaração múltipla foi
+APOSENTADA** — o roteiro abaixo, que a dirige, **não descreve mais o fluxo de 20/08**. O que o
+Manager faz em 2026 é a **urna do late drop de 22/08** ([[OFF26-10]]), que **reusa o mecanismo
+aqui validado** (lock · hash · revelação · snapshot · reset). O runbook do dia da urna é peça
+própria e inclui a **janela de execução manual**: revelou → owners dropam no Sleeper → admin
+confere → **sync final** → keeper sheet definitiva.
+
 ## A ferramenta
 
 `ensaio_janela_selada.py` (na raiz do projeto; em prod, no Render Shell):
@@ -35,12 +57,12 @@ feito antes) e no relatório — não na trilha viva. Diff do banco pós-reset: 
 | # | O que provar | Como verificar |
 |---|---|---|
 | 1 | Janela abre (gate `needs_review` zerado) | `/cuts` como admin → "🔓 Abrir janela" → banner de estado vira "Aberta" |
-| 2 | Aceita declarações de contas distintas | Erico e Michel, cada um logado na própria conta, marcam 1 jogador óbvio (ex.: **o próprio kicker**) e salvam |
+| 2 | Aceita declarações de contas distintas | Erico e Rafa, cada um logado na própria conta, marcam 1 jogador óbvio (ex.: **o próprio kicker**) e salvam |
 | 3 | Declaração invisível a terceiros antes do reveal | Logado como **outro** usuário: `/cuts` mostra só o próprio roster vazio de marcações; `Aberta — 2/12` (contagem, sem conteúdo); `/cuts/keeper_sheet` diz "não revelada" |
 | 4 | Substituição dentro da janela | Trocar o jogador marcado e salvar de novo → recarregar → vale a última |
 | 5 | Lock trava novas declarações e alterações | Após o lock: salvar declaração → erro "janela não está aberta"; abrir de novo → recusado |
 | 6 | Hash de integridade gerado e conferível | `GET /api/cuts/audit/verify` (logado, no navegador) → `"hash_match": true` |
-| 7 | Reveal publica tudo simultaneamente | `GET /api/cuts/audit` → `revealed: true`, os 12 times, cortes de Erico e Michel visíveis; ausentes = zero cortes |
+| 7 | Reveal publica tudo simultaneamente | `GET /api/cuts/audit` → `revealed: true`, os 12 times, cortes de Erico e Rafa visíveis; ausentes = zero cortes |
 | 8 | Keeper sheet gerada do resultado | `/cuts/keeper_sheet` → tabela dos 12 times, cortados fora da lista, CSV baixa |
 | 9 | Trilha registra o ciclo | `--status` → 1 snapshot CANÔNICO com hash e timestamp |
 | 10 | Reset devolve o estado pré-ensaio | `--reset` termina em "✅ RESET OK"; `--status` → 0 declarações, 0 snapshots, janela fechada; **abrir a janela volta a funcionar** |
@@ -80,10 +102,10 @@ python app.py
 8. Repetir até o roteiro estar redondo. Ao final, apagar `ensaio_local*.db` e fechar o app
    (o `dynasty.db` real não foi tocado).
 
-## Etapa 2 — produção (owner + Michel, horário combinado)
+## Etapa 2 — produção (owner + co-admin **Rafa**) — EXECUTADA EM 06/08/2026
 
 > **Pré-requisitos:** deploy com o ensaio no ar (push desta sessão já feito; conferir no
-> Render que o deploy ficou live) · Etapa 1 redonda · horário combinado com Michel.
+> Render que o deploy ficou live) · Etapa 1 redonda · horário combinado com Rafa.
 > **Sequência travada — não pular passos:**
 
 1. **Aviso no grupo:** *"teste do sistema hoje às X; ignorem qualquer tela de cortes até eu
@@ -99,8 +121,8 @@ python app.py
    0 snapshots. **Sem backup conferido, o ensaio não continua.**
 3. **Ciclo do checklist** (na UI, `https://dynasty-fantasy-manager.onrender.com/cuts`):
    - Erico abre a janela (banner de ENSAIO visível);
-   - Erico e Michel declaram **cortes fictícios e óbvios** (o próprio kicker), cada um na sua
-     conta; **um confere o sigilo do outro antes do reveal** (checklist 3 — Michel não vê o
+   - Erico e Rafa declaram **cortes fictícios e óbvios** (o próprio kicker), cada um na sua
+     conta; **um confere o sigilo do outro antes do reveal** (checklist 3 — Rafa não vê o
      corte do Erico em lugar nenhum, e vice-versa);
    - Erico substitui a própria declaração (checklist 4);
    - Erico dispara **Lock + Revelação**; os dois conferem 5–9 (verify, reveal, sheet, trilha
@@ -122,9 +144,9 @@ Se ele estiver no ar quando a Etapa 2 rodar (recomendado), acrescentar ao ciclo:
 
 | # | O que provar | Como verificar |
 |---|---|---|
-| 11 | Manter-todos explícito | Michel usa **"✋ Não vou cortar ninguém"** em vez de marcar corte → confirma → "Declarado: MANTER TODOS"; conta no "N/12" |
-| 12 | Hierarquia owner > admin | Erico tenta **"Suprir/ajustar pelo time"** no time do Michel → recusa "este time já declarou pessoalmente" **sem mostrar o conteúdo**; num time silencioso, o suprimento funciona |
-| 13 | 3º status na sheet | Pós-reveal, `/cuts/keeper_sheet` mostra o time do Michel como **"Declarou (manteve todos)"** — distinto de "Default (manteve todos)" |
+| 11 | Manter-todos explícito | Rafa usa **"✋ Não vou cortar ninguém"** em vez de marcar corte → confirma → "Declarado: MANTER TODOS"; conta no "N/12" |
+| 12 | Hierarquia owner > admin | Erico tenta **"Suprir/ajustar pelo time"** no time do Rafa → recusa "este time já declarou pessoalmente" **sem mostrar o conteúdo**; num time silencioso, o suprimento funciona |
+| 13 | 3º status na sheet | Pós-reveal, `/cuts/keeper_sheet` mostra o time do Rafa como **"Declarou (manteve todos)"** — distinto de "Default (manteve todos)" |
 
 (O reset da Etapa 2 desfaz tudo igual — os três itens não mudam o desfazer.)
 

@@ -20,9 +20,13 @@
 {% if not sheet.revealed %}
   {# Pré-condição (D9): só existe após a revelação do OFF26-1 #}
   <div class="alert alert-warn">
-    ⏳ A janela de cortes ainda <strong>não foi revelada</strong> nesta season.
-    A keeper sheet só é gerada após o lock/revelação.
-    <a href="/cuts">Ir para a Janela de Cortes</a>.
+    ⏳ Ainda <strong>não há snapshot de janela revelada</strong> nesta season — e é assim que
+    a sheet é gerada hoje.
+    <br>
+    <strong>Fluxo de 2026:</strong> os cortes acontecem no Sleeper e a sheet passa a nascer do
+    <strong>sync</strong> (provisória antes do late drop, definitiva depois da execução) —
+    mudança pendente na F2 da urna (OFF26-10 · U7).
+    <a href="/cuts">Ver como funciona</a>.
   </div>
 {% else %}
   {# Aviso de fonte mista (D2): cortes congelados; salário/budget ao vivo #}

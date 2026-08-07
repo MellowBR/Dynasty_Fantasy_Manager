@@ -288,17 +288,18 @@
       {# ── STEP 6: Janela de cortes selada (OFF26-1) ── #}
       <div class="step-content">
         <p class="text-dim" style="margin-bottom:.75rem">
-          Janela selada: cada owner declara em sigilo os cortes do próprio roster;
-          o admin revela tudo simultaneamente no lock. <strong>Abrir a janela exige
-          apenas a fila de revisão (needs_review) zerada.</strong> Recomenda-se rodar o
-          Rollover antes para que o budget exibido já reflita o salário valorizado da nova
-          temporada — isso é qualidade de dado, não pré-condição de abertura.
+          <strong>Fluxo de 2026 (decidido em 06/08):</strong> os cortes acontecem
+          <strong>direto no Sleeper</strong>, em público — o Manager <strong>não</strong>
+          recebe declaração de corte. Depois do prazo: <strong>sync</strong> → keeper sheet
+          provisória → <strong>urna do late drop</strong> (22/08) → execução manual no Sleeper
+          → sync final → keeper sheet definitiva. A tela abaixo explica o fluxo e guarda o
+          mecanismo selado (lock/revelação) como ferramenta administrativa.
         </p>
         {% if step.done %}
           <div class="alert alert-ok" style="margin-bottom:.75rem">✅ Janela revelada (snapshot canônico).</div>
         {% endif %}
         <div class="step-actions">
-          <a href="/cuts" class="btn btn-primary">✂️ Ir para a Janela de Cortes</a>
+          <a href="/cuts" class="btn btn-primary">✂️ Cortes — como funciona em 2026</a>
           {% if step.done %}<a href="/cuts/keeper_sheet" class="btn btn-secondary">📋 Keeper Sheet</a>{% endif %}
         </div>
       </div>
