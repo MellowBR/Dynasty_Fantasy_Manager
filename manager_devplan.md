@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 07/08/2026-pt3 (MAN-OFF26-10-AJUSTES: **contagem agregada de volta** ("N/12 depositaram"; drop e passo contam igual, agregado devolve números e não times, com teste de lista branca de chaves) e **bloqueio mútuo urna × rollover em código** nos dois sentidos — bilhete é escopado por season, virar a season no meio deixaria a revelação **vazia sem erro**; libera após a revelação; limpar a agenda é sempre permitido; **escape pelo banner de ensaio** para o smoke poder rodar antes do rollover. 47 → **64 testes**, E2E **42/42**.)
+> Última atualização: 07/08/2026-pt4 (MAN-OFF26-10-SMOKE, **docs-only**: **smoke da urna APROVADO em produção** (owner + Rafa, backup 630.784 B) — escape do banner exercitado de fato, **depósito pelo celular sem pop-up** (U-CONF provado resolvido no mesmo aparelho que travara em 06/08), **fechamento automático pelo horário provado por acidente** (a agenda de 6 min expirou e a urna encerrou sozinha), sigilo cruzado só com o agregado, hierarquia, revelação completa, sheet provisória com o aviso, reset limpo. **Trio fechado:** [[OFF26-10]] ✅ · [[OFF26-2]] ✅ · [[OFF26-15]] ✅; **[[OFF26-1]] ✅** com motivo (prova tripla do mecanismo + porta aposentada no ar). Resíduo virou **[[OFF26-21]] 🔲 Baixa** (bloco admin de `/cuts` ficou sem consumidor após o U7). **Fotografia de prontidão 17–24/08 registrada: o código está completo, o que resta é operação.** Migração O3 dos 4 itens ao archive.)
+> Anterior: 07/08/2026-pt3 (MAN-OFF26-10-AJUSTES: **contagem agregada de volta** ("N/12 depositaram"; drop e passo contam igual, agregado devolve números e não times, com teste de lista branca de chaves) e **bloqueio mútuo urna × rollover em código** nos dois sentidos — bilhete é escopado por season, virar a season no meio deixaria a revelação **vazia sem erro**; libera após a revelação; limpar a agenda é sempre permitido; **escape pelo banner de ensaio** para o smoke poder rodar antes do rollover. 47 → **64 testes**, E2E **42/42**.)
 > Anterior: 07/08/2026-pt2 (MAN-OFF26-10: **F2 da URNA entregue** — tabelas próprias, flag de estado própria (⛔ `cuts_window_open` não é o gate, com teste que falha se reusarem), escolha única, horário do admin, lock/hash/reveal reusando `compute_cut_snapshot_hash`, flag de rookie de 1ª **OFF**, confirmação **inline** em todo o caminho, hierarquia herdada, sigilo sem contagem agregada. **Keeper sheet passou a nascer do SYNC** (crítico para 20/08): keepers = roster vivo, provisória × definitiva pelo carimbo do sync, coluna **IR** ([[OFF26-15]] fecha), sheet **@admin_required**. Acabamentos: urna no menu, **"Budget usável" → "Bid Máximo"**, Bid Máximo nos cards do Hub com selo **PROV**. Bug corrigido: `_table_exists` pelo engine desfazia a transação do `stage_reset`. **47 testes + E2E 38/38**; suítes verdes; Sleeper intocado.)
 > Anterior: 07/08/2026 (MAN-OFF26-1-ETAPA2: **ensaio da janela selada APROVADO em produção** — Etapa 2 com o co-admin **Rafa**, 12 declarações, hierarquia e manter-todos exercitados, hash `52274d01…`, reset limpo ⇒ **pré-condição 1 da urna cumprida**. **Redesenho decidido pelo owner: o modelo selado vale só para o LATE DROP** — cortes de 20/08 no Sleeper, Manager só fotografa por sync e entra em 22/08 como a urna; **U1/U3/U7 reescritos + U-CONF** (confirmação inline: o `confirm()` nativo falhou no celular e barrou uma declaração); ⛔ urna não pode reusar `cuts_window_open`. **Tela de declaração múltipla APOSENTADA** (motor fica como ferramenta admin rotulada legado — é o único produtor de sheet até a F2). Suítes 22+34+34+54 verdes; Sleeper intocado.)
 > Anterior: 03/08/2026-pt3 (MAN-OFF26-4-REFINE-PT2: **absorção dos achados do probe + achado de maior peso do arco**. ⛔ **KEEPER FORA DO BOARD É JOGADOR LEILOÁVEL** — o Sleeper o trata como disponível e **processa o lance normalmente**; jogador com dono é arrematado **ao vivo**, sem desfazer limpo. **Não é contabilidade a corrigir depois — é transação inválida em tempo real** → o **OFF26-4 vira GATE DE INTEGRIDADE DO LEILÃO** e a classe "keeper ausente do board" fica **bloqueante**, não escolha da F2. **Propagado ao OFF26-10** (time bloqueado pelo teto = **keepers expostos** → **população completa do board é PRÉ-CONDIÇÃO DE ABERTURA**; a decisão em aberto do item **não foi arbitrada**) e ao **OFF26-5 + runbook** (nova §B.5: board incompleto **não é estado aceitável**). **IR resolvido:** designar normalmente, excedentes no banco, vaga automática por posição; **descartado** descontar do budget (não resolve — o problema é disponibilidade — e some da auditoria). **D2:** sala = **22 slots** (metade fechada), **8.3.4 pendente**, com caso concreto do IR. **D1 corrigido (texto preservado):** a falha silenciosa **não existe pela API** (404 em 0,2 s; LOADING é do app web) → **timeout vira boa prática**; **não persistir `draft_id` permanece**. **D5:** classe "slot errado" **não existe**. **D6:** construção **liberada** contra placeholders; só a **costura `roster_id` ↔ time** espera os aceites. **Nota de método:** 3ª premissa da família *observação verdadeira, procedência errada*. Sem código)  
@@ -3017,6 +3018,50 @@ completo, hash `5024b17a…` conferido, reset devolvendo 0/0/fechada com reabert
   contexto persistente (o dry-run original passou por não ter um; a 1ª versão da classe de
   rota caiu nisso).
 - Runbook ganhou o **adendo da Etapa 2** (checks 11–13: manter-todos, hierarquia, 3º status).
+
+### MAN-OFF26-10-SMOKE — smoke da urna aprovado em produção; trio fechado (07/08/2026, Opus)
+
+**Docs-only.** O smoke da urna rodou em produção com o owner e o co-admin **Rafa**, contra o
+checklist do `runbook_urna_late_drop.md`, e **passou por inteiro** (backup
+`/data/pre_smoke_urna.db`, **630.784 bytes**, conferido antes; reset verificado no fim).
+
+**Três coisas que só a produção prova, e provou:**
+- **O escape do banner foi exercitado de fato.** Com `rollover_done` pendente, o agendamento só
+  passou **porque o banner de ensaio estava ligado** — o gate do MAN-OFF26-10-AJUSTES funcionou
+  como desenhado, e a decisão de deixar o escape (em vez de exigir o rollover antes do smoke)
+  **se pagou na primeira vez que rodou**.
+- **Depósito pelo celular com confirmação inline, sem pop-up nativo** — mesmo aparelho, mesma
+  pessoa que o `confirm()` nativo travara no ensaio de 06/08. O U-CONF está **provado resolvido**,
+  não presumido.
+- **Fechamento automático pelo horário, por acidente produtivo:** a primeira agenda (6 min)
+  expirou e **a urna encerrou sozinha**. O U3 ganhou a prova que nenhum teste dá — o relógio
+  virando em produção.
+
+Também conferidos: escolha única, passo contando no N/12, **sigilo cruzado** (só o agregado —
+confirmação em campo da arbitragem do U1-CONT), hierarquia recusando sem vazar, lock + revelação
+com a lista completa, **sheet PROVISÓRIA com o aviso** de drops revelados não sincronizados, e o
+reset zerando bilhetes, snapshot **e agenda**.
+
+**Trio fechado:** [[OFF26-10]] ✅ · [[OFF26-2]] ✅ (o ⚠️ era **de fonte**, e o U7 o resolveu) ·
+[[OFF26-15]] ✅. **[[OFF26-1]] ✅ com motivo declarado:** o ⚠️ era o smoke do código da
+aposentadoria da porta — está no ar e foi atravessado por este smoke; o mecanismo tem **prova
+tripla** (Etapa 1 · Etapa 2 · a urna, que reusa o mesmo motor num **segundo consumidor**, com
+outra tela e outra tabela).
+
+**Resíduo virado item** (precedente MAN-OFF26-4-SLOTS): **[[OFF26-21]] 🔲 Baixa** — o bloco admin
+de `/cuts` só sobrevivia por ser o **produtor de fallback da keeper sheet**, e o U7 tirou isso
+dele. É motor sem consumidor, e a única porta da UI capaz de abrir a janela grande por engano
+durante a urna. ⚠️ As **rotas** legadas continuam necessárias (motor da urna + rede de regressão
+da hierarquia) — o que se discute é a **tela**.
+
+**Fotografia de prontidão da intertemporada registrada:** o código está **completo** — 17/08
+rookie draft · 18/08 ESPN + rollover (**gate da urna**) · 20/08 cortes + sync + sheet provisória ·
+20→22 urna · 22 revelação + **execução manual** + sync final + sheet definitiva · 22–24 Cowork +
+auditoria **como gate** · 24 leilão. **O que resta é operação**, e os riscos remanescentes são
+operacionais (drop revelado não executado, sync esquecido, ingestão do leilão — [[OFF26-11]] 🔲).
+
+Migração O3: OFF26-1/2/10/15 movidos ao `improvements_archive.md`. **Zero código; Sleeper não
+tocado.**
 
 ### MAN-OFF26-10-AJUSTES — contagem agregada volta + bloqueio urna × rollover (07/08/2026, Opus)
 
