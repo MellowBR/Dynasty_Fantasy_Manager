@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 08/08/2026-pt8 (MAN-O2-F2-B1: **Batch 1 do perfil do jogador entregue** — time NFL + idade no header, link do time da liga, card de depth chart (destaque por **sid**, nunca nome). Novo `nfl_context.py` (núcleo puro + IO, 19 testes). Decisões: ⛔ página **nunca faz rede** (cache F13, sem download; ausente → degrada sem erro); pool vencido **serve** (stale-while-usable); **zero cache novo em disco** (índice em memória, mtime só como chave de invalidação); **idade derivada de `birth_date`, não persistida**; chart deriva do POOL (Q2: rivais não são Players do DB), header segue `Player.nfl_team` (fonte única Q1). Smoke local: DJ Moore completo, link p/ franquia DELE, DEF e fora-do-pool degradando limpo. Guardas OK (54/54 folha; zero schema; rotas intactas). Suítes verdes. [[O2]] 🔲 → ⚠️ — falta smoke prod (PROC1); Batch 2 pendente.)
+> Última atualização: 08/08/2026-pt9 (MAN-O2-B1-DONE, **docs-only**: **smoke prod do Batch 1 do [[O2]] APROVADO** — PROC1 cumprido (hash `2ed0b4a` live), DJ Moore completo + link cruzado (Gainwell → franquia DELE) + validação do Michel; item segue **⚠️** (Batch 2 pendente). **Ressalva:** degradação fora-do-pool **não exercida em prod** — Gainwell renderizou completo (pool de prod mais fresco que o local de 31/07); ocorrência da família *observação verdadeira, procedência errada*; coberta por unit test, exercer oportunisticamente. **Ocorrência de processo (1ª):** sessão encerrada com commit local SEM push, detectada pelo owner via ausência de deploy; regra candidata só na 2ª. **[[UX13]] 🔲 Baixa registrado** — `contract_year_correction` cru na Timeline, chave ausente nos 2 `EVENT_LABELS` copiados, carona. Zero código.)
+> Anterior: 08/08/2026-pt8 (MAN-O2-F2-B1: **Batch 1 do perfil do jogador entregue** — time NFL + idade no header, link do time da liga, card de depth chart (destaque por **sid**, nunca nome). Novo `nfl_context.py` (núcleo puro + IO, 19 testes). Decisões: ⛔ página **nunca faz rede** (cache F13, sem download; ausente → degrada sem erro); pool vencido **serve** (stale-while-usable); **zero cache novo em disco** (índice em memória, mtime só como chave de invalidação); **idade derivada de `birth_date`, não persistida**; chart deriva do POOL (Q2: rivais não são Players do DB), header segue `Player.nfl_team` (fonte única Q1). Smoke local: DJ Moore completo, link p/ franquia DELE, DEF e fora-do-pool degradando limpo. Guardas OK (54/54 folha; zero schema; rotas intactas). Suítes verdes. [[O2]] 🔲 → ⚠️ — falta smoke prod (PROC1); Batch 2 pendente.)
 > Anterior: 08/08/2026-pt7 (MAN-UX12-REFINE, **docs-only**: **roteamento (b) do [[UX12]] executado — item fecha ✅ ROTEADO** (despachado em [[M10]] busca + [[O2]] perfil; decisão do owner). **O2 refinado in-place**: absorve campos 2+5 do UX12, **quita a dívida de absorção** (F1 do MAN-O2-F1 de 28/04 sai do handoff descartável e passa a viver na seção — disponibilidade por dimensão, endpoints sem `/v1/`, 2 batches, cache strategy com nota pós-F13, reuso), **corrige a afirmação falsa do depth chart** (zero consumo em produção; dado no pool 75%/94%, coluna não bastaria — derivação do pool TTL 168h) e registra as guardas ([[OFF26-16]], [[S4]]) + Q5 (página existente). [[M10]] só validação de demanda (Michel, 2º usuário; spec intocada). Transbordos: [[UX11]] candidato a **F2 direta de causa conhecida** (payload já tem `nfl_team`; resta staleness) · [[UX10]] estreitado à hipótese (a). Seção UX12 migrada **verbatim** ao archive ([[O3]]); Status Rápido com **só a linha UX12 mudada**. Zero código.)
 > Anterior: 08/08/2026-pt6 (MAN-UX12-F1, **diagnose read-only** do [[UX12]] — zero código, zero chamada externa. **Achado central: 3 dos 7 campos pedidos JÁ EXISTEM na página atual** (trade com os dois times pré-selecionados/M14 · cap hit · Timeline de `PlayerHistory` com trades clicáveis) — o gap real é NFL no header, link p/ time, idade e depth chart, **metade já no Batch 1 do [[O2]]**. **Q0 recomenda (b) despachar**: busca → [[M10]] (spec de 28/04 conferida inteira e viva), perfil → [[O2]] refinado in-place absorvendo campos 2+5 + a F1 do MAN-O2-F1 (hoje num handoff “descartável”). **Q1 refuta a réplica temida** (time = fonte única `Player.nfl_team`, 8 sítios lendo a mesma coluna; foto = 2 construtores espelhados) e **responde de carona a F1 do [[UX11]]** — o payload do quadro de trades já contém `nfl_team`, falta só renderizar — além de **estreitar o [[UX10]]** (URL de foto sem componente de temporada/time → hipóteses b/c sem mecanismo local). **Q2:** `depth_chart_order` **não é consumido em produção** (afirmação do O2 falsa) mas está no pool (75% skill; idade 94%) — e **coluna não bastaria**: os rivais de posição não são Players do DB, deriva-se do pool. **Q3–Q5:** histórico como está = zero acoplamento novo com o [[S4]]; cap hit já lê as fontes canônicas; enriquecer a página existente (2 helpers + 6 links inline apontam para ela). Listas (a)/(b) da regra MAN-METH-REG aplicadas: 3 premissas contraditas, 4 omissões com parecer. Status segue 🔲; decisão de roteamento é do owner.)
 > Anterior: 08/08/2026-pt5 (MAN-UX12-REG, **docs-only**: registro do **[[UX12]] 🔲 Média — busca de jogador + página de perfil enriquecida**, pedido do **co-admin Michel**. Dois sintomas: **não existe caminho de busca** (é preciso já saber em que franquia o jogador está para conseguir abri-lo) e a página que abre não traz o que se usa para avaliá-lo — 7 campos pedidos (time NFL + franquia, link p/ a página do time, link p/ trade **com o time já pré-selecionado**, cap hit, idade, **depth chart na NFL**, histórico de `PlayerHistory`). ⚠️ **O achado do registro é de sobreposição, e ficou explícito em vez de silenciado:** o escopo atravessa **dois itens 🔲 que já existem** — [[M10]] **é** a busca (endpoint `GET /api/player/search` **já existe**; o caso de uso registrado lá é **o mesmo sintoma**, reportado em 28/04 pelo owner e agora pelo Michel) e [[O2]] **é** o perfil (já inclui **time NFL no header** e **depth chart**). O UX12 acrescenta os campos **2, 3, 5 e 7**, o agrupamento como experiência única e a demanda de um **segundo usuário**. **Roteamento NÃO arbitrado** (guarda-chuva × despachar em M10/O2 × ficar só com o resto) e registrado como **questão 0**; ⛔ implementar em paralelo a M10/O2 seria a enésima réplica. Demais questões abertas: **réplica de fonte** do time do jogador (mesma do [[UX11]], que a F1 pode absorver ou despachar), **o sync persiste depth chart e idade?** (⛔ conferir, não herdar a afirmação do O2), página nova × enriquecer a `/player/<id>` do [[M13]], superfície da busca e homônimos (⛔ exibição por nome, **identidade por `sleeper_player_id`** — precedente Brown) e foto herdando o [[UX10]] **sem acoplar**. **Exceção de commit docs-only logada.** Zero código; nenhum status existente alterado.)
@@ -4455,3 +4456,44 @@ estão na `/player/<id>`; [[O2]] vai a **⚠️** — smoke em produção penden
 **Commit único código+docs** (regra do prompt). CLAUDE.md sincronizado (comando de teste novo,
 estrutura, linha do blueprint roster). **[[O2]] ⚠️ até o smoke em produção confirmar o hash
 live (PROC1).**
+
+### MAN-O2-B1-DONE — smoke prod do Batch 1 aprovado; duas ocorrências registradas (08/08/2026, Fable) · docs-only
+
+Fechamento do smoke de produção do Batch 1 do [[O2]] (`2ed0b4a`). O item **segue ⚠️** — o
+formato de batches parciais vale: Batch 1 validado, Batch 2 (stats + schedule) pendente.
+
+- **O que a produção provou.** Gate [[PROC1]] cumprido — hash `2ed0b4a` live no Render
+  confirmado pelo owner. Casos: **DJ Moore** (header `🏈 BUF · 29 anos`, chart WR do BUF com
+  destaque por sid, franquia linkada — o caso que abriu o item em 27/04 fecha o ciclo em prod);
+  **link cruzado** (Gainwell → página do **ESPN FANTASY LEAGUE**, a franquia *dele* — a semântica
+  do link conferida com time ≠ do usuário logado); **validação do solicitante** (Michel, o
+  pedido que virou os campos 2/5 via [[UX12]]).
+
+- **Ressalva honesta: a degradação fora-do-pool NÃO foi exercida em prod.** O smoke local
+  listava Gainwell entre os 3 rosterados fora do pool; em produção ele veio **completo**
+  (`TB · 27 anos` + chart RB). Explicação: **o cache do pool é por ambiente**, e o de prod
+  estava mais fresco que a cópia local de 31/07. **Ocorrência da família “observação
+  verdadeira, procedência errada”** (4ª do arco, cf. nota de método de 03/08): a lista de 3
+  era fato **do cache local naquele instante**, não propriedade dos jogadores — o registro da F2
+  generalizava sem qualificar a procedência. A degradação segue coberta pelos 19 unit tests
+  (fora do pool, sem birth_date, sem ordem, DEF — este último exercido em prod de carona, sem
+  card e sem erro); o caminho real fica para exercício **oportunista** se algum rosterado sair
+  do pool.
+
+- **Ocorrência de processo (1ª — registrada SEM virar regra, pelo critério vigente).** A
+  sessão MAN-O2-F2-B1 terminou com o commit `2ed0b4a` **local, sem push** (junto com os 3
+  docs-only do arco UX12). Detecção: o owner notou a **ausência de deploy no Render** e
+  perguntou; correção: push manual (`30af5fb..2ed0b4a`). O gate PROC1 teria pego no smoke (hash
+  live ≠ commit esperado), então a janela de dano era de atraso, não de validação errada. Regra
+  candidata — **“push confirmado” no checklist de fim de sessão** — fica anotada e só entra na
+  **2ª ocorrência**.
+
+- **[[UX13]] 🔲 Baixa registrado** (micro-cosmético visto no próprio smoke): a Timeline
+  exibe `contract_year_correction` cru — a chave (escrita pela porta canônica do OFF26-20-FIX)
+  falta nos **dois** dicionários `EVENT_LABELS` copiados (`player_detail.html` +
+  `salary_history.html`, réplica declarada em comentário). Display de 1 linha nos 2 sítios,
+  sem diagnose (causa evidente), **candidato a carona**.
+
+**Exceção de commit registrada (regra da checklist):** commit **docs-only**, deliberado —
+fechamento de smoke, sem código pendente. Nenhum status mudou além do avanço do O2 (Batch 1
+validado, item segue ⚠️) e da linha nova do UX13.
