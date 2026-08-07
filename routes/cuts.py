@@ -22,7 +22,7 @@ from types import SimpleNamespace
 from flask import Blueprint, render_template, request, jsonify, Response
 from flask_login import login_required, current_user
 from models import (
-    db, Team, Player, User,
+    db, Team, Player, User, SyncLog,
     CutDeclaration, CutWindowAudit, compute_cut_snapshot_hash,
     get_config, set_config, get_current_season,
 )
@@ -375,37 +375,49 @@ def cuts_audit_verify():
 # OFF26-2 — Keeper sheet exportável (consolidada; LEITORA — não muta nada)
 # ══════════════════════════════════════════════════════════════════════════════
 #
-# Deriva por INVERSÃO do snapshot do OFF26-1: keepers = roster LIVE − cut_ids do
-# snapshot canônico (D1). Salário = p.salary canônico (D3, não re-derivar). Budget de
-# FA = `usable_draft_budget` via o MESMO `draft_budget` que a porta usa em
-# `projected:false` (D4 — consome a fonte única, não recalcula; mesmo precedente de
-# draft_import.py). Fonte mista deliberada (D2): cortes frozen, salário/budget ao vivo;
-# a página exibe o timestamp do lock + aviso. Status `declared` por time (D6).
+# ⚠️ ORIGEM REESCRITA (U7 do OFF26-10, MAN-OFF26-10, 07/08/2026): a sheet nasce do
+# SYNC, não da revelação de uma janela de cortes.
+#
+# Antes: `keepers = roster_live − cut_ids` do snapshot canônico (`CutWindowAudit`), com
+# gate duro de revelação. Isso morreu com o redesenho: os cortes de 20/08 acontecem no
+# Sleeper, logo **não existe snapshot de janela grande** — e a sheet, do jeito antigo,
+# simplesmente não sairia em 20/08.
+#
+# Agora: **keepers = roster vivo** (o que o último sync fotografou). A sheet PROVISÓRIA
+# (pós-cortes de 20/08) e a DEFINITIVA (pós-execução do late drop + sync final) são a
+# MESMA função em dois momentos — o que as distingue é o **carimbo do sync** e a
+# existência da revelação da urna:
+#   • sem revelação da urna                          → PROVISÓRIA
+#   • revelada, mas sem sync depois dela             → PROVISÓRIA (drops ainda não
+#                                                       executados/fotografados — é o
+#                                                       estado perigoso, e ele é gritado)
+#   • revelada e com sync POSTERIOR à revelação      → DEFINITIVA
+#
+# Salário = `p.salary` canônico (não re-derivar). Budget de FA = `usable_draft_budget`
+# pelo MESMO `draft_budget` (fonte única; nenhuma aritmética nova — invariante F10).
+# Régua de folha com IR (OFF26-16) preservada, e OFF26-15 fecha aqui: cada keeper
+# carrega `is_on_ir` e a sheet mostra/exporta a marcação — keeper em IR OCUPA designação
+# no board, e omiti-lo o expõe ao leilão.
+#
+# Compatibilidade declarada: a chave `revealed` PERMANECE no payload porque é o contrato
+# que o núcleo puro da auditoria (OFF26-4, 34 testes + fixtures congeladas) lê para saber
+# se há sheet utilizável — passou a significar "sheet disponível". As chaves novas
+# (`stage`, `sync_timestamp`, `late_drop`) é que carregam a semântica nova.
 
-# Labels PT do status de declaração (D6) — chave estável p/ CSV/tabela.
-# POSENSAIO: "owner_kept_all" distingue o manter-todos ATIVO (owner declarou zero cortes)
-# do silêncio (default D2) — a diferença que a hierarquia owner > admin precisa enxergar.
-_DECL_STATUS_LABEL = {
-    "owner_declared": "Declarou",
-    "owner_kept_all": "Declarou (manteve todos)",
-    "default_zero": "Default (manteve todos)",
-    "admin_supplied": "Admin supriu",
+_STAGE_LABEL = {
+    "provisoria": "PROVISÓRIA",
+    "definitiva": "DEFINITIVA",
 }
 
 
-def _declared_status(snap_team: dict, season: int) -> str:
-    """Status de declaração (D6). default-zero vs. declarou vem do SNAPSHOT (`declared`);
-    owner-vs-admin é enriquecido pela CutDeclaration live (congelada pós-lock — sem edição
-    possível com a janela travada). Leitura pura."""
-    if not snap_team.get("declared"):
-        return "default_zero"  # não declarou → manteve todos (D2 do OFF26-1)
-    decl = CutDeclaration.query.filter_by(
-        season=season, team_id=snap_team["team_id"]).first()
-    if decl and decl.editor and decl.editor.team_id != snap_team["team_id"]:
-        return "admin_supplied"  # escrito por quem não é dono daquele time (D5)
-    if not snap_team.get("cut_ids"):
-        return "owner_kept_all"  # manter-todos ATIVO (POSENSAIO) — não é o default D2
-    return "owner_declared"
+def _last_sync():
+    return SyncLog.query.order_by(SyncLog.synced_at.desc()).first()
+
+
+def _late_drop_state(season: int):
+    """Revelação canônica da urna (OFF26-10), se houver. Leitura pura."""
+    from models import LateDropAudit
+    return LateDropAudit.query.filter_by(season=season, is_canonical=True).first()
 
 
 def _team_fa_budget(keepers: list) -> int:
@@ -417,45 +429,80 @@ def _team_fa_budget(keepers: list) -> int:
 
 
 def _build_keeper_sheet(season: int) -> dict:
-    """Monta a sheet consolidada (12 times). Leitora — não escreve nada.
-    Retorna {revealed:False} se a janela não foi revelada (pré-condição D9)."""
-    canonical = CutWindowAudit.query.filter_by(
-        season=season, is_canonical=True).first()
-    if not canonical:
-        return {"revealed": False, "season": season}
+    """Sheet consolidada dos 12 times a partir do ROSTER VIVO (U7). Leitora — não escreve.
 
-    snapshot = _json.loads(canonical.declarations_json)
+    Não há mais gate de revelação: a sheet existe sempre que existem times. O que muda
+    com o tempo é o **estágio** (provisória × definitiva) e o carimbo do sync."""
+    sync = _last_sync()
+    audit = _late_drop_state(season)
+    sync_at = sync.synced_at if sync else None
+
+    # DEFINITIVA só quando a urna já revelou E houve sync DEPOIS da revelação — é o sync
+    # que prova que os drops revelados foram executados no Sleeper e fotografados aqui.
+    if audit and sync_at and sync_at > audit.executed_at:
+        stage = "definitiva"
+    else:
+        stage = "provisoria"
+
+    drops_by_team = {}
+    if audit:
+        for d in _json.loads(audit.declarations_json):
+            drops_by_team[d["team_id"]] = d
+
     teams = []
-    for snap in sorted(snapshot, key=lambda d: d["team_name"].lower()):
-        cut_ids = set(snap.get("cut_ids", []))
-        # keepers = roster LIVE − cortes do snapshot (D1)
-        roster = Player.query.filter_by(
-            team_id=snap["team_id"], is_dropped=False).all()
-        keepers = [p for p in roster if p.id not in cut_ids]
+    for team in Team.query.order_by(Team.name).all():
+        keepers = Player.query.filter_by(team_id=team.id, is_dropped=False).all()
         keepers.sort(key=lambda p: (-p.salary, p.name))
-        status = _declared_status(snap, season)
+        drop = drops_by_team.get(team.id)
+        if not audit:
+            label = "—"
+        elif drop and drop.get("drop_id"):
+            label = f"Late drop: {drop['drop_name']}"
+        else:
+            label = "Sem late drop"
         teams.append({
-            "team_id": snap["team_id"],
-            "team_name": snap["team_name"],
-            "declared_status": status,
-            "declared_label": _DECL_STATUS_LABEL[status],
+            "team_id": team.id,
+            "team_name": team.name,
+            "late_drop_label": label,
+            # compat de nome com o consumidor antigo do CSV/tabela
+            "declared_label": label,
             "fa_budget": _team_fa_budget(keepers),  # usable_draft_budget (D4)
             "num_keepers": len(keepers),
+            "num_ir": sum(1 for p in keepers if p.is_on_ir),
             "keepers": [{
                 "id": p.id, "name": p.name, "position": p.position,
-                "salary": int(p.salary),
+                "salary": int(p.salary), "is_on_ir": bool(p.is_on_ir),
             } for p in keepers],
         })
+
     return {
+        # contrato antigo (lido pelo núcleo da auditoria): "há sheet utilizável"
         "revealed": True,
+        "available": True,
+        "source": "sync",
         "season": season,
-        "lock_timestamp": utc_iso(canonical.executed_at) or None,
+        "stage": stage,
+        "stage_label": _STAGE_LABEL[stage],
+        "sync_timestamp": utc_iso(sync_at) or None,
+        # a auditoria carrega esta chave no meta do relatório — passa a ser o carimbo
+        # do sync, que é o instante que congela ESTA sheet
+        "lock_timestamp": utc_iso(sync_at) or None,
+        "late_drop": {
+            "revealed": bool(audit),
+            "executed_at": utc_iso(audit.executed_at) if audit else None,
+            "result_hash": audit.result_hash if audit else None,
+            "num_drops": sum(1 for d in drops_by_team.values() if d.get("drop_id")),
+        },
         "teams": teams,
     }
 
 
+# A sheet é ARTEFATO DE TRANSCRIÇÃO/AUDITORIA, não consulta de owner (decisão do owner,
+# 07/08/2026): o budget de cada time vive no League Hub e no Cap Projector. Por isso as
+# três portas abaixo são @admin_required — quem transcreve no board é admin.
+
 @cuts_bp.route("/cuts/keeper_sheet")
-@login_required
+@admin_required
 def keeper_sheet_page():
     season = get_current_season()
     return render_template("keeper_sheet.html", season=season,
@@ -464,26 +511,31 @@ def keeper_sheet_page():
 
 
 @cuts_bp.route("/api/cuts/keeper_sheet")
-@login_required
+@admin_required
 def keeper_sheet_json():
     return jsonify(_build_keeper_sheet(get_current_season()))
 
 
 @cuts_bp.route("/api/cuts/keeper_sheet.csv")
-@login_required
+@admin_required
 def keeper_sheet_csv():
     """CSV com PARIDADE 1:1 com a tabela renderizada (mesma fonte _build_keeper_sheet).
-    1 linha por keeper; budget de FA e status repetidos por time. Sem mutação."""
+    1 linha por keeper; budget de FA e status repetidos por time. Sem mutação.
+
+    OFF26-15: a coluna **IR** entra aqui — keeper em IR ocupa designação no board da
+    liga fantasma, e quem transcreve precisa saber que ele TEM de ser designado."""
     season = get_current_season()
     sheet = _build_keeper_sheet(season)
     si = _io.StringIO()
     w = _csv.writer(si)
-    w.writerow(["Time", "Keeper", "Posicao", "Salario", "Budget FA (time)", "Status"])
-    if sheet.get("revealed"):
+    w.writerow(["Time", "Keeper", "Posicao", "Salario", "IR",
+                "Bid Maximo (time)", "Late drop"])
+    if sheet.get("available"):
         for t in sheet["teams"]:
             for k in t["keepers"]:
-                w.writerow([t["team_name"], k["name"], k["position"],
-                            k["salary"], t["fa_budget"], t["declared_label"]])
+                w.writerow([t["team_name"], k["name"], k["position"], k["salary"],
+                            "IR" if k["is_on_ir"] else "",
+                            t["fa_budget"], t["late_drop_label"]])
     return Response(
         si.getvalue(),
         mimetype="text/csv",

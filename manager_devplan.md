@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 07/08/2026 (MAN-OFF26-1-ETAPA2: **ensaio da janela selada APROVADO em produção** — Etapa 2 com o co-admin **Rafa**, 12 declarações, hierarquia e manter-todos exercitados, hash `52274d01…`, reset limpo ⇒ **pré-condição 1 da urna cumprida**. **Redesenho decidido pelo owner: o modelo selado vale só para o LATE DROP** — cortes de 20/08 no Sleeper, Manager só fotografa por sync e entra em 22/08 como a urna; **U1/U3/U7 reescritos + U-CONF** (confirmação inline: o `confirm()` nativo falhou no celular e barrou uma declaração); ⛔ urna não pode reusar `cuts_window_open`. **Tela de declaração múltipla APOSENTADA** (motor fica como ferramenta admin rotulada legado — é o único produtor de sheet até a F2). Suítes 22+34+34+54 verdes; Sleeper intocado.)
+> Última atualização: 07/08/2026-pt2 (MAN-OFF26-10: **F2 da URNA entregue** — tabelas próprias, flag de estado própria (⛔ `cuts_window_open` não é o gate, com teste que falha se reusarem), escolha única, horário do admin, lock/hash/reveal reusando `compute_cut_snapshot_hash`, flag de rookie de 1ª **OFF**, confirmação **inline** em todo o caminho, hierarquia herdada, sigilo sem contagem agregada. **Keeper sheet passou a nascer do SYNC** (crítico para 20/08): keepers = roster vivo, provisória × definitiva pelo carimbo do sync, coluna **IR** ([[OFF26-15]] fecha), sheet **@admin_required**. Acabamentos: urna no menu, **"Budget usável" → "Bid Máximo"**, Bid Máximo nos cards do Hub com selo **PROV**. Bug corrigido: `_table_exists` pelo engine desfazia a transação do `stage_reset`. **47 testes + E2E 38/38**; suítes verdes; Sleeper intocado.)
+> Anterior: 07/08/2026 (MAN-OFF26-1-ETAPA2: **ensaio da janela selada APROVADO em produção** — Etapa 2 com o co-admin **Rafa**, 12 declarações, hierarquia e manter-todos exercitados, hash `52274d01…`, reset limpo ⇒ **pré-condição 1 da urna cumprida**. **Redesenho decidido pelo owner: o modelo selado vale só para o LATE DROP** — cortes de 20/08 no Sleeper, Manager só fotografa por sync e entra em 22/08 como a urna; **U1/U3/U7 reescritos + U-CONF** (confirmação inline: o `confirm()` nativo falhou no celular e barrou uma declaração); ⛔ urna não pode reusar `cuts_window_open`. **Tela de declaração múltipla APOSENTADA** (motor fica como ferramenta admin rotulada legado — é o único produtor de sheet até a F2). Suítes 22+34+34+54 verdes; Sleeper intocado.)
 > Anterior: 03/08/2026-pt3 (MAN-OFF26-4-REFINE-PT2: **absorção dos achados do probe + achado de maior peso do arco**. ⛔ **KEEPER FORA DO BOARD É JOGADOR LEILOÁVEL** — o Sleeper o trata como disponível e **processa o lance normalmente**; jogador com dono é arrematado **ao vivo**, sem desfazer limpo. **Não é contabilidade a corrigir depois — é transação inválida em tempo real** → o **OFF26-4 vira GATE DE INTEGRIDADE DO LEILÃO** e a classe "keeper ausente do board" fica **bloqueante**, não escolha da F2. **Propagado ao OFF26-10** (time bloqueado pelo teto = **keepers expostos** → **população completa do board é PRÉ-CONDIÇÃO DE ABERTURA**; a decisão em aberto do item **não foi arbitrada**) e ao **OFF26-5 + runbook** (nova §B.5: board incompleto **não é estado aceitável**). **IR resolvido:** designar normalmente, excedentes no banco, vaga automática por posição; **descartado** descontar do budget (não resolve — o problema é disponibilidade — e some da auditoria). **D2:** sala = **22 slots** (metade fechada), **8.3.4 pendente**, com caso concreto do IR. **D1 corrigido (texto preservado):** a falha silenciosa **não existe pela API** (404 em 0,2 s; LOADING é do app web) → **timeout vira boa prática**; **não persistir `draft_id` permanece**. **D5:** classe "slot errado" **não existe**. **D6:** construção **liberada** contra placeholders; só a **costura `roster_id` ↔ time** espera os aceites. **Nota de método:** 3ª premissa da família *observação verdadeira, procedência errada*. Sem código)  
 > Anterior: 03/08/2026-pt2 (MAN-OFF26-4-PROBE: **probe read-only na liga fantasma real — o bloqueador do §2 da F1 do OFF26-4 CAIU**. Zero escrita, draft não iniciado, board intacto. **Derivação `league_id → draft_id` funciona por 2 caminhos** (`league.draft_id` no topo, 1 request; e `/drafts` com 1 item — o morto não aparece). **Premissa do D1 refutada para a API:** draft morto = **404 limpo em 0,2 s**, não trava (o LOADING é do app web). **Designações expostas pré-draft** em `/draft/{did}/picks` (mesma superfície já usada), 24 registros com **`metadata.amount`** — **totais $148/$95/$60 reconstruídos exatos**. Jogador por `player_id`=`sleeper_player_id`, **⚠️ DEF vem como sigla (`"LAR"`)**; time por `roster_id`; **`owner_id` nulo em 11/12** (D6 confirmado como bloqueio de validação, mas a auditoria casa por roster). **Sem campo de budget por time** → soma, como o D2 já dizia. **Réplica dupla** de leitura de picks (`draft_import.py:39` × `sync_sleeper.py:872`, coerção `float` × `int`), **ambos gateados em `status=="complete"` — era o gate, não a API**. Não previstos: **`is_keeper:false` nas 24**; **`pick_no`/`round` não indicam vaga → D5 sem classe "slot errado"**; **22 slots (10+12 BN)** medem o lado Sleeper da ressalva do D2; **fantasma sem IR** × liga real com IR = divergência concreta. Status 🔲; sem código)  
 > Anterior: 03/08/2026 (MAN-OFF26-4-REFINE: **spec do OFF26-4 sincronizada** com a evidência de 02/08 — bloco D1–D7 no padrão do OFF26-2, cada decisão rotulada (**arbitrada** / **resolvida por evidência** / **delegada com critério**); F1 e ATUALIZAÇÃO EMPÍRICA **intactas** abaixo, status segue **🔲**. **D1:** `league_id` em `AppConfig`, **`draft_id` NUNCA persistido** (derivado a cada uso, com timeout explícito — URL morta trava em LOADING); a F2 herda a pendência de que `league_id → draft_id` nunca foi exercitado. **D2:** base = `usable_draft_budget` (resolvida por evidência), com a **ressalva aritmética 22 rodadas × 8.3.4 pendente**. **D3:** ponte de jogador **delegada** com critério "não tocar o OFF26-2". **D4/D5:** 12 times de uma vez; **não populado = estado próprio**, não divergência; 4 classes + severidade na F2. **D6:** só `sleeper_owner_id`; ⛔ **times ainda placeholders (owner_id nulo, convites de 03/08) → F2 não validável contra placeholders**. **D7:** probe exige board populado — janela aberta agora, fecha no próximo reset. Sem código)  
@@ -3015,6 +3016,48 @@ completo, hash `5024b17a…` conferido, reset devolvendo 0/0/fechada com reabert
   contexto persistente (o dry-run original passou por não ter um; a 1ª versão da classe de
   rota caiu nisso).
 - Runbook ganhou o **adendo da Etapa 2** (checks 11–13: manter-todos, hierarquia, 3º status).
+
+### MAN-OFF26-10 — F2 da urna + keeper sheet via sync + acabamentos (07/08/2026, Opus)
+
+**A urna existe como código** ([[OFF26-10]] ⚠️, aguarda smoke) e **a keeper sheet mudou de
+origem** ([[OFF26-2]] U7) — a segunda era crítica para **20/08**: sem ela não sairia sheet
+nenhuma, porque a janela extinta não produz mais snapshot.
+
+- **Schema declarado — tabelas próprias** (`LateDropDeclaration`, `LateDropAudit`): a
+  cardinalidade é outra (UM drop ou passo), a flag de estado tem de ser própria de qualquer
+  jeito, e as tabelas da janela grande ficam **congeladas** como rede de regressão do mecanismo
+  provado em produção. **Reuso literal do núcleo de integridade:** `compute_cut_snapshot_hash` —
+  cada entrada leva `cut_ids` com 0 ou 1 id, então o hash cobre **a lista de drops a executar**.
+- ⛔ **Flag própria** (`late_drop_opens_at`/`closes_at`), com **teste que falha se alguém reusar
+  `cuts_window_open`**: reusá-la reabriria `POST /api/cuts/declaration` e a porta única viraria
+  promessa de UI. Com a urna aberta, a rota legada segue recusando 409 (testado).
+- **U1** escolha única (radio estilizado como checkbox; "✋ Não vou dropar ninguém" é **item da
+  lista**) · **U2** silêncio = passo · **U3** horário do admin (UTC no banco, `datetime-local`
+  no dispositivo) · **U4** vale a última · **U5** lock/hash/reveal + replace com reason ·
+  **U6** roster + flag de rookie de 1ª **OFF por default** + saiu-do-roster vira passo com aviso ·
+  **U-CONF** confirmação inline em todo o caminho (⛔ zero `window.confirm()`, com grep na suíte) ·
+  **hierarquia owner > admin** herdada. **Sigilo mais estrito: sem contagem agregada.**
+- **Sheet via sync:** `keepers = roster vivo`; **provisória × definitiva pelo carimbo do sync**
+  (definitiva só com sync POSTERIOR à revelação — o estado "revelado e não executado" é gritado,
+  não silenciado). Chave `revealed` **preservada** por ser o contrato do núcleo puro do
+  [[OFF26-4]]. **[[OFF26-15]] fechou junto** (coluna IR na tabela, no CSV e no cabeçalho).
+  Sheet virou **@admin_required**.
+- **Acabamentos:** urna no menu (Liga + mobile), sheet/auditoria/cortes-legado no Admin;
+  **"Budget usável" → "Bid Máximo"** (rótulo — a chave `usable_draft_budget` do `salary_engine`
+  é intocada, por restrição); **Bid Máximo nos 12 cards do Hub** com selo **PROV** até a ESPN
+  definitiva (gate = `ESPNImportLog.status='final'`); botão da sheet fora do card público.
+- **`ensaio_janela_selada.py` cobre a urna** (status + reset de bilhetes, snapshots **e da
+  AGENDA**), degradando em banco pré-urna.
+- ⚠️ **Bug encontrado no caminho:** `models._table_exists` inspeciona pelo **engine**; com pool
+  compartilhado, o `close()` da conexão nova **desfaz a transação em curso** e o `stage_reset`
+  perdia os deletes. Trocado por consulta ao `sqlite_master` **pela mesma sessão**. Três testes
+  do reset pegaram — a suíte da janela fez o trabalho dela.
+- **Teste substituído, declarado:** `test_sheet_distingue_os_tres_manteve_todos` travava os 3
+  rótulos de "manteve todos" numa coluna que deixou de existir; virou guarda de que
+  `_declared_status`/`_DECL_STATUS_LABEL` **não voltem** como código morto.
+- **Validação:** 47 novos (`late_drop_test.py`) + **dry-run E2E 38/38** no app real sobre cópia
+  do seed (hash `327ceace…`); suítes 54+14+34+22+20+17 verdes; 30 templates parseiam; sheet de
+  owner comum **403**. Runbook novo `runbook_urna_late_drop.md`. Sleeper **não tocado**.
 
 ### MAN-OFF26-1-ETAPA2 — ensaio aprovado em produção + redesenho da urna (06–07/08/2026, Opus)
 

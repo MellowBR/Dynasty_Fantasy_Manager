@@ -2458,3 +2458,42 @@ a.player-name:hover {
   font-size: .9rem;
   margin: .5rem 0;
 }
+
+
+/* ── OFF26-10: a URNA do late drop — lista de ESCOLHA ÚNICA ───────────────── */
+/* Radios com APARÊNCIA DE CHECKBOX (U1): a semântica é "só uma marcação", e o
+   radio garante isso pela interface — marcar um desmarca o anterior, sem JS. O
+   quadrado é escolha visual do owner. Alvos grandes: em 22/08 declara-se pelo
+   celular (achado do ensaio de 06/08). */
+.urn-list { list-style: none; margin: 0; padding: 0; }
+.urn-item {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: .4rem;
+  background: rgba(255,255,255,.02);
+}
+.urn-item label {
+  display: flex; align-items: center; gap: .7rem;
+  padding: .85rem .8rem;           /* alvo de toque confortável no celular */
+  cursor: pointer; margin: 0;
+}
+.urn-item .urn-box {
+  appearance: none; -webkit-appearance: none;
+  width: 22px; height: 22px; flex: 0 0 22px;
+  border: 2px solid var(--border); border-radius: 4px;   /* quadrado = checkbox */
+  background: transparent; cursor: pointer; position: relative;
+}
+.urn-item .urn-box:checked {
+  background: var(--green, #22c55e);
+  border-color: var(--green, #22c55e);
+}
+.urn-item .urn-box:checked::after {
+  content: '✓'; position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #0b1220; font-weight: 700; font-size: .95rem; line-height: 1;
+}
+.urn-item:has(.urn-box:checked) { border-color: var(--green, #22c55e); background: rgba(34,197,94,.08); }
+.urn-item .urn-text { flex: 1; min-width: 0; }
+.urn-pass { border-style: dashed; }
+.urn-blocked { opacity: .55; }
+.urn-blocked label { cursor: not-allowed; }

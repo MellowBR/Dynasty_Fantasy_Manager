@@ -80,7 +80,7 @@ function renderPreview(d) {
   // budget alerts
   const ba = document.getElementById('budget-alerts');
   ba.innerHTML = (d.budget_alerts || []).map(a =>
-    `<div class="alert alert-warn">⚠️ ${a.team}: ${a.over_cap ? 'cap estourado' : ''} ${a.insufficient_budget ? 'budget insuficiente' : ''} (usável $${a.usable_draft_budget}) — alerta soft, não bloqueia.</div>`
+    `<div class="alert alert-warn">⚠️ ${a.team}: ${a.over_cap ? 'cap estourado' : ''} ${a.insufficient_budget ? 'budget insuficiente' : ''} (bid máximo $${a.usable_draft_budget}) — alerta soft, não bloqueia.</div>`
   ).join('');
 
   // matched

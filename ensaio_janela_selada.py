@@ -12,7 +12,9 @@ em localhost e depois em produção. Este script cobre o que a UI NÃO tem:
                    achando que vale".
   * `--reset --backup <path>` → DESFAZ um ciclo de ensaio por completo: apaga as declarações
                    (CutDeclaration) e os snapshots (CutWindowAudit) da season, fecha a janela
-                   e desliga o banner. **Sem backup conferido, nenhuma escrita** (molde do
+                   e desliga o banner. **Cobre também a URNA** (OFF26-10): apaga os bilhetes
+                   (LateDropDeclaration), os snapshots (LateDropAudit) e zera a AGENDA — sem
+                   isso, um horário de teste reabriria a urna sozinho em produção. **Sem backup conferido, nenhuma escrita** (molde do
                    runner do OFF26-20-FIX).
 
 ⚠️ POR QUE O RESET PRECISA APAGAR A TRILHA DO ENSAIO (comportamento declarado): o estado
@@ -36,6 +38,13 @@ BASE_DIR = Path(__file__).resolve().parent
 
 BANNER_KEY = "cuts_ensaio_banner"
 WINDOW_KEY = "cuts_window_open"
+
+# OFF26-10 (MAN-OFF26-10, 07/08): o mesmo runner opera o ensaio da URNA. O banner e o
+# MESMO (fonte unica do rotulo de teste, exibido tambem em /late_drop); o estado da urna
+# tem chaves PROPRIAS -- a `cuts_window_open` nao e, e nao pode ser, o gate da urna.
+URN_OPENS_KEY = "late_drop_opens_at"
+URN_CLOSES_KEY = "late_drop_closes_at"
+URN_BLOCK_R1_KEY = "late_drop_block_r1_rookie"
 
 
 def _db_path(cli_db: str = None) -> Path:
@@ -62,10 +71,25 @@ def _make_app(db_path: Path):
 
 # ── Núcleo (importável pelos testes; roda dentro de app context) ──────────────
 
+def _has_table(name: str) -> bool:
+    """Existe a tabela? Consulta pela MESMA sessão/transação.
+
+    ⛔ Não usar `models._table_exists` aqui: ele inspeciona pelo ENGINE, abrindo outra
+    conexão — e com pool compartilhado o close() dela **desfaz a transação em curso**,
+    fazendo o `stage_reset` perder os deletes ainda não comitados (bug vivido e coberto
+    por `janela_ensaio_test.TestResetDoEnsaio`)."""
+    from sqlalchemy import text
+    from models import db
+    row = db.session.execute(
+        text("SELECT name FROM sqlite_master WHERE type='table' AND name=:n"),
+        {"n": name}).first()
+    return row is not None
+
+
 def window_report(season: int) -> dict:
     """Relatório read-only do estado da janela na season. Não expõe conteúdo de
     declaração (nem IDs nem nomes de jogador) — só existência e contagens (D6)."""
-    from models import CutDeclaration, CutWindowAudit, get_config
+    from models import CutDeclaration, CutWindowAudit, get_config  # noqa: F401
     decls = CutDeclaration.query.filter_by(season=season).all()
     audits = (CutWindowAudit.query.filter_by(season=season)
               .order_by(CutWindowAudit.id).all())
@@ -91,6 +115,39 @@ def window_report(season: int) -> dict:
             "result_hash": a.result_hash,
             "reason": a.reason,
         } for a in audits],
+        "urn": urn_report(season),
+    }
+
+
+def urn_report(season: int) -> dict:
+    """Estado da URNA (OFF26-10). Sigilo MAIS estrito que o da janela: nem conteudo nem
+    existencia POR TIME saem daqui — so o agregado, para o operador conferir que o reset
+    limpou tudo (na urna, ate a contagem por time seria vazamento; ver U1)."""
+    from models import LateDropDeclaration, LateDropAudit, get_config
+    # Banco anterior a urna (ex.: backup de antes do deploy, ou 1o boot ainda nao
+    # rodado): o runner e a ferramenta de seguranca do operador — degrada, nao quebra.
+    if not _has_table("late_drop_declarations"):
+        return {"state": "sem_tabela", "opens_at": "", "closes_at": "",
+                "block_r1_rookie": get_config(URN_BLOCK_R1_KEY, "false"),
+                "num_declarations": 0, "audits": []}
+    decls = LateDropDeclaration.query.filter_by(season=season).all()
+    audits = (LateDropAudit.query.filter_by(season=season)
+              .order_by(LateDropAudit.id).all())
+    canonical = [a for a in audits if a.is_canonical]
+    opens, closes = get_config(URN_OPENS_KEY, ""), get_config(URN_CLOSES_KEY, "")
+    return {
+        "state": "locked" if canonical else ("agendada" if opens else "sem_agenda"),
+        "opens_at": opens,
+        "closes_at": closes,
+        "block_r1_rookie": get_config(URN_BLOCK_R1_KEY, "false"),
+        "num_declarations": len(decls),
+        "audits": [{
+            "id": a.id,
+            "is_canonical": a.is_canonical,
+            "executed_at": str(a.executed_at),
+            "result_hash": a.result_hash,
+            "reason": a.reason,
+        } for a in audits],
     }
 
 
@@ -98,16 +155,28 @@ def stage_reset(season: int) -> dict:
     """Encena o desfazer do ensaio na sessão ativa — SEM commit (o chamador comita,
     ou dá rollback e nada acontece). Apaga CutDeclaration + CutWindowAudit da season
     (e SÓ dela), fecha a janela e desliga o banner."""
-    from models import db, CutDeclaration, CutWindowAudit, AppConfig
+    from models import (db, CutDeclaration, CutWindowAudit, LateDropDeclaration,
+                        LateDropAudit, AppConfig)
     n_decls = CutDeclaration.query.filter_by(season=season).delete()
     n_audits = CutWindowAudit.query.filter_by(season=season).delete()
-    for key, value in ((WINDOW_KEY, "false"), (BANNER_KEY, "false")):
+    # URNA (OFF26-10): mesma logica e mesmo motivo — snapshot canonico de ensaio deixado
+    # no banco travaria a urna real de 22/08, e uma agenda de teste a abriria sozinha.
+    if _has_table("late_drop_declarations"):
+        n_urn_decls = LateDropDeclaration.query.filter_by(season=season).delete()
+        n_urn_audits = LateDropAudit.query.filter_by(season=season).delete()
+    else:
+        n_urn_decls = n_urn_audits = 0
+    for key, value in ((WINDOW_KEY, "false"), (BANNER_KEY, "false"),
+                       (URN_OPENS_KEY, ""), (URN_CLOSES_KEY, ""),
+                       (URN_BLOCK_R1_KEY, "false")):
         row = db.session.get(AppConfig, key)
         if row:
             row.value = value
         else:
             db.session.add(AppConfig(key=key, value=value))
-    return {"deleted_declarations": n_decls, "deleted_audits": n_audits}
+    return {"deleted_declarations": n_decls, "deleted_audits": n_audits,
+            "deleted_urn_declarations": n_urn_decls,
+            "deleted_urn_audits": n_urn_audits}
 
 
 # ── Comandos ──────────────────────────────────────────────────────────────────
@@ -121,6 +190,15 @@ def _print_report(r: dict) -> None:
               f"num_cuts={d['num_cuts']}")
     print(f"snapshots (CutWindowAudit): {len(r['audits'])}")
     for a in r["audits"]:
+        star = "CANÔNICO" if a["is_canonical"] else "superseded"
+        print(f"  #{a['id']} {star} {a['executed_at']} hash={a['result_hash'][:16]}… "
+              f"reason={a['reason']!r}")
+    u = r.get("urn") or {}
+    print(f"URNA (late drop): {u.get('state')} · abre={u.get('opens_at') or '—'} "
+          f"· fecha={u.get('closes_at') or '—'} · bloqueio rookie 1ª="
+          f"{u.get('block_r1_rookie')}")
+    print(f"  bilhetes depositados: {u.get('num_declarations', 0)} (conteúdo selado)")
+    for a in u.get("audits", []):
         star = "CANÔNICO" if a["is_canonical"] else "superseded"
         print(f"  #{a['id']} {star} {a['executed_at']} hash={a['result_hash'][:16]}… "
               f"reason={a['reason']!r}")
@@ -189,8 +267,20 @@ def cmd_reset(db_path: Path, backup: Path) -> int:
                       (season,)).fetchone()[0]
     n_a = con.execute("SELECT COUNT(*) FROM cut_window_audit WHERE season=?",
                       (season,)).fetchone()[0]
-    flags = dict(con.execute("SELECT key, value FROM app_config WHERE key IN (?, ?)",
-                             (WINDOW_KEY, BANNER_KEY)))
+    flags = dict(con.execute(
+        "SELECT key, value FROM app_config WHERE key IN (?, ?, ?, ?)",
+        (WINDOW_KEY, BANNER_KEY, URN_OPENS_KEY, URN_CLOSES_KEY)))
+
+    def _count(table):
+        row = con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (table,)).fetchone()
+        if not row:          # banco anterior a urna — nada a verificar
+            return 0
+        return con.execute(f"SELECT COUNT(*) FROM {table} WHERE season=?",
+                           (season,)).fetchone()[0]
+
+    n_ud, n_ua = _count("late_drop_declarations"), _count("late_drop_audit")
     con.close()
 
     errors = []
@@ -202,11 +292,18 @@ def cmd_reset(db_path: Path, backup: Path) -> int:
         errors.append(f"janela ainda aberta ({WINDOW_KEY}={flags.get(WINDOW_KEY)!r})")
     if flags.get(BANNER_KEY) not in (None, "false"):
         errors.append(f"banner ainda ligado ({BANNER_KEY}={flags.get(BANNER_KEY)!r})")
+    if n_ud != 0:
+        errors.append(f"{n_ud} bilhete(s) de urna restante(s)")
+    if n_ua != 0:
+        errors.append(f"{n_ua} snapshot(s) de urna restante(s)")
+    if flags.get(URN_OPENS_KEY) or flags.get(URN_CLOSES_KEY):
+        errors.append("urna ainda agendada (late_drop_opens_at/closes_at)")
     if errors:
         print("⛔ FALHA NA VERIFICAÇÃO DO RESET: " + "; ".join(errors))
         return 1
-    print("\n✅ RESET OK — 0 declarações, 0 snapshots, janela fechada, banner desligado. "
-          "A janela pode ser aberta de novo (estado pré-ensaio).")
+    print("\n✅ RESET OK — 0 declarações, 0 snapshots, 0 bilhetes de urna, janela "
+          "fechada, urna sem agenda, banner desligado. Janela e urna podem ser abertas "
+          "de novo (estado pré-ensaio).")
     return 0
 
 

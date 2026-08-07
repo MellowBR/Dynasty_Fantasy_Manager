@@ -91,7 +91,8 @@ class TestResetDoEnsaio(unittest.TestCase):
         from models import db
         staged = stage_reset(2026)
         db.session.commit()
-        self.assertEqual(staged, {"deleted_declarations": 2, "deleted_audits": 2})
+        self.assertEqual(staged, {"deleted_declarations": 2, "deleted_audits": 2,
+                                  "deleted_urn_declarations": 0, "deleted_urn_audits": 0})
         r = window_report(2026)
         self.assertEqual(r["state"], "closed")
         self.assertEqual(r["declarations"], [])
@@ -134,7 +135,8 @@ class TestResetDoEnsaio(unittest.TestCase):
         db.session.commit()
         staged2 = stage_reset(2026)
         db.session.commit()
-        self.assertEqual(staged2, {"deleted_declarations": 0, "deleted_audits": 0})
+        self.assertEqual(staged2, {"deleted_declarations": 0, "deleted_audits": 0,
+                                   "deleted_urn_declarations": 0, "deleted_urn_audits": 0})
         self.assertEqual(window_report(2026)["state"], "closed")
 
 
@@ -286,27 +288,24 @@ class TestHierarquiaOwnerAdmin(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.get_json()["success"])
 
-    def test_sheet_distingue_os_tres_manteve_todos(self):
-        """3º status (POSENSAIO): 'Declarou (manteve todos)' ≠ 'Declarou' ≠ 'Default'."""
-        self._as(self.owner_id).post("/api/cuts/declaration", json={"cut_ids": []})
-        self._as(self.admin_id).post("/api/cuts/admin/declare",
-                                     json={"team_id": self.t_silent_id, "cut_ids": []})
+    def test_o_status_de_declaracao_saiu_da_sheet(self):
+        """⚠️ SUBSTITUI `test_sheet_distingue_os_tres_manteve_todos` (POSENSAIO).
 
-        from routes.cuts import _declared_status, _DECL_STATUS_LABEL
-        from models import get_current_season
-        with self.app.app_context():
-            season = get_current_season()
-            s_owner_empty = {"team_id": self.t_owner_id, "declared": True, "cut_ids": []}
-            s_owner_cuts = {"team_id": self.t_owner_id, "declared": True,
-                            "cut_ids": [self.jogador_id]}
-            s_silent = {"team_id": self.t_silent_id, "declared": False, "cut_ids": []}
-            s_admin = {"team_id": self.t_silent_id, "declared": True, "cut_ids": []}
+        Aquele teste travava os 3 rótulos de "manteve todos" na keeper sheet — coluna que
+        deixou de existir quando o U7 do OFF26-10 trocou a ORIGEM da sheet: ela nasce do
+        SYNC (keepers = roster vivo), não da inversão de uma declaração de cortes. Manter
+        o teste exigiria manter `_declared_status`/`_DECL_STATUS_LABEL` como código morto
+        sustentando uma coluna que a tela não tem mais.
 
-            self.assertEqual(_declared_status(s_owner_empty, season), "owner_kept_all")
-            self.assertEqual(_declared_status(s_owner_cuts, season), "owner_declared")
-            self.assertEqual(_declared_status(s_silent, season), "default_zero")
-            self.assertEqual(_declared_status(s_admin, season), "admin_supplied")
-        self.assertEqual(_DECL_STATUS_LABEL["owner_kept_all"], "Declarou (manteve todos)")
+        O que segue sendo verdade e É testado aqui: a declaração da janela legada continua
+        gravando (é o motor da urna e a rede da hierarquia) — ela só não alimenta mais a
+        sheet. A sheet nova tem suíte própria em `late_drop_test.py`."""
+        r = self._as(self.owner_id).post("/api/cuts/declaration", json={"cut_ids": []})
+        self.assertEqual(r.status_code, 200)
+
+        import routes.cuts as cuts_mod
+        self.assertFalse(hasattr(cuts_mod, "_declared_status"))
+        self.assertFalse(hasattr(cuts_mod, "_DECL_STATUS_LABEL"))
 
 
 class TestRotuloDeEnsaio(unittest.TestCase):

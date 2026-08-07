@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+{% block title %}Late Drop — a Urna{% endblock %}
+
+{% block content %}
+{% if ensaio_banner %}
+<div class="alert alert-warn" style="margin-bottom:1rem;font-size:1.05rem;border:2px solid #d9534f">
+  🧪 <strong>ENSAIO DO SISTEMA — NÃO DECLARAR.</strong> Esta urna está aberta em modo de
+  TESTE; qualquer declaração feita agora será apagada. Aguarde a confirmação no grupo.
+</div>
+{% endif %}
+
+<div class="page-header">
+  <h1 class="page-title">🗳️ Late Drop — a Urna</h1>
+  <p class="page-subtitle">
+    Um bilhete por time: <strong>um jogador</strong> do seu roster, <strong>ou</strong>
+    "não vou dropar ninguém". Ninguém vê nada — nem se você já declarou — até a
+    revelação simultânea. Depois da revelação, <strong>o drop é executado por você no
+    Sleeper</strong>.
+  </p>
+</div>
+
+<div id="state-banner" class="alert" style="margin-bottom:1rem">Carregando…</div>
+
+{% if my_team %}
+<div class="card" style="margin-bottom:1.5rem">
+  <h2 style="margin-top:0">Seu bilhete — {{ my_team.name }}</h2>
+
+  {# U1: ESCOLHA ÚNICA com aparência de checkbox — marcar um desmarca o anterior.
+     Declarar dois é impossível pela interface, não só recusado pelo servidor. #}
+  <ul class="urn-list" id="urn-list">
+    <li class="urn-item urn-pass">
+      <label>
+        <input type="radio" name="urn-choice" class="urn-box" value="pass" onchange="onPick()">
+        <span class="urn-text"><strong>✋ Não vou dropar ninguém</strong>
+          <span class="text-dim">— passo, e isso fica registrado como decisão sua</span></span>
+      </label>
+    </li>
+    {% for p in eligible %}
+    <li class="urn-item{% if p.blocked %} urn-blocked{% endif %}">
+      <label>
+        <input type="radio" name="urn-choice" class="urn-box" value="{{ p.id }}"
+               onchange="onPick()" {% if p.blocked %}disabled{% endif %}>
+        <span class="urn-text">
+          {{ p.name }} <span class="text-dim">{{ p.position }} · ${{ p.salary }}</span>
+          {% if p.is_on_ir %}<span class="badge">IR</span>{% endif %}
+          {% if p.blocked %}<span class="tag tag-prov" title="{{ p.blocked_reason }}">PROTEGIDO</span>{% endif %}
+        </span>
+      </label>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <div class="step-actions" style="margin-top:1rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+    {# U-CONF: confirmação INLINE — nenhum window.confirm() no caminho de declaração
+       (o pop-up nativo travou o co-admin no celular durante o ensaio de 06/08). #}
+    <button id="save-btn" class="btn btn-primary" onclick="salvar(this)" disabled>
+      🗳️ Depositar meu bilhete
+    </button>
+    <span id="save-result" class="text-dim"></span>
+  </div>
+  <p class="text-dim" style="margin-top:.5rem;font-size:.85rem">
+    Pode trocar quantas vezes quiser até o fechamento — <strong>vale a última</strong>.
+    Quem não depositar nada fica sem late drop (mesmo efeito do "não vou dropar ninguém").
+  </p>
+</div>
+{% else %}
+<div class="alert alert-warn">Você não tem time vinculado — fale com o admin.</div>
+{% endif %}
+
+{% if is_admin %}
+<div class="card" style="margin-bottom:1.5rem;border:1px solid var(--border)">
+  <h2 style="margin-top:0">🔧 Admin — urna</h2>
+
+  <h3 style="margin:.25rem 0 .5rem">Horário da janela</h3>
+  <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+    <label>Abre: <input type="datetime-local" id="sched-open"></label>
+    <label>Fecha: <input type="datetime-local" id="sched-close"></label>
+    <button class="btn btn-secondary" onclick="salvarAgenda()">💾 Gravar horários</button>
+    <span id="sched-result" class="text-dim"></span>
+  </div>
+  <p class="text-dim" style="font-size:.85rem;margin:.4rem 0 0">
+    Horário do seu dispositivo; guardado em UTC. Abrir só depois do prazo dos cortes no
+    Sleeper <strong>e do sync</strong> — sem sync, a lista de elegíveis mostra roster velho.
+  </p>
+
+  <hr style="margin:1rem 0;border-color:var(--border)">
+  <label style="display:flex;gap:.5rem;align-items:center">
+    <input type="checkbox" id="block-r1" onchange="salvarFlag()">
+    <span>Bloquear <strong>rookie de 1ª rodada</strong> no late drop
+      <span class="text-dim">— o regulamento é silencioso; nasce desligado</span></span>
+  </label>
+  <span id="flag-result" class="text-dim"></span>
+
+  <hr style="margin:1rem 0;border-color:var(--border)">
+  <h3 style="margin:0 0 .5rem">Suprir por time (escrita pelo time)</h3>
+  <p class="text-dim" style="font-size:.85rem">
+    Time que já declarou pessoalmente <strong>não</strong> é sobrescrito — a declaração do
+    owner prevalece, e o conteúdo permanece selado.
+  </p>
+  <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+    <select id="admin-team" onchange="adminLoadRoster(this.value)">
+      <option value="">— time —</option>
+      {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-secondary" onclick="adminSalvar(this)">💾 Gravar bilhete do time</button>
+    <span id="admin-supply-result" class="text-dim"></span>
+  </div>
+  <div id="admin-roster" style="margin-top:.75rem"></div>
+
+  <hr style="margin:1rem 0;border-color:var(--border)">
+  <button class="btn btn-danger" onclick="lock(this)">🎬 Lock + Revelação</button>
+  <span id="admin-result" class="text-dim"></span>
+</div>
+{% endif %}
+
+<div id="reveal-section" class="card" style="display:none">
+  <h2 style="margin-top:0">📜 Revelação — drops a executar</h2>
+  <div id="reveal-meta" class="text-dim" style="margin-bottom:.5rem"></div>
+  <div class="alert alert-warn" style="margin-bottom:.75rem">
+    ⚠️ <strong>A execução é manual, no Sleeper.</strong> Cada owner dropa o seu jogador;
+    o admin confere que sumiram dos rosters e roda o <strong>sync final</strong> — só então
+    a keeper sheet vira definitiva.
+  </div>
+  <button class="btn btn-secondary btn-sm" onclick="verify()">🔐 Verificar hash</button>
+  <span id="verify-result" class="text-dim"></span>
+  <div id="reveal-table" style="margin-top:.75rem"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Confirmação INLINE (U-CONF) — o botão vira "confirmar?" e só executa no 2º clique.
+// ⛔ Nenhum window.confirm() nesta tela: em 22/08 a maioria declara pelo celular, e o
+// pop-up nativo foi bloqueado no aparelho do co-admin durante o ensaio de 06/08.
+function confirmarInline(btn, texto, acao) {
+  if (btn.dataset.armed === '1') {
+    clearTimeout(parseInt(btn.dataset.timer));
+    btn.dataset.armed = '0';
+    btn.textContent = btn.dataset.original;
+    acao();
+    return;
+  }
+  btn.dataset.original = btn.textContent;
+  btn.dataset.armed = '1';
+  btn.textContent = texto;
+  btn.dataset.timer = String(setTimeout(() => {
+    btn.dataset.armed = '0';
+    btn.textContent = btn.dataset.original;
+  }, 8000));
+}
+
+function escolha() {
+  const el = document.querySelector('.urn-box:checked');
+  return el ? el.value : null;
+}
+function onPick() {
+  const btn = document.getElementById('save-btn');
+  if (btn) btn.disabled = !escolha();
+  // se o botão estava armado, desarma — a escolha mudou
+  if (btn && btn.dataset.armed === '1') {
+    clearTimeout(parseInt(btn.dataset.timer));
+    btn.dataset.armed = '0';
+    btn.textContent = btn.dataset.original;
+  }
+}
+
+function salvar(btn) {
+  const v = escolha();
+  if (!v) return;
+  const alvo = v === 'pass' ? 'NÃO dropar ninguém'
+    : document.querySelector('.urn-box[value="' + v + '"]').closest('.urn-item')
+        .querySelector('.urn-text').textContent.trim().split('\n')[0];
+  confirmarInline(btn, '✅ Confirmar: ' + alvo + '?', () => {
+    const body = v === 'pass' ? {pass: true} : {player_id: parseInt(v)};
+    fetch('/api/late_drop/declaration', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    }).then(r => r.json()).then(d => {
+      const el = document.getElementById('save-result');
+      if (d.error) { el.textContent = '❌ ' + d.error; return; }
+      el.textContent = d.passed ? '✅ Bilhete depositado: sem late drop.'
+                                : '✅ Bilhete depositado.';
+      loadState();
+    });
+  });
+}
+
+function loadMine() {
+  fetch('/api/late_drop/declaration').then(r => r.json()).then(d => {
+    if (d.error) return;
+    const val = d.passed ? 'pass' : (d.player_id != null ? String(d.player_id) : null);
+    if (val) {
+      const el = document.querySelector('.urn-box[value="' + val + '"]');
+      if (el) el.checked = true;
+    }
+    onPick();
+  });
+}
+
+function loadState() {
+  fetch('/api/late_drop/state').then(r => r.json()).then(d => {
+    const banner = document.getElementById('state-banner');
+    const rotulo = {
+      nao_agendada: '🔒 Urna fechada — horário ainda não definido pelo admin',
+      ainda_nao_abriu: '🔒 Urna fechada — abre em breve',
+      encerrada: '🔒 Urna encerrada — aguardando a revelação do admin',
+      aberta: '🗳️ Urna ABERTA',
+      revelada: '📜 Urna revelada',
+    }[d.reason] || d.state;
+    banner.className = 'alert ' + (d.state === 'open' ? 'alert-ok' : 'alert-warn');
+    let txt = '<strong>' + rotulo + '</strong>';
+    if (d.opens_at) txt += ' · abre ' + formatLocalDT(d.opens_at);
+    if (d.closes_at) txt += ' · fecha ' + formatLocalDT(d.closes_at);
+    if (d.i_declared) txt += ' · <strong>você já depositou ✅</strong> (pode trocar até fechar)';
+    banner.innerHTML = txt;
+    preencherAgenda(d);
+
+    const btn = document.getElementById('save-btn');
+    if (btn) btn.disabled = (d.state !== 'open') || !escolha();
+    document.querySelectorAll('.urn-box').forEach(b => {
+      if (!b.closest('.urn-item').classList.contains('urn-blocked')) {
+        b.disabled = (d.state !== 'open');
+      }
+    });
+    const flag = document.getElementById('block-r1');
+    if (flag) flag.checked = !!d.block_r1_rookie;
+    if (d.state === 'locked') loadReveal();
+  });
+}
+
+// ── Admin ──
+function toIso(id) {
+  const v = document.getElementById(id).value;
+  return v ? new Date(v).toISOString() : '';
+}
+// ISO 'Z' → valor do <input type="datetime-local"> no fuso do dispositivo
+function toLocalInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function preencherAgenda(d) {
+  const o = document.getElementById('sched-open'), c = document.getElementById('sched-close');
+  if (o && !o.value) o.value = toLocalInput(d.opens_at);
+  if (c && !c.value) c.value = toLocalInput(d.closes_at);
+}
+function salvarAgenda() {
+  fetch('/api/late_drop/admin/schedule', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({opens_at: toIso('sched-open'), closes_at: toIso('sched-close')}),
+  }).then(r => r.json()).then(d => {
+    document.getElementById('sched-result').textContent = d.error ? ('❌ ' + d.error) : '✅ Gravado.';
+    loadState();
+  });
+}
+function salvarFlag() {
+  fetch('/api/late_drop/admin/config', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({block_r1_rookie: document.getElementById('block-r1').checked}),
+  }).then(r => r.json()).then(d => {
+    document.getElementById('flag-result').textContent = d.error ? ('❌ ' + d.error)
+      : (d.block_r1_rookie ? '✅ Rookies de 1ª rodada bloqueados.' : '✅ Sem bloqueio.');
+    setTimeout(() => location.reload(), 600);   // a lista de elegíveis muda
+  });
+}
+function adminLoadRoster(teamId) {
+  const box = document.getElementById('admin-roster');
+  if (!teamId) { box.innerHTML = ''; return; }
+  fetch('/api/roster/' + teamId).then(r => r.json()).then(players => {
+    box.innerHTML = '<ul class="urn-list"><li class="urn-item urn-pass"><label>' +
+      '<input type="radio" name="admin-choice" class="admin-urn-box" value="pass">' +
+      '<span class="urn-text"><strong>✋ Sem late drop (passo)</strong></span></label></li>' +
+      players.map(p => '<li class="urn-item"><label>' +
+        '<input type="radio" name="admin-choice" class="admin-urn-box" value="' + p.id + '">' +
+        '<span class="urn-text">' + p.name + ' <span class="text-dim">' + p.position +
+        ' · $' + Math.round(p.salary) + '</span></span></label></li>').join('') + '</ul>';
+  });
+}
+function adminSalvar(btn) {
+  const teamId = document.getElementById('admin-team').value;
+  const el = document.querySelector('.admin-urn-box:checked');
+  if (!teamId || !el) {
+    document.getElementById('admin-supply-result').textContent = '❌ Escolha time e opção.';
+    return;
+  }
+  confirmarInline(btn, '✅ Confirmar gravação pelo time?', () => {
+    const body = el.value === 'pass'
+      ? {team_id: parseInt(teamId), pass: true}
+      : {team_id: parseInt(teamId), player_id: parseInt(el.value)};
+    fetch('/api/late_drop/admin/declare', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    }).then(r => r.json()).then(d => {
+      document.getElementById('admin-supply-result').textContent =
+        d.error ? ('❌ ' + d.error) : '✅ Gravado.';
+    });
+  });
+}
+function lock(btn) {
+  confirmarInline(btn, '⚠️ Confirmar lock + revelação?', () => {
+    fetch('/api/late_drop/admin/lock', {method: 'POST'})
+      .then(r => r.json()).then(d => {
+        document.getElementById('admin-result').textContent =
+          d.error ? ('❌ ' + d.error) : '✅ Revelada.';
+        loadState();
+      });
+  });
+}
+
+// ── Revelação ──
+function loadReveal() {
+  fetch('/api/late_drop/audit').then(r => r.json()).then(d => {
+    if (!d.revealed) return;
+    document.getElementById('reveal-section').style.display = 'block';
+    const a = d.audit;
+    document.getElementById('reveal-meta').innerHTML =
+      'Hash: <code>' + a.result_hash.slice(0, 16) + '…</code> · por ' +
+      (a.executed_by_name || '—') + ' · <strong>' + d.num_drops + ' drop(s) a executar</strong>' +
+      (a.previous_audit_id ? ' · replace de #' + a.previous_audit_id + ' (' + (a.reason || '') + ')' : '');
+    document.getElementById('reveal-table').innerHTML =
+      '<table class="data-table"><thead><tr><th>Time</th><th>Late drop</th><th></th></tr></thead><tbody>' +
+      a.declarations.map(t => '<tr><td>' + t.team_name + '</td><td>' +
+        (t.drop_id ? '<strong>' + t.drop_name + '</strong>' : '<span class="text-dim">sem late drop</span>') +
+        '</td><td class="text-dim">' +
+        (t.invalidated ? '⚠️ ' + t.drop_name + ': ' + t.invalid_reason
+          : (t.declared ? (t.passed ? 'declarou passo' : 'declarou') : 'não declarou')) +
+        '</td></tr>').join('') + '</tbody></table>';
+  });
+}
+function verify() {
+  fetch('/api/late_drop/audit/verify').then(r => r.json()).then(d => {
+    document.getElementById('verify-result').textContent = d.error ? ('❌ ' + d.error)
+      : (d.hash_match ? '✅ Hash confere (snapshot íntegro).' : '❌ Hash DIVERGE!');
+  });
+}
+
+loadState();
+{% if my_team %}loadMine();{% endif %}
+</script>
+{% endblock %}

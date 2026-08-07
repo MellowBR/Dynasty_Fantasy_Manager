@@ -3,84 +3,84 @@
 
 {% block content %}
 {% if ensaio_banner %}
-{# OFF26-1-ENSAIO: rótulo de janela de TESTE — ligado só durante o ensaio #}
+{# OFF26-1-ENSAIO: rótulo de TESTE — ligado só durante o ensaio/smoke #}
 <div class="alert alert-warn" style="margin-bottom:1rem;font-size:1.05rem;border:2px solid #d9534f">
-  🧪 <strong>ENSAIO DO SISTEMA.</strong> Esta sheet deriva de um snapshot de TESTE com
-  declarações fictícias — não é a keeper sheet real. Aguarde a confirmação no grupo.
+  🧪 <strong>ENSAIO DO SISTEMA.</strong> Esta sheet foi gerada durante um teste — não é a
+  keeper sheet real. Aguarde a confirmação no grupo.
 </div>
 {% endif %}
 <div class="page-header">
-  <h1 class="page-title">📋 Keeper Sheet {{ season }}</h1>
+  <h1 class="page-title">📋 Keeper Sheet {{ season }}
+    <span class="tag {% if sheet.stage == 'definitiva' %}tag-current{% else %}tag-prov{% endif %}">
+      {{ sheet.stage_label }}
+    </span>
+  </h1>
   <p class="page-subtitle">
-    Relatório consolidado de keepers por time — insumo da transcrição para a liga
-    fantasma (FA auction) e base da auditoria pré-leilão.
+    Keepers por time <strong>segundo o último sync</strong> — insumo da transcrição para a
+    liga fantasma (FA auction) e base da auditoria pré-leilão.
   </p>
 </div>
 
-{% if not sheet.revealed %}
-  {# Pré-condição (D9): só existe após a revelação do OFF26-1 #}
-  <div class="alert alert-warn">
-    ⏳ Ainda <strong>não há snapshot de janela revelada</strong> nesta season — e é assim que
-    a sheet é gerada hoje.
-    <br>
-    <strong>Fluxo de 2026:</strong> os cortes acontecem no Sleeper e a sheet passa a nascer do
-    <strong>sync</strong> (provisória antes do late drop, definitiva depois da execução) —
-    mudança pendente na F2 da urna (OFF26-10 · U7).
-    <a href="/cuts">Ver como funciona</a>.
-  </div>
-{% else %}
-  {# Aviso de fonte mista (D2): cortes congelados; salário/budget ao vivo #}
-  <div class="alert" style="margin-bottom:1rem">
-    🔒 Snapshot revelado em
-    <strong><span id="lock-ts" data-utc="{{ sheet.lock_timestamp }}">{{ sheet.lock_timestamp }}</span></strong>.
-    Cortes vêm congelados do snapshot; <strong>salários e budget são conferidos AGORA (ao vivo)</strong>
-    — regenere a sheet se algo mudou desde o lock.
-  </div>
+{# U7: a sheet nasce do SYNC. O que a qualifica é o carimbo do sync + a urna. #}
+<div class="alert {% if sheet.stage == 'definitiva' %}alert-ok{% else %}alert-warn{% endif %}"
+     style="margin-bottom:1rem">
+  {% if sheet.sync_timestamp %}
+    📸 Foto do roster no sync de
+    <strong><time class="js-localtime" datetime="{{ sheet.sync_timestamp }}">{{ sheet.sync_timestamp }}</time></strong>.
+  {% else %}
+    ⚠️ <strong>Nenhum sync registrado</strong> — a sheet mostra o roster como está no banco,
+    sem carimbo. Rode o sync antes de transcrever.
+  {% endif %}
+  <br>
+  {% if sheet.stage == 'definitiva' %}
+    ✅ <strong>DEFINITIVA:</strong> a urna do late drop já foi revelada
+    ({{ sheet.late_drop.num_drops }} drop(s)) e houve sync <strong>depois</strong> dela —
+    os drops revelados já estão refletidos nestes rosters.
+  {% elif sheet.late_drop.revealed %}
+    ⚠️ <strong>PROVISÓRIA — atenção:</strong> a urna já revelou
+    {{ sheet.late_drop.num_drops }} drop(s), mas <strong>não houve sync depois da
+    revelação</strong>. Execute os drops no Sleeper e rode o <strong>sync final</strong>;
+    só então esta sheet vira definitiva.
+  {% else %}
+    ⏳ <strong>PROVISÓRIA:</strong> o late drop de 22/08 ainda não foi revelado. Esta é a
+    foto pós-cortes de 20/08 — pode mudar em até um jogador por time.
+  {% endif %}
+</div>
 
-  <div class="toolbar" style="margin-bottom:1rem">
-    <a class="btn btn-primary" href="/api/cuts/keeper_sheet.csv">⬇️ Baixar CSV</a>
-  </div>
+<div class="toolbar" style="margin-bottom:1rem">
+  <a class="btn btn-primary" href="/api/cuts/keeper_sheet.csv">⬇️ Baixar CSV</a>
+  <a class="btn btn-secondary" href="/admin/keeper_audit">🔍 Auditoria pré-leilão</a>
+  <a class="btn btn-secondary" href="/late_drop">🗳️ Urna do late drop</a>
+</div>
 
-  {% for t in sheet.teams %}
-  <div class="card" style="margin-bottom:1rem">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.5rem">
-      <h2 style="margin:.25rem 0">{{ t.team_name }}</h2>
-      <div class="text-dim">
-        Keepers: <strong>{{ t.num_keepers }}</strong> ·
-        Budget FA: <strong>${{ t.fa_budget }}</strong> ·
-        Status:
-        <span class="badge">{{ t.declared_label }}</span>
-      </div>
+{% for t in sheet.teams %}
+<div class="card" style="margin-bottom:1rem">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.5rem">
+    <h2 style="margin:.25rem 0">{{ t.team_name }}</h2>
+    <div class="text-dim">
+      Keepers: <strong>{{ t.num_keepers }}</strong>
+      {% if t.num_ir %}<span class="badge" title="Keepers no IR — precisam ser designados no board">{{ t.num_ir }} no IR</span>{% endif %}
+      · Bid Máximo: <strong>${{ t.fa_budget }}</strong>
+      · <span class="badge">{{ t.late_drop_label }}</span>
     </div>
-    <table class="data-table">
-      <thead><tr><th>Keeper</th><th>Pos</th><th>Salário</th><th>Budget FA (time)</th><th>Status</th></tr></thead>
-      <tbody>
-        {% for k in t.keepers %}
-        <tr>
-          <td>{{ k.name }}</td>
-          <td>{{ k.position }}</td>
-          <td>${{ k.salary }}</td>
-          <td>{% if loop.first %}${{ t.fa_budget }}{% else %}<span class="text-dim">—</span>{% endif %}</td>
-          <td>{% if loop.first %}{{ t.declared_label }}{% else %}<span class="text-dim">—</span>{% endif %}</td>
-        </tr>
-        {% else %}
-        <tr><td colspan="5" class="text-dim">Sem keepers (todos cortados).</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
   </div>
-  {% endfor %}
-{% endif %}
-{% endblock %}
-
-{% block scripts %}
-<script>
-// Localiza o timestamp do lock (ISO 'Z' → fuso do cliente).
-(function () {
-  const el = document.getElementById('lock-ts');
-  if (!el) return;
-  const iso = el.getAttribute('data-utc');
-  if (iso) { try { el.textContent = new Date(iso).toLocaleString(); } catch (e) {} }
-})();
-</script>
+  <table class="data-table">
+    <thead><tr><th>Keeper</th><th>Pos</th><th>Salário</th><th>IR</th><th>Bid Máximo (time)</th></tr></thead>
+    <tbody>
+      {% for k in t.keepers %}
+      <tr>
+        <td>{{ k.name }}</td>
+        <td>{{ k.position }}</td>
+        <td>${{ k.salary }}</td>
+        {# OFF26-15: keeper em IR OCUPA designação no board — omiti-lo o expõe ao leilão #}
+        <td>{% if k.is_on_ir %}<span class="badge">IR</span>{% else %}<span class="text-dim">—</span>{% endif %}</td>
+        <td>{% if loop.first %}${{ t.fa_budget }}{% else %}<span class="text-dim">—</span>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-dim">Sem keepers.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
 {% endblock %}

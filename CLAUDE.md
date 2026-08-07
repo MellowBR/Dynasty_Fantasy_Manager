@@ -27,6 +27,12 @@ python keeper_audit_test.py
 # Run cap régua tests (OFF26-16 — folha única com IR; núcleo puro + ORM em memória)
 python cap_regua_test.py
 
+# Run urna do late drop + keeper sheet via sync (OFF26-10 — 47 testes)
+python late_drop_test.py
+
+# Run janela selada / runner do ensaio (OFF26-1 — 22 testes)
+python janela_ensaio_test.py
+
 # Seed users (after first deploy)
 python seed_users.py --csv data/users.csv
 python seed_users.py --email user@gmail.com --name "Name" --team-id 1 --admin
@@ -66,13 +72,13 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
       - `_backfill_player_history()` → **legacy**, e **só `if not f8_rebuilt`** (AppConfig); o F8 (rebuild canônico via chain do Sleeper) substituiu esse fluxo, então em DBs já migrados é pulado
 5. Define 4 **context processors** (estado global de offseason, times da navbar, time do usuário logado `inject_user_team`/M17, badge de review — linhas 84-134)
 6. `init_auth(app)` + registra `auth_bp` → Flask-Login + Google OAuth (linhas 137-139) — **perto do fim, depois dos context processors, não antes do sync**
-7. Registra os **9 blueprints** (roster, salary, trades, picks, auction, admin, offseason, league, draft_import — linhas 142-160)
+7. Registra os **10 blueprints** (roster, salary, trades, picks, auction, admin, offseason, league, draft_import, cuts, late_drop — linhas 142-160)
 8. Error handlers 404/500 (linhas 163-173)
 9. No nível do módulo: `app = create_app()` (linha 424); `app.run(host='localhost')` só sob `__main__` (dev)
 
 **Nota de propagação (DOC1):** `run_sync` e `_backfill_player_history` **não** rodam em todo boot — só quando `run_import` semeia dados frescos. Não assumir "o sync roda no startup" ao diagnosticar dados stale em prod (onde o CSV ausente já zera o `fresh_import`).
 
-### Route Blueprints (11)
+### Route Blueprints (12)
 
 | Blueprint | URL | Purpose |
 |-----------|-----|---------|
@@ -85,12 +91,13 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 | admin | `/admin`, `/admin/users`, `/admin/review`, `/admin/keeper_audit` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1), PlayerHistory canonical rebuild (F8), dynasty values refresh (T2), revisão admin auditável Cat A/B (M2), **auditoria de keepers pré-leilão (OFF26-4 — read-only, ver `keeper_audit.py`)** |
 | offseason | `/offseason` | 7-step offseason workflow com lottery auditável (M8), 6 seeds via fonte única (M15), editor de pesos reativo com render single-source JS (M15-FIX) |
 | draft_import | `/draft_import` | OFF26-3: importa drafts via API read-only — **rookie linear (roda na liga REAL)** / **FA auction (roda na liga fantasma permanente)**; preview→confirm, match por sleeper_player_id, idempotente, escreve só via `record_acquisition`. ⚠️ OFF26-11 🔲: com keepers designados no board da fantasma os picks vêm misturados, e a porta é de **contrato ano 1** — ingerir keeper zera a idade do contrato |
-| cuts | `/cuts`, `/cuts/keeper_sheet` | OFF26-1: mecanismo da janela selada — lock/revelação simultânea admin-manual com snapshot auditável molde M8 (`CutWindowAudit`), hash verificável, write-by-team do admin com **hierarquia owner > admin** (recusa seca 409), gate de abertura = `needs_review` zerado (D3). **⚠️ A PORTA DE DECLARAÇÃO DO OWNER FOI APOSENTADA (MAN-OFF26-1-ETAPA2, 07/08/2026):** os cortes de 20/08 acontecem **direto no Sleeper** e o Manager só fotografa por sync; a tela não renderiza mais roster/checkbox/botão de declarar — sobra a explicação do fluxo e, para admin, o **motor rotulado "legado"**. As **rotas** de declaração seguem vivas de propósito (são o mecanismo que a urna do OFF26-10 reusa e a rede de regressão da hierarquia). ⛔ **A urna não pode reusar a flag `cuts_window_open`** — reabriria a porta antiga. OFF26-2: keeper sheet consolidada (leitora, keepers = roster − cortes; tabela + CSV) — **hoje exige snapshot canônico; no desenho novo passa a nascer do sync** (U7 do OFF26-10, escopo da F2 da urna) |
+| late_drop | `/late_drop` | **OFF26-10: a URNA do late drop (22/08) — única porta de declaração do Manager em 2026.** Um bilhete por time (um jogador do próprio roster **ou** passo), lista de **escolha única**; janela por **horário do admin** (`late_drop_opens_at`/`closes_at`); lock + hash + revelação simultânea reusando `compute_cut_snapshot_hash`; hierarquia owner > admin (recusa seca 409). **Sigilo mais estrito que o da janela: sem contagem agregada** — nem a existência do bilhete alheio vaza. A revelação produz a **lista de drops a executar**; ⛔ **a execução é MANUAL no Sleeper**. Flag admin "bloquear rookie de 1ª rodada" nasce **OFF**. ⛔ Nenhum `window.confirm()` no caminho de declaração (`confirmarInline`) |
+| cuts | `/cuts`, `/cuts/keeper_sheet` | OFF26-1: mecanismo da janela selada — lock/revelação simultânea admin-manual com snapshot auditável molde M8 (`CutWindowAudit`), hash verificável, write-by-team do admin com **hierarquia owner > admin** (recusa seca 409), gate de abertura = `needs_review` zerado (D3). **⚠️ A PORTA DE DECLARAÇÃO DO OWNER FOI APOSENTADA (MAN-OFF26-1-ETAPA2, 07/08/2026):** os cortes de 20/08 acontecem **direto no Sleeper** e o Manager só fotografa por sync; a tela não renderiza mais roster/checkbox/botão de declarar — sobra a explicação do fluxo e, para admin, o **motor rotulado "legado"**. As **rotas** de declaração seguem vivas de propósito (são o mecanismo que a urna do OFF26-10 reusa e a rede de regressão da hierarquia). ⛔ **A urna não pode reusar a flag `cuts_window_open`** — reabriria a porta antiga. **OFF26-2 (origem reescrita em 07/08, U7 do OFF26-10): a keeper sheet nasce do SYNC** — `keepers = roster vivo`, sem gate de snapshot; **provisória × definitiva pelo carimbo do sync** (definitiva = sync POSTERIOR à revelação da urna); coluna **IR** na tabela e no CSV (OFF26-15); **@admin_required** (artefato de transcrição/auditoria, não consulta de owner). A chave `revealed` do payload permanece por ser o contrato que o núcleo puro do OFF26-4 lê |
 | league | `/league`, `/team/<id>` | League Hub (L1): grid de 12 times com cap/picks/dynasty/record + detalhe por time (roster, picks, cap breakdown) |
 
 ### Models (models.py)
 
-21 SQLAlchemy models. Key ones: **User** (email, team_id, is_admin), Team, Player, SalaryHistory, Pick, AuctionLog, Trade, ESPNValue, AppConfig (key-value global state), SeasonStandings, DraftLotteryResult, PlayerHistory, **TradeProposal** (T1 — UUID + assets JSON + TTL 7d), **LotteryAudit** (M8 — seed + weights_json + pool_json + result_hash + is_canonical + previous_audit_id), **F8PlayerBackup** (rollback do F8a), **RookieEspnValue** (E2/DP3 — valor ESPN de entrante não-Player + `in_class` = membership da classe entrante, ver seção própria), **EspnValueStore** (E4-c — store canônico de valor ESPN por `(sleeper_id, season)`), **CutDeclaration** (OFF26-1 — declaração privada/editável de cortes por `(season, team_id)`, `cut_ids_json`; keepers = complemento), **CutWindowAudit** (OFF26-1 — snapshot canônico molde M8: `declarations_json` + `is_canonical` + `previous_audit_id` + `reason` + `result_hash`).
+23 SQLAlchemy models. Key ones: **User** (email, team_id, is_admin), Team, Player, SalaryHistory, Pick, AuctionLog, Trade, ESPNValue, AppConfig (key-value global state), SeasonStandings, DraftLotteryResult, PlayerHistory, **TradeProposal** (T1 — UUID + assets JSON + TTL 7d), **LotteryAudit** (M8 — seed + weights_json + pool_json + result_hash + is_canonical + previous_audit_id), **F8PlayerBackup** (rollback do F8a), **RookieEspnValue** (E2/DP3 — valor ESPN de entrante não-Player + `in_class` = membership da classe entrante, ver seção própria), **EspnValueStore** (E4-c — store canônico de valor ESPN por `(sleeper_id, season)`), **CutDeclaration** (OFF26-1 — declaração privada/editável de cortes por `(season, team_id)`, `cut_ids_json`; keepers = complemento), **CutWindowAudit** (OFF26-1 — snapshot canônico molde M8: `declarations_json` + `is_canonical` + `previous_audit_id` + `reason` + `result_hash`), **LateDropDeclaration** (OFF26-10 — o bilhete da urna: `player_id` nullable, onde `None` + `declared` = passo explícito e ausência de row = silêncio; 1 por `(season, team_id)`), **LateDropAudit** (OFF26-10 — snapshot da urna, mesmo molde M8 e **mesmo `compute_cut_snapshot_hash`**).
 
 ### Salary Cap Rules
 
@@ -241,6 +248,9 @@ fantasy_manager/
   app.py, wsgi.py, models.py       # Core app
   salary_engine.py                  # Pure salary logic (no DB)
   keeper_audit.py                   # OFF26-4: auditoria pré-leilão (núcleo puro + IO read-only)
+  late_drop_test.py                 # OFF26-10: urna do late drop + keeper sheet via sync (47)
+  janela_ensaio_test.py             # OFF26-1: runner do ensaio/reset da janela e da urna (22)
+  ensaio_janela_selada.py           # OFF26-1/10: status · banner · reset (janela E urna)
   keeper_audit_fixtures.py          # material de TESTE congelado (NÃO é a keeper sheet real)
   cap_regua_test.py                 # OFF26-16: régua única de folha (IR conta) + guarda anti-réplica
   import_csv.py                     # CSV → DB upsert (reads data/)
@@ -261,6 +271,8 @@ fantasy_manager/
   improvements.md                   # Backlog ATIVO (🔲/⚠️) + Status Rápido completo
   improvements_archive.md           # Histórico de itens ✅ (detalhe movido verbatim — O3)
   runbook_cowork_liga_fantasma.md   # OFF26-5: runbook operacional Cowork (montar/popular a liga fantasma na UI do Sleeper)
+  runbook_urna_late_drop.md         # OFF26-10: smoke da urna + roteiro de 20, 22 e 24/08 (execução manual)
+  runbook_ensaio_janela_selada.md   # OFF26-1: registro histórico do ensaio (fluxo principal mudou)
 ```
 
 **Esquema de dois arquivos do backlog (item O3, 11/06/2026 — Manager-only):**

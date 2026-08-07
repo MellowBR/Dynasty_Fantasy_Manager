@@ -958,6 +958,106 @@ def compute_cut_snapshot_hash(declarations: list) -> str:
     return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
+# ── OFF26-10: a URNA do late drop (22/08) ────────────────────────────────────
+#
+# Tabelas PRÓPRIAS, não reuso das do OFF26-1, por três motivos concretos:
+# (1) a cardinalidade é outra — UM drop ou passo, não uma lista de cortes;
+# (2) a janela precisa de FLAG DE ESTADO PRÓPRIA (⛔ `cuts_window_open` não pode ser o
+#     gate: ligá-la reabriria `POST /api/cuts/declaration`, e a porta única — exigência
+#     da spec — viraria promessa de UI);
+# (3) as tabelas da janela grande são a rede de regressão do mecanismo provado em
+#     produção (ensaio de 06/08) e ficam congeladas.
+# O que É reusado, literalmente, é o núcleo de integridade: `compute_cut_snapshot_hash`
+# (mesma função, sem cópia) e o molde M8 do audit (canônico + cadeia + reason + verify).
+
+class LateDropDeclaration(db.Model):
+    """OFF26-10 (U1/U2/U4) — o bilhete: UM jogador do próprio roster, OU passo.
+
+    `player_id = None` com `declared=True` é o **passo explícito** ("não vou dropar
+    ninguém"); a AUSÊNCIA de row é o silêncio. Os dois têm o mesmo efeito revelado
+    (U2 — "sem late drop"); a distinção existe só na trilha. 1 row por (season, team).
+
+    Sigilo (U1, mais estrito que o da janela grande): nem o conteúdo nem a EXISTÊNCIA
+    da declaração são visíveis a terceiros antes do lock — não há contagem agregada.
+    NÃO muta roster nem Sleeper: a execução do drop revelado é manual, no Sleeper."""
+    __tablename__ = "late_drop_declarations"
+    __table_args__ = (db.UniqueConstraint("season", "team_id",
+                                          name="uq_late_drop_season_team"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    season = db.Column(db.Integer, nullable=False)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    player_id = db.Column(db.Integer, db.ForeignKey("players.id"), nullable=True)
+    declared = db.Column(db.Boolean, default=True, nullable=False)
+    updated_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    team = db.relationship("Team", foreign_keys=[team_id])
+    player = db.relationship("Player", foreign_keys=[player_id])
+    editor = db.relationship("User", foreign_keys=[updated_by])
+
+    def is_pass(self) -> bool:
+        return self.player_id is None
+
+
+class LateDropAudit(db.Model):
+    """OFF26-10 (U5) — snapshot auditável da urna no lock (molde M8, igual ao da janela).
+
+    Congela a declaração dos 12 times na revelação simultânea. Times sem declaração
+    entram como passo (U2). Hash determinístico pela MESMA função da janela de cortes
+    (`compute_cut_snapshot_hash`) — cada entrada carrega `cut_ids` com 0 ou 1 elemento,
+    então o hash cobre exatamente **a lista de drops a executar**.
+
+    A revelação NÃO executa nada: produz a lista que os owners aplicam manualmente no
+    Sleeper (U7). Se um revelado não executar, a auditoria do OFF26-4 acusa."""
+    __tablename__ = "late_drop_audit"
+
+    id = db.Column(db.Integer, primary_key=True)
+    season = db.Column(db.Integer, nullable=False)
+    # [{team_id, team_name, cut_ids:[pid] | [], drop_id, drop_name, declared,
+    #   passed, invalidated, invalid_reason}, ...] — todos os times
+    declarations_json = db.Column(db.Text, nullable=False)
+    executed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    executed_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    result_hash = db.Column(db.String(64), nullable=False)
+    previous_audit_id = db.Column(db.Integer, db.ForeignKey("late_drop_audit.id"), nullable=True)
+    reason = db.Column(db.Text, nullable=True)
+    is_canonical = db.Column(db.Boolean, default=True, nullable=False)
+
+    executor = db.relationship("User", foreign_keys=[executed_by])
+    previous = db.relationship("LateDropAudit", remote_side=[id],
+                               foreign_keys=[previous_audit_id])
+
+    def to_dict(self):
+        import json as _json
+        return {
+            "id": self.id,
+            "season": self.season,
+            "declarations": _json.loads(self.declarations_json),
+            "executed_at": utc_iso(self.executed_at) or None,
+            "executed_by_name": self.executor.name if self.executor else None,
+            "result_hash": self.result_hash,
+            "previous_audit_id": self.previous_audit_id,
+            "reason": self.reason,
+            "is_canonical": self.is_canonical,
+        }
+
+
+def is_first_round_rookie(player_id: int, season: int) -> bool:
+    """OFF26-10 (U6) — o jogador foi draftado na 1ª RODADA do rookie draft desta season?
+
+    Insumo da flag de admin "bloquear rookie de 1ª rodada no late drop", que nasce
+    **OFF** — o regulamento é SILENCIOSO sobre proteger o rookie de 1ª contra drop
+    (conferido no texto de 12/08/2025), e o código **não arbitra regra em disputa**.
+    Fonte: `AuctionLog` (entry_type='rookie_draft', round_num=1) — a trilha que a porta
+    canônica de aquisição escreve."""
+    if not player_id:
+        return False
+    return AuctionLog.query.filter_by(
+        player_id=player_id, season=season,
+        entry_type="rookie_draft", round_num=1).first() is not None
+
+
 class TradeProposal(db.Model):
     """T1 — simulação de trade salva com UUID para compartilhar via link.
     Expira 7 dias após created_at. Assets armazenados como JSON arrays

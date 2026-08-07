@@ -26,7 +26,8 @@
       ('/league', 'Visão Geral'),
       ('/picks', 'Picks'),
       ('/salary_history', 'Histórico'),
-    ], ['/league', '/picks', '/salary_history', '/team/']) }}
+      ('/late_drop', '🗳️ Late Drop (Urna)'),
+    ], ['/league', '/picks', '/salary_history', '/team/', '/late_drop']) }}
     {{ nav_dropdown('Ferramentas ▾', [
       ('/salary', 'Calculadora', true),
       ('/cap_projector', 'Cap Projector'),
@@ -62,7 +63,10 @@
       ('/admin/users', 'Usuários'),
       ('/offseason', 'Offseason'),
       ('/auction', 'Auction'),
-    ], ['/admin', '/offseason', '/auction'], badge=g_review_count) }}
+      ('/cuts/keeper_sheet', '📋 Keeper Sheet'),
+      ('/admin/keeper_audit', '🔍 Auditoria de Keepers'),
+      ('/cuts', 'Cortes (legado)'),
+    ], ['/admin', '/offseason', '/auction', '/cuts'], badge=g_review_count) }}
     {% endif %}
   </ul>
 
@@ -109,6 +113,7 @@
     <a href="/salary" class="nav-mobile-item">Calculadora</a>
     <a href="/cap_projector" class="nav-mobile-item">Cap Projector</a>
     <a href="/trades" class="nav-mobile-item">Trades</a>
+    <a href="/late_drop" class="nav-mobile-item">🗳️ Late Drop (Urna)</a>
 
     {% if g_nav_teams %}
     <div class="nav-mobile-section-title">Times</div>
@@ -129,6 +134,9 @@
     <a href="/admin/users" class="nav-mobile-item">Usuários</a>
     <a href="/offseason" class="nav-mobile-item">Offseason</a>
     <a href="/auction" class="nav-mobile-item">Auction</a>
+    <a href="/cuts/keeper_sheet" class="nav-mobile-item">Keeper Sheet</a>
+    <a href="/admin/keeper_audit" class="nav-mobile-item">Auditoria de Keepers</a>
+    <a href="/cuts" class="nav-mobile-item">Cortes (legado)</a>
     {% endif %}
 
     <div class="nav-mobile-section-title">Conta</div>

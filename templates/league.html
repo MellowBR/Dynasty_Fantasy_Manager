@@ -44,6 +44,15 @@
         </span>
       </div>
       <div class="league-stat">
+        <span class="league-stat-label">Bid Máximo
+          {% if bid_provisional %}<span class="tag tag-prov" title="Provisório: a tabela ESPN definitiva ainda não entrou">PROV</span>{% endif %}
+        </span>
+        <span class="league-stat-value {% if c.bid_max <= 0 %}cap-negative{% endif %}"
+              title="Teto de lance: sobra depois de reservar $1 por vaga ainda vazia">
+          ${{ c.bid_max }}
+        </span>
+      </div>
+      <div class="league-stat">
         <span class="league-stat-label">Picks</span>
         <span class="league-stat-value">{{ c.pick_count }}</span>
       </div>

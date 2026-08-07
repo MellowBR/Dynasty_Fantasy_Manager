@@ -6,10 +6,10 @@ from flask_login import login_required, current_user
 from sqlalchemy import func
 
 from models import (
-    db, Team, Player, Pick, SeasonStandings,
+    db, Team, Player, Pick, SeasonStandings, ESPNImportLog,
     SALARY_CAP, get_current_season, sort_players_by_pos,
 )
-from salary_engine import roster_salary  # OFF26-16: fonte única da folha (inclui IR)
+from salary_engine import roster_salary, draft_budget  # OFF26-16 + Bid Máximo (L1-BID)
 from dynasty_values import get_dynasty_values, resolve_asset_value
 from routes.roster import _build_players_by_pos as build_players_by_pos, _ACQ_LABELS
 
@@ -28,6 +28,10 @@ def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=Non
         resolve_asset_value(dv_map, p.sleeper_player_id) or 0
         for p in players if not p.is_on_ir
     )
+    # L1-BID (07/08/2026): "Bid Máximo" = `usable_draft_budget` da FONTE ÚNICA
+    # `draft_budget`, com base salarial CORRENTE (equivale ao `projected:false` da porta
+    # e é a mesma régua da keeper sheet). Nenhuma aritmética de cap nova aqui.
+    bid_max = int(draft_budget(players)["usable_draft_budget"])
     return {
         "id": team.id,
         "name": team.name,
@@ -36,6 +40,7 @@ def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=Non
         "is_my_team": team.id == my_team_id,
         "cap_used": cap_used,
         "cap_space": SALARY_CAP - cap_used,
+        "bid_max": bid_max,
         "pick_count": pick_count,
         "dynasty_total": dynasty_total,
         "rank": standing.rank if standing else 999,
@@ -74,7 +79,14 @@ def league_hub():
     ]
     cards.sort(key=lambda c: (c["rank"], c["name"]))
 
-    return render_template("league.html", cards=cards, season=season)
+    # L1-BID: selo PROV no Bid Máximo enquanto a tabela ESPN DEFINITIVA não entrar
+    # (mesmo padrão do Cap Projector, mas em régua de LIGA: o gate é o import marcado
+    # `final` para a season-alvo, não o `is_final` de cada jogador). Sai em 18/08.
+    espn_final = ESPNImportLog.query.filter_by(
+        season=season + 1, status="final").first() is not None
+
+    return render_template("league.html", cards=cards, season=season,
+                           bid_provisional=not espn_final)
 
 
 @league_bp.route("/team/<int:team_id>")

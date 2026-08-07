@@ -150,6 +150,7 @@ def create_app():
     from routes.league import league_bp
     from routes.draft_import import draft_import_bp
     from routes.cuts import cuts_bp
+    from routes.late_drop import late_drop_bp   # OFF26-10: a urna
 
     app.register_blueprint(roster_bp)
     app.register_blueprint(salary_bp)
@@ -161,6 +162,7 @@ def create_app():
     app.register_blueprint(league_bp)
     app.register_blueprint(draft_import_bp)
     app.register_blueprint(cuts_bp)
+    app.register_blueprint(late_drop_bp)
 
     # Error pages
     @app.errorhandler(404)
