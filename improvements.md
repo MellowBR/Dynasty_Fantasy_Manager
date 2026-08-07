@@ -1,6 +1,7 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 08/08/2026-pt3 (sessão MAN-UX10-UX11-REG, **docs-only**: registro de dois itens de UI reportados pelo owner, **nenhum deles no caminho crítico de 24/08** e nenhum com diagnose iniciada. **[[UX10]] 🔲 Baixa** — fotos de jogadores desatualizadas (exemplo do owner: **David Montgomery** com foto do ano passado); cosmético, sem impacto em dados (identidade segue por `sleeper_id`), mas a F1 **não pode presumir a causa**: cache (navegador/CDN) × URL construída com componente desatualizado (temporada/time) × fonte keyed por algo além do `sleeper_id` levam a fixes **incompatíveis**. **[[UX11]] 🔲 Média** — o quadro de trades não mostra a franquia NFL do jogador; informação usada para avaliar a troca, sem prazo. **Os dois carregam a pergunta de réplica** que virou padrão nas últimas sessões: a construção da URL de foto existe em mais de um lugar (templates/JS/Python)? a exibição de time do jogador tem fonte comum ou cada tela deriva a sua? Se cada tela deriva, acrescentar mais uma **piora** o problema. Possível raiz comum registrada: a hipótese (b) do UX10 e a pergunta "o dado de time está atualizado?" do UX11. **Zero código; nenhum status existente alterado.**)
 > Atualizado em: 08/08/2026-pt2 (sessão MAN-OFF26-22: **a auditoria de keepers deixa de emitir veredito de gate sobre sheet PROVISÓRIA**. Decisão do owner — opção (b), **rodar e desqualificar**: a execução antecipada tem valor (a auditoria roda 3× ou mais entre 20 e 24/08 e achar divergência cedo é o ponto), mas **"ABERTURA LIBERADA" fica impossível** enquanto a sheet ainda vai mudar. Três estados: **definitiva** = idêntico ao de hoje · **provisória** = veredito próprio `nao_qualificada`, com o relatório completo, as divergências listadas e o motivo citando **os dois carimbos** (quando a urna revelou × qual é o último sync) · **indisponível** = bloqueio por falta de insumo **revivido**. Campo booleano `gate_qualified` é o que um consumidor deve ler. ⛔ **A mudança mora só na camada de leitura:** o carimbo viaja na chave `stage_meta` e `run_audit` a **REMOVE antes** de chamar o núcleo — núcleo puro, formato de sheet e fixtures **intactos**, **34/34 sem uma edição** (há teste que espiona a chamada e falha se o carimbo vazar para o núcleo). ⛔ **Nenhuma segunda definição de "definitiva":** a regra segue calculada num único lugar (`routes/cuts.py`) e este módulo apenas consome — teste falha se alguém recalcular. **Passo 0:** gate morto confirmado (`revealed` E `available` são **hardcoded True** na fonte); **premissa do prompt ajustada** — o ramo "sheet ausente" não tinha "comportamento atual" a preservar porque era **inalcançável**, foi revivido com condição que dispara; **causa estrutural do bug identificada** — os 34 testes exercem `audit()` direto e **nenhum** tocava `build_sheet`/`run_audit`, a camada de leitura estava **sem teste nenhum**; resíduo declarado: a frase obsoleta "janela de cortes" dentro do núcleo (restrição), com a causa real **prefixada** por `qualify`. **25 testes novos · 286 verdes.** Smoke local contra a liga fantasma real só por `GET` (24 designações, board intacto): página **200**, selo **PROVISÓRIA**, veredito de conferência antecipada, "Abertura liberada" **ausente** do HTML. [[OFF26-22]] **🔲 → ⚠️** — falta a conferência em produção (PROC1).)
 > Atualizado em: 08/08/2026 (sessão MAN-OFF26-11-F2: **o último item de código do caminho crítico de 24/08 está entregue** — o importador [[OFF26-3]] passa a ingerir **só arremates**, com a keeper sheet **CONGELADA** como lista de exclusão. Novo `keeper_exclusion.py` (núcleo puro + IO) é o **discriminador único**: pick cujo jogador consta na lista **para o mesmo time do pick** é keeper e não é ingerido. **A decisão dentro da margem delegada foi o CONGELAMENTO, e ela é de correção, não de robustez:** a sheet nasce do **roster vivo**, e depois do leilão cada owner adiciona os arremates **na liga real** — derivar a lista ao vivo no import faria o arremate readicionado virar "keeper" e ser **excluído da ingestão**, o **dano invertido** (o contrato ano 1 não nasce). Snapshot em `AppConfig` com hash + carimbos, por ato explícito de admin, recusado sobre sheet PROVISÓRIA ou com keeper sem `sleeper_player_id`. ⛔ **Premissa do prompt REFUTADA:** o **caso canônico não era ingerível pela UI** — `find_player_by_sleeper_id` filtra `is_dropped=False`, então o dropado cai em *unmatched* e a tela só oferecia **Pular/Criar novo** (que **duplicaria** o Player); a API já aceitava resolver para id existente e nada expunha isso. Corrigido com *"Reativar &lt;nome&gt; (ano 1)"*. Bloqueios: sheet ausente/provisória/não-congelada/de outra season **impedem o import**, cada uma com mensagem própria; **pendências sem resolução** (keeper de **outro** time · pick sem id · roster não mapeado) **bloqueiam a confirmação**. Alerta de budget passa a somar **só arremates** — fecha uma dupla contagem latente. **Modo linear intocado, provado:** preview do rookie 2025 real **idêntico campo a campo** ao do HEAD carregado do git. **Achado lateral virou item — [[OFF26-22]] 🔲 Média:** o gate `if not raw.get("revealed")` de `keeper_audit.build_sheet` virou **código morto** no U7, e com ele a auditoria passou a auditar sheet **PROVISÓRIA** como se fosse definitiva. Board da fantasma relido **só por `GET`** (24 designações, `is_keeper:false` 24/24, `draft_id` derivado) — ⛔ **draft em `pre_draft`: o pós-draft segue NÃO OBSERVADO** e não foi forçado. **36 testes novos · 261 verdes.** [[OFF26-11]] **🔲 → ⚠️** — **✅ só depois do leilão de 24/08**.)
 > Atualizado em: 07/08/2026-pt4 (sessão MAN-OFF26-10-SMOKE, **docs-only**: **o smoke da urna PASSOU em produção** (owner + co-admin Rafa, backup `/data/pre_smoke_urna.db` **630.784 B**) e o **trio fecha ✅**. **O que a produção provou e o teste não provava:** o **escape do banner** foi exercitado de fato (com `rollover_done` pendente, o agendamento só passou porque o banner estava ligado — o gate dos AJUSTES se pagou na primeira vez que rodou); o **depósito pelo celular com confirmação inline, sem pop-up nativo** — mesmo aparelho e mesma pessoa que o `confirm()` travara no ensaio de 06/08, ou seja, o **U-CONF provado resolvido**; e o **fechamento automático pelo horário por acidente produtivo** — a primeira agenda (6 min) **expirou e a urna encerrou sozinha**, dando ao U3 a prova que nenhum teste dá (o relógio virando em produção). Também conferidos: escolha única, passo contando no N/12, **sigilo cruzado com o Rafa** (só o agregado — confirmação em campo da arbitragem do U1-CONT), hierarquia recusando sem vazar, lock+revelação com a lista completa, **sheet PROVISÓRIA com o aviso de drops revelados não sincronizados** (o estado que grita), e o **reset** zerando bilhetes, snapshot e agenda. **Fechados:** [[OFF26-10]] ✅, [[OFF26-2]] ✅ (o ⚠️ era de FONTE e o U7 o resolveu), [[OFF26-15]] ✅ (coluna IR), **[[OFF26-1]] ✅** — o ⚠️ que restava era o smoke do código da aposentadoria, que está no ar e foi atravessado por este smoke; o mecanismo tem **prova tripla** (Etapa 1 · Etapa 2 · a urna, que reusa o mesmo motor num segundo consumidor). **Resíduo virado ITEM** (precedente MAN-OFF26-4-SLOTS): **[[OFF26-21]] 🔲 Baixa** — o bloco admin de `/cuts` só sobrevivia por ser o produtor de fallback da sheet, e o U7 tirou isso dele; virou motor sem consumidor e é a única porta da UI capaz de abrir a janela grande por engano durante a urna (as **rotas** legadas continuam necessárias — motor da urna + rede de regressão; o que se discute é a TELA). **Registrada a fotografia de prontidão da intertemporada:** o código está **completo** (17/08 rookie draft · 18/08 ESPN+rollover, gate da urna · 20/08 cortes+sync+sheet provisória · 20→22 urna · 22 revelação+execução manual+sync final+sheet definitiva · 22–24 Cowork+auditoria como gate · 24 leilão) — **o que resta é operação**, e os riscos que sobram são operacionais, não de software. Migração O3: OFF26-1/2/10/15 movidos ao archive. **Zero código.**)
@@ -199,6 +200,8 @@
 | M20 | Descomissionar write-side da flag single-user: sync escreve `is_my_team` via `MY_OWNER_ID`; record_acquisition/bulk_register propagam; colunas + to_dict + check_team.py + mapeamento standings (offseason.py:312) — fora do escopo M17 (só consumidores); **bloqueado: depende de M17, hoje ⚠️ (aguardando smoke prod)** — achado AUD1 Lente 3 | Baixa | 🔲 (bloqueado) |
 | DOC1 | CLAUDE.md "App Startup Sequence" desatualizada: `init_auth` listado antes de sync/backfill (código: depois, app.py:138) + sync/backfill são condicionais a `fresh_import` (app.py:61), não passos de todo boot — docs-only fix — achado AUD1 Lente 6 | Média (blast radius: doc carregada em toda sessão) | ✅ 12/06/2026 (seção reescrita contra o boot real, passo a passo com âncoras) |
 | O3 | Split do improvements.md: ativo (cabeçalho + Status Rápido completo + seções 🔲/⚠️) + `improvements_archive.md` (seções ✅, movidas verbatim); migração no fim de sessão quando item → ✅ — MAN-O3-REG | Média | ✅ 11/06/2026 |
+| UX10 | **Fotos de jogadores desatualizadas** — alguns jogadores exibem a foto da temporada anterior (exemplo do owner: **David Montgomery**). Cosmético, **sem impacto em dados** (identidade segue por `sleeper_id`). F1 precisa **distinguir as hipóteses antes de qualquer fix**: (a) URL do CDN correta e **cache** (navegador ou CDN) servindo imagem velha; (b) URL **construída** com componente desatualizado (temporada, time) em algum ponto do Manager; (c) fonte da imagem **keyed por algo além do `sleeper_id`**. F1 pergunta também: **a construção da URL de foto existe em mais de um lugar** (templates, JS, Python)? — MAN-UX10-UX11-REG | Baixa | 🔲 |
+| UX11 | **Quadro de trades não mostra o time atual do jogador** — no quadro de trade o jogador aparece sem a franquia NFL em que está. Informação útil para avaliar a troca; **sem prazo**, fora do caminho crítico de 24/08. F1 pergunta: de onde vem o dado de time hoje (sync? campo do `Player`?), **está atualizado**, e **a exibição de time do jogador existe em outras superfícies com fonte comum ou cada tela deriva a sua?** — MAN-UX10-UX11-REG | Média | 🔲 |
 
 ---
 
@@ -5178,3 +5181,68 @@ F1 de UX5 mapeia estado atual (frequência de uso de Notas, payload do handler, 
 
 ---
 
+### UX10 — Fotos de jogadores desatualizadas
+🔲 **Registrado 08/08/2026 (MAN-UX10-UX11-REG)** — Prioridade **Baixa** (cosmético, sem impacto em
+dados) — **registro apenas; nenhuma diagnose feita**
+
+**Sintoma reportado pelo owner (08/08/2026):** alguns jogadores exibem a **foto de temporada
+anterior**. Exemplo concreto dado pelo owner: **David Montgomery**.
+
+**Por que a prioridade é Baixa:** é cosmético. A **identidade** do jogador no Manager é resolvida
+por `sleeper_id` (precedente do incidente "Brown"), então uma foto velha não contamina salário,
+contrato, roster nem auditoria. O custo é de leitura: o owner reconhece jogador pela foto, e uma
+foto de outro time induz erro de percepção — não de dado.
+
+#### O que a F1 tem de responder ANTES de qualquer fix
+
+⛔ **Não presumir a causa.** As três hipóteses abaixo levam a correções **diferentes e
+incompatíveis**, e escolher errado produz um fix que não muda nada (ou que mascara o problema):
+
+- **(a) cache** — a URL do CDN está **correta**, e o que serve imagem velha é cache (do navegador
+  ou do próprio CDN). Fix seria de invalidação/cache-busting, **não** de construção de URL.
+- **(b) URL construída com componente desatualizado** — algum ponto do Manager monta a URL com
+  **temporada ou time** embutido, e esse componente ficou para trás. Fix seria na construção.
+- **(c) fonte keyed por algo além do `sleeper_id`** — a imagem é buscada por uma chave que não é a
+  identidade canônica. Fix seria de chave, e essa é a hipótese com maior chance de ter irmãos em
+  outras telas.
+
+**Pergunta de réplica (obrigatória, no molde das últimas sessões):** **a construção da URL de foto
+existe em mais de um lugar — templates, JS, Python?** Se existir, o fix precisa nascer na fonte e
+alcançar os outros sítios, ou vira a enésima réplica. A F1 responde antes de propor caminho.
+
+**Método:** o exemplo do owner (David Montgomery) é o **caso-âncora** — a F1 deve começar por ele,
+comparando o que a tela pede com o que o CDN devolve, e só então generalizar.
+
+**Cross-refs:** [[UX1]] e [[UX3]] (✅ — foi por ali que as fotos entraram nas telas de roster e nas
+telas densas; a construção de URL provavelmente nasceu numa dessas, ver `improvements_archive.md`),
+[[UX11]] (mesmo registro, mesma família de "dado de jogador exibido sem fonte declarada").
+
+---
+
+### UX11 — Quadro de trades não mostra o time atual do jogador
+🔲 **Registrado 08/08/2026 (MAN-UX10-UX11-REG)** — Prioridade **Média** — **registro apenas;
+nenhuma diagnose feita**
+
+**Sintoma reportado pelo owner (08/08/2026):** no **quadro de trade**, o jogador aparece **sem
+indicação da franquia NFL** em que está.
+
+**Por que Média e por que sem prazo:** o time do jogador é informação **usada para avaliar a
+troca** (bye week, situação do backfield, contexto ofensivo) e hoje o owner precisa buscá-la fora
+da tela. Não é bug de dado nem bloqueia nada — **não está no caminho crítico de 24/08**.
+
+#### O que a F1 tem de responder
+
+1. **De onde vem o dado de time hoje?** É campo do `Player` (escrito pelo sync do Sleeper) ou é
+   derivado na hora, em cada tela? O Sleeper é autoridade sobre nome/posição/time NFL — mas isso é
+   o contrato declarado, e a F1 confere se ele vale aqui.
+2. **O dado está atualizado?** Um jogador que trocou de franquia na offseason precisa aparecer com
+   o time novo. Se estiver stale, o item deixa de ser só de exibição — e aí encosta no [[UX10]]
+   (hipótese (b): componente de time desatualizado também explicaria foto velha).
+3. **Pergunta de réplica (obrigatória):** **a exibição de time do jogador existe em outras
+   superfícies com fonte comum, ou cada tela deriva a sua?** Se cada tela deriva, acrescentar mais
+   uma no quadro de trades **piora** o problema; o fix nasce na fonte única.
+
+**Cross-refs:** [[UX10]] (mesmo registro; a hipótese (b) de lá e a pergunta 2 daqui podem ter a
+mesma raiz), [[T1]]/[[T2]]/[[T3]] (o simulador e o preview de trades, onde o quadro vive).
+
+---
