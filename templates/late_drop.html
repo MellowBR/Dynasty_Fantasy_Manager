@@ -81,6 +81,11 @@
   <p class="text-dim" style="font-size:.85rem;margin:.4rem 0 0">
     Horário do seu dispositivo; guardado em UTC. Abrir só depois do prazo dos cortes no
     Sleeper <strong>e do sync</strong> — sem sync, a lista de elegíveis mostra roster velho.
+    <br>
+    ⛔ <strong>Ordem travada em código:</strong> com o <strong>rollover pendente</strong>, o
+    agendamento é recusado (a season viraria no meio e os bilhetes ficariam órfãos); e com a
+    urna agendada/aberta, o <strong>rollover</strong> é recusado. Para ensaiar antes do
+    rollover, ligue o banner de ensaio (<code>--banner on</code>).
   </p>
 
   <hr style="margin:1rem 0;border-color:var(--border)">
@@ -209,6 +214,9 @@ function loadState() {
     }[d.reason] || d.state;
     banner.className = 'alert ' + (d.state === 'open' ? 'alert-ok' : 'alert-warn');
     let txt = '<strong>' + rotulo + '</strong>';
+    // U1-CONT: agregado — quantos bilhetes existem, sem dizer de quem nem o quê.
+    // Drop e passo contam igual, então nem inclinação vaza.
+    txt += ' — <strong>' + d.declared_count + '/' + d.total_teams + '</strong> depositaram';
     if (d.opens_at) txt += ' · abre ' + formatLocalDT(d.opens_at);
     if (d.closes_at) txt += ' · fecha ' + formatLocalDT(d.closes_at);
     if (d.i_declared) txt += ' · <strong>você já depositou ✅</strong> (pode trocar até fechar)';

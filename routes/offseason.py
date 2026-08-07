@@ -661,13 +661,23 @@ def confirm_espn():
 @offseason_bp.route("/api/offseason/rollover", methods=["POST"])
 @admin_required
 def do_rollover():
-    """Execute season rollover (gated by steps 2+3)."""
+    """Execute season rollover (gated by steps 2+3).
+
+    MAN-OFF26-10-AJUSTES (07/08/2026): gate NOVO — a urna do late drop ([[OFF26-10]])
+    trava o rollover enquanto estiver viva e não revelada. Bilhetes e snapshot são
+    escopados por `current_season`; virar a season no meio deixaria os bilhetes órfãos e a
+    revelação sairia VAZIA, sem erro nenhum. Era instrução de runbook — virou código."""
     steps = _get_step_statuses()
     step4 = next(s for s in steps if s["num"] == 4)
     if step4["status"] == "locked":
         return jsonify({"error": "Rollover bloqueado — complete etapas anteriores"}), 400
     if step4["done"]:
         return jsonify({"error": "Rollover ja foi executado"}), 400
+
+    from routes.late_drop import urn_blocks_rollover
+    motivo = urn_blocks_rollover(get_current_season())
+    if motivo:
+        return jsonify({"error": motivo, "blocked_by": "urna_late_drop"}), 409
 
     from salary_engine import apply_season_rollover
     season = get_current_season()

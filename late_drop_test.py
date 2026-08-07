@@ -7,7 +7,10 @@ Cobre o que o ciclo de 22/08 não pode errar:
   * ⛔ PORTA ÚNICA — a urna NÃO usa `cuts_window_open`, e a rota de declaração legada
     continua recusando enquanto a urna está aberta (a exigência que motivou a flag
     própria; se alguém "simplificar" reusando a flag, este teste cai);
-  * sigilo mais estrito (U1): a rota de estado não expõe contagem nem existência alheia;
+  * sigilo (U1) × contagem agregada (U1-CONT): o selado é **quem** e **o quê**; o "N/12
+    depositaram" é público e conta drop e passo indistintamente — nem inclinação vaza;
+  * bloqueio mútuo urna × rollover, nos dois sentidos (bilhete é escopado por season:
+    virar a season no meio deixaria a revelação vazia, sem erro nenhum);
   * hierarquia owner > admin: suprimento sobre declarante pessoal é recusado SEM vazar;
   * flag do rookie de 1ª rodada: OFF permite, ON recusa com mensagem clara;
   * lock/hash/reveal no molde M8 + U6 (jogador que saiu do roster vira passo com aviso);
@@ -87,6 +90,10 @@ class _Base(unittest.TestCase):
             set_config("late_drop_opens_at", _iso(now - timedelta(hours=1)))
             set_config("late_drop_closes_at", _iso(now + timedelta(hours=1)))
             set_config("late_drop_block_r1_rookie", "false")
+            # condição normal de operação (calendário: rollover 18/08 → urna 20/08).
+            # O bloqueio mútuo tem classe própria, que mexe nesta flag de propósito.
+            set_config("rollover_done", "true")
+            set_config("cuts_ensaio_banner", "false")
             db.session.commit()
 
     def _as(self, user_id):
@@ -189,13 +196,14 @@ class TestPortaUnicaESigilo(_Base):
         self.assertEqual(r.status_code, 409)
         self.assertIn("não está aberta", r.get_json()["error"])
 
-    def test_estado_nao_expoe_contagem_nem_declaracao_alheia(self):
+    def test_estado_nao_expoe_declaracao_alheia(self):
+        """A contagem agregada existe (U1-CONT); QUEM e O QUÊ, não."""
         self._as(self.owner_a_id).post("/api/late_drop/declaration",
                                         json={"player_id": self.kicker_id})
         body = self._as(self.owner_b_id).get("/api/late_drop/state").get_data(as_text=True)
         self.assertNotIn("Kicker", body)
-        self.assertNotIn("declared_count", body)
-        self.assertNotIn(str(self.kicker_id) + ",", body)
+        self.assertNotIn("player_id", body)      # nenhum id de jogador no agregado
+        self.assertNotIn("Time A", body)         # nem o time de quem declarou
         self.assertIn('"i_declared":false', body.replace(" ", ""))
 
     def test_declaracao_alheia_nao_vaza_pela_rota_do_owner(self):
@@ -211,6 +219,233 @@ class TestPortaUnicaESigilo(_Base):
         d = self._as(self.owner_b_id).get("/api/late_drop/audit").get_json()
         self.assertFalse(d["revealed"])
         self.assertNotIn("audit", d)
+
+
+class TestContagemAgregada(_Base):
+    """U1-CONT (arbitragem do owner, 07/08/2026): o selado é QUEM e O QUÊ. A contagem
+    agregada não expõe nenhum dos dois — drop e passo contam igual, então nem inclinação
+    vaza — e tem função operacional (andamento; e quantos faltam cutucar antes do lock)."""
+
+    def _count(self, uid):
+        return self._as(uid).get("/api/late_drop/state").get_json()
+
+    def test_comeca_em_zero(self):
+        d = self._count(self.owner_b_id)
+        self.assertEqual(d["declared_count"], 0)
+        self.assertEqual(d["total_teams"], 2)
+
+    def test_o_passo_conta_igual_ao_drop(self):
+        """Se só o drop contasse, o N viraria dedo-duro de inclinação."""
+        self._as(self.owner_a_id).post("/api/late_drop/declaration", json={"pass": True})
+        self.assertEqual(self._count(self.owner_b_id)["declared_count"], 1)
+        self._as(self.owner_b_id).post("/api/late_drop/declaration",
+                                        json={"player_id": self.do_b_id})
+        self.assertEqual(self._count(self.owner_a_id)["declared_count"], 2)
+
+    def test_substituicao_nao_infla_a_contagem(self):
+        c = self._as(self.owner_a_id)
+        c.post("/api/late_drop/declaration", json={"player_id": self.kicker_id})
+        c.post("/api/late_drop/declaration", json={"player_id": self.estrela_id})
+        c.post("/api/late_drop/declaration", json={"pass": True})
+        self.assertEqual(self._count(self.owner_b_id)["declared_count"], 1)
+
+    def test_suprimento_do_admin_tambem_conta(self):
+        self._as(self.admin_id).post("/api/late_drop/admin/declare",
+                                      json={"team_id": self.t_b_id, "pass": True})
+        self.assertEqual(self._count(self.owner_a_id)["declared_count"], 1)
+
+    def test_a_contagem_nao_individualiza_ninguem(self):
+        """⛔ O agregado devolve NÚMEROS, não times: nenhuma chave permite reconstruir
+        quem compõe o N, nem separar drop de passo."""
+        self._as(self.owner_a_id).post("/api/late_drop/declaration",
+                                        json={"player_id": self.kicker_id})
+        d = self._count(self.owner_b_id)
+        proibidas = ("declared_teams", "teams_declared", "declarations", "declarantes",
+                     "num_drops", "num_passes", "drops", "passes", "pending_teams")
+        for k in proibidas:
+            self.assertNotIn(k, d, f"chave {k} individualizaria/separaria o agregado")
+        self.assertEqual(
+            set(d) - {"season", "state", "reason", "opens_at", "closes_at",
+                      "block_r1_rookie", "is_admin", "my_team_id", "my_team_name",
+                      "declared_count", "total_teams", "i_declared"},
+            set(), "chave nova no /state — conferir se não vaza")
+
+    def test_nem_o_admin_ve_quem_declarou(self):
+        self._as(self.owner_a_id).post("/api/late_drop/declaration",
+                                        json={"player_id": self.kicker_id})
+        body = self._as(self.admin_id).get("/api/late_drop/state").get_data(as_text=True)
+        self.assertIn('"declared_count":1', body.replace(" ", ""))
+        self.assertNotIn("Time A", body)
+        self.assertNotIn("Kicker", body)
+
+
+class TestBloqueioMutuoComRollover(_Base):
+    """MAN-OFF26-10-AJUSTES: a ordem rollover → urna deixou de ser instrução de runbook.
+
+    Motivo: bilhetes e snapshot são escopados por `current_season`. Virar a season no meio
+    deixa os bilhetes órfãos e **a revelação sai vazia, sem erro nenhum**."""
+
+    def test_urna_agendada_bloqueia_o_rollover(self):
+        from routes.late_drop import urn_blocks_rollover
+        with self.app.app_context():
+            motivo = urn_blocks_rollover(self.season)
+        self.assertIsNotNone(motivo)
+        self.assertIn("órfãos", motivo)
+        self.assertIn("revelação", motivo)
+
+    def test_urna_com_bilhete_mas_sem_agenda_tambem_bloqueia(self):
+        from routes.late_drop import urn_blocks_rollover
+        self._as(self.owner_a_id).post("/api/late_drop/declaration", json={"pass": True})
+        self._set("late_drop_opens_at", "")
+        self._set("late_drop_closes_at", "")
+        with self.app.app_context():
+            self.assertIsNotNone(urn_blocks_rollover(self.season))
+
+    def test_sem_urna_nao_bloqueia(self):
+        from routes.late_drop import urn_blocks_rollover
+        self._set("late_drop_opens_at", "")
+        self._set("late_drop_closes_at", "")
+        with self.app.app_context():
+            self.assertIsNone(urn_blocks_rollover(self.season))
+
+    def test_apos_a_revelacao_o_rollover_libera(self):
+        """Snapshot congelado: virar a season já não perde nada."""
+        from routes.late_drop import urn_blocks_rollover
+        self._as(self.owner_a_id).post("/api/late_drop/declaration",
+                                        json={"player_id": self.kicker_id})
+        self._as(self.admin_id).post("/api/late_drop/admin/lock")
+        with self.app.app_context():
+            self.assertIsNone(urn_blocks_rollover(self.season))
+
+    # ── sentido inverso ──
+
+    def test_rollover_pendente_bloqueia_o_agendamento(self):
+        self._set("rollover_done", "false")
+        self._set("cuts_ensaio_banner", "false")
+        now = datetime.utcnow()
+        r = self._as(self.admin_id).post("/api/late_drop/admin/schedule", json={
+            "opens_at": _iso(now), "closes_at": _iso(now + timedelta(hours=2))})
+        self.assertEqual(r.status_code, 409)
+        d = r.get_json()
+        self.assertEqual(d["blocked_by"], "rollover_pendente")
+        self.assertIn("passo 4", d["error"])
+
+    def test_com_rollover_feito_o_agendamento_passa(self):
+        self._set("rollover_done", "true")
+        now = datetime.utcnow()
+        r = self._as(self.admin_id).post("/api/late_drop/admin/schedule", json={
+            "opens_at": _iso(now - timedelta(minutes=1)),
+            "closes_at": _iso(now + timedelta(hours=2))})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json()["state"], "open")
+
+    def test_banner_de_ensaio_libera_o_smoke_antes_do_rollover(self):
+        """Escape declarado: sem ele, o gate impediria o próprio smoke da urna, que roda
+        antes de 20/08 e pode cair antes do rollover de 18/08."""
+        self._set("rollover_done", "false")
+        self._set("cuts_ensaio_banner", "true")
+        now = datetime.utcnow()
+        r = self._as(self.admin_id).post("/api/late_drop/admin/schedule", json={
+            "opens_at": _iso(now), "closes_at": _iso(now + timedelta(hours=2))})
+        self.assertEqual(r.status_code, 200)
+
+    def test_limpar_a_agenda_e_sempre_permitido(self):
+        """É o caminho de destravar: se o gate barrasse a limpeza, urna e rollover
+        ficariam em impasse."""
+        self._set("rollover_done", "false")
+        self._set("cuts_ensaio_banner", "false")
+        r = self._as(self.admin_id).post("/api/late_drop/admin/schedule",
+                                          json={"opens_at": "", "closes_at": ""})
+        self.assertEqual(r.status_code, 200)
+        from routes.late_drop import urn_blocks_rollover
+        with self.app.app_context():
+            self.assertIsNone(urn_blocks_rollover(self.season))
+
+
+class TestRotaDoRolloverRecusa(unittest.TestCase):
+    """O gate no lugar onde o botão vive (`POST /api/offseason/rollover`)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from flask import Flask
+        from flask_login import LoginManager
+        from models import db, User
+        from routes.offseason import offseason_bp
+        from routes.late_drop import late_drop_bp
+
+        cls.app = Flask(__name__)
+        cls.app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        cls.app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        cls.app.config["SECRET_KEY"] = "teste"
+        db.init_app(cls.app)
+        lm = LoginManager()
+        lm.init_app(cls.app)
+
+        @lm.user_loader
+        def load_user(user_id):
+            return db.session.get(User, int(user_id))
+
+        cls.app.register_blueprint(offseason_bp)
+        cls.app.register_blueprint(late_drop_bp)
+
+    def setUp(self):
+        from models import (db, Team, Player, User, SeasonStandings, DraftLotteryResult,
+                            set_config, get_current_season)
+        with self.app.app_context():
+            db.drop_all()
+            db.create_all()
+            t = Team(name="Time Unico")
+            db.session.add(t)
+            db.session.commit()
+            admin = User(email="admin@x.com", team_id=None, is_admin=True)
+            p = Player(name="Jogador X", position="WR", salary=10.0, team_id=t.id,
+                       contract_year=1)
+            db.session.add_all([admin, p])
+            db.session.commit()
+            season = get_current_season()
+            # destrava o passo 4 (exige lottery travado + ESPN atualizado)
+            db.session.add(SeasonStandings(season=season, team_id=t.id,
+                                           team_name=t.name, rank=1))
+            db.session.add(DraftLotteryResult(season=season + 1, pick_number=1,
+                                              team_id=t.id, team_name=t.name, locked=True))
+            set_config("espn_values_updated", "true")
+            set_config("rollover_done", "false")
+            db.session.commit()
+            self.season, self.admin_id, self.t_id = season, admin.id, t.id
+
+    def _admin(self):
+        c = self.app.test_client()
+        with c.session_transaction() as s:
+            s["_user_id"] = str(self.admin_id)
+            s["_fresh"] = True
+        return c
+
+    def _agendar(self):
+        from models import db, set_config
+        with self.app.app_context():
+            now = datetime.utcnow()
+            set_config("late_drop_opens_at", _iso(now - timedelta(minutes=5)))
+            set_config("late_drop_closes_at", _iso(now + timedelta(hours=2)))
+            db.session.commit()
+
+    def test_rollover_recusado_com_a_urna_aberta(self):
+        self._agendar()
+        r = self._admin().post("/api/offseason/rollover")
+        self.assertEqual(r.status_code, 409)
+        d = r.get_json()
+        self.assertEqual(d["blocked_by"], "urna_late_drop")
+        self.assertIn("lock + revelação", d["error"])
+
+    def test_rollover_passa_sem_urna(self):
+        r = self._admin().post("/api/offseason/rollover")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.get_json()["success"])
+
+    def test_rollover_passa_apos_a_revelacao(self):
+        self._agendar()
+        self.assertEqual(self._admin().post("/api/late_drop/admin/lock").status_code, 200)
+        r = self._admin().post("/api/offseason/rollover")
+        self.assertEqual(r.status_code, 200)
 
 
 class TestHierarquia(_Base):

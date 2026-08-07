@@ -92,6 +92,57 @@ def _block_r1() -> bool:
     return get_config(BLOCK_R1_KEY, "false") == "true"
 
 
+# ── Bloqueio mútuo urna × rollover (MAN-OFF26-10-AJUSTES, 07/08/2026) ─────────
+#
+# Os bilhetes e o snapshot são escopados por `current_season`. Virar a season no meio da
+# urna deixa os bilhetes ÓRFÃOS na season antiga e a revelação sai vazia — silenciosamente.
+# Isso estava só no runbook; runbook é promessa, código é garantia (decisão do owner).
+# A ordem do calendário é **rollover (18/08) → urna (20/08)**, e o bloqueio vale nos dois
+# sentidos.
+
+def urn_blocks_rollover(season: int) -> str | None:
+    """Motivo pelo qual a urna impede o rollover agora — ou None se não impede.
+
+    Bloqueia enquanto a urna estiver **viva e não revelada**: agendada (mesmo que ainda
+    não tenha aberto) ou já com bilhetes depositados. Depois da revelação, o snapshot está
+    congelado e o rollover é seguro."""
+    if _urn_locked(season):
+        return None
+    opens, closes = _schedule()
+    tem_bilhete = LateDropDeclaration.query.filter_by(season=season).count() > 0
+    if not (opens or closes or tem_bilhete):
+        return None
+    estado = _urn_state(season)["state"]
+    como = ("A urna está ABERTA" if estado == "open"
+            else "A urna está agendada e ainda não foi revelada")
+    return (f"{como} na season {season}. O rollover vira a season e deixaria os bilhetes "
+            "órfãos — a revelação sairia VAZIA. Faça o lock + revelação da urna primeiro "
+            "(ou limpe a agenda em /late_drop, se a urna ainda não foi usada) e rode o "
+            "rollover depois.")
+
+
+def rollover_blocks_urn() -> str | None:
+    """Motivo pelo qual o rollover pendente impede abrir/agendar a urna — ou None.
+
+    `rollover_done` é flag de AppConfig do ciclo de offseason corrente, então "rollover
+    pendente" **é** estado detectável — o gap que o prompt admitia não existe.
+
+    ⚠️ ESCAPE DECLARADO: com o **banner de ensaio ligado** (`cuts_ensaio_banner`, que o
+    `ensaio_janela_selada.py --banner on` acende e o `--reset` apaga), o bloqueio é
+    liberado. Sem isso, o gate impediria o próprio SMOKE da urna, que precisa rodar antes
+    de 20/08 e pode cair antes do rollover de 18/08. O escape é explícito do operador,
+    visível na tela para todos e some no reset."""
+    if get_config("rollover_done", "false") == "true":
+        return None
+    if get_config("cuts_ensaio_banner", "false") == "true":
+        return None      # ensaio declarado — o operador sabe que é teste
+    return ("O Season Rollover ainda não foi executado neste ciclo. A ordem do calendário é "
+            "**rollover → urna**: abrir a urna antes deixaria os bilhetes numa season que "
+            "vai virar, e a revelação sairia vazia. Rode o passo 4 do /offseason primeiro. "
+            "(Para ENSAIAR a urna antes do rollover, ligue o banner de ensaio: "
+            "`python ensaio_janela_selada.py --banner on`.)")
+
+
 # ── Elegibilidade (U6) ────────────────────────────────────────────────────────
 
 def _eligible(team_id: int, season: int) -> list:
@@ -166,6 +217,16 @@ def late_drop_page():
 @late_drop_bp.route("/api/late_drop/state")
 @login_required
 def state():
+    """Estado + CONTAGEM AGREGADA (U1-CONT, arbitragem do owner em 07/08/2026).
+
+    O que é selado é **quem** e **o quê**. A contagem agregada não expõe nenhum dos dois:
+    drops e passos contam **indistintamente**, então nem inclinação vaza (um time que
+    aparece no N pode estar passando). Função operacional: andamento visível para todos e,
+    para o admin, quantos faltam cutucar perto do lock.
+
+    ⛔ Esta é a ÚNICA superfície de agregado, e ela devolve **números, não times**. Nenhuma
+    rota da urna individualiza declarante antes do lock — nem por lista, nem por
+    `team_id`, nem separando drop de passo."""
     season = get_current_season()
     st = _urn_state(season)
     opens, closes = _schedule()
@@ -183,7 +244,10 @@ def state():
         "is_admin": current_user.is_admin,
         "my_team_id": current_user.team_id,
         "my_team_name": current_user.team_rel.name if current_user.team_rel else None,
-        # SÓ sobre o próprio time — não existe agregado nesta urna (U1)
+        # agregado: quantos bilhetes existem (drop OU passo — sem distinção)
+        "declared_count": LateDropDeclaration.query.filter_by(season=season).count(),
+        "total_teams": Team.query.count(),
+        # e o próprio time (só o dono lê o próprio)
         "i_declared": bool(mine),
     })
 
@@ -249,6 +313,13 @@ def admin_schedule():
         return jsonify({"error": "Horário de fechamento inválido."}), 400
     if opens and closes and closes <= opens:
         return jsonify({"error": "O fechamento tem de ser depois da abertura."}), 400
+
+    # Bloqueio mútuo: rollover pendente impede ABRIR/AGENDAR a urna. LIMPAR a agenda
+    # (opens/closes vazios) é sempre permitido — é justamente o caminho de destravar.
+    if opens or closes:
+        motivo = rollover_blocks_urn()
+        if motivo:
+            return jsonify({"error": motivo, "blocked_by": "rollover_pendente"}), 409
     set_config(OPENS_KEY, utc_iso(opens) if opens else "")
     set_config(CLOSES_KEY, utc_iso(closes) if closes else "")
     st = _urn_state(season)

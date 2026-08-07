@@ -5,8 +5,9 @@
 > Este runbook tem duas partes: **(A) o smoke em produção**, que o owner roda antes de 20/08,
 > e **(B) o roteiro dos dias 20, 22 e 24**, incluindo a **janela de execução manual**.
 >
-> Dry-run do Code (07/08, cópia do seed, app real): **38/38 checks PASS** — ciclo completo,
-> incluindo o reset. Suíte permanente: `late_drop_test.py` (**47 testes**).
+> Dry-run do Code (07/08, cópia do seed, app real): **42/42 checks PASS** — ciclo completo,
+> incluindo o bloqueio mútuo com o rollover e o reset. Suíte permanente: `late_drop_test.py`
+> (**64 testes**).
 
 ---
 
@@ -25,11 +26,20 @@
 Abrir a urna **não** reabre a porta de declaração antiga — e há teste que falha se alguém
 "simplificar" reusando `cuts_window_open`.
 
-⚠️ **Não rodar o Season Rollover com a urna aberta.** Bilhetes e snapshot são escopados por
-`current_season` (mesma propriedade da janela de cortes). Se a season virar entre o depósito e o
-lock, os bilhetes ficam órfãos na season antiga e a revelação sai vazia. **Ordem segura:**
-rollover **antes** de abrir a urna, ou **depois** do leilão — nunca no meio de 20→22/08.
-(Conferir a season corrente no rodapé do `/offseason` ou no `--status` do runner.)
+🔒 **A ordem rollover → urna é BLOQUEIO DE CÓDIGO, não instrução** (MAN-OFF26-10-AJUSTES,
+07/08/2026 — antes era só este aviso; o owner mandou travar o botão):
+
+- **Rollover recusado (409)** enquanto a urna estiver **agendada/aberta e não revelada** na season
+  corrente. Motivo: bilhetes e snapshot são escopados por `current_season`; virar a season no meio
+  deixa os bilhetes **órfãos** e a revelação sai **vazia, sem erro nenhum**. A mensagem na tela do
+  `/offseason` diz o que fazer: revelar a urna primeiro, ou limpar a agenda em `/late_drop`.
+- **Agendamento da urna recusado (409)** enquanto o **rollover estiver pendente**
+  (`rollover_done != true`) — a ordem do calendário é **rollover 18/08 → urna 20/08**.
+- **Escape para ENSAIAR antes do rollover:** com o **banner de ensaio ligado**
+  (`python ensaio_janela_selada.py --banner on`) o segundo bloqueio é liberado. Sem isso, o gate
+  impediria o próprio smoke desta página. O banner é visível para todos na tela e o `--reset` o
+  apaga — o escape é explícito, não silencioso.
+- **Depois da revelação**, o snapshot está congelado e o rollover volta a ser liberado.
 
 ---
 
@@ -60,7 +70,8 @@ Conferir: backup com tamanho plausível (600 KB+); status mostrando a linha
 | 4 | **Escolha única** | Marcar um jogador e depois outro → **o primeiro desmarca sozinho**. Não existe estado com dois marcados |
 | 5 | **Confirmação inline no celular** | Tocar em **Depositar meu bilhete** → o botão vira **"✅ Confirmar: \<nome\>?"** → tocar de novo deposita. **Nenhum pop-up nativo** (foi o que travou o Rafa em 06/08) |
 | 6 | Passo explícito | Segundo owner marca **"✋ Não vou dropar ninguém"** → confirma → "Bilhete depositado: sem late drop" |
-| 7 | **Sigilo total** | O outro owner, logado na conta dele: **não vê nada** — nem o jogador, nem "N/12", nem se alguém declarou. Só o próprio bilhete |
+| 7 | **Sigilo do conteúdo** | O outro owner, logado na conta dele: **não vê o jogador** nem de quem é o bilhete. Só o próprio |
+| 7b | **Contagem agregada** | O banner mostra **"N/12 depositaram"** para todos, e o N **sobe igual** com drop e com passo (é o que impede a contagem de virar dedo-duro de inclinação) |
 | 8 | Substituição | Trocar a marcação e depositar de novo → recarregar → **vale a última** |
 | 9 | Hierarquia owner > admin | Admin → **Suprir por time** no time de quem já declarou → recusa *"já declarou pessoalmente"* **sem mostrar o conteúdo**; num time silencioso, funciona |
 | 10 | Flag do rookie | Ligar **"Bloquear rookie de 1ª rodada"** → o rookie de 1ª aparece **PROTEGIDO** e o servidor recusa com mensagem clara → **desligar de novo** (o default da liga é OFF) |
@@ -73,6 +84,8 @@ Conferir: backup com tamanho plausível (600 KB+); status mostrando a linha
 | 17 | CSV | **⬇️ Baixar CSV** → colunas `IR` e `Bid Maximo (time)`; keepers em IR marcados |
 | 18 | Hub | `/league` → cada card com **Bid Máximo** e selo **PROV** (sai quando a ESPN definitiva entrar, 18/08) |
 | 19 | Porta única | `/cuts` continua **sem** roster/checkbox/botão de declarar |
+| 20 | **Bloqueio urna → rollover** | Com a urna agendada, `/offseason` → **Season Rollover** → recusa **explicando o que está bloqueando e o que fazer** (revelar ou limpar a agenda). Depois da revelação, libera |
+| 21 | **Bloqueio rollover → urna** | Com o rollover pendente **e o banner de ensaio desligado**, gravar horários é recusado citando o passo 4 do `/offseason`. Com o banner ligado, passa (é o escape do ensaio) |
 
 ### A2 — Reset verificado (Render Shell)
 
@@ -110,6 +123,10 @@ Desligar o banner (`--banner off`, se o reset não o fez) e avisar no grupo:
 ⚠️ **Só abrir a urna depois do sync.** Sem ele, a lista de elegíveis mostra roster velho —
 um jogador já cortado no Sleeper apareceria como dropável.
 
+🔒 **E depois do rollover:** com `rollover_done` pendente, o agendamento é recusado (a season
+viraria no meio da urna). Se o rollover ainda não rodou em 20/08, rode o passo 4 do `/offseason`
+**antes** — e só então agende a urna.
+
 ### 20→22/08 — urna aberta
 
 Cada owner deposita **um** bilhete: um jogador **ou** "não vou dropar ninguém". Pode trocar
@@ -128,6 +145,9 @@ até fechar. Quem não depositar fica sem late drop. **Ninguém vê nada** até 
    sync não rodou** — não transcreva nada antes de resolver.
 6. **Auditoria** `/admin/keeper_audit` → zerar as divergências bloqueantes.
 7. Cowork transcreve a sheet **definitiva** no board (times que faltavam).
+
+> Com a urna revelada, o **rollover volta a ser liberado** (o snapshot está congelado; virar a
+> season já não perde nada).
 
 ### 24/08 — leilão
 

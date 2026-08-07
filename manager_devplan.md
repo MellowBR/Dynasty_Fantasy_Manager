@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 07/08/2026-pt2 (MAN-OFF26-10: **F2 da URNA entregue** — tabelas próprias, flag de estado própria (⛔ `cuts_window_open` não é o gate, com teste que falha se reusarem), escolha única, horário do admin, lock/hash/reveal reusando `compute_cut_snapshot_hash`, flag de rookie de 1ª **OFF**, confirmação **inline** em todo o caminho, hierarquia herdada, sigilo sem contagem agregada. **Keeper sheet passou a nascer do SYNC** (crítico para 20/08): keepers = roster vivo, provisória × definitiva pelo carimbo do sync, coluna **IR** ([[OFF26-15]] fecha), sheet **@admin_required**. Acabamentos: urna no menu, **"Budget usável" → "Bid Máximo"**, Bid Máximo nos cards do Hub com selo **PROV**. Bug corrigido: `_table_exists` pelo engine desfazia a transação do `stage_reset`. **47 testes + E2E 38/38**; suítes verdes; Sleeper intocado.)
+> Última atualização: 07/08/2026-pt3 (MAN-OFF26-10-AJUSTES: **contagem agregada de volta** ("N/12 depositaram"; drop e passo contam igual, agregado devolve números e não times, com teste de lista branca de chaves) e **bloqueio mútuo urna × rollover em código** nos dois sentidos — bilhete é escopado por season, virar a season no meio deixaria a revelação **vazia sem erro**; libera após a revelação; limpar a agenda é sempre permitido; **escape pelo banner de ensaio** para o smoke poder rodar antes do rollover. 47 → **64 testes**, E2E **42/42**.)
+> Anterior: 07/08/2026-pt2 (MAN-OFF26-10: **F2 da URNA entregue** — tabelas próprias, flag de estado própria (⛔ `cuts_window_open` não é o gate, com teste que falha se reusarem), escolha única, horário do admin, lock/hash/reveal reusando `compute_cut_snapshot_hash`, flag de rookie de 1ª **OFF**, confirmação **inline** em todo o caminho, hierarquia herdada, sigilo sem contagem agregada. **Keeper sheet passou a nascer do SYNC** (crítico para 20/08): keepers = roster vivo, provisória × definitiva pelo carimbo do sync, coluna **IR** ([[OFF26-15]] fecha), sheet **@admin_required**. Acabamentos: urna no menu, **"Budget usável" → "Bid Máximo"**, Bid Máximo nos cards do Hub com selo **PROV**. Bug corrigido: `_table_exists` pelo engine desfazia a transação do `stage_reset`. **47 testes + E2E 38/38**; suítes verdes; Sleeper intocado.)
 > Anterior: 07/08/2026 (MAN-OFF26-1-ETAPA2: **ensaio da janela selada APROVADO em produção** — Etapa 2 com o co-admin **Rafa**, 12 declarações, hierarquia e manter-todos exercitados, hash `52274d01…`, reset limpo ⇒ **pré-condição 1 da urna cumprida**. **Redesenho decidido pelo owner: o modelo selado vale só para o LATE DROP** — cortes de 20/08 no Sleeper, Manager só fotografa por sync e entra em 22/08 como a urna; **U1/U3/U7 reescritos + U-CONF** (confirmação inline: o `confirm()` nativo falhou no celular e barrou uma declaração); ⛔ urna não pode reusar `cuts_window_open`. **Tela de declaração múltipla APOSENTADA** (motor fica como ferramenta admin rotulada legado — é o único produtor de sheet até a F2). Suítes 22+34+34+54 verdes; Sleeper intocado.)
 > Anterior: 03/08/2026-pt3 (MAN-OFF26-4-REFINE-PT2: **absorção dos achados do probe + achado de maior peso do arco**. ⛔ **KEEPER FORA DO BOARD É JOGADOR LEILOÁVEL** — o Sleeper o trata como disponível e **processa o lance normalmente**; jogador com dono é arrematado **ao vivo**, sem desfazer limpo. **Não é contabilidade a corrigir depois — é transação inválida em tempo real** → o **OFF26-4 vira GATE DE INTEGRIDADE DO LEILÃO** e a classe "keeper ausente do board" fica **bloqueante**, não escolha da F2. **Propagado ao OFF26-10** (time bloqueado pelo teto = **keepers expostos** → **população completa do board é PRÉ-CONDIÇÃO DE ABERTURA**; a decisão em aberto do item **não foi arbitrada**) e ao **OFF26-5 + runbook** (nova §B.5: board incompleto **não é estado aceitável**). **IR resolvido:** designar normalmente, excedentes no banco, vaga automática por posição; **descartado** descontar do budget (não resolve — o problema é disponibilidade — e some da auditoria). **D2:** sala = **22 slots** (metade fechada), **8.3.4 pendente**, com caso concreto do IR. **D1 corrigido (texto preservado):** a falha silenciosa **não existe pela API** (404 em 0,2 s; LOADING é do app web) → **timeout vira boa prática**; **não persistir `draft_id` permanece**. **D5:** classe "slot errado" **não existe**. **D6:** construção **liberada** contra placeholders; só a **costura `roster_id` ↔ time** espera os aceites. **Nota de método:** 3ª premissa da família *observação verdadeira, procedência errada*. Sem código)  
 > Anterior: 03/08/2026-pt2 (MAN-OFF26-4-PROBE: **probe read-only na liga fantasma real — o bloqueador do §2 da F1 do OFF26-4 CAIU**. Zero escrita, draft não iniciado, board intacto. **Derivação `league_id → draft_id` funciona por 2 caminhos** (`league.draft_id` no topo, 1 request; e `/drafts` com 1 item — o morto não aparece). **Premissa do D1 refutada para a API:** draft morto = **404 limpo em 0,2 s**, não trava (o LOADING é do app web). **Designações expostas pré-draft** em `/draft/{did}/picks` (mesma superfície já usada), 24 registros com **`metadata.amount`** — **totais $148/$95/$60 reconstruídos exatos**. Jogador por `player_id`=`sleeper_player_id`, **⚠️ DEF vem como sigla (`"LAR"`)**; time por `roster_id`; **`owner_id` nulo em 11/12** (D6 confirmado como bloqueio de validação, mas a auditoria casa por roster). **Sem campo de budget por time** → soma, como o D2 já dizia. **Réplica dupla** de leitura de picks (`draft_import.py:39` × `sync_sleeper.py:872`, coerção `float` × `int`), **ambos gateados em `status=="complete"` — era o gate, não a API**. Não previstos: **`is_keeper:false` nas 24**; **`pick_no`/`round` não indicam vaga → D5 sem classe "slot errado"**; **22 slots (10+12 BN)** medem o lado Sleeper da ressalva do D2; **fantasma sem IR** × liga real com IR = divergência concreta. Status 🔲; sem código)  
@@ -3016,6 +3017,36 @@ completo, hash `5024b17a…` conferido, reset devolvendo 0/0/fechada com reabert
   contexto persistente (o dry-run original passou por não ter um; a 1ª versão da classe de
   rota caiu nisso).
 - Runbook ganhou o **adendo da Etapa 2** (checks 11–13: manter-todos, hierarquia, 3º status).
+
+### MAN-OFF26-10-AJUSTES — contagem agregada volta + bloqueio urna × rollover (07/08/2026, Opus)
+
+Dois ajustes de desenho do owner sobre a F2 da urna (`f30a537`).
+
+- **(A) A contagem agregada volta** ("N/12 depositaram"). A F2 a removera por leitura estrita do
+  sigilo; o owner arbitrou a distinção: **o selado é QUEM e O QUÊ**, e a contagem não expõe
+  nenhum dos dois. **Drop e passo contam indistintamente** — se só o drop contasse, o N viraria
+  dedo-duro de inclinação. Função operacional: andamento para os owners e, para o admin, quantos
+  faltam cutucar perto do lock. **Superfície única**: `/api/late_drop/state` devolve
+  `declared_count` + `total_teams` — **números, não times** —, protegida por um teste de **lista
+  branca de chaves** (qualquer chave nova no endpoint quebra o teste de propósito).
+- **(B) O bloqueio urna × rollover virou código, nos dois sentidos.** Era aviso de runbook do
+  fechamento anterior; *runbook é promessa, código é garantia*. O perigo é **mudo**: bilhetes e
+  snapshot são escopados por `current_season` — virar a season no meio deixa os bilhetes órfãos e
+  **a revelação sai vazia, sem erro nenhum**.
+  - `urn_blocks_rollover()` → `POST /api/offseason/rollover` responde **409
+    `blocked_by: urna_late_drop`** enquanto a urna estiver agendada/aberta e não revelada, dizendo
+    o que bloqueia e o que fazer. **Após a revelação, libera** (snapshot congelado).
+  - `rollover_blocks_urn()` → `POST /api/late_drop/admin/schedule` responde **409
+    `blocked_by: rollover_pendente`** com `rollover_done != true`. **O gap que o prompt admitia
+    não existe** — a flag é estado detectável do ciclo. **Limpar a agenda é sempre permitido**: é
+    o caminho de destravar, e barrá-la criaria impasse entre os dois gates.
+  - ⚠️ **Escape declarado:** o **banner de ensaio** (`cuts_ensaio_banner`) libera o segundo
+    bloqueio. Sem ele o gate impediria o **próprio smoke** da urna — que roda antes de 20/08 e
+    pode cair antes do rollover de 18/08 (`rollover_done=false` no seed em 07/08). O escape é ato
+    explícito do operador, visível na tela e apagado pelo `--reset`.
+- **Validação:** suíte da urna **47 → 64**; dry-run E2E **42/42** (com os dois bloqueios
+  exercitados); 54+14+34+22+20+17 verdes. Mecanismo selado, keeper sheet e hierarquia
+  **intocados**. Sleeper não tocado.
 
 ### MAN-OFF26-10 — F2 da urna + keeper sheet via sync + acabamentos (07/08/2026, Opus)
 
