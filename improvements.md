@@ -1,12 +1,12 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 08/08/2026-pt5 (sessão MAN-UX12-REG, **docs-only**: registro do **[[UX12]] 🔲 Média — busca de jogador + página de perfil enriquecida**, pedido do **co-admin Michel** (2º usuário a reportar o mesmo gap, o que é validação independente de prioridade). Dois sintomas: **não existe caminho de busca** — é preciso já saber em que franquia o jogador está para conseguir abri-lo — e a página que abre não traz o que se usa para avaliá-lo (7 campos pedidos: time NFL + franquia, link p/ a página do time, link p/ trade **com o time já pré-selecionado**, cap hit, idade, **depth chart na NFL**, histórico de `PlayerHistory`). ⚠️ **O achado do registro é de sobreposição, e foi deixado explícito em vez de silenciado:** o escopo atravessa **dois itens 🔲 que já existem** — [[M10]] **é** a busca (refinado em 28/04, com o endpoint `GET /api/player/search` **já existente** e os entry points mapeados; o caso de uso registrado lá é **o mesmo sintoma**) e [[O2]] **é** o perfil (já inclui nominalmente **time NFL no header** e **depth chart**). O que o UX12 acrescenta são os campos **2, 3, 5 e 7**, o agrupamento como experiência única e a demanda de um segundo usuário. **Roteamento NÃO arbitrado** (guarda-chuva × despachar em M10/O2 × ficar só com o resto), registrado como **questão 0** — a primeira coisa que a F1 resolve; ⛔ implementar em paralelo a M10/O2 seria a enésima réplica. Demais questões abertas: **réplica de fonte** do time do jogador (mesma do [[UX11]], que a F1 pode absorver ou despachar), **o sync persiste depth chart e idade hoje?** (⛔ conferir, não herdar a afirmação do O2), página nova × enriquecer a `/player/<id>` do [[M13]] (links internos), superfície da busca e homônimos (⛔ exibição por nome, **identidade por `sleeper_player_id`** — precedente Brown), e foto herdando o [[UX10]] **sem acoplar** os itens. Fora do caminho crítico de 24/08. **Zero código; nenhum status existente alterado.**)
 > Atualizado em: 08/08/2026-pt4 (sessão MAN-UX10-UX11-REG, 2ª parte — **enxugamento do backlog ativo, a pedido do owner ("o tamanho do arquivo está me incomodando")**. Medição antes de mexer: **522 KB / 5.248 linhas**, e o maior ofensor **não era conteúdo de item** — o bloco `> Atualizado em:` somava **66 entradas / 114 KB = 22% do arquivo** (média 1.664 caracteres por entrada, a maior com 4.057), duplicando o que o log de decisões do `manager_devplan.md` e o `git log` já registram: **19 das 20 sessões** que o devplan lista no cabeçalho dele também estavam ali, com 6,5× o tamanho. **Duas ações, ambas sem perder informação:** (1) as **61 entradas antigas** foram para **`improvements_sessions.md`** (verbatim, mais recente primeiro; o ativo mantém as **5 últimas** + ponteiro); (2) **dívida da regra [[O3]] quitada** — 3 seções ✅ que nunca migraram (**OFF26-5**, **OFF26-6**, **F8**, 41 KB) foram para o `improvements_archive.md`. **Resultado: 522 KB → 377 KB (-28%)**, com **Status Rápido byte-idêntico** (128 linhas, conferido) e soma dos três arquivos preservada (+816 B, só os cabeçalhos novos). **O esquema do O3 passa de 2 para 3 arquivos**, com a regra do cabeçalho no checklist de fim de sessão; `CLAUDE.md` sincronizado. **Registrado sem agir (fora do escopo pedido):** a seção do **[[OFF26-4]] sozinha ocupa 69 KB = 13%** do ativo e sai pelo caminho normal quando o item fechar; e **~30 dos 81 `###` não são itens** — são sub-cabeçalhos de diagnose (`T1`/`T2`/`T3`/"Refutação de premissas") que deveriam ser `####`, inflando o índice sem custar bytes. Zero código.)
 > Atualizado em: 08/08/2026-pt3 (sessão MAN-UX10-UX11-REG, **docs-only**: registro de dois itens de UI reportados pelo owner, **nenhum deles no caminho crítico de 24/08** e nenhum com diagnose iniciada. **[[UX10]] 🔲 Baixa** — fotos de jogadores desatualizadas (exemplo do owner: **David Montgomery** com foto do ano passado); cosmético, sem impacto em dados (identidade segue por `sleeper_id`), mas a F1 **não pode presumir a causa**: cache (navegador/CDN) × URL construída com componente desatualizado (temporada/time) × fonte keyed por algo além do `sleeper_id` levam a fixes **incompatíveis**. **[[UX11]] 🔲 Média** — o quadro de trades não mostra a franquia NFL do jogador; informação usada para avaliar a troca, sem prazo. **Os dois carregam a pergunta de réplica** que virou padrão nas últimas sessões: a construção da URL de foto existe em mais de um lugar (templates/JS/Python)? a exibição de time do jogador tem fonte comum ou cada tela deriva a sua? Se cada tela deriva, acrescentar mais uma **piora** o problema. Possível raiz comum registrada: a hipótese (b) do UX10 e a pergunta "o dado de time está atualizado?" do UX11. **Zero código; nenhum status existente alterado.**)
 > Atualizado em: 08/08/2026-pt2 (sessão MAN-OFF26-22: **a auditoria de keepers deixa de emitir veredito de gate sobre sheet PROVISÓRIA**. Decisão do owner — opção (b), **rodar e desqualificar**: a execução antecipada tem valor (a auditoria roda 3× ou mais entre 20 e 24/08 e achar divergência cedo é o ponto), mas **"ABERTURA LIBERADA" fica impossível** enquanto a sheet ainda vai mudar. Três estados: **definitiva** = idêntico ao de hoje · **provisória** = veredito próprio `nao_qualificada`, com o relatório completo, as divergências listadas e o motivo citando **os dois carimbos** (quando a urna revelou × qual é o último sync) · **indisponível** = bloqueio por falta de insumo **revivido**. Campo booleano `gate_qualified` é o que um consumidor deve ler. ⛔ **A mudança mora só na camada de leitura:** o carimbo viaja na chave `stage_meta` e `run_audit` a **REMOVE antes** de chamar o núcleo — núcleo puro, formato de sheet e fixtures **intactos**, **34/34 sem uma edição** (há teste que espiona a chamada e falha se o carimbo vazar para o núcleo). ⛔ **Nenhuma segunda definição de "definitiva":** a regra segue calculada num único lugar (`routes/cuts.py`) e este módulo apenas consome — teste falha se alguém recalcular. **Passo 0:** gate morto confirmado (`revealed` E `available` são **hardcoded True** na fonte); **premissa do prompt ajustada** — o ramo "sheet ausente" não tinha "comportamento atual" a preservar porque era **inalcançável**, foi revivido com condição que dispara; **causa estrutural do bug identificada** — os 34 testes exercem `audit()` direto e **nenhum** tocava `build_sheet`/`run_audit`, a camada de leitura estava **sem teste nenhum**; resíduo declarado: a frase obsoleta "janela de cortes" dentro do núcleo (restrição), com a causa real **prefixada** por `qualify`. **25 testes novos · 286 verdes.** Smoke local contra a liga fantasma real só por `GET` (24 designações, board intacto): página **200**, selo **PROVISÓRIA**, veredito de conferência antecipada, "Abertura liberada" **ausente** do HTML. [[OFF26-22]] **🔲 → ⚠️** — falta a conferência em produção (PROC1).)
 > Atualizado em: 08/08/2026 (sessão MAN-OFF26-11-F2: **o último item de código do caminho crítico de 24/08 está entregue** — o importador [[OFF26-3]] passa a ingerir **só arremates**, com a keeper sheet **CONGELADA** como lista de exclusão. Novo `keeper_exclusion.py` (núcleo puro + IO) é o **discriminador único**: pick cujo jogador consta na lista **para o mesmo time do pick** é keeper e não é ingerido. **A decisão dentro da margem delegada foi o CONGELAMENTO, e ela é de correção, não de robustez:** a sheet nasce do **roster vivo**, e depois do leilão cada owner adiciona os arremates **na liga real** — derivar a lista ao vivo no import faria o arremate readicionado virar "keeper" e ser **excluído da ingestão**, o **dano invertido** (o contrato ano 1 não nasce). Snapshot em `AppConfig` com hash + carimbos, por ato explícito de admin, recusado sobre sheet PROVISÓRIA ou com keeper sem `sleeper_player_id`. ⛔ **Premissa do prompt REFUTADA:** o **caso canônico não era ingerível pela UI** — `find_player_by_sleeper_id` filtra `is_dropped=False`, então o dropado cai em *unmatched* e a tela só oferecia **Pular/Criar novo** (que **duplicaria** o Player); a API já aceitava resolver para id existente e nada expunha isso. Corrigido com *"Reativar &lt;nome&gt; (ano 1)"*. Bloqueios: sheet ausente/provisória/não-congelada/de outra season **impedem o import**, cada uma com mensagem própria; **pendências sem resolução** (keeper de **outro** time · pick sem id · roster não mapeado) **bloqueiam a confirmação**. Alerta de budget passa a somar **só arremates** — fecha uma dupla contagem latente. **Modo linear intocado, provado:** preview do rookie 2025 real **idêntico campo a campo** ao do HEAD carregado do git. **Achado lateral virou item — [[OFF26-22]] 🔲 Média:** o gate `if not raw.get("revealed")` de `keeper_audit.build_sheet` virou **código morto** no U7, e com ele a auditoria passou a auditar sheet **PROVISÓRIA** como se fosse definitiva. Board da fantasma relido **só por `GET`** (24 designações, `is_keeper:false` 24/24, `draft_id` derivado) — ⛔ **draft em `pre_draft`: o pós-draft segue NÃO OBSERVADO** e não foi forçado. **36 testes novos · 261 verdes.** [[OFF26-11]] **🔲 → ⚠️** — **✅ só depois do leilão de 24/08**.)
-> Atualizado em: 07/08/2026-pt4 (sessão MAN-OFF26-10-SMOKE, **docs-only**: **o smoke da urna PASSOU em produção** (owner + co-admin Rafa, backup `/data/pre_smoke_urna.db` **630.784 B**) e o **trio fecha ✅**. **O que a produção provou e o teste não provava:** o **escape do banner** foi exercitado de fato (com `rollover_done` pendente, o agendamento só passou porque o banner estava ligado — o gate dos AJUSTES se pagou na primeira vez que rodou); o **depósito pelo celular com confirmação inline, sem pop-up nativo** — mesmo aparelho e mesma pessoa que o `confirm()` travara no ensaio de 06/08, ou seja, o **U-CONF provado resolvido**; e o **fechamento automático pelo horário por acidente produtivo** — a primeira agenda (6 min) **expirou e a urna encerrou sozinha**, dando ao U3 a prova que nenhum teste dá (o relógio virando em produção). Também conferidos: escolha única, passo contando no N/12, **sigilo cruzado com o Rafa** (só o agregado — confirmação em campo da arbitragem do U1-CONT), hierarquia recusando sem vazar, lock+revelação com a lista completa, **sheet PROVISÓRIA com o aviso de drops revelados não sincronizados** (o estado que grita), e o **reset** zerando bilhetes, snapshot e agenda. **Fechados:** [[OFF26-10]] ✅, [[OFF26-2]] ✅ (o ⚠️ era de FONTE e o U7 o resolveu), [[OFF26-15]] ✅ (coluna IR), **[[OFF26-1]] ✅** — o ⚠️ que restava era o smoke do código da aposentadoria, que está no ar e foi atravessado por este smoke; o mecanismo tem **prova tripla** (Etapa 1 · Etapa 2 · a urna, que reusa o mesmo motor num segundo consumidor). **Resíduo virado ITEM** (precedente MAN-OFF26-4-SLOTS): **[[OFF26-21]] 🔲 Baixa** — o bloco admin de `/cuts` só sobrevivia por ser o produtor de fallback da sheet, e o U7 tirou isso dele; virou motor sem consumidor e é a única porta da UI capaz de abrir a janela grande por engano durante a urna (as **rotas** legadas continuam necessárias — motor da urna + rede de regressão; o que se discute é a TELA). **Registrada a fotografia de prontidão da intertemporada:** o código está **completo** (17/08 rookie draft · 18/08 ESPN+rollover, gate da urna · 20/08 cortes+sync+sheet provisória · 20→22 urna · 22 revelação+execução manual+sync final+sheet definitiva · 22–24 Cowork+auditoria como gate · 24 leilão) — **o que resta é operação**, e os riscos que sobram são operacionais, não de software. Migração O3: OFF26-1/2/10/15 movidos ao archive. **Zero código.**)
-> 📁 Entradas anteriores em **`improvements_sessions.md`** (61 fechamentos, movidos verbatim — MAN-UX10-UX11-REG).
+> 📁 Entradas anteriores em **`improvements_sessions.md`** (63 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
@@ -143,6 +143,7 @@
 | O3 | Split do improvements.md: ativo (cabeçalho + Status Rápido completo + seções 🔲/⚠️) + `improvements_archive.md` (seções ✅, movidas verbatim); migração no fim de sessão quando item → ✅ — MAN-O3-REG. **Estendido 08/08/2026 (3º arquivo):** o bloco `> Atualizado em:` do cabeçalho tinha chegado a **66 entradas / 114 KB = 22% do arquivo**, duplicando o log de decisões do devplan e o `git log` — o ativo passa a manter as **5 mais recentes** e o resto vive em `improvements_sessions.md` (verbatim). Junto, a **dívida de migração** foi quitada (3 seções ✅ que nunca saíram: OFF26-5, OFF26-6, F8). Ativo: **522 KB → 377 KB (-28%)**, Status Rápido **byte-idêntico**, zero conteúdo perdido — MAN-UX10-UX11-REG | Média | ✅ 11/06/2026 (esquema estendido 08/08/2026) |
 | UX10 | **Fotos de jogadores desatualizadas** — alguns jogadores exibem a foto da temporada anterior (exemplo do owner: **David Montgomery**). Cosmético, **sem impacto em dados** (identidade segue por `sleeper_id`). F1 precisa **distinguir as hipóteses antes de qualquer fix**: (a) URL do CDN correta e **cache** (navegador ou CDN) servindo imagem velha; (b) URL **construída** com componente desatualizado (temporada, time) em algum ponto do Manager; (c) fonte da imagem **keyed por algo além do `sleeper_id`**. F1 pergunta também: **a construção da URL de foto existe em mais de um lugar** (templates, JS, Python)? — MAN-UX10-UX11-REG | Baixa | 🔲 |
 | UX11 | **Quadro de trades não mostra o time atual do jogador** — no quadro de trade o jogador aparece sem a franquia NFL em que está. Informação útil para avaliar a troca; **sem prazo**, fora do caminho crítico de 24/08. F1 pergunta: de onde vem o dado de time hoje (sync? campo do `Player`?), **está atualizado**, e **a exibição de time do jogador existe em outras superfícies com fonte comum ou cada tela deriva a sua?** — MAN-UX10-UX11-REG | Média | 🔲 |
+| UX12 | **Busca de jogador + página de perfil enriquecida** (pedido do co-admin **Michel**) — hoje **não existe caminho de busca**: o único acesso a um jogador é clicá-lo dentro da página de um time, e a página que abre não traz o que a liga usa para avaliá-lo. Escopo pedido: **busca por nome** + perfil com **time NFL e franquia da liga**, **link p/ a página do time**, **link p/ trade com o time dele já pré-selecionado**, **cap hit**, **idade**, **depth chart na NFL** e **histórico na liga** (`PlayerHistory`). ⚠️ **Sobreposição registrada, não arbitrada:** [[M10]] 🔲 já é a busca global (endpoint `/api/player/search` **já existe**) e [[O2]] 🔲 já é o enriquecimento da mesma página (time NFL no header + **depth chart**) — a **primeira** tarefa da F1 é decidir roteamento (UX12 vira guarda-chuva × é despachado nos dois × fatia nova só do que sobra). F1 pergunta ainda: **réplica de fonte** do time do jogador (mesma do [[UX11]], que a F1 pode absorver ou despachar), **o sync persiste depth chart hoje?**, página nova × enriquecer a existente (`/player/<id>`, links internos), superfície da busca e homônimos (⛔ exibição por nome, **identidade por `sleeper_player_id`** — precedente Brown), e foto no perfil herda o [[UX10]]. Fora do caminho crítico de 24/08, **sem prazo** — MAN-UX12-REG | Média | 🔲 |
 
 ---
 
@@ -4649,5 +4650,98 @@ da tela. Não é bug de dado nem bloqueia nada — **não está no caminho crít
 
 **Cross-refs:** [[UX10]] (mesmo registro; a hipótese (b) de lá e a pergunta 2 daqui podem ter a
 mesma raiz), [[T1]]/[[T2]]/[[T3]] (o simulador e o preview de trades, onde o quadro vive).
+
+---
+
+### UX12 — Busca de jogador + página de perfil enriquecida
+🔲 **Registrado 08/08/2026 (MAN-UX12-REG)** — Prioridade **Média** — **registro apenas; nenhuma
+diagnose feita, nenhuma questão abaixo arbitrada**
+
+**Origem:** pedido do **co-admin Michel**, trazido pelo owner. Michel é quem faz o smoke das
+features user-facing, e o pedido nasce de uso, não de leitura de código.
+
+**Sintoma (dois, e o segundo só aparece depois de resolver o primeiro):**
+
+1. **Não existe caminho de busca.** A única forma de chegar a um jogador é **clicá-lo dentro da
+   página de um time** — ou seja, é preciso **já saber em que franquia ele está** para conseguir
+   abri-lo. Quem não sabe, abre os 12 rosters procurando visualmente.
+2. **A página que abre não tem o que a liga precisa** para avaliar o jogador. Ela existe (é a
+   `/player/<id>` do [[M13]] ✅) e mostra contrato + histórico de salário + "Propor Trade", mas o
+   conjunto de informações que se usa numa avaliação está espalhado por outras telas ou fora do
+   Manager.
+
+**Por que Média e sem prazo:** não é bug de dado, não corrompe nada e **não está no caminho crítico
+de 24/08** (FA auction). É custo de navegação e de leitura, pago por toda a liga a cada avaliação
+de jogador.
+
+#### Escopo funcional pedido
+
+**Busca:** encontrar qualquer jogador da liga **pelo nome**, sem precisar navegar por times.
+
+**Perfil do jogador**, exibindo:
+
+| # | Campo | Observação de registro (não é decisão de implementação) |
+|---|-------|---------------------------------------------------------|
+| 1 | **Time na NFL** e **time na liga** (franquia do Dynasty SB) | o dono na liga já aparece hoje; o time NFL é justamente o dado do [[UX11]] e do [[O2]] |
+| 2 | **Link p/ a página do time dele na liga** | destino existe (`/team/<id>`, [[L1]]) |
+| 3 | **Link p/ trade com o time dele já pré-selecionado** | o [[M14]] ✅ fez `/trades` aceitar `team_a`/`team_b` por query param; a F1 confere se o botão atual do [[M13]] já faz isso ou se pré-seleciona só um lado |
+| 4 | **Cap hit atual** (contrato/salário) | ⚠️ a régua de folha é única e **o IR conta** ([[OFF26-16]]) — o que se exibe é o salário do jogador, sem inventar variante |
+| 5 | **Idade** | ⚠️ **não se sabe se o Manager persiste isso hoje** — ver questão 2 |
+| 6 | **Roster depth no time da NFL** (posição no depth chart) | ⚠️ mesma dúvida de disponibilidade — ver questão 2 |
+| 7 | **Histórico dele na liga** (eventos de `PlayerHistory`: trades, cortes, aquisições) | o dado existe e é auditável por desenho; o [[S4]] 🔲 registra que `PlayerHistory` identifica time **só por nome** — a F1 lê isso antes de desenhar a exibição |
+
+#### ⚠️ Questão 0 (resolver ANTES das outras): isto já está registrado em dois itens
+
+**Esta é a primeira coisa que a F1 tem de resolver, e não está arbitrada aqui.** O escopo pedido
+pelo Michel atravessa dois itens 🔲 que já existem no backlog:
+
+- **[[M10]] 🔲 Média — "Busca de Jogador: Global + Calculadora"** é **a busca**, já refinada em
+  28/04/2026 com o levantamento feito: o endpoint **já existe** (`GET /api/player/search`), os 5
+  entry points atuais estão mapeados, o caso de uso registrado lá ("owner queria ver o contrato do
+  Mahomes e teria que abrir os 12 rosters") é **o mesmo sintoma** que o Michel relata agora.
+- **[[O2]] 🔲 Média — "Enriquecer página do jogador"** é **o perfil**, e já inclui nominalmente
+  **time NFL no header** e **depth chart NFL** (campos 1 e 6 acima), além de stats/ADP/schedule.
+
+Ou seja: **os campos 1 e 6 e a busca inteira já têm dono**; o que o UX12 traz de novo é a
+**demanda de um segundo usuário** (validação independente da prioridade), o **agrupamento como uma
+experiência só** e os campos **2, 3, 5 e 7** (links de time/trade, idade, histórico da liga).
+
+**Três roteamentos possíveis, nenhum escolhido:** (a) UX12 vira o **guarda-chuva** e M10/O2 são
+absorvidos; (b) UX12 é **despachado** — busca → M10, perfil → O2 — e o item fecha como registro de
+demanda; (c) UX12 fica só com **o que sobra** (2, 3, 5, 7) e depende dos outros dois. ⛔ **Não
+implementar em paralelo a M10/O2** — seria a enésima réplica, exatamente o que as últimas sessões
+vêm fechando. O precedente do próprio M10 (refinado in-place, ID preservado, [[UX4]] consolidado
+no O2 em vez de duplicado) é a referência de método.
+
+#### Questões abertas para a F1
+
+1. **Réplica de fonte (obrigatória).** A exibição de **time do jogador** — NFL e liga — tem **fonte
+   comum**, ou **cada tela deriva a sua**? É a mesma pergunta central do [[UX11]], e a F1 do UX12
+   pode **absorver o UX11** ou **despachá-lo** (registrar a relação explicitamente, dos dois lados).
+   Se cada tela deriva, acrescentar o perfil como mais um consumidor **piora** o problema.
+2. **Disponibilidade do dado.** O sync com o Sleeper **persiste hoje algum campo de depth chart**?
+   (O [[O2]] afirma que `depth_chart_order` está no players cache e já é consumido — a F1 **confere**
+   em vez de herdar a afirmação.) Mesma pergunta para **idade**/data de nascimento. Se não persiste:
+   **qual o custo de passar a persistir × derivar em tempo de leitura** (o cache tem ~15 MB e vive
+   fora do git, `.sleeper_players_cache.json` — ver [[F13]]).
+3. **Página nova × enriquecer a existente.** A `/player/<id>` atual ([[M13]] ✅) **vira** o perfil
+   enriquecido, ou nasce página nova e a atual é aposentada? Há **links internos apontando para a
+   atual** que precisariam seguir funcionando (o helper `renderPlayerNameLink` em `base.html` é
+   reusado por várias telas — o M10 lista os sítios).
+4. **Busca: superfície e resolução de identidade.** Barra global na navbar × página dedicada de
+   busca (o M10 já desenhou o caminho da navbar, incluindo o comportamento mobile). E como resolver
+   **homônimos e nomes parciais**: ⛔ **exibição pode usar nome, resolução de identidade é por
+   `sleeper_player_id`** — precedente do incidente **Brown** (`player_lookup.py` é estrito de
+   propósito e **não serve** para autocomplete, como o próprio M10 já registrou).
+5. **Foto do jogador.** Se o perfil exibir foto, **herda o problema do [[UX10]]** (fotos de
+   temporada anterior, causa não diagnosticada). Cross-ref registrado **sem acoplar os itens**: o
+   UX12 não deve esperar o UX10, e o UX10 não vira pré-requisito.
+
+**Cross-refs:** [[M10]] (a busca — sobreposição direta), [[O2]] (o perfil — sobreposição direta),
+[[M13]] ✅ (a página que existe hoje) e [[M14]] ✅ (query params de `/trades`, que o campo 3 usa),
+[[L1]] ✅ (a página de time, destino do campo 2), [[UX11]] (a mesma pergunta de réplica de fonte),
+[[UX10]] (foto, se entrar), [[S4]] 🔲 (`PlayerHistory` identifica time por nome — relevante ao
+campo 7), [[OFF26-16]] (régua única de folha — o cap hit exibido não pode virar uma sétima
+definição).
 
 ---
