@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 08/08/2026 (MAN-OFF26-11-F2: **último item de código do caminho crítico de 24/08 entregue** — o importador passa a ingerir **só arremates**, com a keeper sheet **CONGELADA** como lista de exclusão (`keeper_exclusion.py`: núcleo puro + IO, discriminador único, nenhuma segunda definição de "quem é keeper"). **A decisão de peso foi congelar, e o porquê:** derivar a lista ao vivo no import faria o arremate readicionado pelo owner na liga real aparecer como keeper e ser **excluído da ingestão** — o **dano invertido**, em que o contrato ano 1 simplesmente não nasce. ⛔ **Premissa do prompt que CAIU:** o caso canônico ($50 dropado → recomprado) **não era ingerível pela UI** (`find_player_by_sleeper_id` filtra `is_dropped=False`, e a tela só oferecia Pular/Criar novo — que duplicaria o Player); corrigido com a ação *"Reativar (ano 1)"*. Sheet ausente/provisória/não-congelada **bloqueia** o import; keeper de outro time, pick sem id e roster não mapeado viram **pendência sem resolução**. Modo linear **byte-a-byte idêntico ao HEAD** (provado contra o rookie 2025 real). Achado lateral virou **[[OFF26-22]] 🔲**: a auditoria do OFF26-4 audita sheet **PROVISÓRIA** como se fosse definitiva (gate virou código morto no U7). Board da fantasma relido só por `GET` (24 designações, `is_keeper:false` 24/24) — ⛔ **pós-draft segue NÃO OBSERVADO**. **36 testes novos, 261 verdes.** [[OFF26-11]] 🔲 → ⚠️: **✅ só depois do leilão de 24/08**.)
+> Última atualização: 08/08/2026-pt2 (MAN-OFF26-22: **a auditoria de keepers deixa de emitir veredito de gate sobre sheet PROVISÓRIA**. Decisão do owner — **rodar e desqualificar** (opção b): a execução antecipada tem valor (a auditoria roda 3× ou mais entre 20 e 24/08), mas **"ABERTURA LIBERADA" fica impossível** enquanto a sheet ainda vai mudar. Três estados; `gate_qualified` (bool) é o campo a ler. ⛔ **A mudança inteira mora FORA do núcleo:** `qualify` roda depois de `audit()`, e o carimbo viaja em `stage_meta` que `run_audit` **remove antes** da chamada — **34/34 sem editar teste nem fixture**, com teste que espiona a chamada e falha se o carimbo vazar. ⛔ Nenhuma segunda definição de "definitiva" — a regra segue calculada só em `routes/cuts.py`. **Premissa ajustada:** o ramo "sheet ausente" não tinha comportamento a preservar (era **inalcançável** — `revealed` e `available` são hardcoded `True` na fonte); foi **revivido** com condição que dispara. **A causa estrutural vale mais que o bug:** os 34 testes exercem `audit()` direto e **nenhum** tocava `build_sheet`/`run_audit` — a camada de leitura estava **sem teste nenhum**, e foi ali que o U7 deixou código morto sem que nada acusasse. **25 testes novos · 286 verdes.** Smoke local contra a liga fantasma real só por `GET`: página 200, selo PROVISÓRIA, veredito de conferência antecipada. [[OFF26-22]] 🔲 → ⚠️ — falta a conferência em prod.)
+> Anterior: 08/08/2026 (MAN-OFF26-11-F2: **último item de código do caminho crítico de 24/08 entregue** — o importador passa a ingerir **só arremates**, com a keeper sheet **CONGELADA** como lista de exclusão (`keeper_exclusion.py`: núcleo puro + IO, discriminador único, nenhuma segunda definição de "quem é keeper"). **A decisão de peso foi congelar, e o porquê:** derivar a lista ao vivo no import faria o arremate readicionado pelo owner na liga real aparecer como keeper e ser **excluído da ingestão** — o **dano invertido**, em que o contrato ano 1 simplesmente não nasce. ⛔ **Premissa do prompt que CAIU:** o caso canônico ($50 dropado → recomprado) **não era ingerível pela UI** (`find_player_by_sleeper_id` filtra `is_dropped=False`, e a tela só oferecia Pular/Criar novo — que duplicaria o Player); corrigido com a ação *"Reativar (ano 1)"*. Sheet ausente/provisória/não-congelada **bloqueia** o import; keeper de outro time, pick sem id e roster não mapeado viram **pendência sem resolução**. Modo linear **byte-a-byte idêntico ao HEAD** (provado contra o rookie 2025 real). Achado lateral virou **[[OFF26-22]] 🔲**: a auditoria do OFF26-4 audita sheet **PROVISÓRIA** como se fosse definitiva (gate virou código morto no U7). Board da fantasma relido só por `GET` (24 designações, `is_keeper:false` 24/24) — ⛔ **pós-draft segue NÃO OBSERVADO**. **36 testes novos, 261 verdes.** [[OFF26-11]] 🔲 → ⚠️: **✅ só depois do leilão de 24/08**.)
 > Anterior: 07/08/2026-pt4 (MAN-OFF26-10-SMOKE, **docs-only**: **smoke da urna APROVADO em produção** (owner + Rafa, backup 630.784 B) — escape do banner exercitado de fato, **depósito pelo celular sem pop-up** (U-CONF provado resolvido no mesmo aparelho que travara em 06/08), **fechamento automático pelo horário provado por acidente** (a agenda de 6 min expirou e a urna encerrou sozinha), sigilo cruzado só com o agregado, hierarquia, revelação completa, sheet provisória com o aviso, reset limpo. **Trio fechado:** [[OFF26-10]] ✅ · [[OFF26-2]] ✅ · [[OFF26-15]] ✅; **[[OFF26-1]] ✅** com motivo (prova tripla do mecanismo + porta aposentada no ar). Resíduo virou **[[OFF26-21]] 🔲 Baixa** (bloco admin de `/cuts` ficou sem consumidor após o U7). **Fotografia de prontidão 17–24/08 registrada: o código está completo, o que resta é operação.** Migração O3 dos 4 itens ao archive.)
 > Anterior: 07/08/2026-pt3 (MAN-OFF26-10-AJUSTES: **contagem agregada de volta** ("N/12 depositaram"; drop e passo contam igual, agregado devolve números e não times, com teste de lista branca de chaves) e **bloqueio mútuo urna × rollover em código** nos dois sentidos — bilhete é escopado por season, virar a season no meio deixaria a revelação **vazia sem erro**; libera após a revelação; limpar a agenda é sempre permitido; **escape pelo banner de ensaio** para o smoke poder rodar antes do rollover. 47 → **64 testes**, E2E **42/42**.)
 > Anterior: 07/08/2026-pt2 (MAN-OFF26-10: **F2 da URNA entregue** — tabelas próprias, flag de estado própria (⛔ `cuts_window_open` não é o gate, com teste que falha se reusarem), escolha única, horário do admin, lock/hash/reveal reusando `compute_cut_snapshot_hash`, flag de rookie de 1ª **OFF**, confirmação **inline** em todo o caminho, hierarquia herdada, sigilo sem contagem agregada. **Keeper sheet passou a nascer do SYNC** (crítico para 20/08): keepers = roster vivo, provisória × definitiva pelo carimbo do sync, coluna **IR** ([[OFF26-15]] fecha), sheet **@admin_required**. Acabamentos: urna no menu, **"Budget usável" → "Bid Máximo"**, Bid Máximo nos cards do Hub com selo **PROV**. Bug corrigido: `_table_exists` pelo engine desfazia a transação do `stage_reset`. **47 testes + E2E 38/38**; suítes verdes; Sleeper intocado.)
@@ -4122,3 +4123,51 @@ estava arbitrada (06/08, opção A — Manager é fonte única). O que esta sess
 **Estado:** [[OFF26-11]] **🔲 → ⚠️**. 36 testes novos; **261 verdes** no total. **✅ só depois do
 leilão de 24/08** — o smoke real é o único que exercita 12 times, board pós-draft e o congelamento
 no momento certo do calendário.
+
+### MAN-OFF26-22 — a auditoria reconhece sheet provisória: roda, mas não é gate (08/08/2026, Opus)
+
+**O achado tinha um dia de idade** (Passo 0 do MAN-OFF26-11-F2) e entrou no caminho crítico por um
+detalhe de calendário: a auditoria é o gate de abertura do leilão de 24/08, e sem este fix ela podia
+dizer "ABERTURA LIBERADA" sobre uma sheet que ainda ia mudar.
+
+- **Decisão do owner: opção (b) — rodar e desqualificar.** Não bloquear a execução: entre 20 e 24/08
+  a auditoria roda três vezes ou mais, e divergência achada cedo é divergência corrigida cedo. O que
+  muda não é o **diff**, é a **autoridade** do veredito. Três estados no lugar de dois, e um campo
+  booleano (`gate_qualified`) que é o que um consumidor deve ler — não a string do veredito.
+
+- **A mudança inteira mora fora do núcleo.** `keeper_audit.qualify` roda **depois** de `audit()`,
+  sobre o relatório pronto. O carimbo de estágio viaja na chave `stage_meta` e `run_audit` a
+  **remove antes** de chamar o núcleo — que continua recebendo, literalmente, o mesmo formato de
+  sempre. Foi o que permitiu **34/34 sem editar uma linha de teste ou fixture**, e há teste que
+  espiona a chamada e falha se o carimbo vazar para dentro.
+
+- ⛔ **Nenhuma segunda definição de "definitiva".** A regra (revelação da urna + sync posterior) é
+  calculada num **único** lugar, `routes/cuts._build_keeper_sheet`, e este módulo apenas **consome**
+  o `stage` que ela emite. Teste passa um carimbo cujos timestamps "pareceriam" definitivos com
+  `stage: provisoria` e exige que valha o da fonte.
+
+- **Premissa do prompt que precisou de ajuste:** *"sheet ausente permanece com o comportamento
+  atual"* — **não havia comportamento atual**. O ramo era **inalcançável**, porque a fonte devolve
+  `revealed` **e** `available` hardcoded como `True`. Foi revivido com uma condição que de fato
+  dispara (`available` da fonte **E** pelo menos um time). Reviver um gate morto exige dar a ele uma
+  condição nova; "preservar" não era uma opção disponível.
+
+- **A causa estrutural do bug, que vale mais que o bug:** os 34 testes da auditoria exercem
+  `audit()` **diretamente**, com fixtures — **nenhum** deles chamava `build_sheet` ou `run_audit`.
+  A camada de leitura estava **inteiramente sem teste**, e foi exatamente ali que o U7 deixou código
+  morto sem que nada acusasse. Um núcleo puro muito bem testado não protege a costura que o liga ao
+  mundo. Agora a costura tem 25 testes.
+
+- **Resíduo declarado, não corrigido:** a mensagem do `_no_input`, dentro do núcleo, ainda fala em
+  "janela de cortes" — obsoleta desde o U7. Corrigi-la exigiria editar o núcleo (restrição), então
+  `qualify` **prefixa** a causa real; o operador lê a frase correta primeiro. Registrado como é.
+
+- **Colisão de vocabulário registrada:** `routes/league.py` fala em "ESPN **DEFINITIVA**" e "selo
+  PROV" — é a **tabela ESPN**, outro eixo, sem relação com o estágio da sheet. Vale saber ao caçar
+  réplicas por grep.
+
+**Estado:** [[OFF26-22]] **🔲 → ⚠️**. 25 testes novos, **286 verdes**. Smoke local contra a liga
+fantasma real (só `GET`, board intacto: 24 designações, `draft_id` derivado): página **200**, selo
+**PROVISÓRIA**, veredito de conferência antecipada, "Abertura liberada" **ausente** do HTML.
+**Falta a conferência em produção** (PROC1) — e a conferência com sheet **DEFINITIVA** só existe a
+partir de 22/08.

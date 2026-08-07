@@ -11,10 +11,33 @@
   </p>
 </div>
 
-{# Veredito primeiro: quem abre esta tela quer saber se pode abrir o leilão. #}
+{# Veredito primeiro: quem abre esta tela quer saber se pode abrir o leilão.
+   OFF26-22 — três estados, não dois: sobre sheet PROVISÓRIA a auditoria roda e vale
+   como conferência antecipada, mas NÃO responde "posso abrir?". #}
 {% if report.verdict == 'liberada' %}
 <div class="alert" style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.35);color:#86efac">
   ✅ <strong>Abertura liberada</strong> — 12 times populados, nenhuma divergência.
+  <br><span class="text-dim">Sheet <strong>{{ report.sheet_stage.stage_label }}</strong>
+  (sync de <time class="js-localtime" datetime="{{ report.sheet_stage.sync_timestamp }}">{{ report.sheet_stage.sync_timestamp }}</time>)
+  — este veredito vale como gate.</span>
+</div>
+{% elif report.verdict == 'nao_qualificada' %}
+<div class="alert alert-warn" style="border:2px solid #d9534f">
+  🕒 <strong>CONFERÊNCIA ANTECIPADA — este resultado NÃO é gate.</strong>
+  <p style="margin:.5rem 0 0">
+    A keeper sheet está <strong>{{ report.sheet_stage.stage_label }}</strong>, então
+    <strong>“abertura liberada” é impossível nesta execução</strong>: os keepers ainda
+    podem mudar. O relatório abaixo continua valendo como
+    <strong>conferência antecipada</strong> — as divergências encontradas agora são
+    reais e vale corrigi-las já.
+  </p>
+  <ul style="margin:.5rem 0 0 1.1rem">
+    {% for r in report.blocking_reasons %}<li>{{ r }}</li>{% endfor %}
+  </ul>
+  <p class="text-dim" style="margin:.5rem 0 0">
+    Reexecute esta auditoria depois do <strong>sync final</strong>: com a sheet
+    DEFINITIVA o veredito volta a valer como gate.
+  </p>
 </div>
 {% else %}
 <div class="alert alert-warn">
@@ -24,6 +47,33 @@
   </ul>
 </div>
 {% endif %}
+
+{# Estágio da sheet: carimbo do insumo. Metadado do relatório — o núcleo do diff nunca
+   o vê (ele viaja fora da estrutura da sheet). #}
+<div class="card" style="margin-bottom:1rem">
+  <h2 class="card-title">📋 Insumo — keeper sheet</h2>
+  <p style="margin:0">
+    Estágio:
+    <span class="tag {% if report.sheet_stage.is_definitiva %}tag-current{% else %}tag-prov{% endif %}">
+      {{ report.sheet_stage.stage_label or 'INDISPONÍVEL' }}
+    </span>
+    {% if report.sheet_stage.sync_timestamp %}
+      · 📸 foto do sync de
+      <strong><time class="js-localtime" datetime="{{ report.sheet_stage.sync_timestamp }}">{{ report.sheet_stage.sync_timestamp }}</time></strong>
+    {% else %}
+      · <span class="text-dim">nenhum sync registrado</span>
+    {% endif %}
+    · vale como gate:
+    <strong>{% if report.gate_qualified %}sim{% else %}não{% endif %}</strong>
+  </p>
+  {% if report.sheet_stage.missing %}
+  <p class="text-dim" style="margin:.5rem 0 0">{{ report.sheet_stage.missing }}</p>
+  {% endif %}
+  <p class="text-dim" style="margin:.5rem 0 0">
+    <a href="{{ url_for('cuts.keeper_sheet_page') }}">Ver a keeper sheet</a> ·
+    o estágio é calculado <strong>uma única vez</strong>, na sheet, e apenas consumido aqui.
+  </p>
+</div>
 
 {# Estado da liga fantasma — INDEPENDENTE da sheet. Sem sheet não há diff, mas este
    bloco continua sendo a prova de que o serviço alcança a API do Sleeper e de que a

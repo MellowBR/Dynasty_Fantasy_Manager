@@ -14,6 +14,9 @@ Organização (mesmo princípio de `salary_engine`: o núcleo é puro):
   · `build_sheet(season)`    — lado Manager: consome a keeper sheet do OFF26-2 e a
                                enriquece com `sleeper_player_id` por RE-QUERY (D3 —
                                o caminho que NÃO toca o OFF26-2, ainda sob smoke).
+  · `qualify(report, meta)`  — OFF26-22: decide se ESTA execução vale como GATE. Roda
+                               DEPOIS do núcleo, sobre o relatório pronto — sheet
+                               PROVISÓRIA não pode produzir "ABERTURA LIBERADA".
 
 Invariantes carregadas do terreno (medidas, não supostas):
   · `draft_id` NUNCA é persistido — derivado do `league_id` a cada uso (D1).
@@ -31,6 +34,27 @@ import sync_sleeper as ss
 
 # Chave do AppConfig (D1) — persiste-se APENAS o league_id, que é estável.
 PHANTOM_LEAGUE_KEY = "phantom_league_id"
+
+# ── OFF26-22: estágio da sheet — METADADO do relatório, NUNCA insumo do diff ──
+#
+# A sheet nasce do SYNC (U7) e tem dois estágios: PROVISÓRIA e DEFINITIVA. A auditoria
+# é o GATE DE ABERTURA do leilão — e um veredito "liberada" sobre sheet provisória é
+# liberação sobre dado que ainda vai mudar (o caso perigoso: drops revelados na urna e
+# ainda não executados/sincronizados). Decisão do owner (08/08/2026): **rodar e
+# DESQUALIFICAR o veredito** — a execução antecipada tem valor (as divergências
+# continuam listadas), o que ela não pode é dizer "pode abrir".
+#
+# ⛔ A decisão "provisória × definitiva" NÃO é tomada aqui. Ela é calculada uma única
+#    vez, em `routes.cuts._build_keeper_sheet`, e este módulo apenas a CONSOME. Não
+#    replicar a regra (revelação da urna + sync posterior) em lugar nenhum.
+# ⛔ O estágio viaja POR FORA da estrutura que o núcleo puro lê: `build_sheet` o entrega
+#    na chave `stage_meta`, e `run_audit` a REMOVE antes de chamar `audit()`. O núcleo
+#    nunca o vê, as fixtures congeladas seguem válidas e os 34 testes não mudam.
+STAGE_DEFINITIVA = "definitiva"
+
+VERDICT_LIBERADA = "liberada"
+VERDICT_BLOQUEADA = "bloqueada"
+VERDICT_NAO_QUALIFICADA = "nao_qualificada"   # rodou, vale como conferência, NÃO é gate
 
 # ── Classes de divergência (D5, ajustado) ────────────────────────────────────
 # A classe "slot errado" NÃO existe: `pick_no`/`round` não indicam vaga e a
@@ -426,17 +450,57 @@ def fetch_board(league_id: str, timeout: int = 15) -> dict:
     }
 
 
+def _stage_meta(raw: dict) -> dict:
+    """OFF26-22 — carimbo de estágio, CONSUMIDO da fonte (nunca recalculado aqui).
+
+    `available` é a condição de insumo utilizável: a chave homônima da fonte E pelo
+    menos um time. É o que revive o ramo "sem insumo" — o gate antigo
+    (`if not raw.get("revealed")`) virou CÓDIGO MORTO no U7, porque a sheet passou a
+    devolver `revealed: True` incondicionalmente. Código morto que aparenta proteger é
+    pior que ausência de proteção.
+    """
+    stage = raw.get("stage")
+    late_drop = raw.get("late_drop") or {}
+    meta = {
+        "stage": stage,
+        "stage_label": raw.get("stage_label"),
+        "sync_timestamp": raw.get("sync_timestamp"),
+        "source": raw.get("source"),
+        "late_drop": late_drop,
+        "available": bool(raw.get("available")) and bool(raw.get("teams")),
+        "is_definitiva": stage == STAGE_DEFINITIVA,
+    }
+    # O que falta para virar DEFINITIVA — dito com o carimbo, não em abstrato.
+    if meta["is_definitiva"]:
+        meta["missing"] = None
+    elif not late_drop.get("revealed"):
+        meta["missing"] = ("A urna do late drop ainda não foi revelada. Até 22/08 os "
+                           "keepers podem mudar em até um jogador por time.")
+    else:
+        meta["missing"] = (
+            f"A urna revelou {late_drop.get('num_drops', 0)} drop(s) em "
+            f"{late_drop.get('executed_at') or '—'}, mas o último sync é de "
+            f"{meta['sync_timestamp'] or 'nenhum'} — não houve sync DEPOIS da revelação. "
+            f"Execute os drops no Sleeper e rode o sync final.")
+    return meta
+
+
 def build_sheet(season: int | None = None) -> dict:
     """Lado Manager. Consome a keeper sheet canônica do OFF26-2 (fonte única) e a
     enriquece com `sleeper_player_id` por RE-QUERY — D3: entre incluir o campo no
-    payload da sheet e re-consultar, vence quem NÃO mexe em item pendente de smoke."""
+    payload da sheet e re-consultar, vence quem NÃO mexe em item pendente de smoke.
+
+    OFF26-22: entrega também `stage_meta` — metadado do relatório que `run_audit`
+    REMOVE antes de chamar o núcleo puro. O núcleo continua vendo exatamente o mesmo
+    formato de sempre."""
     from models import Player, Team
     from routes.cuts import _build_keeper_sheet
 
     season = season or get_current_season()
     raw = _build_keeper_sheet(season)
-    if not raw.get("revealed"):
-        return {"revealed": False, "season": season}
+    meta = _stage_meta(raw)
+    if not meta["available"]:
+        return {"revealed": False, "season": season, "stage_meta": meta}
 
     teams = []
     for t in raw["teams"]:
@@ -455,7 +519,54 @@ def build_sheet(season: int | None = None) -> dict:
             "fa_budget": t["fa_budget"], "keepers": keepers,
         })
     return {"revealed": True, "season": season,
-            "lock_timestamp": raw.get("lock_timestamp"), "teams": teams}
+            "lock_timestamp": raw.get("lock_timestamp"), "teams": teams,
+            "stage_meta": meta}
+
+
+def qualify(report: dict, meta: dict | None) -> dict:
+    """OFF26-22 — decide se ESTA execução vale como GATE de abertura do leilão.
+
+    Roda DEPOIS do núcleo puro, sobre o relatório pronto: o diff é o mesmo, o que muda
+    é a autoridade do veredito. Três saídas:
+
+      · sheet **DEFINITIVA**  → nada muda (o veredito do núcleo vale como gate);
+      · sheet **PROVISÓRIA**  → `verdict = nao_qualificada`. A auditoria rodou, o
+        relatório está completo e as divergências continuam listadas (é o valor da
+        conferência antecipada) — mas "ABERTURA LIBERADA" fica **impossível**, porque
+        a sheet ainda vai mudar. O motivo do estágio entra em PRIMEIRO nos
+        `blocking_reasons`, à frente do que o diff achou;
+      · sheet **indisponível** → o bloqueio por falta de insumo do núcleo é preservado,
+        com a causa real prefixada (a frase do núcleo fala da "janela de cortes", que o
+        U7 aposentou; corrigi-la exigiria mexer no núcleo — ver resíduo no OFF26-22).
+
+    `gate_qualified` é o campo booleano: é o que um consumidor deve ler, não a string.
+    """
+    meta = dict(meta or {})
+    report["sheet_stage"] = meta
+
+    if not meta:                                    # sem carimbo (chamada sem meta)
+        report["gate_qualified"] = report.get("verdict") == VERDICT_LIBERADA
+        return report
+
+    if not meta.get("available"):
+        report["gate_qualified"] = False
+        report["blocking_reasons"] = [
+            "Keeper sheet indisponível (nenhum time na sheet) — sem os dois lados não "
+            "há diff, e esta execução não vale como gate."
+        ] + list(report.get("blocking_reasons") or [])
+        return report
+
+    if meta.get("is_definitiva"):
+        report["gate_qualified"] = report.get("verdict") == VERDICT_LIBERADA
+        return report
+
+    report["gate_qualified"] = False
+    report["verdict"] = VERDICT_NAO_QUALIFICADA
+    report["blocking_reasons"] = [
+        f"Keeper sheet {meta.get('stage_label') or 'PROVISÓRIA'} — esta execução é "
+        f"CONFERÊNCIA ANTECIPADA e NÃO vale como gate de abertura. {meta.get('missing')}"
+    ] + list(report.get("blocking_reasons") or [])
+    return report
 
 
 def run_audit(season: int | None = None) -> dict:
@@ -466,6 +577,9 @@ def run_audit(season: int | None = None) -> dict:
     mas o estado da liga continua sendo lido e exibido. Falha na leitura da liga vira
     `error` no bloco de meta — nunca 500, nunca página pendurada."""
     sheet = build_sheet(season)
+    # ⛔ OFF26-22: o carimbo SAI da sheet antes do núcleo. O núcleo puro recebe
+    #    exatamente o formato de sempre — é o que mantém as fixtures congeladas válidas.
+    stage_meta = sheet.pop("stage_meta", None)
     league_id = get_phantom_league_id()
     if not league_id:
         board = {"error": "Liga fantasma não configurada — informe o `league_id` "
@@ -475,4 +589,4 @@ def run_audit(season: int | None = None) -> dict:
             board = fetch_board(league_id)
         except Exception as e:      # rede/parse fora do que `_get` já absorve
             board = {"error": f"Falha ao ler a liga {league_id}: {e}"}
-    return audit(board, sheet)
+    return qualify(audit(board, sheet), stage_meta)

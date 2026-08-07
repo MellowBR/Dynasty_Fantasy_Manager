@@ -36,6 +36,9 @@ python janela_ensaio_test.py
 # Run lista de exclusão do importador (OFF26-11 — 36 testes; núcleo puro + ORM em memória)
 python keeper_exclusion_test.py
 
+# Run estágio da sheet na auditoria (OFF26-22 — 25 testes; camada de LEITURA, não o núcleo)
+python keeper_audit_stage_test.py
+
 # Seed users (after first deploy)
 python seed_users.py --csv data/users.csv
 python seed_users.py --email user@gmail.com --name "Name" --team-id 1 --admin
@@ -230,9 +233,18 @@ sheet)` é puro** (sem DB, sem rede — é o que os testes exercem); `fetch_boar
 - **Fixtures:** `keeper_audit_fixtures.py` é **material de teste congelado — NÃO é a keeper sheet
   real** (essa nasce da revelação da janela de cortes e vive no banco). Nenhum caminho de produção
   o importa.
-- ⚠️ **OFF26-22 🔲:** `build_sheet` ainda tem o gate `if not raw.get("revealed")`, mas desde o U7
-  `_build_keeper_sheet` devolve `revealed: True` **sempre** — o ramo é código morto, e a auditoria
-  passou a auditar sheet **PROVISÓRIA** como se fosse definitiva.
+- **Estágio da sheet × autoridade do veredito (OFF26-22 ⚠️):** a auditoria **roda** sobre sheet
+  PROVISÓRIA (a execução antecipada tem valor — divergências achadas cedo), mas o veredito
+  **"ABERTURA LIBERADA" é impossível** nesse estado: sai `verdict="nao_qualificada"` com o motivo
+  citando os dois carimbos (revelação da urna × último sync) e o que falta. **`gate_qualified`
+  (bool) é o campo a ler**, não a string. Definitiva → comportamento idêntico ao de sempre;
+  indisponível → bloqueio por falta de insumo. Tudo isso vive em `keeper_audit.qualify`, **fora**
+  do núcleo puro.
+- ⛔ **O carimbo NUNCA entra no núcleo:** `build_sheet` o entrega na chave `stage_meta` e
+  `run_audit` a **remove** antes de chamar `audit()`. É o que mantém as fixtures congeladas válidas
+  e os 34 testes sem edição. Teste espiona a chamada e falha se o carimbo vazar.
+- ⛔ **Não recalcular "provisória × definitiva" aqui.** A regra (revelação da urna + sync posterior)
+  é calculada **uma vez só**, em `routes/cuts._build_keeper_sheet`; todo o resto **consome**.
 
 ### Lista de exclusão do importador — a sheet CONGELADA (OFF26-11)
 
@@ -283,6 +295,7 @@ fantasy_manager/
   app.py, wsgi.py, models.py       # Core app
   salary_engine.py                  # Pure salary logic (no DB)
   keeper_audit.py                   # OFF26-4: auditoria pré-leilão (núcleo puro + IO read-only)
+  keeper_audit_stage_test.py        # OFF26-22: camada de LEITURA — estágio × autoridade (25)
   keeper_exclusion.py               # OFF26-11: sheet CONGELADA = lista de exclusão do importador
   keeper_exclusion_test.py          # OFF26-11: discriminador keeper × arremate (36)
   late_drop_test.py                 # OFF26-10: urna do late drop + keeper sheet via sync (47)
