@@ -1,12 +1,12 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 10/08/2026-pt12 (sessão MAN-OFF26-24-REG-F1, **docs-only**: registro do **[[OFF26-24]] 🔲 Alta — script de população do board da liga fantasma**, decisão do owner revertendo o adiamento p/ 2027 (rollback trivial do comissário; variância do Cowork ameaça a janela de 48h) — **Cowork segue plano A** até o critério, prazo **19/08**, ⛔ API interna vetada, ⛔ guarda de nascença de `league_id`. **F1 combinada:** **Q1** Playwright (Python) **headed** na máquina do owner, **perfil persistente dedicado** logado 1× manualmente (zero credencial/2FA no script; ⛔ não usar o perfil principal). **Q2, o achado de payload:** a sheet JSON (`/api/cuts/keeper_sheet`) **não expõe sid nem `sleeper_owner_id`** (decisão D3 — o enriquecimento é do `build_sheet` da auditoria, por re-query) → parecer: **expor o `build_sheet` ao script** em vez de re-derivar (⛔ nenhuma 2ª definição de keeper, guarda do OFF26-11); `draft_id` redescoberto pela **API PÚBLICA da liga** (o caminho D1 do OFF26-4 — não é a API vetada). **Q3:** inventário do que o runbook já fixou (célula→Set Player→busca→“+” nunca o nome · ▼ p/ K-DEF · reescala · $1 sempre+Ctrl+A · filtro esconde designados · anti-homônimo pos+sigla) × **a lista de 7 itens que SÓ o ensaio de 11/08 responde** (seletores/DOM, atributos estáveis, iframe/virtualização, critério de assentamento, ofensivo designado some da busca?, menu no estado real, URL do board) — o ensaio anota e vira spec. **Q4:** âncora em **texto visível** (evidência: junho→agosto mudou posição, não rótulo), ⛔ posicional nunca, falha **barulhenta** no primeiro mismatch com screenshot+trace, **checkpoint por time** (`--from-team`). **Q5:** validação em 2 camadas — script confere por time e a **auditoria OFF26-4 roda sobre o board populado** (verificador independente que já existe; sobre provisória ela roda e o gate desqualificado é irrelevante p/ ensaio); **critério de 19/08:** 12/12 + auditoria zerada + zero intervenção + **RESET exercido**. **Q6:** OFF26-4 dona da auditoria; runbook decide quando; league_id hardcoded + confere nome na página + START DRAFT na lista proibida. **Plano F2 em 4 fases** (11/08 insumo → F2a 12-13 → F2b 14-15 → F2c 16-19, go/no-go do owner). Status Rápido +1 linha. Exceção docs-only logada. Zero código.)
 > Atualizado em: 10/08/2026-pt11 (sessão MAN-OFF26-23-VERIFY, **read-only**: o smoke do owner (preview com id inexistente → “não encontrado”, não a recusa do gate) tinha 3 leituras — a evidência fecha na **(1): ordem correta por necessidade, relato impreciso**. Os dois insumos do gate (`is_rookie` do `draft.type`, `season` do `draft.season`) **nascem da leitura do draft** (`draft_import.py:154-161`) — sem draft não há o que julgar, e not-found antes do gate é o desenho certo; “no topo do build_preview” era impreciso (o gate vem após leitura+status+`_team_by_roster`, antes de exclusão/matching/escrita — **nada é escrito antes dele em caminho nenhum**). **A sequência de domingo dispara o gate** (400 `rollover_pendente` em preview E confirm; nenhuma reordenação necessária; nota menor: gate antes do `_team_by_roster` pouparia 1 chamada na recusa — micro-otimização). **Hoje o gate não é exercitável com draft real** — o único linear 2026 está `pre_draft` e o check de status vem antes; o de 2025 exercita o bypass. **O teste que vale é domingo à noite:** draft completo + rollover pendente → preview → esperar a recusa (zero efeito colateral; preview não escreve); opcional hoje: mock draft linear 2026 no Sleeper. Suíte: decisão coberta pelo `test_classe_de_season_futura_bloqueia` (exatamente `(True, 2026, 2025)`), fiação pelo estático; ponta-a-ponta viveu no smoke da F2 (app real, `_read_draft` simulado) — parecer opcional registrado: caso de endpoint monkeypatchado na suíte (~10 linhas), não implementado. Zero código.)
 > Atualizado em: 10/08/2026-pt10 (sessão MAN-OFF26-23-FIX, **fix urgente**: o smoke do owner sobre `6ecb90e` pegou **SyntaxError no JS inline da /offseason** — na edição gerada da F2, o `\n\n` da mensagem do confirm virou **quebra de linha real** dentro da string; o parse do bloco inteiro morreu, `toggleFlag is not defined`, e a página degradou para “botão que não faz nada” (inclusive passos 3/4, de que o 18/08 depende). O gate de servidor estava íntegro — o 409 nunca foi requisitado, nada gravado. **Fix de 1 linha** + varredura: todos os blocos `<script>` de todos os templates parseados — só o offseason estava quebrado. **Exercido em DOM headless** (sem browser na máquina, declarado): 13/13 funções de onclick definidas, confirmação informada com o dano na caixa, cancelar → zero POST, aceitar → `force: true`. **Guarda permanente: `template_js_test.py`** (node quando disponível, heurística de string aberta como fallback — nunca silencioso), **provado contra a regressão real** (falha no `6ecb90e`, passa no fix). **Lição candidata MAN-METH-REG registrada:** *poka-yoke silencioso é meio poka-yoke — a mensagem é parte do mecanismo*. Suítes verdes (54+35+15+3+14+19+34+25+36+64+22). Push imediato — o smoke precisa do hash hoje.)
 > Atualizado em: 10/08/2026-pt9 (sessão MAN-OFF26-23 F2: **poka-yoke nos 3 pontos de não-retorno da semana 17→24/08 — o sistema agora recusa a ordem errada** (diretriz do owner; princípio registrado na seção como candidato a baseline do DEV_METHODOLOGY). **(1) Import do draft:** `rollover_order_gate` (núcleo puro no `draft_import`, chamado no topo do `build_preview` → bloqueia preview E confirm) recusa classe de season futura — a condição é `draft_season > current_season`, que só o rollover avança; auction fora do gate **de propósito** (transitivamente gateado via sheet congelada) e histórico permitido. **(2) Passo 5:** 409 `requires_force` quando não há registro `rookie_draft` na season — a mensagem explica o dano (a classe a $1; o consumidor crítico do store é o PRÓPRIO import) e a UI transforma o 409 em confirmação informada; `force: true` é a saída explícita do cenário legítimo; undo livre. **(3) Clear com rede:** backup automático pré-delete (`rookie_espn_backup_<UTC>.json` em `dirname(DYNASTY_DB)`, carimbo dentro — padrão F13) + `restore_rookie_espn_backup` pela porta única (valores E membership) — “sem undo” deixou de ser verdade; camada adicional, não substitui o backup manual. **Runbooks atualizados** (urna: seção “17→18/08 — a ordem crítica” + passo 5 pós-24/08; cowork: nota cruzada). **15 testes novos** (`poka_yoke_test.py`) + suítes completas verdes; smoke local no app real com `_read_draft` simulado: 400/`rollover_pendente` nos dois endpoints, 200 na ordem certa, 409 informado no passo 5. Guardas: rollover/varredura/salary_engine intocados (teste estático), caminho feliz byte-idêntico, once-only preservado. OFF26-23 → **⚠️** (smoke prod pendente, PROC1; push incluído — a semana começa domingo).)
 > Atualizado em: 10/08/2026-pt8 (sessão MAN-OFF26-23-REG-F1, **registro + diagnose read-only combinados**: **[[OFF26-23]] 🔲 Alta — ano de contrato do rookie 2026 × rollover × passo 5**, a pergunta do owner a 7 dias do draft. **O achado que organiza a semana: a ordem segura existe no desenho mas NÃO no código** — o gate real do painel acaba no passo 4 (rollover once-only, exige passos 2+3) e **o importador do draft não tem gate de `rollover_done`**: importar o rookie draft ANTES do rollover joga a classe inteira na varredura cega (`filter_by(is_dropped=False)`, `offseason.py:686` — sem skip por `contract_start_season`) e **todo rookie viraria Ano 2 no dia seguinte** — o Gainwell em massa. Importado DEPOIS, nasce Ano 1 e nada o toca até 2027 (o once-only elimina a família “reexecução”). **Prod: o rollover 2026 ainda não rodou** (alta confiança — o smoke da urna de 07/08 precisou do escape de ensaio, que só existe para contornar `rollover_done` pendente; conferência de Shell pronta na seção). **O plano de segurar o passo 5 até pós-24/08 foi VALIDADO por grep** — nada lê `rookie_draft_done` além da UI do painel — e a diagnose o endureceu: **o consumidor mais crítico do store é o PRÓPRIO import do draft** (salário via `rookie_espn_adjusted`); clicar o passo 5 antes de importar zeraria a classe para $1, e o clear não tem undo. **Gainwell = mesma manifestação, raiz distinta** (canal de aquisição, não ordem de fases; o fix de lá cobriu a raiz de lá — a daqui não tem guarda de código, e a porta `contract_year_correction` fica como caminho de reparo se o pior acontecer). **Roteiro seguro 17→24/08 entregue na seção** com os 3 pontos de não-retorno marcados (import antes do rollover · passo 5 antes do import · clear sem undo); **não há conflito** entre rookie-Ano-1 e store-vivo — ambos saem da mesma ordem: 18/08 = ESPN → rollover → import do draft; passo 5 só pós-auction. METH-REG: 2 premissas (1 contradita, 1 refutada a favor), 4 omissões. Gate de código no import é candidato registrado, ⛔ não arbitrado. Exceção de commit docs-only logada. Zero código.)
-> Atualizado em: 10/08/2026-pt7 (sessão MAN-M21-F1b, **diagnose read-only da fatia B do [[M21]]** — produto delimitado pelo owner: preparação da FA auction, “mostrar e marcar” (disponível + valor na linha), sem contrato/simulação; zero mutação, zero chamada externa. **Q1 — a premissa “os rookies já estão no sistema” é meia-verdade com prazo de validade:** a membership está (287 `in_class` no seed), o **valor quase não** (15/296 com `espn_raw>0`) e a fonte é **TRANSITÓRIA** — e aí o maior achado da diagnose: **`clear_rookie_espn_store()` roda no passo 5 (“Rookie Draft Done”), ENTRE o draft (17/08) e a auction (24/08)** — a camada de valor pode evaporar na semana exata do caso de uso; pendência de desenho registrada, ⛔ não arbitrada. De carona, o store cobre **veteranos não-rosterados do Top-300** (caso Ridley, `in_class=False` com valor) — valor de veterano “de graça” onde o Top-300 alcança; fora disso, linha sem valor é o estado correto (canônico = só rosterados, DP1 confirmado por contagem: 277). **Q2 — o mapa de consumidores decide sozinho: FEDERAR.** Importar ~12k linhas quebraria estruturalmente o import ESPN (todo not_found casaria; o fluxo E2 morre por vacuidade), multiplicaria homônimos no `player_lookup` (~40× o espaço de colisão Brown), inundaria o `needs_review` e faria o rollover incrementar 12 mil fantasmas (`offseason.py:686` roda em todos). Federar custa pouco e está medido: o índice do `nfl_context` **já carrega `full_name`**; falta busca por nome (normalização reusada do `player_lookup`) + fusão por sid. **Q3:** “disponível” = 1 query por request (~280 sids → dict); 3º estado cabe na engrenagem única (mesma extensão do M21-A). **Q4:** valor por classe tabelado — rookie via store, veterano Top-300 via store, resto **sem valor e correto assim**. **Q5:** corte mínimo **sem clique** (a linha É o produto); perfil de pool fica como evolução; ⚠️ pool rows não têm `Player.id` — o href atual quebraria, `origin` no payload é obrigatório. **Q6a — corte nomeado “busca federada informativa”:** busca no índice + fusão/dedupe + badge Disponível + valor quando houver + sem navegação; fora: perfil, persistência, calculadora, cap projector. **Q6b:** fronteira limpa com o redesenho do cap projector (nenhum dos dois possui o `RookieEspnValue`; cross-ref quando o item nascer). METH-REG: 2 premissas contraditas, 4 omissões. Fatia B segue **🔲** — decisão do owner. Zero código.)
-> 📁 Entradas anteriores em **`improvements_sessions.md`** (78 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
+> 📁 Entradas anteriores em **`improvements_sessions.md`** (79 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
@@ -148,6 +148,7 @@
 | UX14 | **Time NFL de dropado com fallback no pool** — perfil do Waller exibe `—` porque `Player.nfl_team` está vazio (sync só atualiza rosterados). Hipótese registrada, NÃO arbitrada: fallback de LEITURA no pool ([[O2]] como precedente), sem persistir; pool sem time → `—` correto (FA real). F1 responde a réplica: entra na fonte única da Q1 da UX12-F1 ou vira 2ª fonte por tela? — MAN-ARC-BUSCA-DONE | Baixa/Média | 🔲 |
 | UX15 | **Jogador pré-selecionado na página de trade** — o botão do perfil ([[M14]]) já leva os dois times; falta o jogador chegar marcado. Refinamento do campo 3 do [[UX12]] (archive); provável F2 direta, a confirmar réplica (quantos caminhos de entrada têm pré-seleção?) — MAN-ARC-BUSCA-DONE | Baixa | 🔲 |
 | OFF26-23 | **Ano de contrato do rookie 2026 × rollover × passo 5** — pergunta do owner a 7 dias do draft: o rookie entra e PERMANECE Ano 1? **F1 10/08 (MAN-OFF26-23-REG-F1):** a ordem segura existe mas **não é imposta por código** — o `draft_import` não tem gate de `rollover_done`; importar o draft ANTES do rollover incrementaria todo rookie p/ Ano 2 (varredura cega, `offseason.py:686`). **Roteiro seguro da semana entregue na seção** (rollover 18/08 ANTES do import do draft; passo 5 só pós-24/08 — validado: nada o lê além da UI, e o clear precoce zeraria os salários do próprio import). Gainwell = mesma manifestação, raiz distinta (canal, não ordem) — MAN-OFF26-23-REG-F1/-F2/**-FIX** (SyntaxError no JS da /offseason pego pelo smoke do owner — string quebrada na edição gerada; fix de 1 linha + `template_js_test.py` como guarda permanente) | Alta (semana 17→24/08) | ⚠️ 10/08/2026 (**gates + fix no ar — smoke prod pendente**, gate [[PROC1]]) |
+| OFF26-24 | **Script de população do board da liga fantasma** — decisão do owner 10/08 (reverte o adiamento p/ 2027): Playwright headed na máquina do owner, perfil dedicado logado, ⛔ guarda de nascença `league_id 1389725099556372481` + ⛔ API interna vetada (a descoberta do `draft_id` usa a API PÚBLICA da liga, a mesma do OFF26-4). **Cowork segue plano A** até o critério: 12/12 em ensaio + auditoria OFF26-4 zerada + zero intervenção + RESET exercido, **até 19/08** — sem isso, 2026 roda Cowork e o script vai a 2027. F1 10/08: sheet JSON não expõe sid (D3 — enriquecimento é do `build_sheet`); lista do que o ensaio de 11/08 anota p/ virar spec — MAN-OFF26-24-REG-F1 | Alta (validação até 19/08) | 🔲 |
 | M21 | **Busca cobre o universo Sleeper** — duas fatias: **A — FAs da liga** (**✅ 10/08/2026**, MAN-M21-A + smoke prod MAN-ARC-BUSCA-DONE: badge FA, ordenação rosterado-antes-de-FA, perfil de FA corrigido; âncora **Kamara**, 41 dropados medidos) e **B — universo não-Player** (Média, pós-intertemporada, 🔲; ⚠️ arbitragem importar×federar em aberto p/ F1b; **caso Helm migrado p/ cá** — nunca foi Player, medição Shell 10/08) — MAN-M21-REG/F1a/A/ARC-BUSCA-DONE | A: Alta · B: Média | 🔲 (fatia A ✅ 10/08/2026 · fatia B pendente) |
 
 ---
@@ -4169,6 +4170,139 @@ store; (3) o clear não tem undo (reverter o passo 5 não repopula).
    da urna (o escape de ensaio não é para produção).
 4. O passo 4 exige o passo 3 — a ESPN definitiva (18/08) **precede** o rollover por construção; a
    ordem interna do dia 18 (ESPN → rollover → import) sai do próprio painel.
+
+---
+
+### OFF26-24 — Script de população do board da liga fantasma
+🔲 **Registrado + F1 read-only 10/08/2026 (MAN-OFF26-24-REG-F1)** — Prioridade **Alta (validação
+até 19/08)** — decisão do owner (10/08) **revertendo o adiamento para 2027**: (a) rollback é
+trivial e do próprio owner (RESET DRAFT / remoção manual; pior caso = recomeçar, sem dano
+possível à liga real); (b) a variância do Cowork (~2h a ~5h; 2ª execução: **58min para 3 times**
+por timeouts) ameaça a janela de 48h entre late drop (22/08) e auction (24/08)
+
+**Condições de contorno (do prompt, integrais):** o **Cowork permanece plano A** até o script
+ser validado; prazo de validação **19/08** — sem validação até lá, 2026 roda via Cowork e o
+script fica para 2027. ⛔ **API interna não documentada do Sleeper segue VETADA** (sem contrato,
+risco de ToS, expõe a conta do comissário). ⛔ **Nada roda contra a liga real em hipótese
+alguma** — a guarda de `league_id` é requisito de nascença.
+
+#### F1 — diagnose read-only (10/08/2026)
+
+##### Q1 — Arquitetura: Playwright (Python) headed, na máquina do owner, perfil dedicado logado
+
+**Recomendação: Python + Playwright**, rodando **headed** no PowerShell do owner. Racional:
+- **Playwright > Selenium** para esta UI: auto-wait embutido (o board reescala e anima — a
+  espera explícita do Selenium seria o grosso do código), seletores por role/texto de primeira
+  classe e `trace viewer` para depurar falha do ensaio sem re-rodar.
+- **Headed, não headless:** quem executa é o owner — ver a run acontecer é parte do modo de
+  falha (parar barulhento + operador presente); e UI logada do Sleeper em headless é convite a
+  detecção/comportamento divergente sem ganho nenhum (a run é 1× por ciclo, não um batch).
+- **Login: perfil PERSISTENTE dedicado** (`launch_persistent_context(user_data_dir=<pasta
+  própria>)`): o owner loga manualmente UMA vez nessa janela; a sessão persiste no perfil;
+  **zero credencial no script, zero 2FA automatizado**. ⛔ Não usar o perfil principal do Chrome
+  (Playwright não dirige um Chrome já aberto, e misturar perfis é fonte de sessão derrubada).
+
+##### Q2 — Insumos do Manager: a sheet é legível, mas o payload JSON NÃO tem sid nem owner_id
+
+- **`GET /api/cuts/keeper_sheet`** (`@admin_required`, `routes/cuts.py:513-516`) devolve por
+  time: `team_id, team_name, fa_budget, num_keepers, num_ir` e `keepers[{id, name, position,
+  salary, is_on_ir}]` + `stage`/`sync_timestamp`/`late_drop`. ⚠️ **Sem `sleeper_player_id` no
+  keeper e sem `sleeper_owner_id` no time** — decisão **D3** registrada no próprio
+  `keeper_audit.build_sheet` (`keeper_audit.py:488-495`): o enriquecimento é feito por
+  **re-query**, não no payload da sheet.
+- **A ponte owner↔coluna existe** (`Team.sleeper_owner_id`, M12 — `models.py:91`) e o
+  `build_sheet` da auditoria já entrega **exatamente o pacote que o script precisa** (keepers
+  com sid + `sleeper_owner_id` por time). **Parecer para a F2:** expor o `build_sheet` ao script
+  (endpoint admin fino OU dump local) em vez de re-derivar — ⛔ **nenhuma segunda definição de
+  "quem é keeper"** (a guarda do OFF26-11 vale aqui).
+- **O que o script deriva sozinho:** o **`draft_id`** — redescoberto a cada uso pela **API
+  PÚBLICA documentada da liga** (o objeto da liga o carrega; mesmo caminho D1 do OFF26-4, 1
+  request read-only). ⛔ Isso NÃO é a API interna vetada — é a mesma chamada que a auditoria já
+  faz em produção. E o **handle do owner na coluna** (estado com owners reais) casa com
+  `Team.owner_name`/`sleeper_owner_id` do Manager.
+
+##### Q3 — O mundo que o Code não vê: o que o runbook já fixou × o que SÓ o ensaio de 11/08 responde
+
+**Já fixado pelo runbook OFF26-5 (2 execuções, correções contra a UI real):** `draft_id` muda a
+cada RESET (URL velha trava em LOADING — redescoberta obrigatória); coluna identificada pelo
+**owner** (estado real) ou pelo **menu de contexto** "Manually set a player for Team N" (estado
+placeholder); fluxo célula → **Set Player** → busca → **"+" da linha, NUNCA o nome** (o nome
+abre perfil e **cancela o fluxo inteiro**); **K/DEF abaixo da dobra**, revelados pela **seta ▼**
+(scroll do mouse não move o board); o board **reescala após a 1ª interação** (referência
+posicional quebra — mas **a vaga é atribuída POR POSIÇÃO**, então o que importa é a coluna);
+**preço nasce $1 SEMPRE** (mesmo com $PROJ maior) e edita por **Ctrl+A + digitar**; K/DEF já
+designados **somem do filtro**; anti-homônimo = **posição + sigla NFL** na linha do resultado
+(o pool de designação só traz ofensivos elegíveis).
+
+**O que SÓ o ensaio de 11/08 responde — a lista que vira spec (anotar TUDO):**
+1. **Seletores/DOM reais** de cada elemento do fluxo: cabeçalho de coluna (onde vive o handle),
+   itens do menu de contexto, campo "Find player Ctrl+U", linha de resultado (sub-elementos de
+   nome/posição/sigla), o **"+"**, o preço "$ 1", o botão **SET PLAYER**, a seta **▼**, os
+   filtros de posição.
+2. **Atributos estáveis existem?** `data-*`/`aria-*`/testids × classes hasheadas × só texto
+   visível — decide a estratégia da Q4.
+3. **O board vive num iframe?** E as listas (colunas/resultados) são **virtualizadas**? (os dois
+   mudam o código Playwright de cara).
+4. **O que é "assentado"** depois do SET PLAYER: atualização síncrona da célula? toast?
+   animação? — define o critério de espera pós-designação.
+5. **Ofensivo já designado some da BUSCA** (como K/DEF somem do filtro)? — define o teste de
+   idempotência/retomada.
+6. **Menu de contexto no estado com owners reais:** o texto vira o nome do owner ou continua
+   "Team N"? — define a âncora da verificação de coluna.
+7. A **URL do board** navegável direto (`draft/<draft_id>`?) e o caminho liga → board pela UI.
+
+##### Q4 — Robustez: texto visível como âncora, falha barulhenta, checkpoint por time
+
+- **Seletores: texto visível primeiro** (getByRole/getByText nos rótulos de que a própria
+  operação depende: "Manually set a player for", "Assign a player", "SET PLAYER"). Evidência a
+  favor: entre junho e agosto a UI mudou **layout/posições** (reescala, dobra) — mas **os textos
+  do fluxo sobreviveram** (as correções 🔧 do runbook são todas de posição/estado, nenhuma de
+  rótulo). ⛔ **Posicional nunca** (o board reescala — documentado). Atributos só se o ensaio
+  mostrar testids estáveis (classes hasheadas de SPA não contam).
+- **Modo de falha: parar BARULHENTO no primeiro erro** — antes de cada ação, assert do estado
+  esperado (o menu de contexto cita o time certo? a linha do resultado tem a posição+sigla
+  esperadas?); qualquer mismatch → aborta com screenshot + trace. ⛔ Nunca "seguir tentando".
+- **Relatório e retomada:** log JSON por designação (time, jogador, preço, timestamp); **a
+  unidade verificável do runbook (o time) vira o checkpoint** — `--from-team` retoma do time N;
+  ao fim de cada time, conferência local contra a sheet (contagem + soma) antes de seguir.
+
+##### Q5 — Validação: a auditoria OFF26-4 é o verificador independente que já existe
+
+- **Ensaio:** na fantasma, com a **sheet provisória** (dado real, zero escrita que importe — o
+  board inteiro é descartável por RESET DRAFT).
+- **Conferência automática em duas camadas:** (1) o próprio script, por time (contagem+soma vs
+  sheet); (2) **a auditoria OFF26-4 rodada SOBRE o board populado** — ela compara o board lido
+  ao vivo com a sheet, classe a classe, e **já existe** (⛔ nenhum verificador novo a escrever;
+  sobre sheet provisória ela roda e desqualifica o veredito de gate — o que para o ENSAIO é
+  irrelevante: o que se lê são as divergências, não o gate).
+- **"Validado até 19/08" (proposta, endurecendo a do prompt):** 12/12 times populados em ensaio
+  + **auditoria OFF26-4 sem NENHUMA divergência** (keeper ausente/salário/time errado zerados) +
+  **zero intervenção manual** durante a run + **RESET DRAFT exercido ao final** (o rollback
+  provado, não presumido). Qualquer item faltando em 19/08 → Cowork em 2026, script para 2027.
+
+##### Q6 — Fronteiras
+
+- **Auditoria pré-leilão: OFF26-4 segue dona** — o script a USA como verificador, não a replica.
+- **Quando popular: runbook/calendário** — o script executa, não decide.
+- ⛔ **Guarda de nascença:** `league_id 1389725099556372481` **hardcoded**; o script (1) resolve o
+  draft SÓ a partir dessa liga e (2) confere o nome da liga na página antes do primeiro clique —
+  qualquer outra coisa → recusa seca. **Nunca clicar START DRAFT** entra na lista de ações
+  proibidas do código.
+- **Zero escrita fora da liga fantasma**; o Manager não é tocado (o script só LÊ a sheet).
+
+#### Plano de F2 (fases batendo em 19/08)
+
+| Fase | Quando | Entrega | Gate |
+|---|---|---|---|
+| Insumo | **11/08** | Ensaio Cowork anota a lista da Q3 (seletores/DOM/iframe/virtualização/assentamento) | Sem a lista, F2a não começa |
+| F2a | 12–13/08 | Esqueleto: lê a sheet (via `build_sheet` exposto), descobre o draft pela API pública, navega ao board, **guarda de league_id**, designa **1 keeper de $1** num time, RESET | 1 designação correta + rollback provado |
+| F2b | 14–15/08 | Loop por time com checkpoint, preços editados (Ctrl+A), K/DEF via filtro, relatório JSON; **ensaio 12/12** + auditoria OFF26-4 zerada + RESET | O critério da Q5, primeira passagem |
+| F2c | 16–19/08 | 2ª passagem limpa do ensaio ponta-a-ponta (repetibilidade) + correções | **19/08: go/no-go do owner** |
+
+**Cross-refs:** [[OFF26-5]] (o runbook Cowork — plano A e fonte da anatomia), [[OFF26-4]] (a
+auditoria como verificador; D1 = o mesmo caminho de descoberta do draft), [[OFF26-11]] (⛔ nenhuma
+segunda definição de keeper — a sheet/`build_sheet` é a fonte), [[OFF26-2]] (a sheet), M12 (a
+ponte `sleeper_owner_id`).
 
 ---
 
