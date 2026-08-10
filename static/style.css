@@ -2384,6 +2384,93 @@ a.player-name:hover {
   .nav-mobile-toggle { display: inline-flex; }
   .nav-user-menu { display: none; }
   .nav-dropdown-teams { max-height: none; }
+  /* M10: a barra inline sai da navbar; a busca vive no topo do overlay (padrão N1) */
+  .nav-search { display: none; }
+}
+
+/* ── M10: busca de jogador (navbar desktop + overlay mobile + calculadora) ── */
+
+.nav-search { position: relative; flex-shrink: 1; min-width: 0; }
+.nav-search-mobile { position: relative; margin-bottom: .35rem; }
+
+.nav-search-input {
+  width: 200px;
+  max-width: 100%;
+  padding: .3rem .6rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  background: var(--bg3);
+  color: var(--text);
+  font-size: .82rem;
+  font-family: inherit;
+}
+.nav-search-mobile .nav-search-input { width: 100%; }
+.nav-search-input::placeholder { color: var(--text-dim); }
+.nav-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg2);
+}
+
+/* Dropdown de resultados — mesmo molde do team-filter (abs, sem libs) */
+.ps-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 340px;
+  max-width: 90vw;
+  max-height: 380px;
+  overflow-y: auto;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 4px;
+  z-index: 320;
+  box-shadow: 0 8px 24px rgba(0,0,0,.45);
+}
+/* No overlay mobile o dropdown fica em FLUXO (empurra o painel, não flutua) */
+.ps-dropdown-inline {
+  position: static;
+  width: 100%;
+  max-width: none;
+  max-height: 300px;
+  box-shadow: none;
+}
+
+.ps-option {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .45rem .6rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--text);
+  text-decoration: none;
+}
+.ps-option:last-child { border-bottom: none; }
+.ps-option:hover, .ps-option-active { background: var(--bg3); text-decoration: none; }
+.ps-photo { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.ps-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.ps-name {
+  font-size: .86rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ps-sub { display: flex; align-items: center; gap: .35rem; font-size: .72rem; color: var(--text-dim); }
+.ps-nfl { font-weight: 600; }
+.ps-team { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+.ps-salary { font-size: .82rem; font-weight: 700; color: var(--green); flex-shrink: 0; }
+.ps-empty { padding: .7rem .6rem; font-size: .82rem; color: var(--text-dim); text-align: center; }
+
+/* Wrap da calculadora (consumidor 2) */
+.ps-wrap { position: relative; }
+.ps-hint { font-size: .72rem; color: var(--text-dim); margin-top: 3px; min-height: 1em; }
+
+@media (max-width: 1024px) {
+  .nav-search-input { width: 150px; }
+  .ps-dropdown { width: 300px; }
 }
 
 /* ── M2: Tela de Revisão de Jogadores ───────────────────────────────────── */

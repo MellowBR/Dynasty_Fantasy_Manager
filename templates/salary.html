@@ -12,7 +12,14 @@
   <div class="form-grid">
     <div class="form-group">
       <label>Jogador (opcional)</label>
-      <input type="text" id="player-name" placeholder="Ex: Saquon Barkley" />
+      {# M10 consumidor 2: digitar segue livre; a lista é sugestão, o clique é a seleção. #}
+      <div class="ps-wrap" id="calc-search-wrap">
+        <input type="text" id="player-name" placeholder="Ex: Saquon Barkley"
+               autocomplete="off" spellcheck="false" role="combobox"
+               aria-controls="calc-search-dropdown" />
+        <div id="calc-search-dropdown" class="ps-dropdown" role="listbox" style="display:none"></div>
+      </div>
+      <div class="ps-hint" id="calc-search-hint"></div>
     </div>
     <div class="form-group">
       <label>ESPN Ref Value (PPR)</label>
@@ -133,6 +140,45 @@ function calculate() {
   });
 }
 
+// ── M10 consumidor 2: autocomplete da calculadora ───────────────────────────
+// Selecionar um jogador do banco preenche os 3 campos que o banco conhece: ESPN,
+// ano de contrato e tipo de aquisição. ⛔ "Valor Pago no Ano 1" NÃO é preenchido —
+// o banco guarda o salário corrente, não o do ano 1; inventá-lo produziria uma
+// tabela de contrato falsa.
+const ACQ_OPTIONS = Array.from(document.getElementById('acq-type').options).map(o => o.value);
+
+function fillFromPlayer(p) {
+  document.getElementById('player-name').value = p.name;
+  // O banco guarda o ESPN JÁ AJUSTADO (raw × 1.2); este campo é o RAW — a
+  // multiplicação acontece no backend (routes/salary.py). Daí a divisão.
+  const raw = p.espn_ref_value ? Math.round((p.espn_ref_value / 1.2) * 10) / 10 : '';
+  document.getElementById('espn-ref').value = raw;
+  document.getElementById('cur-year').value = p.contract_year || 1;
+  if (p.acquisition_type && ACQ_OPTIONS.includes(p.acquisition_type)) {
+    document.getElementById('acq-type').value = p.acquisition_type;
+  }
+  const hint = document.getElementById('calc-search-hint');
+  const acqTxt = ACQ_OPTIONS.includes(p.acquisition_type)
+    ? '' : ` · aquisição "${p.acquisition_type || '—'}" fora da lista (mantida a seleção atual)`;
+  hint.innerHTML = `✔️ <a href="/player/${p.id}">${escapeHtml(p.name)}</a> · ` +
+    `${escapeHtml(p.position || '?')} ${escapeHtml(p.nfl_team || 'FA')} · ` +
+    `${escapeHtml(p.fantasy_team || '—')} · salário atual $${escapeHtml(p.salary)} ` +
+    `(${escapeHtml(p.contract_display || '')})${escapeHtml(acqTxt)}`;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  createPlayerSearch({
+    inputId: 'player-name',
+    dropdownId: 'calc-search-dropdown',
+    onSelect: fillFromPlayer,
+  });
+  document.getElementById('player-name').addEventListener('input', function() {
+    document.getElementById('calc-search-hint').textContent = '';
+  });
+});
+
+// Enter calcula — exceto quando a sugestão destacada já consumiu o evento
+// (createPlayerSearch dá stopPropagation ao selecionar).
 document.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
 </script>
 {% endblock %}

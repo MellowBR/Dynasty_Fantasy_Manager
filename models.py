@@ -180,6 +180,34 @@ class Player(db.Model):
         from salary_engine import project_next_salary
         return project_next_salary(self)
 
+    def to_search_dict(self):
+        """
+        M10 — payload ENXUTO da busca (`/api/player/search`), os dois consumidores.
+
+        `to_dict()` invoca `is_renewal_candidate()` + `project_next_salary()` por
+        jogador: 20 resultados × cada tecla digitada é projeção de contrato que a
+        busca não exibe. Aqui só o que as duas telas renderizam/preenchem:
+        - navegação e identidade: `id` (destino `/player/<id>`) e `sleeper_player_id`
+          (foto — mesma chave do `renderPlayerPhoto`; ⛔ nunca o nome);
+        - desambiguação de homônimos na lista: posição + time NFL + franquia;
+        - autocomplete da calculadora: contrato, aquisição e ESPN (**ajustado**, como
+          está no banco — quem exibe em cru divide por 1.2, ver `salary.html`).
+        """
+        return {
+            "id": self.id,
+            "sleeper_player_id": self.sleeper_player_id,
+            "name": self.name,
+            "position": self.position,
+            "nfl_team": self.nfl_team or "",
+            "fantasy_team": self.fantasy_team_name,
+            "team_id": self.team_id,
+            "salary": self.salary,
+            "contract_year": self.contract_year,
+            "contract_display": self.contract_display(),
+            "acquisition_type": self.acquisition_type,
+            "espn_ref_value": self.espn_ref_value or 0.0,
+        }
+
     def to_dict(self):
         from salary_engine import project_next_salary
         return {

@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 08/08/2026-pt9 (MAN-O2-B1-DONE, **docs-only**: **smoke prod do Batch 1 do [[O2]] APROVADO** — PROC1 cumprido (hash `2ed0b4a` live), DJ Moore completo + link cruzado (Gainwell → franquia DELE) + validação do Michel; item segue **⚠️** (Batch 2 pendente). **Ressalva:** degradação fora-do-pool **não exercida em prod** — Gainwell renderizou completo (pool de prod mais fresco que o local de 31/07); ocorrência da família *observação verdadeira, procedência errada*; coberta por unit test, exercer oportunisticamente. **Ocorrência de processo (1ª):** sessão encerrada com commit local SEM push, detectada pelo owner via ausência de deploy; regra candidata só na 2ª. **[[UX13]] 🔲 Baixa registrado** — `contract_year_correction` cru na Timeline, chave ausente nos 2 `EVENT_LABELS` copiados, carona. Zero código.)
+> Última atualização: 10/08/2026 (MAN-M10-F2: **busca de jogador entregue** — [[M10]] a **⚠️** (smoke prod pendente, PROC1). Os 2 consumidores da spec de 28/04 sobre **um componente só** (`createPlayerSearch` em `base.html`): navbar desktop + overlay mobile **navegam** (`<a href>` real p/ `/player/<id>`), calculadora **seleciona** e preenche ESPN/ano/aquisição. **Identidade:** substring é sugestão exibida, cada linha traz pos+time NFL+franquia, e ⛔ **Enter sem item destacado não escolhe nada** — resolução é sempre ato explícito, destino sai do `id`. Backend reusado com 3 ajustes (payload `to_search_dict()` — `to_dict()` fazia **20 projeções de contrato por tecla**; ordem prefixo-primeiro — sem ela o teto de 20 cortava arbitrário; escape do LIKE — '%' devolvia o elenco). ⚠️ **Conversão fácil de errar:** campo da calculadora é RAW e o banco é ajustado → autofill **divide por 1.2**; ⛔ 'ano 1' não é preenchido (banco tem salário corrente). 27 testes novos; smoke local: Mahomes resolve em 1 (caso de 28/04 morre) e 'brown' vira **lista de 5 distinguíveis**. **Falta o navegador** — smoke do owner.)
+> Anterior: 08/08/2026-pt9 (MAN-O2-B1-DONE, **docs-only**: **smoke prod do Batch 1 do [[O2]] APROVADO** — PROC1 cumprido (hash `2ed0b4a` live), DJ Moore completo + link cruzado (Gainwell → franquia DELE) + validação do Michel; item segue **⚠️** (Batch 2 pendente). **Ressalva:** degradação fora-do-pool **não exercida em prod** — Gainwell renderizou completo (pool de prod mais fresco que o local de 31/07); ocorrência da família *observação verdadeira, procedência errada*; coberta por unit test, exercer oportunisticamente. **Ocorrência de processo (1ª):** sessão encerrada com commit local SEM push, detectada pelo owner via ausência de deploy; regra candidata só na 2ª. **[[UX13]] 🔲 Baixa registrado** — `contract_year_correction` cru na Timeline, chave ausente nos 2 `EVENT_LABELS` copiados, carona. Zero código.)
 > Anterior: 08/08/2026-pt8 (MAN-O2-F2-B1: **Batch 1 do perfil do jogador entregue** — time NFL + idade no header, link do time da liga, card de depth chart (destaque por **sid**, nunca nome). Novo `nfl_context.py` (núcleo puro + IO, 19 testes). Decisões: ⛔ página **nunca faz rede** (cache F13, sem download; ausente → degrada sem erro); pool vencido **serve** (stale-while-usable); **zero cache novo em disco** (índice em memória, mtime só como chave de invalidação); **idade derivada de `birth_date`, não persistida**; chart deriva do POOL (Q2: rivais não são Players do DB), header segue `Player.nfl_team` (fonte única Q1). Smoke local: DJ Moore completo, link p/ franquia DELE, DEF e fora-do-pool degradando limpo. Guardas OK (54/54 folha; zero schema; rotas intactas). Suítes verdes. [[O2]] 🔲 → ⚠️ — falta smoke prod (PROC1); Batch 2 pendente.)
 > Anterior: 08/08/2026-pt7 (MAN-UX12-REFINE, **docs-only**: **roteamento (b) do [[UX12]] executado — item fecha ✅ ROTEADO** (despachado em [[M10]] busca + [[O2]] perfil; decisão do owner). **O2 refinado in-place**: absorve campos 2+5 do UX12, **quita a dívida de absorção** (F1 do MAN-O2-F1 de 28/04 sai do handoff descartável e passa a viver na seção — disponibilidade por dimensão, endpoints sem `/v1/`, 2 batches, cache strategy com nota pós-F13, reuso), **corrige a afirmação falsa do depth chart** (zero consumo em produção; dado no pool 75%/94%, coluna não bastaria — derivação do pool TTL 168h) e registra as guardas ([[OFF26-16]], [[S4]]) + Q5 (página existente). [[M10]] só validação de demanda (Michel, 2º usuário; spec intocada). Transbordos: [[UX11]] candidato a **F2 direta de causa conhecida** (payload já tem `nfl_team`; resta staleness) · [[UX10]] estreitado à hipótese (a). Seção UX12 migrada **verbatim** ao archive ([[O3]]); Status Rápido com **só a linha UX12 mudada**. Zero código.)
 > Anterior: 08/08/2026-pt6 (MAN-UX12-F1, **diagnose read-only** do [[UX12]] — zero código, zero chamada externa. **Achado central: 3 dos 7 campos pedidos JÁ EXISTEM na página atual** (trade com os dois times pré-selecionados/M14 · cap hit · Timeline de `PlayerHistory` com trades clicáveis) — o gap real é NFL no header, link p/ time, idade e depth chart, **metade já no Batch 1 do [[O2]]**. **Q0 recomenda (b) despachar**: busca → [[M10]] (spec de 28/04 conferida inteira e viva), perfil → [[O2]] refinado in-place absorvendo campos 2+5 + a F1 do MAN-O2-F1 (hoje num handoff “descartável”). **Q1 refuta a réplica temida** (time = fonte única `Player.nfl_team`, 8 sítios lendo a mesma coluna; foto = 2 construtores espelhados) e **responde de carona a F1 do [[UX11]]** — o payload do quadro de trades já contém `nfl_team`, falta só renderizar — além de **estreitar o [[UX10]]** (URL de foto sem componente de temporada/time → hipóteses b/c sem mecanismo local). **Q2:** `depth_chart_order` **não é consumido em produção** (afirmação do O2 falsa) mas está no pool (75% skill; idade 94%) — e **coluna não bastaria**: os rivais de posição não são Players do DB, deriva-se do pool. **Q3–Q5:** histórico como está = zero acoplamento novo com o [[S4]]; cap hit já lê as fontes canônicas; enriquecer a página existente (2 helpers + 6 links inline apontam para ela). Listas (a)/(b) da regra MAN-METH-REG aplicadas: 3 premissas contraditas, 4 omissões com parecer. Status segue 🔲; decisão de roteamento é do owner.)
@@ -4497,3 +4498,68 @@ formato de batches parciais vale: Batch 1 validado, Batch 2 (stats + schedule) p
 **Exceção de commit registrada (regra da checklist):** commit **docs-only**, deliberado —
 fechamento de smoke, sem código pendente. Nenhum status mudou além do avanço do O2 (Batch 1
 validado, item segue ⚠️) e da linha nova do UX13.
+
+### MAN-M10-F2 — busca de jogador: global na navbar + autocomplete da calculadora (10/08/2026, Opus)
+
+F2 do [[M10]] conforme a spec de 28/04 (conferida viva pela UX12-F1, `d72f378`) — **executada, não
+redesenhada**. [[M10]] vai a **⚠️**: implementado, smoke de produção pendente (gate [[PROC1]]).
+
+- **Uma engrenagem, dois consumidores.** `createPlayerSearch` (em `templates/base.html`) tem dois
+  modos: **navegação** (sem `onSelect` → cada resultado é um `<a href="/player/<id>">` de verdade,
+  ctrl/meio-clique funcionam) e **seleção** (`onSelect` → devolve o objeto e fecha). Três
+  instâncias: navbar desktop, overlay mobile e calculadora. ⛔ Nenhuma tela deriva a sua — era o
+  risco óbvio de um item com 2 consumidores.
+
+- **Identidade, que é o que este item tinha de delicado.** O `ilike` do backend é **sugestão
+  exibida**; a resolução é **sempre ato explícito do usuário**. Concretamente: linha traz
+  **posição + time NFL + franquia** (o que separa homônimos), o destino sai do **`id` da linha**
+  (nunca do nome), e **Enter sem item destacado não seleciona nada** — não existe "vai no
+  primeiro". `player_lookup` não foi tocado nem chamado; segue sendo a reconciliação estrita dos
+  imports, e há teste que falha se o nome dele aparecer no corpo do endpoint.
+
+- **Backend reusado, 3 ajustes** (assinatura, `is_dropped=False` e teto de 20 preservados):
+  (1) **`to_search_dict()`** — `to_dict()` invocava `is_renewal_candidate()` +
+  `project_next_salary()` por jogador, ou seja **20 projeções de contrato a cada tecla** para
+  exibir 4 campos; a spec deixara a otimização condicional, o custo real foi uma dúzia de linhas.
+  (2) **Ordenação prefixo-primeiro** — sem `order_by`, o teto de 20 cortava em ordem arbitrária de
+  tabela: em liga cheia, "moore" podia devolver 20 linhas **sem o Moore**. (3) **Escape dos
+  curingas do LIKE** — `%` digitado devolvia o elenco inteiro rotulado como resultado de busca.
+
+- **Questões que a spec delegou à F2, decididas:** breakpoint = o **768px que a navbar já usa**
+  (nenhum novo); dropdown mobile em **fluxo normal** (empurra o painel — absoluto vaza num `aside`
+  que rola); resultado renderizado no componente e **não** via `renderPlayerNameLink` (âncora
+  aninhada é HTML inválido — mesmo destino, e a foto vem do `renderPlayerPhoto` existente, keyed
+  por sid: as fontes comuns da Q1 da UX12-F1, sem derivação nova); os 2 consumidores numa camada
+  só (com o componente pronto, o segundo custou o `onSelect`).
+
+- ⚠️ **A conversão que era fácil de errar.** O campo "ESPN Ref Value" da calculadora é **RAW** (o
+  `×1.2` está em `routes/salary.py`) e `Player.espn_ref_value` guarda o **ajustado**: o autofill
+  **divide por 1.2**. Sem isso o valor seria multiplicado duas vezes e **inflaria a tabela de
+  contrato inteira** — uma tela de projeção mentindo em silêncio. ⛔ E **"Valor Pago no Ano 1" não
+  é preenchido**: o banco tem o salário corrente, não o do ano 1; preenchê-lo daria uma tabela
+  plausível e falsa. As duas coisas viraram teste estático.
+
+- **Regressão.** `player_search_test.py` **27** (escape do LIKE puro · endpoint contra ORM em
+  memória: âncora Mahomes, **dois DJ Moore com ids/sids distintos e distinguíveis**, prefixo antes
+  de substring, dropado fora, filtro por time, vazio gracioso, curinga, teto, payload sem projeção
+  · guardas estáticas de identidade). Suítes completas verdes: 54 + 34 + 25 + 36 + 64 + 22 + 14 +
+  19 + 27.
+
+- **Smoke local (GET-only, test client logado, cópia do DB — o vivo não foi tocado).** "Mahomes"
+  → 1 resultado com link direto: **o caso âncora de 28/04 morre**. "brown" → **5 Browns
+  distinguíveis**, cada um com id próprio: o incidente vira *lista para escolher*, que é o
+  comportamento pedido; de carona renderizaram sem erro os dois casos-limite reais — DEF com sid
+  **sigla** ("CLE") e jogador **sem sid** (Hollywood Brown, foto omitida em silêncio).
+  Inexistente/`%`/`_` → vazio. Componente exercido também em **DOM headless** (harness descartável
+  em node, não versionado): debounce de 1 request, `<2` chars não busca, hrefs distintos por
+  homônimo, Enter sem destaque não navega, seta+Enter vai ao id certo, 68.4 → 57.
+
+- ⚠️ **O que NÃO foi exercido:** **interação em navegador** (aparência, foco/teclado reais,
+  overlay em tela pequena) — é o smoke do owner. E o caso literal **"dois DJ Moore" é inexercível
+  com dado real**: só o WR do BUF está rosterado, e a busca é do **DB local** por desenho da spec
+  (que separou explicitamente a fonte da busca da fonte do [[O2]]); o cenário vive nos testes, e o
+  análogo real em produção é o "brown".
+
+**Commit único código+docs.** Zero schema, zero toque em folha/cap/sync e **zero mudança na página
+de perfil** — a busca é camada de descoberta que leva até ela. **[[M10]] ⚠️ até o hash live no
+Render ser confirmado e o smoke passar (PROC1).**

@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, jsonify, abort
+from sqlalchemy import case, func
 from flask_login import login_required, current_user
 from models import db, Team, Player, SALARY_CAP, POS_ORDER, sort_players_by_pos
 from salary_engine import roster_salary  # OFF26-16: fonte única da folha (inclui IR)
@@ -320,21 +321,46 @@ def player_history(player_id):
     })
 
 
+SEARCH_LIMIT = 20
+
+
+def _like_term(term: str) -> str:
+    """Escapa os curingas do LIKE — '%' digitado pelo usuário é texto, não 'tudo'."""
+    return term.replace("\\", r"\\").replace("%", r"\%").replace("_", r"\_")
+
+
 @roster_bp.route("/api/player/search")
 @login_required
 def search_players():
+    """
+    M10 — backend ÚNICO dos dois consumidores da busca (barra global da navbar e
+    autocomplete da calculadora). Assinatura preservada: `q` + `team_id` opcional,
+    `is_dropped=False`, teto de 20.
+
+    ⛔ Substring (`ilike`) é SUGESTÃO EXIBIDA, nunca resolução de identidade — quem
+    resolve é o clique do usuário, e o destino é o `id` da linha. Este caminho não
+    substitui `player_lookup.find_player_by_name` (matching estrito 4-tier da
+    reconciliação de imports) e não pode ser usado para casar jogador por nome:
+    o incidente Brown é sobre exatamente isso.
+
+    Ordenação (M10): prefixo primeiro, depois alfabética — "moore" traz os Moore
+    antes de "Moorehead"; sem ordem explícita o teto de 20 cortava arbitrariamente.
+    """
     q = request.args.get("q", "").strip()
     team_id = request.args.get("team_id", type=int)
     if not q:
         return jsonify([])
+    term = _like_term(q)
     query = Player.query.filter(
-        Player.name.ilike(f"%{q}%"),
+        Player.name.ilike(f"%{term}%", escape="\\"),
         Player.is_dropped == False,
     )
     if team_id:
         query = query.filter_by(team_id=team_id)
-    players = query.limit(20).all()
-    return jsonify([p.to_dict() for p in players])
+    prefix_first = case((Player.name.ilike(f"{term}%", escape="\\"), 0), else_=1)
+    players = (query.order_by(prefix_first, func.lower(Player.name))
+                    .limit(SEARCH_LIMIT).all())
+    return jsonify([p.to_search_dict() for p in players])
 
 
 # ── M13: Player detail page ──────────────────────────────────────────────────

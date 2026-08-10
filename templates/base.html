@@ -70,6 +70,17 @@
     {% endif %}
   </ul>
 
+  {% if current_user.is_authenticated %}
+  {# M10 — busca global (consumidor 1). Desktop: slot entre .nav-links e .nav-right. #}
+  <div class="nav-search" id="nav-search-wrap">
+    <input type="text" id="nav-search-input" class="nav-search-input"
+           placeholder="🔎 Buscar jogador..." autocomplete="off" spellcheck="false"
+           aria-label="Buscar jogador na liga" role="combobox" aria-expanded="false"
+           aria-controls="nav-search-dropdown">
+    <div id="nav-search-dropdown" class="ps-dropdown" role="listbox" style="display:none"></div>
+  </div>
+  {% endif %}
+
   <div class="nav-right">
     <label for="nav-mobile-state" class="nav-mobile-toggle" title="Menu">☰</label>
     {% if g_user_team %}
@@ -105,6 +116,16 @@
 <aside class="nav-mobile-overlay">
   <label for="nav-mobile-state" class="nav-mobile-overlay-bg" aria-label="Fechar menu"></label>
   <div class="nav-mobile-panel">
+    <div class="nav-mobile-section-title">Buscar jogador</div>
+    {# M10 — mesma barra, mesma engrenagem; dropdown em fluxo normal (empurra o painel). #}
+    <div class="nav-search-mobile" id="nav-search-mobile-wrap">
+      <input type="text" id="nav-search-mobile-input" class="nav-search-input"
+             placeholder="🔎 Nome do jogador..." autocomplete="off" spellcheck="false"
+             aria-label="Buscar jogador na liga">
+      <div id="nav-search-mobile-dropdown" class="ps-dropdown ps-dropdown-inline"
+           role="listbox" style="display:none"></div>
+    </div>
+
     <div class="nav-mobile-section-title">Navegação</div>
     <a href="/" class="nav-mobile-item">Meu Roster</a>
     <a href="/league" class="nav-mobile-item">Liga · Visão Geral</a>
@@ -257,6 +278,12 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+// ── Helper: escape de HTML (fonte única do escaping no JS global) ───────────
+function escapeHtml(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 // ── Helper: renderiza nome de jogador como link para /player/<id> ───────────
 function renderPlayerNameLink(p, opts) {
   opts = opts || {};
@@ -265,7 +292,7 @@ function renderPlayerNameLink(p, opts) {
   const cls = 'player-name' + (opts.className ? ' ' + opts.className : '');
   const target = opts.target ? ` target="${opts.target}"` : '';
   const stop = opts.stopPropagation ? ' onclick="event.stopPropagation()"' : '';
-  const safe = String(name).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const safe = escapeHtml(name);
   return `<a href="/player/${id}" class="${cls}"${target}${stop} title="Abrir página do jogador">${safe}</a>`;
 }
 
@@ -276,9 +303,124 @@ function renderPlayerPhoto(p, klass) {
   const sid = p.sleeper_player_id;
   if (!sid) return '';
   const cls = 'player-photo' + (klass ? ' ' + klass : '');
-  const safeName = String(p.name || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const safeName = escapeHtml(p.name);
   return `<img src="https://sleepercdn.com/content/nfl/players/thumb/${sid}.jpg" onerror="this.style.display='none'" class="${cls}" alt="${safeName}">`;
 }
+
+// ── M10: busca de jogador — engrenagem ÚNICA dos dois consumidores ──────────
+// Consumidor 1 = barra global da navbar (desktop + overlay mobile), que NAVEGA
+// para /player/<id>. Consumidor 2 = autocomplete da calculadora, que SELECIONA
+// (onSelect) e preenche o formulário. Mesmo endpoint, mesma renderização, mesmo
+// teclado — nenhuma tela deriva a sua.
+//
+// ⛔ IDENTIDADE: o que a substring do backend devolve é SUGESTÃO EXIBIDA. Quem
+// resolve é o usuário, clicando/confirmando um item; o destino sai do `id` da
+// linha (nunca do nome). Enter sem item destacado NÃO seleciona nada — homônimos
+// reais existem (dois DJ Moore no pool do Sleeper) e são distinguidos na lista
+// por posição + time NFL + franquia.
+function createPlayerSearch(opts) {
+  const input = document.getElementById(opts.inputId);
+  const dropdown = document.getElementById(opts.dropdownId);
+  if (!input || !dropdown) return null;
+
+  const minChars = opts.minChars != null ? opts.minChars : 2;
+  const navigate = !opts.onSelect;   // sem onSelect → modo navegação (link real)
+  let results = [], active = -1, timer = null, seq = 0;
+
+  function close() {
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
+    results = []; active = -1;
+    input.setAttribute('aria-expanded', 'false');
+  }
+
+  function setActive(i) {
+    const els = dropdown.querySelectorAll('.ps-option');
+    if (!els.length) return;
+    active = (i + els.length) % els.length;
+    els.forEach((el, n) => el.classList.toggle('ps-option-active', n === active));
+    els[active].scrollIntoView({ block: 'nearest' });
+  }
+
+  function optionInner(p) {
+    const pos = p.position || '?';
+    return renderPlayerPhoto(p, 'ps-photo') +
+      `<span class="ps-main">
+         <span class="ps-name">${escapeHtml(p.name)}</span>
+         <span class="ps-sub">
+           <span class="pos-badge pos-${escapeHtml(pos).replace('/', '')}">${escapeHtml(pos)}</span>
+           <span class="ps-nfl">${escapeHtml(p.nfl_team || 'FA')}</span>
+           <span class="ps-team">${escapeHtml(p.fantasy_team || '—')}</span>
+         </span>
+       </span>
+       <span class="ps-salary">$${escapeHtml(p.salary)}</span>`;
+  }
+
+  function render(list) {
+    results = list;
+    active = -1;
+    if (!list.length) {
+      dropdown.innerHTML = '<div class="ps-empty">Nenhum jogador encontrado</div>';
+      dropdown.style.display = 'block';
+      input.setAttribute('aria-expanded', 'true');
+      return;
+    }
+    dropdown.innerHTML = list.map(p => navigate
+      ? `<a class="ps-option" role="option" href="/player/${p.id}" title="Abrir página do jogador">${optionInner(p)}</a>`
+      : `<div class="ps-option" role="option" tabindex="-1">${optionInner(p)}</div>`
+    ).join('');
+    dropdown.querySelectorAll('.ps-option').forEach((el, i) => {
+      el.addEventListener('mouseenter', () => setActive(i));
+      if (!navigate) el.addEventListener('mousedown', ev => { ev.preventDefault(); choose(i); });
+    });
+    dropdown.style.display = 'block';
+    input.setAttribute('aria-expanded', 'true');
+  }
+
+  function choose(i) {
+    const p = results[i];
+    if (!p) return;                       // ⛔ nada de "primeiro resultado" implícito
+    if (navigate) { window.location.href = '/player/' + p.id; return; }
+    opts.onSelect(p);
+    close();
+  }
+
+  function search() {
+    const q = input.value.trim();
+    if (q.length < minChars) { close(); return; }
+    const mine = ++seq;
+    fetch('/api/player/search?q=' + encodeURIComponent(q))
+      .then(r => r.ok ? r.json() : [])
+      .then(list => { if (mine === seq) render(Array.isArray(list) ? list : []); })
+      .catch(() => { if (mine === seq) close(); });
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(search, 200);      // debounce: padrão do salary_history
+  });
+  input.addEventListener('focus', () => { if (results.length) dropdown.style.display = 'block'; });
+  input.addEventListener('keydown', e => {
+    const open = dropdown.style.display !== 'none' && results.length > 0;
+    if (e.key === 'ArrowDown' && open) { e.preventDefault(); setActive(active + 1); }
+    else if (e.key === 'ArrowUp' && open) { e.preventDefault(); setActive(active - 1); }
+    else if (e.key === 'Enter') {
+      if (open && active >= 0) { e.preventDefault(); e.stopPropagation(); choose(active); }
+      // sem item destacado: Enter segue o comportamento da página (zero resolução silenciosa)
+    } else if (e.key === 'Escape') { close(); }
+  });
+  const wrap = input.closest('.nav-search, .nav-search-mobile, .ps-wrap') || input.parentElement;
+  document.addEventListener('click', e => {   // clique fora fecha (padrão do team-filter)
+    if (wrap && !wrap.contains(e.target)) close();
+  });
+
+  return { close: close, input: input };
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  createPlayerSearch({ inputId: 'nav-search-input', dropdownId: 'nav-search-dropdown' });
+  createPlayerSearch({ inputId: 'nav-search-mobile-input', dropdownId: 'nav-search-mobile-dropdown' });
+});
 
 </script>
 

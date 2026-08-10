@@ -39,6 +39,9 @@ python keeper_exclusion_test.py
 # Run contexto NFL da página do jogador (O2 Batch 1 — 19 testes; núcleo puro, sem DB/rede/FS)
 python nfl_context_test.py
 
+# Run busca de jogador (M10 — 27 testes; núcleo puro + endpoint em ORM de memória + guardas)
+python player_search_test.py
+
 # Run estágio da sheet na auditoria (OFF26-22 — 25 testes; camada de LEITURA, não o núcleo)
 python keeper_audit_stage_test.py
 
@@ -92,8 +95,8 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 | Blueprint | URL | Purpose |
 |-----------|-----|---------|
 | auth | `/login`, `/logout`, `/auth/callback` | Google OAuth authentication |
-| roster | `/`, `/player/<id>` | Team rosters, cap bar, página dedicada por jogador (M13; O2-B1: header com time NFL + idade, link p/ `/team/<id>`, card de depth chart via `nfl_context.py` — pool lido do cache F13 **sem rede no caminho de página**, degradação silenciosa p/ dado ausente), banner de cap estourado em offseason (M1), banner informativo de IR (OFF26-16 — leitura, não controle). **IR-CLEANUP: não há toggle de IR** — o Sleeper é autoridade sobre `is_on_ir` e o sync sobrescreve |
-| salary | `/salary`, `/salary_history`, `/cap_projector` | Salary calculator, cap projector, salary history com timeline clicável. **DP1/DP2/DP3:** board de planejamento de rookie draft no cap_projector — lista a **classe entrante capturada** (`RookieEspnValue.in_class=True`, snapshot da captura admin DP3, menos já-rosterados; valorados ESPN no topo, massa a $1 atrás de busca/filtro) via `/api/cap_projector/rookies`; cenário keep/corte + rookies num único POST ao `/budget` canônico (DP2 — o antigo `/simulate` foi removido), projeção pura sem escrever contrato |
+| roster | `/`, `/player/<id>`, `/api/player/search` | Team rosters, cap bar, página dedicada por jogador (M13; O2-B1: header com time NFL + idade, link p/ `/team/<id>`, card de depth chart via `nfl_context.py` — pool lido do cache F13 **sem rede no caminho de página**, degradação silenciosa p/ dado ausente), banner de cap estourado em offseason (M1), banner informativo de IR (OFF26-16 — leitura, não controle). **IR-CLEANUP: não há toggle de IR** — o Sleeper é autoridade sobre `is_on_ir` e o sync sobrescreve. **M10:** `/api/player/search` é o backend ÚNICO da busca (navbar desktop+mobile e autocomplete da calculadora), servido pelo componente `createPlayerSearch` de `base.html` — payload `to_search_dict()`, ordem prefixo-primeiro, curingas do LIKE escapados |
+| salary | `/salary`, `/salary_history`, `/cap_projector` | Salary calculator **com autocomplete de jogador (M10 — preenche ESPN/ano/aquisição; ⛔ o campo ESPN é RAW e o banco é ajustado: o autofill divide por 1.2, e o valor do ano 1 NÃO é preenchido)**, cap projector, salary history com timeline clicável. **DP1/DP2/DP3:** board de planejamento de rookie draft no cap_projector — lista a **classe entrante capturada** (`RookieEspnValue.in_class=True`, snapshot da captura admin DP3, menos já-rosterados; valorados ESPN no topo, massa a $1 atrás de busca/filtro) via `/api/cap_projector/rookies`; cenário keep/corte + rookies num único POST ao `/budget` canônico (DP2 — o antigo `/simulate` foi removido), projeção pura sem escrever contrato |
 | trades | `/trades`, `/trades/proposta/<uuid>` | Trade simulador puro (T1), preview com dynasty + redraft delta-pointing bars (T2/T3), descrição "de/para" 2-colunas, query params pré-seleção (M14), propostas compartilháveis |
 | picks | `/picks`, `/picks/lottery/<season>` | Grid navegável de picks (M9), auditoria pública do lottery (M8), legenda de odds audit-first — pesos do audit canônico, senão config (M15/M15-FIX), projeção do draft: R1 = lottery, R2/R3 = standings invertido (M16) |
 | auction | `/auction` | FA auction & rookie draft registration |
@@ -175,6 +178,8 @@ foi o owner.
 ### Player Name Matching (player_lookup.py)
 
 Strict full-name matching to prevent the "3 Browns" bug. Never falls back to partial/substring matching. Three tiers: exact → case-insensitive → normalized (strips accents, suffixes, punctuation).
+
+⛔ **A busca do M10 (`/api/player/search`) não é um caminho de resolução** e não usa este módulo: o `ilike` substring de lá produz **sugestão exibida** (com posição + time NFL + franquia para desambiguar homônimos), e quem resolve é o clique do usuário — o destino sai do `id` da linha, nunca do nome. As duas coisas coexistem de propósito: reconciliação de import é estrita; autocomplete é permissivo **e não decide**.
 
 ### Rookie ESPN value store (E2)
 
@@ -304,6 +309,7 @@ fantasy_manager/
   nfl_context.py                    # O2 B1: idade + depth chart do POOL (núcleo puro + leitura
                                     #   do cache F13 SEM rede; página nunca baixa o pool)
   nfl_context_test.py               # O2 B1: núcleo puro do contexto NFL (19)
+  player_search_test.py             # M10: busca de jogador — endpoint + guardas de identidade (27)
   late_drop_test.py                 # OFF26-10: urna do late drop + keeper sheet via sync (47)
   janela_ensaio_test.py             # OFF26-1: runner do ensaio/reset da janela e da urna (22)
   ensaio_janela_selada.py           # OFF26-1/10: status · banner · reset (janela E urna)
