@@ -745,16 +745,31 @@ function doRollover() {
 
 // ── Generic flag toggle (steps 5, 7) ──
 
-function toggleFlag(url, undo, resultId) {
-  const action = undo ? 'Reverter' : 'Marcar como concluido';
-  if (!confirm(`${action}? Confirmar?`)) return;
+function toggleFlag(url, undo, resultId, force) {
+  if (!force) {  // no retry com force a confirmação informada já aconteceu
+    const action = undo ? 'Reverter' : 'Marcar como concluido';
+    if (!confirm(`${action}? Confirmar?`)) return;
+  }
 
   fetch(url, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({undo: undo})
+    body: JSON.stringify(force ? {undo: undo, force: true} : {undo: undo})
   }).then(r => r.json()).then(d => {
-    showResult(resultId, d.ok, d.message || 'OK');
+    // OFF26-23 (poka-yoke nº 2): o gate do passo 5 recusa com requires_force quando
+    // não há import de rookie draft na season. A saída é confirmação EXPLÍCITA e
+    // INFORMADA — o texto do erro diz o que será apagado — nunca silêncio.
+    if (d.requires_force) {
+      if (confirm(d.error + '
+
+Prosseguir mesmo assim?')) {
+        toggleFlag(url, undo, resultId, true);
+      } else {
+        showResult(resultId, false, 'Cancelado — importe o draft antes de marcar o passo 5.');
+      }
+      return;
+    }
+    showResult(resultId, d.ok, d.message || d.error || 'OK');
     if (d.ok) setTimeout(() => location.reload(), 1000);
   });
 }

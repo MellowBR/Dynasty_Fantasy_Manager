@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 10/08/2026-pt8 (MAN-OFF26-23-REG-F1: **[[OFF26-23]] registrado + F1 read-only** — rookie 2026 × rollover × passo 5. **Achado central: a ordem segura não é imposta por código** — o import do draft não tem gate de `rollover_done`; antes do rollover, a varredura cega (`offseason.py:686`) faria a classe inteira virar Ano 2 (Gainwell em massa). Depois: Ano 1 intocado até 2027 (rollover once-only). **Prod: rollover 2026 não rodou** (o smoke da urna usou o escape de ensaio — prova indireta; Shell check pronto). **Plano do passo 5 validado e endurecido:** nada lê a flag além da UI, mas o consumidor crítico do store é o PRÓPRIO import (clicar antes de importar = classe a $1; clear sem undo). Gainwell: mesma manifestação, raiz distinta (canal ≠ ordem). **Roteiro 17→24/08 na seção**, 3 pontos de não-retorno; sem conflito entre os objetivos. Gate de código no import = candidato, não arbitrado. Zero código.)
+> Última atualização: 10/08/2026-pt9 (MAN-OFF26-23 F2: **poka-yoke nos 3 pontos de não-retorno** — o sistema recusa a ordem errada (diretriz do owner, registrada como candidato a baseline). (1) `rollover_order_gate` no import (preview E confirm; auction fora de propósito — transitivamente gateado; histórico permitido); (2) passo 5 → 409 `requires_force` informado (consumidor crítico do store é o próprio import), UI com confirmação explícita; (3) clear com backup automático F13 + `restore_rookie_espn_backup` pela porta única — “sem undo” caiu. Runbooks com a seção 17→18/08 + passo 5 pós-24/08. 15 testes novos; suítes verdes; smoke local nos 3 gates. Caminho feliz intocado; once-only preservado. OFF26-23 → ⚠️ (PROC1).)
+> Anterior: 10/08/2026-pt8 (MAN-OFF26-23-REG-F1: **[[OFF26-23]] registrado + F1 read-only** — rookie 2026 × rollover × passo 5. **Achado central: a ordem segura não é imposta por código** — o import do draft não tem gate de `rollover_done`; antes do rollover, a varredura cega (`offseason.py:686`) faria a classe inteira virar Ano 2 (Gainwell em massa). Depois: Ano 1 intocado até 2027 (rollover once-only). **Prod: rollover 2026 não rodou** (o smoke da urna usou o escape de ensaio — prova indireta; Shell check pronto). **Plano do passo 5 validado e endurecido:** nada lê a flag além da UI, mas o consumidor crítico do store é o PRÓPRIO import (clicar antes de importar = classe a $1; clear sem undo). Gainwell: mesma manifestação, raiz distinta (canal ≠ ordem). **Roteiro 17→24/08 na seção**, 3 pontos de não-retorno; sem conflito entre os objetivos. Gate de código no import = candidato, não arbitrado. Zero código.)
 > Anterior: 10/08/2026-pt7 (MAN-M21-F1b, **diagnose read-only da fatia B** — produto delimitado: prep da FA auction, mostrar+marcar. **Q1:** premissa meia-verdade — membership local (287) mas valor 15/296 e fonte **transitória**; ⚠️ **maior achado: o clear do store roda no passo 5, ENTRE draft (17/08) e auction (24/08)** — valor pode evaporar na semana do caso de uso (pendência de desenho, não arbitrada). Store cobre veteranos do Top-300 (Ridley); canônico só rosterados (DP1, 277). **Q2: FEDERAR** — importar quebraria o import ESPN (not_found morre por vacuidade), multiplicaria homônimos (Brown ~40×), inundaria needs_review e o rollover pegaria 12k fantasmas; federar: índice do nfl_context já tem `full_name`, falta busca por nome + fusão por sid. **Q3:** disponível = 1 query/request; 3º estado cabe na engrenagem (extensão do M21-A). **Q4:** valor por classe; sem valor é correto p/ fora do Top-300. **Q5:** corte sem clique; pool rows sem `Player.id` → `origin` obrigatório no payload. **Q6a:** corte “busca federada informativa” nomeado; **Q6b:** fronteira limpa c/ redesenho do cap projector. Fatia B segue 🔲; decisão do owner. Zero código.)
 > Anterior: 10/08/2026-pt6 (MAN-ARC-BUSCA-DONE, **docs-only**: smoke prod do `20b346b` aprova o arco da busca. **[[M10]] ✅** (Mahomes morto, Michel validou) · **[[UX11]] ✅** (1ª observação real em prod; ocorrência observation/provenance: checks pré-push do `a63d6ab` não valiam) · **[[M21]] fatia A ✅**, item segue 🔲 pela B — que **herda o caso Helm** (Shell: nunca foi `Player`; `player_history` íntegro, órfãos=0 — evidência registrada); **Kamara consagrado âncora da A**. Migração O3: M10 e UX11 → archive verbatim (1×/0× conferido). Registros novos: **[[UX14]]** fallback de pool p/ time NFL de dropado (caso Waller; réplica obrigatória na F1) e **[[UX15]]** jogador pré-selecionado no trade (refino do campo 3 do UX12). Zero código.)
 > Anterior: 10/08/2026-pt5 (MAN-M21-A: **fatia A entregue** — FAs na busca, marcados (opção (a), decisão do owner). Filtro caiu; payload +`is_dropped`; badge "FA" **substitui** a franquia no `optionInner` único (2 consumidores de graça); ordenação `(prefixo, is_dropped, nome)`. Perfil de FA: sem botão de trade (`not is_dropped` no `can_propose_trade`), salário "Último salário (histórico)", tag IR suprimida (carona; sync intocado). Medição de prod: 41 dropados; **Helm não existe em prod** → âncora vira **Kamara**. Testes 27→35; suítes verdes; smoke local com Kamara/Waller/Detroit + regressão DJ Moore. M21 → ⚠️ (smoke prod pendente, PROC1). Fatia B intocada.)
@@ -4913,3 +4914,53 @@ se — o import do draft acontecer DEPOIS do rollover.** Nenhuma mutação; o en
 **Exceção de commit docs-only logada (diagnose pura). Runbooks NÃO alterados** (restrição do
 prompt — atualização é passo seguinte, após decisão do owner). Status Rápido +1 linha (OFF26-23
 🔲). Zero código.
+
+### MAN-OFF26-23 — F2: poka-yoke nos 3 pontos de não-retorno + runbooks (10/08/2026, Fable)
+
+Executa a diretriz do owner sobre a F1 de mais cedo: **o sistema recusa a ordem errada, não
+depende de disciplina.** Os 3 pontos de não-retorno da semana 17→24/08 estão cercados; OFF26-23
+vai a **⚠️** (smoke prod pendente). O princípio ficou registrado na seção como candidato a
+baseline do DEV_METHODOLOGY (família MAN-METH-REG) — registrado, não consolidado.
+
+- **(1) Gate no importador do draft.** `rollover_order_gate(is_rookie, draft_season,
+  current_season)` — núcleo puro, chamado no topo do `build_preview`, então **preview e confirm
+  bloqueiam juntos** (o confirm reusa o preview). A condição observável é a season: só o rollover
+  avança `current_season`, logo classe de season futura = rollover pendente. A mensagem cita o
+  dano ("todo rookie viraria Ano 2") e a ação (passo 4). **Auction fora do gate de propósito** —
+  já é transitivamente gateado (sheet congelada ← definitiva ← urna ← `rollover_done`) — e
+  **import histórico segue permitido** (comportamento antigo, zero mudança no caminho feliz).
+
+- **(2) Gate no passo 5.** Marcar "Rookie Draft Done" sem NENHUM `AuctionLog` de `rookie_draft`
+  na season corrente → **409 com `requires_force`** e mensagem que explica o que seria apagado —
+  a F1 provou que o consumidor mais crítico do store é o **próprio import** (salário da classe
+  via `rookie_espn_adjusted`); o clear precoce a zeraria para $1. O cenário legítimo (season sem
+  draft, ambiente de teste) sai por **`force: true` explícito**; a UI do painel transforma o 409
+  em confirmação informada (o texto do erro dentro do `confirm()`), nunca silêncio. `undo` não
+  passa pelo gate.
+
+- **(3) Clear com rede.** `clear_rookie_espn_store` grava **backup automático antes de apagar**:
+  `rookie_espn_backup_<UTC>.json` em `dirname(DYNASTY_DB)` (volume persistente — o padrão F13,
+  com o carimbo DENTRO do arquivo), devolve `(n, path)` e o endpoint reporta o caminho.
+  `restore_rookie_espn_backup(path)` reidrata **pela porta única** (`upsert_rookie_espn` — valores
+  E membership `in_class`). "O clear não tem undo" deixou de ser verdade. ⛔ Camada adicional —
+  não substitui o backup manual pré-operação dos runbooks (restrição do prompt, respeitada).
+
+- **Runbooks.** `runbook_urna_late_drop.md`: seção nova **"17→18/08 — a ordem crítica do rookie
+  draft"** (17/08 draft SEM importar · 18/08 ESPN → rollover → import → agendar urna · passo 5
+  vetado na semana) + seção **"Pós-24/08 — o último ato"** (passo 5 e 7, com o aviso de não usar
+  force sem entender). `runbook_cowork_liga_fantasma.md`: nota cruzada. Os dois dizem que o
+  sistema recusa a inversão. Seções históricas intocadas.
+
+- **Testes: `poka_yoke_test.py` (15).** Gate do import (núcleo puro, 4 casos), passo 5 via
+  endpoint em ORM de memória (409 informado SEM mutação de flag/store, caminho feliz com backup
+  reportado, force, undo), clear com rede (backup antes do delete, restore com membership, vazio
+  não cria arquivo) e 4 guardas estáticas (once-only não regrediu, gate no preview, varredura do
+  rollover intocada, 409+force presentes). Suítes completas verdes: 54+35+15+14+19+34+25+36+64+22.
+
+- **Smoke local (app real, cópia do seed, `_read_draft` simulado — sem rede).** Ordem errada
+  (current 2025, draft 2026): preview **400 `rollover_pendente`** e confirm idem; current
+  avançado: preview 200 sem gate; passo 5 sem import: **409 `requires_force`** citando o dano.
+  ⚠️ Não exercido: o `confirm()` do force em navegador e o fluxo real de 18/08 — o smoke do owner
+  é a própria semana.
+
+**Commit único código+docs, push incluído (PROC1 — a semana começa domingo).**

@@ -17,7 +17,7 @@ import requests as req
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
 from models import (
-    db, Team, Pick, Player, SalaryHistory,
+    db, Team, Pick, Player, SalaryHistory, AuctionLog,
     SeasonStandings, DraftLotteryResult, AppConfig, LotteryAudit,
     get_config, set_config, get_current_season, is_offseason,
     SALARY_CAP, MY_OWNER_ID, MY_TEAM_NAME, LEAGUE_ID,
@@ -722,20 +722,47 @@ def do_rollover():
 @offseason_bp.route("/api/offseason/rookie_draft_done", methods=["POST"])
 @admin_required
 def toggle_rookie_draft():
+    """OFF26-23 (poka-yoke nº 2): marcar o passo 5 dispara o clear do store — e o
+    consumidor mais crítico do store é o PRÓPRIO import do draft (salário da classe
+    via rookie_espn_adjusted). Clicar antes de importar zeraria a classe para $1.
+    O gate recusa quando não há NENHUM registro de rookie_draft na season corrente;
+    o cenário legítimo de pular o import (season sem draft, ambiente de teste) passa
+    por confirmação explícita e informada: `force: true`. Nunca silêncio."""
     data = request.get_json() or {}
     undo = data.get("undo", False)
     val = "false" if undo else "true"
+
+    if not undo:
+        season = get_current_season()
+        imported = AuctionLog.query.filter_by(entry_type="rookie_draft",
+                                              season=season).count()
+        if imported == 0 and not data.get("force"):
+            return jsonify({
+                "error": (f"Nenhum contrato de rookie draft registrado em {season} — "
+                          f"marcar o passo 5 agora APAGARIA o store de valores ESPN "
+                          f"que o próprio import do draft usa para calcular os "
+                          f"salários (a classe inteira nasceria a $1). Importe o "
+                          f"draft primeiro (OFF26-3). Se esta season realmente não "
+                          f"tem rookie draft a importar, reenvie com force: true."),
+                "order_gate": "import_pendente",
+                "requires_force": True,
+                "season": season,
+            }), 409
+
     set_config("rookie_draft_done", val)
     # E2: limpeza do store transitório de valores ESPN de rookie ao concluir o draft
-    # (o contrato vivo passa a ser a fonte). Reverter não repopula.
-    cleared = 0
+    # (o contrato vivo passa a ser a fonte). Reverter não repopula pelo toggle — mas
+    # OFF26-23 deu rede ao clear: backup automático em dirname(DYNASTY_DB), e
+    # restore_rookie_espn_backup(path) reidrata pela porta única.
+    cleared, backup_path = 0, None
     if not undo:
         from models import clear_rookie_espn_store
-        cleared = clear_rookie_espn_store()
+        cleared, backup_path = clear_rookie_espn_store()
     db.session.commit()
     msg = "Rookie Draft revertido" if undo else "Rookie Draft marcado como concluido"
     return jsonify({"ok": True, "key": "rookie_draft_done", "value": val,
-                    "message": msg, "rookie_store_cleared": cleared})
+                    "message": msg, "rookie_store_cleared": cleared,
+                    "rookie_store_backup": backup_path})
 
 
 # ══════════════════════════════════════════════════════════════════════════════

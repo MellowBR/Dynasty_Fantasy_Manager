@@ -1,6 +1,8 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
+import json
+import os
 from timeutil import utc_iso  # M18: transporte UTC não-ambíguo nos to_dict de display
 from salary_engine import roster_salary  # OFF26-16: fonte única da folha (inclui IR)
 
@@ -589,14 +591,63 @@ def rookie_espn_adjusted(sleeper_player_id, season):
     return row.espn_adjusted if row else None
 
 
+def _rookie_backup_dir():
+    """OFF26-23 — diretório dos backups do clear: dirname(DYNASTY_DB), o mesmo FS
+    gravável/persistente do padrão F13 (volume /data no Render), nunca a raiz do app."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.environ.get("DYNASTY_DB", os.path.join(base_dir, "dynasty.db"))
+    return os.path.dirname(os.path.abspath(db_path))
+
+
 def clear_rookie_espn_store(season=None):
     """E2 — limpeza do store transitório pós-rookie-draft. season=None limpa tudo.
-    Adiciona o delete à sessão; o CHAMADOR faz commit. Retorna nº removido."""
+    Adiciona o delete à sessão; o CHAMADOR faz commit.
+
+    OFF26-23 (poka-yoke nº 3): antes de apagar, grava BACKUP automático do que vai
+    sumir — JSON com carimbo dentro do arquivo (padrão F13), no volume persistente.
+    O "clear sem undo" deixou de ser verdade: `restore_rookie_espn_backup(path)`
+    reidrata via a porta única. Camada ADICIONAL — não substitui o backup manual
+    pré-operação dos runbooks.
+
+    Retorna (n_removidos, backup_path) — path None quando não havia nada a apagar
+    (nenhum arquivo é criado à toa)."""
     q = RookieEspnValue.query
     if season is not None:
         q = q.filter_by(season=season)
-    n = q.count()
-    q.delete()
+    rows = q.all()
+    n = len(rows)
+    backup_path = None
+    if n:
+        stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        backup_path = os.path.join(_rookie_backup_dir(),
+                                   f"rookie_espn_backup_{stamp}.json")
+        payload = {
+            "cleared_at": datetime.utcnow().isoformat() + "Z",
+            "season_filter": season,
+            "count": n,
+            "rows": [r.to_dict() for r in rows],
+        }
+        with open(backup_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=1)
+        q.delete()
+    return n, backup_path
+
+
+def restore_rookie_espn_backup(path):
+    """OFF26-23 — reidrata o store a partir de um backup do clear. Escreve SÓ via
+    `upsert_rookie_espn` (a porta única — dois donos por campo preservados; o backup
+    carrega valores E membership, então passa os dois). Chamador faz commit.
+    Retorna nº de linhas reidratadas."""
+    with open(path, encoding="utf-8") as f:
+        payload = json.load(f)
+    n = 0
+    for r in payload.get("rows", []):
+        upsert_rookie_espn(r["season"], r["sleeper_player_id"], r.get("name", ""),
+                           r.get("position", ""), r.get("nfl_team", ""),
+                           espn_raw=r.get("espn_raw"),
+                           espn_adjusted=r.get("espn_adjusted"),
+                           in_class=r.get("in_class"))
+        n += 1
     return n
 
 

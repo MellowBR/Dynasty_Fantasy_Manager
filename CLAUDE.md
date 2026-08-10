@@ -30,6 +30,9 @@ python cap_regua_test.py
 # Run urna do late drop + keeper sheet via sync (OFF26-10 — 47 testes)
 python late_drop_test.py
 
+# Run poka-yokes da ordem da intertemporada (OFF26-23 — 15 testes; gates + clear com backup)
+python poka_yoke_test.py
+
 # Run janela selada / runner do ensaio (OFF26-1 — 22 testes)
 python janela_ensaio_test.py
 
@@ -155,7 +158,13 @@ foi o owner.
    julho; ~150 pós-corte de agosto) — comportamento esperado; recapturar após o corte se o board
    seguir em uso
 4. Season Rollover → apply salary rules, increment contract years
-5-7. Informational: rookie draft, keepers/cuts, FA auction (manual via /auction)
+5-7. Informational: rookie draft, keepers/cuts, FA auction (manual via /auction).
+   **OFF26-23 (poka-yoke):** a ordem rollover → import do draft é INVARIANTE DE CÓDIGO —
+   o importador linear recusa classe de season futura (`rollover_order_gate`), o passo 5
+   recusa sem import registrado (409 + `force` explícito; o clear zeraria os salários do
+   próprio import) e `clear_rookie_espn_store` faz backup automático pré-delete
+   (`rookie_espn_backup_*.json` em `dirname(DYNASTY_DB)`; `restore_rookie_espn_backup`
+   reidrata pela porta única)
 
 ### Authentication & Permissions
 
@@ -311,6 +320,7 @@ fantasy_manager/
   nfl_context_test.py               # O2 B1: núcleo puro do contexto NFL (19)
   player_search_test.py             # M10: busca de jogador — endpoint + guardas de identidade (27)
   late_drop_test.py                 # OFF26-10: urna do late drop + keeper sheet via sync (47)
+  poka_yoke_test.py                 # OFF26-23: gates da ordem rollover→import→passo 5 (15)
   janela_ensaio_test.py             # OFF26-1: runner do ensaio/reset da janela e da urna (22)
   ensaio_janela_selada.py           # OFF26-1/10: status · banner · reset (janela E urna)
   keeper_audit_fixtures.py          # material de TESTE congelado (NÃO é a keeper sheet real)

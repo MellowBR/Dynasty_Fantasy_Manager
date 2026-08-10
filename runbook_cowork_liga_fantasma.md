@@ -411,6 +411,8 @@ leilão com 12 owners na sala**.
 1. **A população COMPLETA do board é pré-condição de abertura**, não preparativo.
 2. **Nenhum time pode ficar de fora** — inclusive os **bloqueados pelo teto de budget** (§B.3.2),
    que devem ser completados **após o late drop (22/08)** e **antes de 24/08**.
+
+> 🔒 **Ordem do rookie draft (OFF26-23):** o import do draft de 17/08 para o Manager só acontece **depois do rollover de 18/08** — o importador recusa a inversão (a classe viraria Ano 2). E o **passo 5** do `/offseason` fica para **pós-24/08** (o clear do store zeraria os salários de um import ainda não feito; o sistema também recusa). Roteiro completo no `runbook_urna_late_drop.md`, seção 17→18/08.
 3. **Keeper em IR também entra** (§B.3.3) — não designá-lo é deixá-lo leiloável.
 4. **A auditoria [[OFF26-4]] é o gate disso** (§B.4), não uma conferência opcional de valores.
 

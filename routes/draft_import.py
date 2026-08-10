@@ -108,6 +108,39 @@ def _budget_alerts(matched):
     return alerts
 
 
+# ── OFF26-23: poka-yoke nº 1 — a ordem rollover → import vira invariante ────────
+
+def rollover_order_gate(is_rookie, draft_season, current_season):
+    """OFF26-23 — recusa importar a CLASSE antes do rollover da temporada. Puro.
+
+    O risco (F1, 10/08/2026): a varredura do rollover é cega a contrato recém-aberto
+    (`filter_by(is_dropped=False)`, sem skip por contract_start_season) — importar o
+    rookie draft de N+1 com o Manager ainda em N faria a classe inteira virar Ano 2
+    no rollover seguinte (o Gainwell em massa). A condição observável é a season:
+    `current_season` só avança NO rollover, então draft de season futura = rollover
+    pendente.
+
+    Só o modo LINEAR precisa do gate: o modo auction já é transitivamente gateado
+    (sheet congelada ← sheet definitiva ← urna revelada ← urna exige rollover_done).
+    Import histórico (draft_season <= current) segue permitido — comportamento antigo.
+
+    Retorna dict de erro (contrato do build_preview) ou None."""
+    if not is_rookie:
+        return None
+    if draft_season > current_season:
+        return {
+            "error": (f"Rookie draft de {draft_season} com o Manager ainda na "
+                      f"temporada {current_season}: rode o Season Rollover (passo 4 "
+                      f"do painel de offseason) ANTES de importar. Importar agora "
+                      f"colocaria a classe inteira na varredura do rollover e todo "
+                      f"rookie viraria Ano 2 (OFF26-23)."),
+            "order_gate": "rollover_pendente",
+            "draft_season": draft_season,
+            "current_season": current_season,
+        }
+    return None
+
+
 # ── Preview (sem escrita) ─────────────────────────────────────────────────────
 
 def build_preview(draft_id):
@@ -127,6 +160,13 @@ def build_preview(draft_id):
     except (TypeError, ValueError):
         season = get_current_season()
     by_roster = _team_by_roster(league_id) if league_id else {}
+
+    # OFF26-23: o gate de ordem roda ANTES de qualquer outra coisa do modo linear —
+    # e o confirm reusa o build_preview, então bloqueia preview E confirmação.
+    gate_ordem = rollover_order_gate(is_rookie, season, get_current_season())
+    if gate_ordem:
+        return {**gate_ordem, "draft_id": str(draft_id),
+                "acquisition_type": acquisition_type}
 
     # ── OFF26-11: lista de exclusão (SÓ modo auction; linear intocado) ──────────
     exclusion_index, frozen, gate = None, None, None

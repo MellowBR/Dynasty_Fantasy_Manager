@@ -3,7 +3,8 @@
 > **MAN-OFF26-10 (07/08/2026).** A urna é a **única porta de declaração do Manager em 2026**:
 > os cortes de 20/08 acontecem direto no Sleeper e o Manager **só fotografa por sync**.
 > Este runbook tem duas partes: **(A) o smoke em produção**, que o owner roda antes de 20/08,
-> e **(B) o roteiro dos dias 20, 22 e 24**, incluindo a **janela de execução manual**.
+> e **(B) o roteiro dos dias 17→24/08**, incluindo a **ordem crítica do rookie draft**
+> (OFF26-23 — o sistema recusa a inversão) e a **janela de execução manual**.
 >
 > Dry-run do Code (07/08, cópia do seed, app real): **42/42 checks PASS** — ciclo completo,
 > incluindo o bloqueio mútuo com o rollover e o reset. Suíte permanente: `late_drop_test.py`
@@ -110,6 +111,30 @@ Desligar o banner (`--banner off`, se o reset não o fez) e avisar no grupo:
 
 ## (B) O roteiro dos dias
 
+### 17→18/08 — a ordem crítica do rookie draft (OFF26-23)
+
+**A regra numa linha: em 18/08, ESPN definitiva → rollover → import do draft — nesta ordem.
+O sistema recusa a inversão** (poka-yoke da MAN-OFF26-23, gates no ar), mas o runbook descreve
+a ordem certa para ela nunca precisar ser recusada.
+
+1. **17/08 — rookie draft no Sleeper (liga real).** ⛔ **NÃO importar o draft ainda.** O
+   importador **recusa** a classe de 2026 enquanto o Manager estiver em 2025 (mensagem cita
+   este item) — importar antes do rollover colocaria a classe inteira na varredura e **todo
+   rookie viraria Ano 2**.
+2. **18/08, na ordem:**
+   a. **Import ESPN definitiva** (`/offseason` passo 3).
+   b. **Season Rollover** (passo 4 — once-only; o painel exige o passo 3 antes).
+   c. **Só então: importar o rookie draft** (`/draft_import`, modo linear). Os salários da
+      classe saem do store (`floor(ESPN×1,2)`); os rookies nascem **Ano 1/2026** e nada os
+      toca até o rollover de 2027.
+   d. **Agendar a urna** (o gate `rollover_done` agora passa sem escape de ensaio).
+3. ⛔ **NÃO marcar o passo 5 ("Rookie Draft Done") nesta semana.** Ele roda o clear do store
+   — e o sistema **recusa** marcá-lo sem import registrado (o clear precoce zeraria os
+   salários do próprio import). O passo 5 é o **último ato, pós-24/08** (ver o fim deste
+   roteiro). Desde a MAN-OFF26-23 o clear grava **backup automático** antes de apagar
+   (`rookie_espn_backup_*.json` no volume `/data`) — rede adicional, **não substitui** o
+   backup manual pré-operação abaixo.
+
 ### 20/08 — cortes no Sleeper → sheet provisória
 
 1. **Owners cortam no Sleeper**, em público, até o prazo combinado.
@@ -183,6 +208,14 @@ keepers desse time** (achado do OFF26-4).
    **"Reativar &lt;nome&gt; (ano 1)"** — use essa, **nunca "Criar novo"** (duplicaria o jogador).
 4. **Confirmar.** O resultado informa criados · já importados · pulados · **keepers excluídos**.
 5. Só então cada owner adiciona os arremates na liga real. A ordem é essa.
+
+### Pós-24/08 — o último ato: passo 5 e passo 7
+
+Com o leilão importado, **agora sim**: `/offseason` → **passo 5 "Rookie Draft Done"** (o clear
+do store é inofensivo — ele já cumpriu os dois papéis: salário do draft e valor de referência;
+o backup automático fica em `/data` de qualquer forma) → **passo 7 "FA Auction Done"**.
+Se o sistema recusar o passo 5 com aviso de import pendente **nesta altura**, algo ficou para
+trás — não use o force sem entender o quê.
 
 ---
 
