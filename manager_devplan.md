@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 10/08/2026-pt3 (MAN-M21-REG, **docs-only**: registro do **[[M21]] 🔲 — busca cobre o universo Sleeper**, pedido do owner após o smoke do [[M10]]. **Duas fatias, e a razão do corte é de natureza:** **A — FAs da liga** (Alta, alvo **pré-24/08**; âncora **Gunnar Helm**) é **predicado de query** sobre dado que já existe — o jogador **é** `Player` e o perfil abre; só o filtro `is_dropped=False` da busca o esconde (mecanismo conferido no código) — enquanto **B — universo não-`Player`** (Média, pós-intertemporada) é **decisão de arquitetura de dados**. ⚠️ **A arbitragem da B ficou EM ABERTO de propósito** (importar o pool como `Player` × busca **federada**): a hipótese do owner é **premissa a testar**, e a F1b tem de mapear os consumidores da tabela `Player` contra ~12 mil linhas sem contrato — precedente do [[O2]], que lê o pool **sem persistir**. Questões registradas sem resposta: por que o filtro `is_dropped` existe (herdado do endpoint pré-M10; a razão condiciona incluir-marcado × sem-distinção × toggle), botão de trade no perfil de FA, destino do clique em não-`Player`, colisão de identidade (⛔ sempre por `sleeper_player_id`) e relação com [[DP1]]. **Fatia A não bloqueia nem é bloqueada pelo smoke pendente do M10.** Status Rápido +1 linha, nada mais mexido. **Exceção de commit docs-only logada.** Zero código.)
+> Última atualização: 10/08/2026-pt4 (MAN-M21-F1a, **diagnose read-only da fatia A do [[M21]]** — zero mutação, zero query em prod. **Q1 decide a origem do filtro:** `is_dropped=False` nasceu na v1.0 dentro de um endpoint **sem nenhum consumidor** até o M10 (`git log --all -S`) — nunca protegeu fluxo; hipóteses de proteção caem por anacronismo, sobra inércia, e a inclusão de FAs é decisão só sobre os 2 consumidores do M10. **Q2:** perfil já trata pela metade (tag “Dropado” desde o M13; sync preserva `team_id`); enganosos = botão de trade que **aparece para FA** e label “Salário atual” em número histórico; `is_on_ir` stale é menor. **Q3 recomenda (a)**: incluir marcado “FA” **no lugar da franquia** — sem badge o FA parece rosterado (mata a (b)); toggle (c) mata o caso-âncora; FA na calculadora faz sentido (alvo da auction); custo: `to_search_dict()` não expõe `is_dropped` (+1 campo). **Q4:** pico pós-20/08 ok (teto 20 por query; ordenação rosterado-antes-de-FA registrada como opção); urna **zero interseção**; “Reativar (ano 1)” já trata dropado como recomprável. **Q5:** 2 SELECTs prontos p/ Render Shell, ⛔ não executados — o seed nem contém o Helm. METH-REG: 2 contradições, 4 omissões. Item segue 🔲; decisão do owner. Zero código.)
+> Anterior: 10/08/2026-pt3 (MAN-M21-REG, **docs-only**: registro do **[[M21]] 🔲 — busca cobre o universo Sleeper**, pedido do owner após o smoke do [[M10]]. **Duas fatias, e a razão do corte é de natureza:** **A — FAs da liga** (Alta, alvo **pré-24/08**; âncora **Gunnar Helm**) é **predicado de query** sobre dado que já existe — o jogador **é** `Player` e o perfil abre; só o filtro `is_dropped=False` da busca o esconde (mecanismo conferido no código) — enquanto **B — universo não-`Player`** (Média, pós-intertemporada) é **decisão de arquitetura de dados**. ⚠️ **A arbitragem da B ficou EM ABERTO de propósito** (importar o pool como `Player` × busca **federada**): a hipótese do owner é **premissa a testar**, e a F1b tem de mapear os consumidores da tabela `Player` contra ~12 mil linhas sem contrato — precedente do [[O2]], que lê o pool **sem persistir**. Questões registradas sem resposta: por que o filtro `is_dropped` existe (herdado do endpoint pré-M10; a razão condiciona incluir-marcado × sem-distinção × toggle), botão de trade no perfil de FA, destino do clique em não-`Player`, colisão de identidade (⛔ sempre por `sleeper_player_id`) e relação com [[DP1]]. **Fatia A não bloqueia nem é bloqueada pelo smoke pendente do M10.** Status Rápido +1 linha, nada mais mexido. **Exceção de commit docs-only logada.** Zero código.)
 > Anterior: 10/08/2026-pt2 (MAN-UX11-F2, **carona de causa conhecida**: [[UX11]] a **⚠️** — a franquia NFL aparece no quadro de trades. **1 linha de render**, como a F1-por-transbordo da UX12-F1 previu: `nfl_team` **já vinha** no payload de `/api/roster/by_name` (`to_dict()`), a tela só não desenhava. Entra na linha dim existente (`BUF · $21 · Ano 2/4`), padrão das demais telas. ⛔ Zero backend (21 chaves do `to_dict()` idênticas) e ⛔ nada derivado na tela — a réplica que a Q1 temia não foi criada. Conferência cruzada: DJ Moore `BUF` no quadro × `🏈 BUF` no perfil. Staleness registrado **no código** (frescor = último sync; FA mantém time antigo). Nenhuma outra tela alterada; 54/54. Smoke prod pendente — PROC1.)
 > Anterior: 10/08/2026 (MAN-M10-F2: **busca de jogador entregue** — [[M10]] a **⚠️** (smoke prod pendente, PROC1). Os 2 consumidores da spec de 28/04 sobre **um componente só** (`createPlayerSearch` em `base.html`): navbar desktop + overlay mobile **navegam** (`<a href>` real p/ `/player/<id>`), calculadora **seleciona** e preenche ESPN/ano/aquisição. **Identidade:** substring é sugestão exibida, cada linha traz pos+time NFL+franquia, e ⛔ **Enter sem item destacado não escolhe nada** — resolução é sempre ato explícito, destino sai do `id`. Backend reusado com 3 ajustes (payload `to_search_dict()` — `to_dict()` fazia **20 projeções de contrato por tecla**; ordem prefixo-primeiro — sem ela o teto de 20 cortava arbitrário; escape do LIKE — '%' devolvia o elenco). ⚠️ **Conversão fácil de errar:** campo da calculadora é RAW e o banco é ajustado → autofill **divide por 1.2**; ⛔ 'ano 1' não é preenchido (banco tem salário corrente). 27 testes novos; smoke local: Mahomes resolve em 1 (caso de 28/04 morre) e 'brown' vira **lista de 5 distinguíveis**. **Falta o navegador** — smoke do owner.)
 > Anterior: 08/08/2026-pt9 (MAN-O2-B1-DONE, **docs-only**: **smoke prod do Batch 1 do [[O2]] APROVADO** — PROC1 cumprido (hash `2ed0b4a` live), DJ Moore completo + link cruzado (Gainwell → franquia DELE) + validação do Michel; item segue **⚠️** (Batch 2 pendente). **Ressalva:** degradação fora-do-pool **não exercida em prod** — Gainwell renderizou completo (pool de prod mais fresco que o local de 31/07); ocorrência da família *observação verdadeira, procedência errada*; coberta por unit test, exercer oportunisticamente. **Ocorrência de processo (1ª):** sessão encerrada com commit local SEM push, detectada pelo owner via ausência de deploy; regra candidata só na 2ª. **[[UX13]] 🔲 Baixa registrado** — `contract_year_correction` cru na Timeline, chave ausente nos 2 `EVENT_LABELS` copiados, carona. Zero código.)
@@ -4647,3 +4648,57 @@ o que esta sessão fez foi estruturar o pedido para que a F1 tenha o que respond
   fatia); nenhum status existente alterado; nenhuma seção de outro item editada — os cross-refs
   ([[M10]], [[UX11]], [[O2]], [[DP1]], [[M13]]/[[M14]], [[OFF26-16]]/[[OFF26-11]]) partem **da
   seção nova**. **Exceção de commit docs-only logada.** Zero código.
+
+### MAN-M21-F1a — diagnose da fatia A: o filtro nunca protegeu nada, e o desenho recomendado é incluir marcado (10/08/2026, Fable)
+
+F1a read-only da fatia A do [[M21]] (`13c9c8c`). Toda evidência do HEAD e do histórico git; zero
+mutação, zero chamada externa, zero query em produção. Item segue **🔲** — decisão do owner.
+
+- **Q1 — a arqueologia DECIDE a pergunta central do registro.** O endpoint `GET /api/player/search`
+  nasceu na v1.0 (`f2271ba`) **já com o filtro `is_dropped=False` dentro** — e uma busca em todos
+  os commits de `templates/`+`static/` (`git log --all -S "player/search"`) encontra **uma única
+  referência: o próprio M10**. O endpoint passou v1.0→M10 **sem nenhum consumidor**. As hipóteses
+  do registro "evitar poluição da busca" e "proteger o Propor Trade" caem por **anacronismo**
+  (não existia busca nem fluxo a proteger quando o filtro foi escrito); sobra **inércia**. Não há
+  legado: a decisão de incluir FAs é uma decisão **só sobre os 2 consumidores do M10** — os demais
+  sítios com `is_dropped=False` têm queries próprias e não passam pelo endpoint.
+
+- **Q2 — perfil de FA campo a campo (tabela completa na seção).** O que o registro não sabia: o
+  tratamento **já é parcial** — tag "Dropado" no header desde o M13 (`player_detail.html:35`),
+  porque o sync **preserva `team_id`/`fantasy_team` ao dropar** (`sync_sleeper.py:324` só liga o
+  flag). Vereditos: **enganosos** = botão "⇄ Propor Trade" **aparece para FA de outro time**
+  (`can_propose_trade`, `routes/roster.py:414-418`, não checa `is_dropped` — e é inconsistente:
+  FA do próprio time esconde o botão) e a label **"Salário atual"** sobre número histórico que não
+  conta em folha nenhuma (`roster_salary` filtra dropados). **Precisa contexto** = "Contrato Ano
+  X/4" e a tag IR (`is_on_ir` fica **stale** em dropado — o sync só reescreve o campo de quem está
+  em roster, `sync_sleeper.py:290`). **Corretos** = franquia+tag no header, campos históricos,
+  `nfl_team` (ressalva UX11, sem tratamento novo), Timeline, depth chart.
+
+- **Q3 — recomendação (a): incluir sempre, marcado.** O argumento decisivo contra a (b) é um
+  mecanismo que o registro omitiu: `fantasy_team_name` de dropado devolve **a última franquia** —
+  sem badge, o FA *parece rosterado* na lista. O badge "FA" deve entrar **no lugar da franquia** na
+  sub-linha do resultado. O toggle (c) mata o caso-âncora por default (quem procura o Helm não sabe
+  que precisa ligá-lo). **FA na calculadora faz sentido** — simular o contrato de um alvo da
+  auction é exatamente o uso pré-24/08. Custo real da (a): `to_search_dict()` **não expõe
+  `is_dropped`** → +1 campo no payload + 1 condicional no `optionInner`. Opção de ordenação
+  registrada p/ F2a sem decidir: rosterado antes de FA no mesmo grupo de prefixo (1 `case`).
+
+- **Q4 — calendário.** O pico é real e chega **de uma vez**: cortes de 20/08 acontecem no Sleeper e
+  viram `is_dropped` no sync seguinte. O teto de 20 por query segue válido (busca por substring,
+  não listagem); o risco de FA acima de rosterado na ordem alfabética é mitigado pelo badge e/ou
+  pela ordenação opcional. **Urna: zero interseção** — lista do roster com query própria
+  (`late_drop.py:153`) e bilhete recusa dropado (`late_drop.py:176`). E o mundo já trata dropado
+  como entidade recomprável: fluxo "Reativar (ano 1)" do importador (`draft_import.py:64-69`) —
+  precedente de coerência a favor da inclusão.
+
+- **Q5 — medição é do owner.** 2 SELECTs read-only prontos na seção, contra `/data/dynasty.db`
+  (o VIVO — a régua seed ≠ produção). ⛔ Não executados nesta sessão. Nota que reforça a régua: **o
+  seed local não contém Gunnar Helm** — o caso-âncora só existe no banco vivo, criado por sync.
+
+- **MAN-METH-REG:** (a) 2 premissas contraditas/decididas — as hipóteses de proteção do filtro
+  (anacronismo) e o "campo aberto" do perfil (tratamento parcial já existia); (b) 4 omissões com
+  parecer — `team_id` preservado no drop (o argumento da Q3), `to_search_dict()` sem `is_dropped`,
+  `is_on_ir` stale, "Reativar (ano 1)".
+
+**Exceção de commit docs-only logada (diagnose pura).** Status Rápido intocado; a seção M21 ganhou
+a F1a e o cabeçalho dela registra a recomendação pendente de decisão. Zero código.
