@@ -305,6 +305,11 @@ function loadSide(side, teamName) {
         const dvBadge = dynastyAvailable
           ? `<span class="dynasty-value-badge">🪙${dv != null ? fmtValue(dv) : '—'}</span>`
           : '';
+        // UX11: a franquia NFL entra na linha dim que já existia. O campo `nfl_team`
+        // JÁ vinha no payload de /api/roster/by_name (to_dict()) — fonte única escrita
+        // só pelo sync; ⛔ nada é derivado aqui. Frescor = último sync, e quem vira FA
+        // mantém o time antigo (o sync só sobrescreve com valor truthy): é a ressalva
+        // de staleness registrada na seção UX11.
         return `
         <label class="asset-item">
           <input type="checkbox" onchange="toggleAsset('${side}','players',${p.id})">
@@ -313,7 +318,7 @@ function loadSide(side, teamName) {
           <a class="asset-name player-link" href="/player/${p.id}" target="_blank"
              onclick="event.stopPropagation()"
              title="Abrir página do jogador (nova aba)">${p.name}</a>
-          <span class="text-dim small-text">$${Math.round(p.salary)} · ${p.contract_display}</span>
+          <span class="text-dim small-text">${p.nfl_team} · $${Math.round(p.salary)} · ${p.contract_display}</span>
           ${dvBadge}
         </label>`;
       }).join('');

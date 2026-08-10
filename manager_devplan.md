@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 10/08/2026 (MAN-M10-F2: **busca de jogador entregue** — [[M10]] a **⚠️** (smoke prod pendente, PROC1). Os 2 consumidores da spec de 28/04 sobre **um componente só** (`createPlayerSearch` em `base.html`): navbar desktop + overlay mobile **navegam** (`<a href>` real p/ `/player/<id>`), calculadora **seleciona** e preenche ESPN/ano/aquisição. **Identidade:** substring é sugestão exibida, cada linha traz pos+time NFL+franquia, e ⛔ **Enter sem item destacado não escolhe nada** — resolução é sempre ato explícito, destino sai do `id`. Backend reusado com 3 ajustes (payload `to_search_dict()` — `to_dict()` fazia **20 projeções de contrato por tecla**; ordem prefixo-primeiro — sem ela o teto de 20 cortava arbitrário; escape do LIKE — '%' devolvia o elenco). ⚠️ **Conversão fácil de errar:** campo da calculadora é RAW e o banco é ajustado → autofill **divide por 1.2**; ⛔ 'ano 1' não é preenchido (banco tem salário corrente). 27 testes novos; smoke local: Mahomes resolve em 1 (caso de 28/04 morre) e 'brown' vira **lista de 5 distinguíveis**. **Falta o navegador** — smoke do owner.)
+> Última atualização: 10/08/2026-pt2 (MAN-UX11-F2, **carona de causa conhecida**: [[UX11]] a **⚠️** — a franquia NFL aparece no quadro de trades. **1 linha de render**, como a F1-por-transbordo da UX12-F1 previu: `nfl_team` **já vinha** no payload de `/api/roster/by_name` (`to_dict()`), a tela só não desenhava. Entra na linha dim existente (`BUF · $21 · Ano 2/4`), padrão das demais telas. ⛔ Zero backend (21 chaves do `to_dict()` idênticas) e ⛔ nada derivado na tela — a réplica que a Q1 temia não foi criada. Conferência cruzada: DJ Moore `BUF` no quadro × `🏈 BUF` no perfil. Staleness registrado **no código** (frescor = último sync; FA mantém time antigo). Nenhuma outra tela alterada; 54/54. Smoke prod pendente — PROC1.)
+> Anterior: 10/08/2026 (MAN-M10-F2: **busca de jogador entregue** — [[M10]] a **⚠️** (smoke prod pendente, PROC1). Os 2 consumidores da spec de 28/04 sobre **um componente só** (`createPlayerSearch` em `base.html`): navbar desktop + overlay mobile **navegam** (`<a href>` real p/ `/player/<id>`), calculadora **seleciona** e preenche ESPN/ano/aquisição. **Identidade:** substring é sugestão exibida, cada linha traz pos+time NFL+franquia, e ⛔ **Enter sem item destacado não escolhe nada** — resolução é sempre ato explícito, destino sai do `id`. Backend reusado com 3 ajustes (payload `to_search_dict()` — `to_dict()` fazia **20 projeções de contrato por tecla**; ordem prefixo-primeiro — sem ela o teto de 20 cortava arbitrário; escape do LIKE — '%' devolvia o elenco). ⚠️ **Conversão fácil de errar:** campo da calculadora é RAW e o banco é ajustado → autofill **divide por 1.2**; ⛔ 'ano 1' não é preenchido (banco tem salário corrente). 27 testes novos; smoke local: Mahomes resolve em 1 (caso de 28/04 morre) e 'brown' vira **lista de 5 distinguíveis**. **Falta o navegador** — smoke do owner.)
 > Anterior: 08/08/2026-pt9 (MAN-O2-B1-DONE, **docs-only**: **smoke prod do Batch 1 do [[O2]] APROVADO** — PROC1 cumprido (hash `2ed0b4a` live), DJ Moore completo + link cruzado (Gainwell → franquia DELE) + validação do Michel; item segue **⚠️** (Batch 2 pendente). **Ressalva:** degradação fora-do-pool **não exercida em prod** — Gainwell renderizou completo (pool de prod mais fresco que o local de 31/07); ocorrência da família *observação verdadeira, procedência errada*; coberta por unit test, exercer oportunisticamente. **Ocorrência de processo (1ª):** sessão encerrada com commit local SEM push, detectada pelo owner via ausência de deploy; regra candidata só na 2ª. **[[UX13]] 🔲 Baixa registrado** — `contract_year_correction` cru na Timeline, chave ausente nos 2 `EVENT_LABELS` copiados, carona. Zero código.)
 > Anterior: 08/08/2026-pt8 (MAN-O2-F2-B1: **Batch 1 do perfil do jogador entregue** — time NFL + idade no header, link do time da liga, card de depth chart (destaque por **sid**, nunca nome). Novo `nfl_context.py` (núcleo puro + IO, 19 testes). Decisões: ⛔ página **nunca faz rede** (cache F13, sem download; ausente → degrada sem erro); pool vencido **serve** (stale-while-usable); **zero cache novo em disco** (índice em memória, mtime só como chave de invalidação); **idade derivada de `birth_date`, não persistida**; chart deriva do POOL (Q2: rivais não são Players do DB), header segue `Player.nfl_team` (fonte única Q1). Smoke local: DJ Moore completo, link p/ franquia DELE, DEF e fora-do-pool degradando limpo. Guardas OK (54/54 folha; zero schema; rotas intactas). Suítes verdes. [[O2]] 🔲 → ⚠️ — falta smoke prod (PROC1); Batch 2 pendente.)
 > Anterior: 08/08/2026-pt7 (MAN-UX12-REFINE, **docs-only**: **roteamento (b) do [[UX12]] executado — item fecha ✅ ROTEADO** (despachado em [[M10]] busca + [[O2]] perfil; decisão do owner). **O2 refinado in-place**: absorve campos 2+5 do UX12, **quita a dívida de absorção** (F1 do MAN-O2-F1 de 28/04 sai do handoff descartável e passa a viver na seção — disponibilidade por dimensão, endpoints sem `/v1/`, 2 batches, cache strategy com nota pós-F13, reuso), **corrige a afirmação falsa do depth chart** (zero consumo em produção; dado no pool 75%/94%, coluna não bastaria — derivação do pool TTL 168h) e registra as guardas ([[OFF26-16]], [[S4]]) + Q5 (página existente). [[M10]] só validação de demanda (Michel, 2º usuário; spec intocada). Transbordos: [[UX11]] candidato a **F2 direta de causa conhecida** (payload já tem `nfl_team`; resta staleness) · [[UX10]] estreitado à hipótese (a). Seção UX12 migrada **verbatim** ao archive ([[O3]]); Status Rápido com **só a linha UX12 mudada**. Zero código.)
@@ -4563,3 +4564,39 @@ redesenhada**. [[M10]] vai a **⚠️**: implementado, smoke de produção pende
 **Commit único código+docs.** Zero schema, zero toque em folha/cap/sync e **zero mudança na página
 de perfil** — a busca é camada de descoberta que leva até ela. **[[M10]] ⚠️ até o hash live no
 Render ser confirmado e o smoke passar (PROC1).**
+
+### MAN-UX11-F2 — franquia NFL no quadro de trades, de carona (10/08/2026, Opus)
+
+F2 direta do [[UX11]], cuja F1 **já estava respondida por transbordo** da MAN-UX12-F1 (`3dde0ab`).
+Nada a diagnosticar: o item vai a **⚠️** com uma linha de template.
+
+- **A causa era a registrada.** `/api/roster/by_name/<team>` devolve `to_dict()`, e `nfl_team`
+  **sempre esteve** entre as 21 chaves — o quadro simplesmente não renderizava o campo. A F2
+  consumiu o que já chegava: `${p.nfl_team}` na **linha dim que já existia** sob o nome
+  (`BUF · $21 · Ano 2/4`), no padrão `text-dim`/`·` das demais telas.
+
+- **As duas guardas do prompt, respeitadas literalmente.** Payload, rota, sync e lógica
+  **intocados**; e ⛔ **nada é derivado na tela** — que era o risco real deste item: ele é
+  exatamente o "mais um consumidor" que a Q1 da UX12-F1 disse que **pioraria** o problema se
+  cada tela derivasse a sua. O `—` para nulo veio de graça (o `to_dict()` já faz
+  `self.nfl_team or "—"`, mesmo fallback do `_macros.html` e do `cap_projector`).
+
+- **Staleness escrito no código, não só no backlog.** Comentário no ponto do render: frescor = o
+  do **último sync**; quem vira FA **mantém o time antigo** (o sync só sobrescreve com valor
+  truthy — 17 casos medidos em 28/04); e o sync **não roda em todo boot** (DOC1). Quem lê a linha
+  sabe o que ela promete.
+
+- **Smoke local (GET-only, cópia do DB — o vivo intocado).** Caso concreto conferido **nas duas
+  pontas**: DJ Moore aparece `BUF · $21 · Ano 2/4` no quadro e `🏈 BUF` no perfil — mesma coluna,
+  mesmo valor. Amostra do quadro traz franquias distintas (NYG, HOU, SEA, PHI, KC, TEN), provando
+  que não é constante nem herdada do time da liga. `/`, `/salary`, `/cap_projector` e `/league`
+  em 200 — nenhuma outra tela alterada. Suítes verdes, **`salary_engine_test` 54/54**.
+
+- ⚠️ **Não exercido:** aparência em navegador (smoke do owner) e o **caso do FA com time antigo** —
+  nenhum jogador do roster de teste está nessa condição; é a ressalva conhecida, não caminho novo.
+
+- **Fora de escopo, declarado:** `trade_proposal.html` (a proposta compartilhável) renderiza assets
+  por `player_name_link` em Jinja — **outra superfície**, não tocada. O sintoma registrado é o
+  quadro do simulador; ampliar por conta própria seria outro item.
+
+**[[UX11]] ⚠️ até o smoke em produção (PROC1).**
