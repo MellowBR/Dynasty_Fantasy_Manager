@@ -760,9 +760,7 @@ function toggleFlag(url, undo, resultId, force) {
     // não há import de rookie draft na season. A saída é confirmação EXPLÍCITA e
     // INFORMADA — o texto do erro diz o que será apagado — nunca silêncio.
     if (d.requires_force) {
-      if (confirm(d.error + '
-
-Prosseguir mesmo assim?')) {
+      if (confirm(d.error + '\n\nProsseguir mesmo assim?')) {
         toggleFlag(url, undo, resultId, true);
       } else {
         showResult(resultId, false, 'Cancelado — importe o draft antes de marcar o passo 5.');

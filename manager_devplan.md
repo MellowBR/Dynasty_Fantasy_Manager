@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 10/08/2026-pt9 (MAN-OFF26-23 F2: **poka-yoke nos 3 pontos de não-retorno** — o sistema recusa a ordem errada (diretriz do owner, registrada como candidato a baseline). (1) `rollover_order_gate` no import (preview E confirm; auction fora de propósito — transitivamente gateado; histórico permitido); (2) passo 5 → 409 `requires_force` informado (consumidor crítico do store é o próprio import), UI com confirmação explícita; (3) clear com backup automático F13 + `restore_rookie_espn_backup` pela porta única — “sem undo” caiu. Runbooks com a seção 17→18/08 + passo 5 pós-24/08. 15 testes novos; suítes verdes; smoke local nos 3 gates. Caminho feliz intocado; once-only preservado. OFF26-23 → ⚠️ (PROC1).)
+> Última atualização: 10/08/2026-pt10 (MAN-OFF26-23-FIX: **SyntaxError no JS da /offseason** (introduzido no `6ecb90e` — `\n\n` virou quebra real na edição gerada; bloco inteiro sem parse, `toggleFlag is not defined`, passos 3/4 mudos). Fix de 1 linha; varredura de TODOS os templates (só o offseason quebrado); DOM headless: 13/13 onclick definidas, cancelar não grava, force reposta. **Guarda permanente `template_js_test.py`** (node + fallback heurístico, nunca silencioso; **falha no `6ecb90e`, passa no fix**). Lição candidata METH-REG: *poka-yoke silencioso é meio poka-yoke*. Suítes verdes. Push imediato.)
+> Anterior: 10/08/2026-pt9 (MAN-OFF26-23 F2: **poka-yoke nos 3 pontos de não-retorno** — o sistema recusa a ordem errada (diretriz do owner, registrada como candidato a baseline). (1) `rollover_order_gate` no import (preview E confirm; auction fora de propósito — transitivamente gateado; histórico permitido); (2) passo 5 → 409 `requires_force` informado (consumidor crítico do store é o próprio import), UI com confirmação explícita; (3) clear com backup automático F13 + `restore_rookie_espn_backup` pela porta única — “sem undo” caiu. Runbooks com a seção 17→18/08 + passo 5 pós-24/08. 15 testes novos; suítes verdes; smoke local nos 3 gates. Caminho feliz intocado; once-only preservado. OFF26-23 → ⚠️ (PROC1).)
 > Anterior: 10/08/2026-pt8 (MAN-OFF26-23-REG-F1: **[[OFF26-23]] registrado + F1 read-only** — rookie 2026 × rollover × passo 5. **Achado central: a ordem segura não é imposta por código** — o import do draft não tem gate de `rollover_done`; antes do rollover, a varredura cega (`offseason.py:686`) faria a classe inteira virar Ano 2 (Gainwell em massa). Depois: Ano 1 intocado até 2027 (rollover once-only). **Prod: rollover 2026 não rodou** (o smoke da urna usou o escape de ensaio — prova indireta; Shell check pronto). **Plano do passo 5 validado e endurecido:** nada lê a flag além da UI, mas o consumidor crítico do store é o PRÓPRIO import (clicar antes de importar = classe a $1; clear sem undo). Gainwell: mesma manifestação, raiz distinta (canal ≠ ordem). **Roteiro 17→24/08 na seção**, 3 pontos de não-retorno; sem conflito entre os objetivos. Gate de código no import = candidato, não arbitrado. Zero código.)
 > Anterior: 10/08/2026-pt7 (MAN-M21-F1b, **diagnose read-only da fatia B** — produto delimitado: prep da FA auction, mostrar+marcar. **Q1:** premissa meia-verdade — membership local (287) mas valor 15/296 e fonte **transitória**; ⚠️ **maior achado: o clear do store roda no passo 5, ENTRE draft (17/08) e auction (24/08)** — valor pode evaporar na semana do caso de uso (pendência de desenho, não arbitrada). Store cobre veteranos do Top-300 (Ridley); canônico só rosterados (DP1, 277). **Q2: FEDERAR** — importar quebraria o import ESPN (not_found morre por vacuidade), multiplicaria homônimos (Brown ~40×), inundaria needs_review e o rollover pegaria 12k fantasmas; federar: índice do nfl_context já tem `full_name`, falta busca por nome + fusão por sid. **Q3:** disponível = 1 query/request; 3º estado cabe na engrenagem (extensão do M21-A). **Q4:** valor por classe; sem valor é correto p/ fora do Top-300. **Q5:** corte sem clique; pool rows sem `Player.id` → `origin` obrigatório no payload. **Q6a:** corte “busca federada informativa” nomeado; **Q6b:** fronteira limpa c/ redesenho do cap projector. Fatia B segue 🔲; decisão do owner. Zero código.)
 > Anterior: 10/08/2026-pt6 (MAN-ARC-BUSCA-DONE, **docs-only**: smoke prod do `20b346b` aprova o arco da busca. **[[M10]] ✅** (Mahomes morto, Michel validou) · **[[UX11]] ✅** (1ª observação real em prod; ocorrência observation/provenance: checks pré-push do `a63d6ab` não valiam) · **[[M21]] fatia A ✅**, item segue 🔲 pela B — que **herda o caso Helm** (Shell: nunca foi `Player`; `player_history` íntegro, órfãos=0 — evidência registrada); **Kamara consagrado âncora da A**. Migração O3: M10 e UX11 → archive verbatim (1×/0× conferido). Registros novos: **[[UX14]]** fallback de pool p/ time NFL de dropado (caso Waller; réplica obrigatória na F1) e **[[UX15]]** jogador pré-selecionado no trade (refino do campo 3 do UX12). Zero código.)
@@ -4964,3 +4965,43 @@ baseline do DEV_METHODOLOGY (família MAN-METH-REG) — registrado, não consoli
   é a própria semana.
 
 **Commit único código+docs, push incluído (PROC1 — a semana começa domingo).**
+
+### MAN-OFF26-23-FIX — o poka-yoke estava mudo: SyntaxError no JS da /offseason (10/08/2026, Fable)
+
+O smoke do owner sobre `6ecb90e` pegou o que a entrega declarou não exercido: em navegador, o
+clique do passo 5 não fazia nada. Console: `Uncaught SyntaxError` + `toggleFlag is not defined`.
+
+- **Causa exata:** na edição GERADA da F2 (script Python → template), o `\n\n` da mensagem do
+  confirm virou **quebra de linha real** dentro da string JS de aspas simples — o parse do bloco
+  `<script>` inteiro morreu e **nenhuma** função da página existia mais, inclusive
+  `doRollover`/`confirmEspn` (passos 3/4, de que o fluxo de 18/08 depende). O gate de servidor
+  estava íntegro: o 409 nunca chegou a ser requisitado, nada foi gravado, o passo 5 seguia
+  Pendente — a falha era 100% da camada de apresentação.
+
+- **Fix de 1 linha** (`offseason.html:763`), aplicado com Edit direto — sem gerador no meio.
+  **Varredura dos irmãos:** todos os blocos `<script>` de **todos** os templates extraídos
+  (Jinja neutralizado) e parseados via node — só o offseason estava quebrado; a causa era o
+  escape duplo de um gerador específico, não um padrão espalhado.
+
+- **Exercido em DOM headless** (não há browser instalável nesta máquina — limite declarado, de
+  novo): 13/13 funções chamadas por onclick definidas após o parse; clique do passo 5 sem import
+  → **2 confirms** (o genérico + o informado do 409, com o texto do dano E a pergunta na mesma
+  caixa — o `\n\n` funcionando); **cancelar → zero segundo POST** + "Cancelado" na tela;
+  aceitar → repost com `force: true` e resultado renderizado.
+
+- **Guarda permanente: `template_js_test.py` (3 testes).** Parseia o JS inline de TODO template:
+  camada primária `node --check` (cobertura sintática completa), fallback de **heurística de
+  string não terminada** (a classe exata do incidente) quando node não existir — **nunca
+  silencioso** (o relatório declara a camada). **Provado contra a regressão real:** checkout do
+  `6ecb90e` → o teste FALHA apontando `offseason.html[script #0]`; no fix, passa. Suítes
+  completas verdes (54+35+15+**3**+14+19+34+25+36+64+22).
+
+- **Lição registrada como candidata MAN-METH-REG:** *poka-yoke silencioso é meio poka-yoke — a
+  mensagem é parte do mecanismo.* O gate recusava corretamente no servidor, mas a camada que
+  transformava a recusa em decisão informada estava morta — e o conjunto degradou para "botão que
+  não faz nada", que é PIOR que não ter gate (o operador não sabe nem que foi recusado). Segunda
+  ocorrência da família "declarado não-exercido vira o furo" no mesmo dia (a 1ª foi o UX11
+  pré-push) — o custo de não ter browser na máquina agora tem guarda estática no baseline.
+
+**Gates de servidor intocados** (restrição do prompt): `rollover_order_gate`, 409 do passo 5 e
+backup do clear seguem byte-idênticos. Push imediato — o smoke do owner precisa do hash hoje.

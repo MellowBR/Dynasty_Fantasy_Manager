@@ -33,6 +33,9 @@ python late_drop_test.py
 # Run poka-yokes da ordem da intertemporada (OFF26-23 — 15 testes; gates + clear com backup)
 python poka_yoke_test.py
 
+# Run parse do JS inline de todos os templates (OFF26-23-FIX — 3 testes; node ou fallback)
+python template_js_test.py
+
 # Run janela selada / runner do ensaio (OFF26-1 — 22 testes)
 python janela_ensaio_test.py
 
@@ -321,6 +324,7 @@ fantasy_manager/
   player_search_test.py             # M10: busca de jogador — endpoint + guardas de identidade (27)
   late_drop_test.py                 # OFF26-10: urna do late drop + keeper sheet via sync (47)
   poka_yoke_test.py                 # OFF26-23: gates da ordem rollover→import→passo 5 (15)
+  template_js_test.py               # OFF26-23-FIX: JS inline de todo template parseia (3)
   janela_ensaio_test.py             # OFF26-1: runner do ensaio/reset da janela e da urna (22)
   ensaio_janela_selada.py           # OFF26-1/10: status · banner · reset (janela E urna)
   keeper_audit_fixtures.py          # material de TESTE congelado (NÃO é a keeper sheet real)
