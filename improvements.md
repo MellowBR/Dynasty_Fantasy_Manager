@@ -1,12 +1,12 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 10/08/2026-pt7 (sessão MAN-M21-F1b, **diagnose read-only da fatia B do [[M21]]** — produto delimitado pelo owner: preparação da FA auction, “mostrar e marcar” (disponível + valor na linha), sem contrato/simulação; zero mutação, zero chamada externa. **Q1 — a premissa “os rookies já estão no sistema” é meia-verdade com prazo de validade:** a membership está (287 `in_class` no seed), o **valor quase não** (15/296 com `espn_raw>0`) e a fonte é **TRANSITÓRIA** — e aí o maior achado da diagnose: **`clear_rookie_espn_store()` roda no passo 5 (“Rookie Draft Done”), ENTRE o draft (17/08) e a auction (24/08)** — a camada de valor pode evaporar na semana exata do caso de uso; pendência de desenho registrada, ⛔ não arbitrada. De carona, o store cobre **veteranos não-rosterados do Top-300** (caso Ridley, `in_class=False` com valor) — valor de veterano “de graça” onde o Top-300 alcança; fora disso, linha sem valor é o estado correto (canônico = só rosterados, DP1 confirmado por contagem: 277). **Q2 — o mapa de consumidores decide sozinho: FEDERAR.** Importar ~12k linhas quebraria estruturalmente o import ESPN (todo not_found casaria; o fluxo E2 morre por vacuidade), multiplicaria homônimos no `player_lookup` (~40× o espaço de colisão Brown), inundaria o `needs_review` e faria o rollover incrementar 12 mil fantasmas (`offseason.py:686` roda em todos). Federar custa pouco e está medido: o índice do `nfl_context` **já carrega `full_name`**; falta busca por nome (normalização reusada do `player_lookup`) + fusão por sid. **Q3:** “disponível” = 1 query por request (~280 sids → dict); 3º estado cabe na engrenagem única (mesma extensão do M21-A). **Q4:** valor por classe tabelado — rookie via store, veterano Top-300 via store, resto **sem valor e correto assim**. **Q5:** corte mínimo **sem clique** (a linha É o produto); perfil de pool fica como evolução; ⚠️ pool rows não têm `Player.id` — o href atual quebraria, `origin` no payload é obrigatório. **Q6a — corte nomeado “busca federada informativa”:** busca no índice + fusão/dedupe + badge Disponível + valor quando houver + sem navegação; fora: perfil, persistência, calculadora, cap projector. **Q6b:** fronteira limpa com o redesenho do cap projector (nenhum dos dois possui o `RookieEspnValue`; cross-ref quando o item nascer). METH-REG: 2 premissas contraditas, 4 omissões. Fatia B segue **🔲** — decisão do owner. Zero código.)
 > Atualizado em: 10/08/2026-pt6 (sessão MAN-ARC-BUSCA-DONE, **docs-only**: **fechamento consolidado do arco da busca — smoke de produção do owner sobre o hash `20b346b` (PROC1) aprova três frentes de uma vez.** **[[M10]] fecha ✅** (caso Mahomes morto em prod, homônimos distinguíveis, autocomplete funcional, **validação do solicitante Michel**) e **[[UX11]] fecha ✅** com a **primeira observação real do fix em prod** — e a ocorrência da família *observation/provenance* registrada: os smokes anteriores ocorreram **antes do push do `a63d6ab`**, então nenhum “quadro conferido” daquelas passagens valia para o item. **[[M21]]: fatia A fecha ✅** (Kamara badge FA → perfil com rótulo histórico, sem botão de trade, sem tag IR; Waller e Detroit sem quebra; rosterado sem regressão) e **o item segue 🔲 pela fatia B** — que **herda o caso Helm**: a medição do Shell (10/08) provou que ele **nunca foi `Player`** (zero em `players`, zero em `player_history`, **zero históricos órfãos** — achado positivo registrado como evidência: a integridade do `player_history` está intacta e diagnoses futuras não precisam remedir); a lembrança do owner era de outra superfície, e **Kamara é consagrado âncora da fatia A**. Migração O3 executada: seções M10 e UX11 movidas **verbatim** ao archive (1× lá / 0× no ativo, conferido). **Dois registros novos do smoke** (sem diagnose): **[[UX14]]** — time NFL de dropado com fallback de leitura no pool (caso Waller `🏈 —`; hipótese não arbitrada, precedente [[O2]] sem persistir, e a questão de réplica obrigatória: fonte única da Q1 da UX12-F1 ou 2ª fonte por tela?) — e **[[UX15]]** — jogador pré-selecionado na página de trade (refinamento do campo 3 do [[UX12]]; provável F2 direta, a confirmar réplica dos caminhos de entrada). **Status Rápido: M10 e UX11 → ✅, linha M21 refletindo A ✅/B 🔲, exatamente 2 linhas novas.** Exceção de commit docs-only logada. Zero código.)
 > Atualizado em: 10/08/2026-pt5 (sessão MAN-M21-A: **fatia A do [[M21]] entregue — FAs da liga na busca, marcados** (decisão do owner: opção (a) da F1a). O filtro `is_dropped=False` caiu do endpoint (a F1a provara que era inércia da v1.0 sem consumidor); `to_search_dict()` ganhou `is_dropped` (+1 campo, o custo previsto) e o `optionInner` da **engrenagem única** troca a franquia pelo **badge "FA"** — nos dois consumidores de graça, sem fork; o badge **substitui** a franquia porque `fantasy_team_name` de dropado devolve o último time e exibi-lo leria como posse. **Ordenação adotada:** `(prefixo, is_dropped, nome)` — rosterado antes de FA a empate, pico pós-20/08 legível no teto de 20. **Perfil de FA corrigido (os 2 enganosos da Q2):** `can_propose_trade` exige `not is_dropped` (team_id preservado é histórico, não posse) e o salário vira **"Último salário (histórico)"**; carona trivial: tag IR suprimida p/ dropado (`is_on_ir` stale — **sync intocado**). Calculadora: FA selecionável (uso pré-auction), hint com "FA · último salário". **Medição de prod que precedeu (owner, Shell): 41 dropados**; ⚠️ o Gunnar Helm **não existe em prod** (proveniência em aberto, fora de escopo) — **o âncora vira Kamara**, que existe também no seed junto com Waller (`nfl_team` vazio) e Detroit (DEF): material do smoke local. **Testes 27 → 35** (inclusão marcada + 6 guardas novas); todas as suítes verdes; smoke local com os 3 casos + regressão DJ Moore idêntica. Fatia B intocada (🔲, arbitragem na F1b). M21 → **⚠️** (smoke prod pendente, PROC1, push incluído).)
 > Atualizado em: 10/08/2026-pt4 (sessão MAN-M21-F1a, **diagnose read-only da fatia A do [[M21]]** — zero mutação, zero query em produção. **Q1, o achado que reordena a fatia: o filtro `is_dropped=False` nunca protegeu fluxo nenhum** — o endpoint de busca nasceu na v1.0 (`f2271ba`) já com o filtro e **sem nenhum consumidor** (`git log --all -S`: a primeira referência em template é o próprio M10), então as hipóteses “evitar poluição” e “proteger o trade” caem por **anacronismo** e sobra inércia; a decisão de incluir FAs é só sobre os 2 consumidores do M10, sem legado. **Q2, perfil de FA campo a campo:** o tratamento **já é parcial** (tag “Dropado” no header desde o M13 — o sync preserva `team_id` ao dropar); os enganosos são o botão **“Propor Trade” que aparece para FA** (`can_propose_trade` não checa `is_dropped`) e a label **“Salário atual”** num número histórico que não conta em folha alguma; `is_on_ir` stale em dropado é o menor. **Q3, recomendação (a)**: incluir sempre, marcado “FA” **no lugar da franquia** na sub-linha — `fantasy_team_name` de dropado devolve a última franquia e sem o badge o FA *parece rosterado* (o argumento que mata a opção (b); o toggle (c) mata o caso-âncora por default); FA na calculadora **faz sentido** (simular contrato de alvo da auction é o uso pré-24/08); custo real: `to_search_dict()` **não expõe `is_dropped`** — badge exige +1 campo. **Q4:** pico de FAs pós-20/08 chega de uma vez no sync; teto de 20 segue válido, ordenação “rosterado antes de FA” registrada como opção da F2a; **urna: zero interseção** (queries próprias, bilhete recusa dropado); “Reativar (ano 1)” do importador já trata dropado como entidade recomprável — precedente de coerência. **Q5:** 2 SELECTs read-only prontos para o Render Shell (⛔ não executados; **o seed nem contém o Helm** — o caso-âncora só existe no vivo). Listas (a)/(b) do MAN-METH-REG: 2 premissas decididas/contraditas, 4 omissões com parecer. Item segue **🔲** — decisão de desenho é do owner. Zero código.)
 > Atualizado em: 10/08/2026-pt3 (sessão MAN-M21-REG, **docs-only**: registro do **[[M21]] 🔲 — busca cobre o universo Sleeper**, pedido do owner logo após o smoke do [[M10]]. O item nasce **partido em duas fatias com prazos próprios, e a razão é de natureza, não de tamanho**: a **fatia A** (FAs da liga — caso-âncora **Gunnar Helm**) é **um predicado de query** sobre dados que já existem — o jogador **é** `Player`, o perfil abre, só o filtro `is_dropped=False` da busca o esconde (mecanismo confirmado no código: o sync marca dropado quem sumiu do roster do Sleeper) —, e é **Alta com alvo pré-24/08** por valor operacional na preparação da FA auction; a **fatia B** (rookies não-drafteados e o resto do pool) é **decisão de arquitetura de dados** e fica **Média, pós-intertemporada**. ⚠️ **A arbitragem central da B foi deixada EM ABERTO de propósito** — importar o pool como `Player` × **busca federada** em duas fontes: a hipótese do owner (“deveriam estar na nossa base”) entra como **premissa a testar**, e a F1b tem de mapear os consumidores da tabela `Player` (folha/[[OFF26-16]], keeper exclusion, `needs_review`, agregações, portas de aquisição) contra o que ~12 mil linhas sem contrato fariam com cada um — tendo como precedente o [[O2]], que **lê o pool sem persistir nada**. Demais questões registradas sem resposta: **por que o filtro `is_dropped` existe** (herdado do endpoint pré-M10 — a razão condiciona o desenho: incluir marcado × sem distinção × toggle), o que o perfil de um FA oferece que precisa de ajuste (o botão de trade), destino do clique num não-`Player`, colisão de identidade entre duas fontes (⛔ sempre por `sleeper_player_id`) e a relação com [[DP1]]/`RookieEspnValue`. Registrado que a **engrenagem do M10 é a base — as fatias estendem, não reescrevem** — e que a **fatia A não bloqueia nem é bloqueada pelo smoke pendente do M10**. **Status Rápido ganhou exatamente 1 linha**; nenhum status existente alterado. **Exceção de commit docs-only logada.** Zero código.)
-> Atualizado em: 10/08/2026-pt2 (sessão MAN-UX11-F2, **carona de causa conhecida**: o [[UX11]] vai a **⚠️** — o quadro de trades passa a exibir a **franquia NFL** de cada jogador. Fix de **1 linha de renderização**, exatamente como a F1-por-transbordo da UX12-F1 previu: o `nfl_team` **já vinha** no payload de `/api/roster/by_name` (via `to_dict()`) e a tela apenas não o desenhava. Entra na **linha dim que já existia** (`BUF · $21 · Ano 2/4`), no padrão das demais telas. ⛔ **Zero backend**: payload, rota, sync e lógica intocados — as 21 chaves do `to_dict()` seguem idênticas, e **nada é derivado na tela** (a réplica que a Q1 da UX12-F1 temia não foi criada). **Conferência cruzada do caso concreto:** DJ Moore → quadro `BUF · $21 · Ano 2/4` × perfil `🏈 BUF` — mesma coluna, mesmo valor. A **ressalva de staleness** está registrada no código, não só no backlog: frescor = último sync, e quem vira FA **mantém o time antigo** (o sync só sobrescreve com valor truthy) — por isso o `to_dict()` já devolve `—` para nulo. Nenhuma outra tela alterada (`/`, `/salary`, `/cap_projector`, `/league` conferidas em 200); suítes verdes (54/54 no salary_engine). **Smoke em produção pendente** — gate [[PROC1]].)
-> 📁 Entradas anteriores em **`improvements_sessions.md`** (73 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
+> 📁 Entradas anteriores em **`improvements_sessions.md`** (74 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
@@ -3602,14 +3602,140 @@ zero linhas). O caso-âncora só existe no banco vivo, criado por sync; a mediç
 4. O fluxo **"Reativar (ano 1)"** do importador já trata dropados como entidades de 1ª classe —
    precedente de coerência a favor da inclusão.
 
-#### Fatia B — universo não-`Player` (Média, pós-intertemporada)
+#### Fatia B — universo não-`Player` (Média, pós-intertemporada; F1b concluída 10/08/2026)
 
-**Objetivo declarado:** rookies não-drafteados e demais jogadores do pool do Sleeper que **nunca
-foram `Player`** também são encontráveis.
+**Objetivo declarado (delimitado pelo owner na F1b):** qualquer jogador do universo Sleeper é
+encontrável na busca, com o estado **"Disponível"** marcado e o **valor de referência na linha**
+quando houver — mostrar e marcar; sem contrato, sem simulação. Decisão implementar × adiar é do
+owner, posterior à diagnose.
 
 **Caso-âncora herdado da fatia A (correção de 10/08):** **Gunnar Helm** — o jogador que o owner
 procurou no smoke do M10. A medição no Shell provou que ele **nunca foi `Player`** (zero em
 `players`, `player_history` e órfãos); encontrá-lo é exatamente o problema desta fatia.
+
+##### F1b — diagnose read-only da fatia B (MAN-M21-F1b, 10/08/2026)
+
+Produto delimitado pelo owner antes da diagnose: **preparação da FA auction** — encontrar
+qualquer jogador do universo Sleeper, ver que está **disponível** e, quando houver, o **valor de
+referência na linha**. Mostrar e marcar; sem contrato, sem simulação. Evidência do HEAD
+(`500c089`) e do cache/seed locais; **zero mutação, zero chamada externa**. Números de tabela são
+do **seed** (ordem de grandeza — conferíveis em prod pelo Shell). A decisão implementar × adiar
+é do owner; a fatia segue **🔲**.
+
+###### Q1 — A premissa "os rookies já estão no nosso sistema": meia-verdade com prazo de validade
+
+| Fonte local de não-`Player` | Cobertura (seed) | Chave | Valor | Frescor |
+|---|---|---|---|---|
+| **`RookieEspnValue`** | **296 linhas** (2026): **287 `in_class`** (a classe capturada via DP3) + 9 fora da classe | `sleeper_player_id` + season (UNIQUE) | `espn_raw`/`espn_adjusted` — **só 15/296 têm valor > 0** hoje; o resto é membership a $1 (valor chega com o import ESPN da temporada) | ⚠️ **TRANSITÓRIO**: `clear_rookie_espn_store()` apaga TUDO quando o admin marca o **passo 5** ("Rookie Draft Done", `offseason.py:733-734`) |
+| **`EspnValueStore`** (canônico E4-c) | **277 linhas** (2026) — **só rosterados** (o achado [[DP1]] confirmado por contagem) | `(sleeper_id, season)` | ESPN raw+adjusted | Persistente; escrito pelo confirm do import ESPN |
+| **Pool do Sleeper** (cache F13) | ~12.2k entradas | `sid` | **Nenhum valor de mercado** — identidade/contexto (nome, posição, time, `birth_date`, depth chart) | TTL 168h, stale-while-usable ([[O2]]) |
+| Board DP1 do cap_projector | Não é fonte própria — **lê** `RookieEspnValue.in_class` menos rosterados | — | — | Herda o transitório |
+| `keeper_audit_fixtures` | ⛔ Material de teste congelado — **não é fonte** | — | — | — |
+
+**A meia-verdade:** a **membership** da classe está local (287 sids), mas o **valor** quase não
+está (15/296) e a fonte inteira **evapora no passo 5**. Detalhe que redime parte da premissa: o
+store também guarda **veteranos não-rosterados do Top-300** (`in_class=False` com valor — caso
+real no seed: Calvin Ridley) — o import ESPN já resolve not_found contra o pool e upserta lá
+(`admin.py:_resolve_not_found_to_store`).
+
+###### Q2 — Importar × federar: o mapa de consumidores decide sozinho
+
+Efeito de ~12 mil linhas sem contrato na tabela `Player`, consumidor a consumidor:
+
+| Consumidor | Efeito de importar o pool |
+|---|---|
+| `salary_engine`/folha ([[OFF26-16]]) | Neutro **se** toda linha nascer com `team_id=NULL` — as somas filtram por time. Risco residual em queries `filter_by(is_dropped=False)` sem filtro de time (`admin.py:17` conta "players", `offseason.py:686` roda rollover em **todos**) — **o rollover incrementaria contrato de 12 mil fantasmas** |
+| **Import ESPN (3-tier matching)** | **QUEBRA ESTRUTURAL**: com o pool inteiro como Player, todo not_found passa a casar — o fluxo not_found → `RookieEspnValue` (E2/E5) morre por vacuidade |
+| **`player_lookup` (Brown-safe)** | Homônimos multiplicam por ~40× o espaço de colisão — o matching estrito passaria a devolver ambiguidade onde hoje resolve |
+| `needs_review`/M2 | Sync/criação marcaria **12 mil linhas para revisão** — a tela M2 morre |
+| Sync (drop logic) | Neutro (itera só sids atribuídos a times) — mas o pool importado precisaria de manutenção própria (quem atualiza 12k linhas?) |
+| Keeper exclusion/sheet ([[OFF26-11]]) | Neutro (partem do roster vivo) |
+| Portas do `/auction` + `record_acquisition` | Matching por nome contra a tabela inteira — mesma explosão de homônimos |
+
+**Recomendação: FEDERAR.** O custo real é pequeno e está medido: o `nfl_context` já monta o
+índice enxuto do pool **com `full_name` dentro** (`_SLIM_FIELDS`, `nfl_context.py:37`) e
+invalidação por `(mtime, size)`; falta (1) uma função de busca por nome sobre esse índice —
+normalização de caso/acento já existe em `player_lookup._normalize`, reusável por import — e
+(2) a fusão por sid com o resultado do DB no endpoint. Importar exigiria neutralizar
+**cada linha** da tabela acima; federar não toca nenhuma. O precedente O2 (ler sem persistir) já
+é o padrão da casa. **Decisão é do owner.**
+
+###### Q3 — "Disponível" mora numa consulta única por request
+
+O predicado é da liga: pool-sid ∉ sids de `Player`. **Uma query por request** (não por tecla — o
+debounce do M10 já limita): `SELECT sleeper_player_id, is_dropped FROM players` (~280 linhas) vira
+um dict em memória; a fusão suprime do resultado-pool quem já é Player (o DB é a linha dele) e
+marca o resto **"Disponível"**. Os três estados na engrenagem única: o `optionInner` já bifurca
+por `is_dropped` — vira um `switch` de 3 casos sobre um campo `origin`/badge no payload
+(rosterado = franquia · FA da liga = badge "FA" · pool = badge "Disponível"). **Comporta sem
+fork** — é a mesma extensão que o M21-A fez.
+
+###### Q4 — Valor de referência na linha, por classe (sem fonte nova)
+
+| Classe | Valor exibível | Fonte |
+|---|---|---|
+| Rookie da classe (287) | `espn_adjusted` quando > 0 (**15 hoje**; mais após o import ESPN da temporada); resto **sem valor** (massa $1 do board) | `RookieEspnValue` |
+| Veterano fora da liga que veio no Top-300 | `espn_adjusted` (caso Ridley) | `RookieEspnValue` (`in_class=False`) |
+| Veterano fora da liga fora do Top-300 (**caso Gunnar Helm**) | **Sem valor — e está correto assim** | Nenhuma (o canônico só tem rosterados — DP1) |
+
+⚠️ **O prazo de validade contamina a Q4 inteira:** o clear do passo 5 roda **entre 17/08 (draft)
+e 24/08 (auction)** — se o admin marcar "Rookie Draft Done" antes da auction, a camada de valor
+da busca **evapora exatamente na semana do caso de uso**. Qualquer implementação precisa decidir
+isso ANTES (adiar o clear × aceitar linhas sem valor × outra) — registrado como pendência de
+desenho, ⛔ não arbitrado aqui.
+
+###### Q5 — Destino do clique: sem navegação no corte mínimo
+
+| Opção | Custo | Parecer |
+|---|---|---|
+| **(a) Sem clique** (linha informativa) ✅ p/ MVP | Zero — nenhuma rota/página nova | O produto delimitado ("ver que está disponível + valor") **é a própria linha**; navegação não acrescenta nada ao caso de uso |
+| (b) Perfil reduzido do pool (`/pool/<sid>`) | Rota + template novos; o conteúdo (idade, depth chart) o `nfl_context` já monta por sid | Reusa muito, mas **cria superfície nova** para manter — e sem contrato/timeline, a página é o card do O2 solto. Fica como evolução SE o uso pedir |
+| (c) Deep-link externo (Sleeper) | Baixo | Fora do produto; dependência de URL de terceiro |
+
+Nota de mecânica: pool rows **não têm `Player.id`** — o modo navegação do componente exige
+`origin` no payload antes de qualquer clique (hoje o href é `/player/${p.id}`; um pool-hit com
+`id` ausente montaria link quebrado — a implementação DEVE tratar, qualquer que seja a opção).
+
+###### Q6 — Fronteiras
+
+**(a) Corte mínimo viável pré-24/08 (nomeado: "busca federada informativa"):** função de busca
+por nome no índice do pool (normalização reusada) + fusão por sid com dedupe + badge
+"Disponível" + valor do `RookieEspnValue` quando existir + **linha sem clique**. **Fora dele,
+explicitamente:** navegação/perfil de pool (Q5b), valores de veterano fora do Top-300, qualquer
+persistência, integração com calculadora/cap projector, resolução do timing do clear (pendência
+de desenho que o corte precisa DECIDIR mas não resolve por código novo além de um `if`).
+**Pré-requisito operacional do corte:** valor de rookie na linha só existe se o import ESPN da
+temporada tiver rodado E o passo 5 não tiver sido marcado.
+
+**(b) Fronteira com o redesenho do cap projector (item do owner, a registrar à parte):** a fatia
+B **não produz modelo de dado novo** — consome pool + store existentes em leitura. O redesenho
+(trades/rookies/drops/auction) pode nascer sem pressupor nada daqui, e nada daqui bloqueia o
+redesenho; o único ponto de contato é o `RookieEspnValue`, que ambos leem e **nenhum dos dois
+passa a possuir** (o dono segue sendo o ciclo E2/DP3). ⛔ Se o redesenho decidir mexer no timing
+do clear, a pendência da Q4 é dele também — registrar o cross-ref quando o item nascer.
+
+###### Listas da regra MAN-METH-REG
+
+**(a) Premissas do pedido que o código contradiz:**
+1. **"Os rookies já estão no nosso sistema"** — a membership sim (287), o **valor quase não**
+   (15/296) e a fonte é **transitória** (clear no passo 5). Tratar o store como fonte permanente
+   da busca seria construir sobre areia — parecer: federar tratando valor como **opcional por
+   linha**, nunca como garantido.
+2. Premissa implícita "veterano relevante tem valor em algum lugar" — só se veio no Top-300
+   (`in_class=False` com valor); o canônico `EspnValueStore` tem **só rosterados** (277,
+   contagem bate com o achado DP1). Fora disso, linha sem valor é o estado **correto**.
+
+**(b) Comportamentos existentes que o escopo omite:**
+1. ⚠️ **O clear do passo 5 (o maior achado da diagnose):** `clear_rookie_espn_store()` roda no
+   toggle "Rookie Draft Done" — **entre o draft (17/08) e a auction (24/08)**. A camada de valor
+   que o produto pede pode evaporar na semana do caso de uso. Parecer: pendência de desenho a
+   decidir antes de implementar.
+2. **Pool rows não têm `Player.id`** — o href do modo navegação quebraria; qualquer corte precisa
+   do campo `origin` no payload (parecer: parte do corte mínimo).
+3. O import ESPN já upserta **veteranos não-rosterados** no store (o caso Ridley) — a busca ganha
+   valor de veterano "de graça" onde o Top-300 alcança; o escopo falava só de rookies.
+4. `is_entering_class_member` (critério único da captura DP3) já define "quem é entrante" — a
+   fatia B **reusa** a membership capturada, ⛔ sem segunda definição (a guarda do registro vale).
 
 **Questões abertas para a F1b (⛔ registrar, não responder aqui):**
 
