@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 10/08/2026-pt2 (MAN-UX11-F2, **carona de causa conhecida**: [[UX11]] a **⚠️** — a franquia NFL aparece no quadro de trades. **1 linha de render**, como a F1-por-transbordo da UX12-F1 previu: `nfl_team` **já vinha** no payload de `/api/roster/by_name` (`to_dict()`), a tela só não desenhava. Entra na linha dim existente (`BUF · $21 · Ano 2/4`), padrão das demais telas. ⛔ Zero backend (21 chaves do `to_dict()` idênticas) e ⛔ nada derivado na tela — a réplica que a Q1 temia não foi criada. Conferência cruzada: DJ Moore `BUF` no quadro × `🏈 BUF` no perfil. Staleness registrado **no código** (frescor = último sync; FA mantém time antigo). Nenhuma outra tela alterada; 54/54. Smoke prod pendente — PROC1.)
+> Última atualização: 10/08/2026-pt3 (MAN-M21-REG, **docs-only**: registro do **[[M21]] 🔲 — busca cobre o universo Sleeper**, pedido do owner após o smoke do [[M10]]. **Duas fatias, e a razão do corte é de natureza:** **A — FAs da liga** (Alta, alvo **pré-24/08**; âncora **Gunnar Helm**) é **predicado de query** sobre dado que já existe — o jogador **é** `Player` e o perfil abre; só o filtro `is_dropped=False` da busca o esconde (mecanismo conferido no código) — enquanto **B — universo não-`Player`** (Média, pós-intertemporada) é **decisão de arquitetura de dados**. ⚠️ **A arbitragem da B ficou EM ABERTO de propósito** (importar o pool como `Player` × busca **federada**): a hipótese do owner é **premissa a testar**, e a F1b tem de mapear os consumidores da tabela `Player` contra ~12 mil linhas sem contrato — precedente do [[O2]], que lê o pool **sem persistir**. Questões registradas sem resposta: por que o filtro `is_dropped` existe (herdado do endpoint pré-M10; a razão condiciona incluir-marcado × sem-distinção × toggle), botão de trade no perfil de FA, destino do clique em não-`Player`, colisão de identidade (⛔ sempre por `sleeper_player_id`) e relação com [[DP1]]. **Fatia A não bloqueia nem é bloqueada pelo smoke pendente do M10.** Status Rápido +1 linha, nada mais mexido. **Exceção de commit docs-only logada.** Zero código.)
+> Anterior: 10/08/2026-pt2 (MAN-UX11-F2, **carona de causa conhecida**: [[UX11]] a **⚠️** — a franquia NFL aparece no quadro de trades. **1 linha de render**, como a F1-por-transbordo da UX12-F1 previu: `nfl_team` **já vinha** no payload de `/api/roster/by_name` (`to_dict()`), a tela só não desenhava. Entra na linha dim existente (`BUF · $21 · Ano 2/4`), padrão das demais telas. ⛔ Zero backend (21 chaves do `to_dict()` idênticas) e ⛔ nada derivado na tela — a réplica que a Q1 temia não foi criada. Conferência cruzada: DJ Moore `BUF` no quadro × `🏈 BUF` no perfil. Staleness registrado **no código** (frescor = último sync; FA mantém time antigo). Nenhuma outra tela alterada; 54/54. Smoke prod pendente — PROC1.)
 > Anterior: 10/08/2026 (MAN-M10-F2: **busca de jogador entregue** — [[M10]] a **⚠️** (smoke prod pendente, PROC1). Os 2 consumidores da spec de 28/04 sobre **um componente só** (`createPlayerSearch` em `base.html`): navbar desktop + overlay mobile **navegam** (`<a href>` real p/ `/player/<id>`), calculadora **seleciona** e preenche ESPN/ano/aquisição. **Identidade:** substring é sugestão exibida, cada linha traz pos+time NFL+franquia, e ⛔ **Enter sem item destacado não escolhe nada** — resolução é sempre ato explícito, destino sai do `id`. Backend reusado com 3 ajustes (payload `to_search_dict()` — `to_dict()` fazia **20 projeções de contrato por tecla**; ordem prefixo-primeiro — sem ela o teto de 20 cortava arbitrário; escape do LIKE — '%' devolvia o elenco). ⚠️ **Conversão fácil de errar:** campo da calculadora é RAW e o banco é ajustado → autofill **divide por 1.2**; ⛔ 'ano 1' não é preenchido (banco tem salário corrente). 27 testes novos; smoke local: Mahomes resolve em 1 (caso de 28/04 morre) e 'brown' vira **lista de 5 distinguíveis**. **Falta o navegador** — smoke do owner.)
 > Anterior: 08/08/2026-pt9 (MAN-O2-B1-DONE, **docs-only**: **smoke prod do Batch 1 do [[O2]] APROVADO** — PROC1 cumprido (hash `2ed0b4a` live), DJ Moore completo + link cruzado (Gainwell → franquia DELE) + validação do Michel; item segue **⚠️** (Batch 2 pendente). **Ressalva:** degradação fora-do-pool **não exercida em prod** — Gainwell renderizou completo (pool de prod mais fresco que o local de 31/07); ocorrência da família *observação verdadeira, procedência errada*; coberta por unit test, exercer oportunisticamente. **Ocorrência de processo (1ª):** sessão encerrada com commit local SEM push, detectada pelo owner via ausência de deploy; regra candidata só na 2ª. **[[UX13]] 🔲 Baixa registrado** — `contract_year_correction` cru na Timeline, chave ausente nos 2 `EVENT_LABELS` copiados, carona. Zero código.)
 > Anterior: 08/08/2026-pt8 (MAN-O2-F2-B1: **Batch 1 do perfil do jogador entregue** — time NFL + idade no header, link do time da liga, card de depth chart (destaque por **sid**, nunca nome). Novo `nfl_context.py` (núcleo puro + IO, 19 testes). Decisões: ⛔ página **nunca faz rede** (cache F13, sem download; ausente → degrada sem erro); pool vencido **serve** (stale-while-usable); **zero cache novo em disco** (índice em memória, mtime só como chave de invalidação); **idade derivada de `birth_date`, não persistida**; chart deriva do POOL (Q2: rivais não são Players do DB), header segue `Player.nfl_team` (fonte única Q1). Smoke local: DJ Moore completo, link p/ franquia DELE, DEF e fora-do-pool degradando limpo. Guardas OK (54/54 folha; zero schema; rotas intactas). Suítes verdes. [[O2]] 🔲 → ⚠️ — falta smoke prod (PROC1); Batch 2 pendente.)
@@ -4600,3 +4601,49 @@ Nada a diagnosticar: o item vai a **⚠️** com uma linha de template.
   quadro do simulador; ampliar por conta própria seria outro item.
 
 **[[UX11]] ⚠️ até o smoke em produção (PROC1).**
+
+### MAN-M21-REG — busca cobre o universo Sleeper: FAs da liga + não-rosterados (10/08/2026, Opus) · docs-only
+
+Registro do pedido do owner feito **logo após o smoke do [[M10]]**: a busca deve alcançar qualquer
+jogador do universo Sleeper, não só os rosterados. **Nenhuma diagnose, nenhuma decisão de desenho** —
+o que esta sessão fez foi estruturar o pedido para que a F1 tenha o que responder.
+
+- **O item nasce partido em duas fatias, e o corte é por NATUREZA, não por tamanho.** A **fatia A**
+  (FAs da liga) é **um predicado de query** sobre dados que já existem: o jogador **é** `Player`,
+  tem contrato histórico, `/player/<id>` abre normalmente — o único motivo de ele sumir é o filtro
+  `is_dropped=False` da busca. A **fatia B** (rookies não-drafteados e o resto do pool) é **decisão
+  de arquitetura de dados**, com potencial de mudar o significado da tabela `Player`. Compartilham
+  superfície (mesma busca, mesma lista, mesma regra de identidade) — daí um ID só —, mas ⛔ **A não
+  espera B**, e **B não se resolve de carona na A**.
+
+- **Prazos próprios:** A é **Alta com alvo pré-24/08** — consultar contrato/histórico de FA é
+  preparação da **FA auction**, e hoje exige saber o `id` e digitar a URL. B é **Média,
+  pós-intertemporada**. Registrado também que **A não bloqueia nem é bloqueada pelo smoke pendente
+  do M10**: o smoke valida o que já está em produção (`5e3c403`); a fatia A é escopo novo.
+
+- **Um fato de código entrou no registro (e só ele):** o sync marca `is_dropped=True` para quem
+  está num time do DB mas **não** no roster do Sleeper daquele time — que é exatamente o estado de
+  um FA da liga —, e a busca filtra por esse campo. Isso é **mecanismo**, não diagnose: explica o
+  sintoma sem propor fix. ⚠️ **Nenhuma medição de produção**: o `dynasty.db` do git é seed, e o
+  número de dropados dele (37/281) entrou marcado como ordem de grandeza, não como dado de prod.
+
+- ⚠️ **A arbitragem central da fatia B ficou EM ABERTO de propósito** — importar o pool como
+  `Player` × **busca federada em duas fontes**. A hipótese do owner ("deveriam estar na nossa
+  base") foi registrada como **premissa a testar, não como spec**, com o trabalho da F1b explicitado:
+  mapear os **consumidores da tabela `Player`** (folha/[[OFF26-16]], keeper exclusion/sheet,
+  `needs_review`, agregações do League Hub e do cap projector, portas de aquisição) e o que ~12 mil
+  linhas sem contrato fariam com cada um, **contra** o custo e os limites da federação. O
+  precedente citado é o Batch 1 do [[O2]], que **lê o pool sem persistir nada**.
+
+- **Demais questões registradas sem resposta.** Fatia A: por que o filtro `is_dropped` existe (ele
+  foi **herdado do endpoint pré-M10** junto com a assinatura — a razão viva, se houver, condiciona
+  incluir-marcado × incluir-sem-distinção × toggle); o que o perfil de um FA oferece que precisa de
+  ajuste (o botão de trade é a suspeita óbvia); staleness herdada do [[UX11]] **sem reabrir aquela
+  decisão**. Fatia B: destino do clique num não-`Player`; colisão de identidade entre duas origens
+  (⛔ resolução sempre por `sleeper_player_id`, precedente Brown); relação com
+  [[DP1]]/`RookieEspnValue`, ⛔ **sem criar uma segunda definição de "quem é entrante"**.
+
+- **Higiene do registro:** Status Rápido ganhou **exatamente 1 linha** (M21 🔲, prioridade por
+  fatia); nenhum status existente alterado; nenhuma seção de outro item editada — os cross-refs
+  ([[M10]], [[UX11]], [[O2]], [[DP1]], [[M13]]/[[M14]], [[OFF26-16]]/[[OFF26-11]]) partem **da
+  seção nova**. **Exceção de commit docs-only logada.** Zero código.
