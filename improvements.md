@@ -1,12 +1,12 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 10/08/2026-pt8 (sessão MAN-OFF26-23-REG-F1, **registro + diagnose read-only combinados**: **[[OFF26-23]] 🔲 Alta — ano de contrato do rookie 2026 × rollover × passo 5**, a pergunta do owner a 7 dias do draft. **O achado que organiza a semana: a ordem segura existe no desenho mas NÃO no código** — o gate real do painel acaba no passo 4 (rollover once-only, exige passos 2+3) e **o importador do draft não tem gate de `rollover_done`**: importar o rookie draft ANTES do rollover joga a classe inteira na varredura cega (`filter_by(is_dropped=False)`, `offseason.py:686` — sem skip por `contract_start_season`) e **todo rookie viraria Ano 2 no dia seguinte** — o Gainwell em massa. Importado DEPOIS, nasce Ano 1 e nada o toca até 2027 (o once-only elimina a família “reexecução”). **Prod: o rollover 2026 ainda não rodou** (alta confiança — o smoke da urna de 07/08 precisou do escape de ensaio, que só existe para contornar `rollover_done` pendente; conferência de Shell pronta na seção). **O plano de segurar o passo 5 até pós-24/08 foi VALIDADO por grep** — nada lê `rookie_draft_done` além da UI do painel — e a diagnose o endureceu: **o consumidor mais crítico do store é o PRÓPRIO import do draft** (salário via `rookie_espn_adjusted`); clicar o passo 5 antes de importar zeraria a classe para $1, e o clear não tem undo. **Gainwell = mesma manifestação, raiz distinta** (canal de aquisição, não ordem de fases; o fix de lá cobriu a raiz de lá — a daqui não tem guarda de código, e a porta `contract_year_correction` fica como caminho de reparo se o pior acontecer). **Roteiro seguro 17→24/08 entregue na seção** com os 3 pontos de não-retorno marcados (import antes do rollover · passo 5 antes do import · clear sem undo); **não há conflito** entre rookie-Ano-1 e store-vivo — ambos saem da mesma ordem: 18/08 = ESPN → rollover → import do draft; passo 5 só pós-auction. METH-REG: 2 premissas (1 contradita, 1 refutada a favor), 4 omissões. Gate de código no import é candidato registrado, ⛔ não arbitrado. Exceção de commit docs-only logada. Zero código.)
 > Atualizado em: 10/08/2026-pt7 (sessão MAN-M21-F1b, **diagnose read-only da fatia B do [[M21]]** — produto delimitado pelo owner: preparação da FA auction, “mostrar e marcar” (disponível + valor na linha), sem contrato/simulação; zero mutação, zero chamada externa. **Q1 — a premissa “os rookies já estão no sistema” é meia-verdade com prazo de validade:** a membership está (287 `in_class` no seed), o **valor quase não** (15/296 com `espn_raw>0`) e a fonte é **TRANSITÓRIA** — e aí o maior achado da diagnose: **`clear_rookie_espn_store()` roda no passo 5 (“Rookie Draft Done”), ENTRE o draft (17/08) e a auction (24/08)** — a camada de valor pode evaporar na semana exata do caso de uso; pendência de desenho registrada, ⛔ não arbitrada. De carona, o store cobre **veteranos não-rosterados do Top-300** (caso Ridley, `in_class=False` com valor) — valor de veterano “de graça” onde o Top-300 alcança; fora disso, linha sem valor é o estado correto (canônico = só rosterados, DP1 confirmado por contagem: 277). **Q2 — o mapa de consumidores decide sozinho: FEDERAR.** Importar ~12k linhas quebraria estruturalmente o import ESPN (todo not_found casaria; o fluxo E2 morre por vacuidade), multiplicaria homônimos no `player_lookup` (~40× o espaço de colisão Brown), inundaria o `needs_review` e faria o rollover incrementar 12 mil fantasmas (`offseason.py:686` roda em todos). Federar custa pouco e está medido: o índice do `nfl_context` **já carrega `full_name`**; falta busca por nome (normalização reusada do `player_lookup`) + fusão por sid. **Q3:** “disponível” = 1 query por request (~280 sids → dict); 3º estado cabe na engrenagem única (mesma extensão do M21-A). **Q4:** valor por classe tabelado — rookie via store, veterano Top-300 via store, resto **sem valor e correto assim**. **Q5:** corte mínimo **sem clique** (a linha É o produto); perfil de pool fica como evolução; ⚠️ pool rows não têm `Player.id` — o href atual quebraria, `origin` no payload é obrigatório. **Q6a — corte nomeado “busca federada informativa”:** busca no índice + fusão/dedupe + badge Disponível + valor quando houver + sem navegação; fora: perfil, persistência, calculadora, cap projector. **Q6b:** fronteira limpa com o redesenho do cap projector (nenhum dos dois possui o `RookieEspnValue`; cross-ref quando o item nascer). METH-REG: 2 premissas contraditas, 4 omissões. Fatia B segue **🔲** — decisão do owner. Zero código.)
 > Atualizado em: 10/08/2026-pt6 (sessão MAN-ARC-BUSCA-DONE, **docs-only**: **fechamento consolidado do arco da busca — smoke de produção do owner sobre o hash `20b346b` (PROC1) aprova três frentes de uma vez.** **[[M10]] fecha ✅** (caso Mahomes morto em prod, homônimos distinguíveis, autocomplete funcional, **validação do solicitante Michel**) e **[[UX11]] fecha ✅** com a **primeira observação real do fix em prod** — e a ocorrência da família *observation/provenance* registrada: os smokes anteriores ocorreram **antes do push do `a63d6ab`**, então nenhum “quadro conferido” daquelas passagens valia para o item. **[[M21]]: fatia A fecha ✅** (Kamara badge FA → perfil com rótulo histórico, sem botão de trade, sem tag IR; Waller e Detroit sem quebra; rosterado sem regressão) e **o item segue 🔲 pela fatia B** — que **herda o caso Helm**: a medição do Shell (10/08) provou que ele **nunca foi `Player`** (zero em `players`, zero em `player_history`, **zero históricos órfãos** — achado positivo registrado como evidência: a integridade do `player_history` está intacta e diagnoses futuras não precisam remedir); a lembrança do owner era de outra superfície, e **Kamara é consagrado âncora da fatia A**. Migração O3 executada: seções M10 e UX11 movidas **verbatim** ao archive (1× lá / 0× no ativo, conferido). **Dois registros novos do smoke** (sem diagnose): **[[UX14]]** — time NFL de dropado com fallback de leitura no pool (caso Waller `🏈 —`; hipótese não arbitrada, precedente [[O2]] sem persistir, e a questão de réplica obrigatória: fonte única da Q1 da UX12-F1 ou 2ª fonte por tela?) — e **[[UX15]]** — jogador pré-selecionado na página de trade (refinamento do campo 3 do [[UX12]]; provável F2 direta, a confirmar réplica dos caminhos de entrada). **Status Rápido: M10 e UX11 → ✅, linha M21 refletindo A ✅/B 🔲, exatamente 2 linhas novas.** Exceção de commit docs-only logada. Zero código.)
 > Atualizado em: 10/08/2026-pt5 (sessão MAN-M21-A: **fatia A do [[M21]] entregue — FAs da liga na busca, marcados** (decisão do owner: opção (a) da F1a). O filtro `is_dropped=False` caiu do endpoint (a F1a provara que era inércia da v1.0 sem consumidor); `to_search_dict()` ganhou `is_dropped` (+1 campo, o custo previsto) e o `optionInner` da **engrenagem única** troca a franquia pelo **badge "FA"** — nos dois consumidores de graça, sem fork; o badge **substitui** a franquia porque `fantasy_team_name` de dropado devolve o último time e exibi-lo leria como posse. **Ordenação adotada:** `(prefixo, is_dropped, nome)` — rosterado antes de FA a empate, pico pós-20/08 legível no teto de 20. **Perfil de FA corrigido (os 2 enganosos da Q2):** `can_propose_trade` exige `not is_dropped` (team_id preservado é histórico, não posse) e o salário vira **"Último salário (histórico)"**; carona trivial: tag IR suprimida p/ dropado (`is_on_ir` stale — **sync intocado**). Calculadora: FA selecionável (uso pré-auction), hint com "FA · último salário". **Medição de prod que precedeu (owner, Shell): 41 dropados**; ⚠️ o Gunnar Helm **não existe em prod** (proveniência em aberto, fora de escopo) — **o âncora vira Kamara**, que existe também no seed junto com Waller (`nfl_team` vazio) e Detroit (DEF): material do smoke local. **Testes 27 → 35** (inclusão marcada + 6 guardas novas); todas as suítes verdes; smoke local com os 3 casos + regressão DJ Moore idêntica. Fatia B intocada (🔲, arbitragem na F1b). M21 → **⚠️** (smoke prod pendente, PROC1, push incluído).)
 > Atualizado em: 10/08/2026-pt4 (sessão MAN-M21-F1a, **diagnose read-only da fatia A do [[M21]]** — zero mutação, zero query em produção. **Q1, o achado que reordena a fatia: o filtro `is_dropped=False` nunca protegeu fluxo nenhum** — o endpoint de busca nasceu na v1.0 (`f2271ba`) já com o filtro e **sem nenhum consumidor** (`git log --all -S`: a primeira referência em template é o próprio M10), então as hipóteses “evitar poluição” e “proteger o trade” caem por **anacronismo** e sobra inércia; a decisão de incluir FAs é só sobre os 2 consumidores do M10, sem legado. **Q2, perfil de FA campo a campo:** o tratamento **já é parcial** (tag “Dropado” no header desde o M13 — o sync preserva `team_id` ao dropar); os enganosos são o botão **“Propor Trade” que aparece para FA** (`can_propose_trade` não checa `is_dropped`) e a label **“Salário atual”** num número histórico que não conta em folha alguma; `is_on_ir` stale em dropado é o menor. **Q3, recomendação (a)**: incluir sempre, marcado “FA” **no lugar da franquia** na sub-linha — `fantasy_team_name` de dropado devolve a última franquia e sem o badge o FA *parece rosterado* (o argumento que mata a opção (b); o toggle (c) mata o caso-âncora por default); FA na calculadora **faz sentido** (simular contrato de alvo da auction é o uso pré-24/08); custo real: `to_search_dict()` **não expõe `is_dropped`** — badge exige +1 campo. **Q4:** pico de FAs pós-20/08 chega de uma vez no sync; teto de 20 segue válido, ordenação “rosterado antes de FA” registrada como opção da F2a; **urna: zero interseção** (queries próprias, bilhete recusa dropado); “Reativar (ano 1)” do importador já trata dropado como entidade recomprável — precedente de coerência. **Q5:** 2 SELECTs read-only prontos para o Render Shell (⛔ não executados; **o seed nem contém o Helm** — o caso-âncora só existe no vivo). Listas (a)/(b) do MAN-METH-REG: 2 premissas decididas/contraditas, 4 omissões com parecer. Item segue **🔲** — decisão de desenho é do owner. Zero código.)
-> Atualizado em: 10/08/2026-pt3 (sessão MAN-M21-REG, **docs-only**: registro do **[[M21]] 🔲 — busca cobre o universo Sleeper**, pedido do owner logo após o smoke do [[M10]]. O item nasce **partido em duas fatias com prazos próprios, e a razão é de natureza, não de tamanho**: a **fatia A** (FAs da liga — caso-âncora **Gunnar Helm**) é **um predicado de query** sobre dados que já existem — o jogador **é** `Player`, o perfil abre, só o filtro `is_dropped=False` da busca o esconde (mecanismo confirmado no código: o sync marca dropado quem sumiu do roster do Sleeper) —, e é **Alta com alvo pré-24/08** por valor operacional na preparação da FA auction; a **fatia B** (rookies não-drafteados e o resto do pool) é **decisão de arquitetura de dados** e fica **Média, pós-intertemporada**. ⚠️ **A arbitragem central da B foi deixada EM ABERTO de propósito** — importar o pool como `Player` × **busca federada** em duas fontes: a hipótese do owner (“deveriam estar na nossa base”) entra como **premissa a testar**, e a F1b tem de mapear os consumidores da tabela `Player` (folha/[[OFF26-16]], keeper exclusion, `needs_review`, agregações, portas de aquisição) contra o que ~12 mil linhas sem contrato fariam com cada um — tendo como precedente o [[O2]], que **lê o pool sem persistir nada**. Demais questões registradas sem resposta: **por que o filtro `is_dropped` existe** (herdado do endpoint pré-M10 — a razão condiciona o desenho: incluir marcado × sem distinção × toggle), o que o perfil de um FA oferece que precisa de ajuste (o botão de trade), destino do clique num não-`Player`, colisão de identidade entre duas fontes (⛔ sempre por `sleeper_player_id`) e a relação com [[DP1]]/`RookieEspnValue`. Registrado que a **engrenagem do M10 é a base — as fatias estendem, não reescrevem** — e que a **fatia A não bloqueia nem é bloqueada pelo smoke pendente do M10**. **Status Rápido ganhou exatamente 1 linha**; nenhum status existente alterado. **Exceção de commit docs-only logada.** Zero código.)
-> 📁 Entradas anteriores em **`improvements_sessions.md`** (74 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
+> 📁 Entradas anteriores em **`improvements_sessions.md`** (75 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
@@ -147,6 +147,7 @@
 | UX13 | **Timeline exibe `event_type` cru `contract_year_correction`** — os demais eventos têm label PT-BR + badge; este cai no fallback (`EVENT_LABELS[e.event_type] \|\| e.event_type`). Causa evidente, sem diagnose: a chave (escrita por `contract_year_correction.py`, OFF26-20-FIX) falta nos **dois** dicionários `EVENT_LABELS` copiados (`player_detail.html` + `salary_history.html` — réplica declarada no próprio comentário do template; o fix toca os dois). Display de 1 linha, **candidato a carona** — MAN-O2-B1-DONE | Baixa | 🔲 |
 | UX14 | **Time NFL de dropado com fallback no pool** — perfil do Waller exibe `—` porque `Player.nfl_team` está vazio (sync só atualiza rosterados). Hipótese registrada, NÃO arbitrada: fallback de LEITURA no pool ([[O2]] como precedente), sem persistir; pool sem time → `—` correto (FA real). F1 responde a réplica: entra na fonte única da Q1 da UX12-F1 ou vira 2ª fonte por tela? — MAN-ARC-BUSCA-DONE | Baixa/Média | 🔲 |
 | UX15 | **Jogador pré-selecionado na página de trade** — o botão do perfil ([[M14]]) já leva os dois times; falta o jogador chegar marcado. Refinamento do campo 3 do [[UX12]] (archive); provável F2 direta, a confirmar réplica (quantos caminhos de entrada têm pré-seleção?) — MAN-ARC-BUSCA-DONE | Baixa | 🔲 |
+| OFF26-23 | **Ano de contrato do rookie 2026 × rollover × passo 5** — pergunta do owner a 7 dias do draft: o rookie entra e PERMANECE Ano 1? **F1 10/08 (MAN-OFF26-23-REG-F1):** a ordem segura existe mas **não é imposta por código** — o `draft_import` não tem gate de `rollover_done`; importar o draft ANTES do rollover incrementaria todo rookie p/ Ano 2 (varredura cega, `offseason.py:686`). **Roteiro seguro da semana entregue na seção** (rollover 18/08 ANTES do import do draft; passo 5 só pós-24/08 — validado: nada o lê além da UI, e o clear precoce zeraria os salários do próprio import). Gainwell = mesma manifestação, raiz distinta (canal, não ordem) — MAN-OFF26-23-REG-F1 | Alta (semana 17→24/08) | 🔲 (diagnose pronta; roteiro aguarda decisão/uso do owner) |
 | M21 | **Busca cobre o universo Sleeper** — duas fatias: **A — FAs da liga** (**✅ 10/08/2026**, MAN-M21-A + smoke prod MAN-ARC-BUSCA-DONE: badge FA, ordenação rosterado-antes-de-FA, perfil de FA corrigido; âncora **Kamara**, 41 dropados medidos) e **B — universo não-Player** (Média, pós-intertemporada, 🔲; ⚠️ arbitragem importar×federar em aberto p/ F1b; **caso Helm migrado p/ cá** — nunca foi Player, medição Shell 10/08) — MAN-M21-REG/F1a/A/ARC-BUSCA-DONE | A: Alta · B: Média | 🔲 (fatia A ✅ 10/08/2026 · fatia B pendente) |
 
 ---
@@ -3927,6 +3928,124 @@ Q2 da UX12-F1 (08/08) as re-conferiu no cache local e elas **batem** (depth char
 - Simular cenários antes de propor uma troca
 
 Não persiste nenhuma alteração no banco — é simulação pura, análoga ao que o simulador de trades já faz.
+
+---
+
+### OFF26-23 — Ano de contrato do rookie 2026 × rollover × passo 5
+🔲 **Registrado + F1 read-only 10/08/2026 (MAN-OFF26-23-REG-F1)** — Prioridade **Alta (a semana
+17→24/08)** — diagnose pronta; **nenhum fix aplicado** — o entregável é o roteiro seguro abaixo,
+e qualquer guarda de código é decisão do owner em prompt próprio
+
+**Pergunta do owner (10/08, 7 dias do draft):** o rookie drafteado em 2026 entra e **permanece**
+com contrato Ano 1? A dúvida é a interação de três mecanismos: aquisição via rookie draft
+(`record_acquisition`, Ano 1 por `floor(ESPN×1,2)`), **rollover** (incrementa `contract_year`) e
+**passo 5** ("Rookie Draft Done", que roda `clear_rookie_espn_store`). Cross-ref: [[OFF26-9]]
+(acoplamento de fases — a família é real), OFF26-20-FIX (caso Gainwell), F1b do [[M21]] (o clear
+do passo 5).
+
+#### Q1 — A ordem canônica: existe no desenho, NÃO no código
+
+- O painel implementa a ordem 1→7 com gates reais até o rollover: **passo 4 (rollover) exige
+  passos 2+3** (lottery travado + ESPN atualizado) e é **once-only** — reexecução devolve 400
+  "Rollover ja foi executado" (`offseason.py:674-675`). A urna exige `rollover_done`
+  (`rollover_blocks_urn`, `late_drop.py:135` — escape só pelo banner de ensaio).
+- ⛔ **Mas o importador do draft (OFF26-3) NÃO tem gate de `rollover_done`** — nada no código
+  impede importar o rookie draft **antes** do rollover. A ordem *rollover → import do draft* é
+  **disciplina operacional**, não invariante. O calendário do owner (17/08 draft no Sleeper ·
+  18/08 ESPN definitiva + rollover) pressupõe exatamente essa disciplina: o draft ACONTECE dia 17,
+  mas o **import para o Manager** é um ato separado — e é ele que cria os contratos.
+
+#### Q2 — O rookie atravessa o rollover? Depende SÓ da ordem do import
+
+**O filtro real da varredura, citado:** `Player.query.filter_by(is_dropped=False)`
+(`offseason.py:686`) — **cega a contrato recém-aberto**; não há skip por `contract_start_season`
+nem por data. Para cada um, `apply_season_rollover` faz `next_yr = contract_year + 1`
+(`salary_engine.py:206`).
+
+- **Import DEPOIS do rollover (a ordem segura):** o rookie nasce Ano 1 na season 2026 e **nada o
+  toca até o rollover de 2027** — o once-only garante que o rollover 2026 não roda de novo. ✅
+- **Import ANTES do rollover:** cada rookie importado entra na varredura e vira **Ano 2 com
+  valorização** no dia seguinte — o Gainwell em massa, para a classe inteira. ⛔ Este é **o ponto
+  de não-retorno da semana**.
+
+#### Q3 — Estado de produção: o rollover 2026 ainda NÃO rodou (alta confiança; conferência pronta)
+
+Dois indícios convergem: o seed local (working tree) tem `current_season=2025` +
+`rollover_done=false`, e o **smoke da urna em prod (07/08) precisou do escape do banner de
+ensaio** — que só existe para contornar o gate `rollover_done` pendente (`rollover_blocks_urn`).
+Se o rollover tivesse rodado, o escape seria desnecessário. **Implicação: a janela de risco da Q2
+está inteira à frente.** Conferência observável (Render Shell, read-only):
+
+```bash
+sqlite3 /data/dynasty.db "SELECT key, value FROM app_config WHERE key IN
+  ('current_season','rollover_done','rookie_draft_done','offseason_step','auction_done');"
+sqlite3 /data/dynasty.db "SELECT contract_year, COUNT(*) FROM players WHERE is_dropped=0
+  GROUP BY contract_year;"
+```
+
+`current_season=2025` + `rollover_done=false` confirma; a distribuição de `contract_year` é a
+foto de antes (compare depois do rollover: tudo deslocado +1, renovações em 1).
+
+#### Q4 — O passo 5 não gateia NADA além de si mesmo (o plano de segurar o clique é seguro)
+
+Leitores de `rookie_draft_done` no código: **só a UI do painel** (`offseason.py:182,198` — status
+do passo) e o próprio toggle. **Nenhum mecanismo entre 17 e 24/08 depende dele marcado**: o
+importador (linear e auction) não o lê, o congelamento da exclusão não o lê, a urna não o lê, a
+auction não o lê. Efeitos do clique: (1) flag `rookie_draft_done=true`; (2) **o clear do store**
+(`clear_rookie_espn_store`) — e reverter **não repopula** (`offseason.py:731-734`).
+✅ **O plano "não marcar o passo 5 até pós-24/08" é validado** — custo zero, e evita o achado da
+F1b do M21 (o clear evaporaria a camada de valor na semana do caso de uso).
+
+#### Q5 — Gainwell como lente: mesma manifestação, raiz DISTINTA
+
+A correção `2→1` do OFF26-20-FIX tratou **semântica de canal de aquisição**: contratos de
+`free_agent` (add grátis) que deviam **recomeçar** e carregavam ano herdado — raiz no vocabulário
+do rebuild F8, resolvida caso a caso pelo canal (`tx.type` da API) e reparada pela porta canônica
+`contract_year_correction`. **Não era** incremento de rollover sobre contrato recém-aberto. O
+risco daqui (ordem de fases) é **outra raiz com o mesmo sintoma** (`contract_year` um acima).
+O fix de lá **cobriu a raiz de lá**; a raiz daqui **não tem guarda de código** — o que existe é o
+roteiro abaixo. Se o pior acontecer, a porta `contract_year_correction` é o caminho de reparo já
+construído (auditável, molde M2).
+
+#### O ROTEIRO SEGURO DA SEMANA (17→24/08)
+
+**Não há conflito entre os dois objetivos** (rookie Ano 1 · store vivo até a auction) — ambos
+saem da mesma disciplina de ordem:
+
+| Data | Ação | Guarda |
+|---|---|---|
+| 17/08 | Rookie draft **no Sleeper** (liga real). ⛔ **NÃO importar ainda** | O import antes do rollover é o ponto de não-retorno (Q2) |
+| 18/08 | **Nesta ordem, no mesmo dia:** (1) import ESPN definitiva (passo 3) → (2) **rollover** (passo 4) → (3) **só então** importar o rookie draft (OFF26-3 linear) | O rollover exige passo 3; o import do draft usa o store (`rookie_espn_adjusted` → `floor(ESPN×1,2)`); rookies nascem **Ano 1/2026** e nada os toca até 2027 |
+| 18/08+ | Agendar a urna (o gate `rollover_done` agora passa sem escape) | `rollover_blocks_urn` |
+| 20/08 | Cortes no Sleeper → sync (sheet provisória) | Fluxo OFF26-1/2 inalterado |
+| 22/08 | Urna fecha → revelação → sync (sheet definitiva) → **congelar exclusão** | Fluxo OFF26-10/11 inalterado |
+| 24/08 | FA auction na fantasma → **import auction** (gate da sheet congelada) | ⛔ **Passo 5 AINDA não marcado** |
+| pós-24/08 | Marcar **passo 5** (clear do store — agora inofensivo) → passo 7 (auction done) | Q4: nada dependia dele; o store já cumpriu os dois papéis (salário do draft + valor na busca, se a fatia B entrar) |
+
+**Pontos de não-retorno marcados:** (1) importar o draft antes do rollover — reparável só via
+porta de correção, um a um; (2) marcar o passo 5 antes do **import do draft** — zeraria os
+salários da classe para $1 (o import lê o store), reparável só re-importando após repopular o
+store; (3) o clear não tem undo (reverter o passo 5 não repopula).
+
+#### Listas da regra MAN-METH-REG
+
+**(a) Premissas do calendário/plano que o código contradiz:**
+1. *"A ordem das fases está garantida pelo sistema"* — **não está**: o gate real acaba no passo 4;
+   o import do draft roda a qualquer momento. Parecer: um gate `rollover_done` no import linear é
+   candidato natural a item de código — **não arbitrado aqui**, decisão do owner.
+2. *"Segurar o passo 5 pode travar algo da semana"* (a dúvida implícita do plano) — **refutada por
+   grep**: nada lê a flag além da UI do painel.
+
+**(b) Comportamentos existentes que o plano da semana omite:**
+1. ⚠️ **O consumidor mais crítico do store é o PRÓPRIO import do draft** (`rookie_espn_adjusted` →
+   salário), não a busca/auction que o plano queria proteger — segurar o passo 5 protege os dois,
+   mas a ordem "import antes do clear" é ainda mais dura que o plano supunha.
+2. O rollover é **once-only** (400 na reexecução) — a família "rollover roda de novo e incrementa
+   o rookie" **não existe**; o risco é só de ordem, não de repetição.
+3. A urna **exige** `rollover_done` — atrasar o rollover além de ~21/08 empurraria o agendamento
+   da urna (o escape de ensaio não é para produção).
+4. O passo 4 exige o passo 3 — a ESPN definitiva (18/08) **precede** o rollover por construção; a
+   ordem interna do dia 18 (ESPN → rollover → import) sai do próprio painel.
 
 ---
 
