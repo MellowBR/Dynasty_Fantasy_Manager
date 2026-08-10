@@ -11,6 +11,11 @@ rosters". Caso de homônimo: **dois DJ Moore** existem no pool do Sleeper (o WR 
 CB) — hoje só um está rosterado, então o cenário é montado aqui, que é o único lugar
 onde ele pode ser exercido de forma determinística.
 
+**M21-A (10/08/2026):** FAs da liga ENTRAM no resultado, marcados — o payload leva
+`is_dropped`, a ordenação desempata rosterado-antes-de-FA, e o perfil de dropado
+perde o botão de trade e o rótulo "atual" no salário. Os testes de exclusão de
+dropado viraram testes de INCLUSÃO marcada.
+
 Sem rede, sem tocar o `dynasty.db` (SQLite em memória).
 """
 
@@ -23,7 +28,7 @@ BASE_DIR = Path(__file__).resolve().parent
 SEARCH_KEYS = {
     "id", "sleeper_player_id", "name", "position", "nfl_team", "fantasy_team",
     "team_id", "salary", "contract_year", "contract_display", "acquisition_type",
-    "espn_ref_value",
+    "espn_ref_value", "is_dropped",
 }
 
 
@@ -149,15 +154,42 @@ class TestSearchEndpoint(unittest.TestCase):
         """'moore' → 'Moorehead' (prefixo) antes dos 'DJ Moore' (substring)."""
         nomes = [p["name"] for p in self.get(q="moore")]
         self.assertEqual(nomes[0], "Moorehead Silva")
-        self.assertEqual(len(nomes), 3)
+        self.assertEqual(len(nomes), 4)        # M21-A: o dropado agora entra
 
     def test_ordem_alfabetica_dentro_do_grupo(self):
-        nomes = [p["name"] for p in self.get(q="o")]
-        self.assertEqual(nomes, sorted(nomes, key=str.lower))
+        """Alfabética vale dentro de cada bloco (rosterados, depois FAs)."""
+        res = self.get(q="o")
+        ros = [p["name"] for p in res if not p["is_dropped"]]
+        fas = [p["name"] for p in res if p["is_dropped"]]
+        self.assertEqual(ros, sorted(ros, key=str.lower))
+        self.assertEqual(fas, sorted(fas, key=str.lower))
+        # e o bloco rosterado vem inteiro antes do bloco FA (sem prefixo no meio)
+        flags = [p["is_dropped"] for p in res]
+        self.assertEqual(flags, sorted(flags))
+
+    # ── FAs (M21-A): dropado ENTRA, marcado ──────────────────────────────────
+    def test_dropado_aparece_marcado(self):
+        """A decisão da fatia A: FA da liga é encontrável, com o flag no payload."""
+        res = [p for p in self.get(q="Cortado") if p["name"] == "Cortado Moore"]
+        self.assertEqual(len(res), 1)
+        self.assertTrue(res[0]["is_dropped"])
+        self.assertTrue(res[0]["id"])          # navegável até o perfil
+
+    def test_rosterado_vem_com_flag_false(self):
+        res = self.get(q="Mahomes")[0]
+        self.assertFalse(res["is_dropped"])
+
+    def test_rosterado_antes_de_fa_no_mesmo_grupo(self):
+        """Desempate da Q4: a empate de relevância, rosterado primeiro."""
+        from models import db, Player
+        # homônimo exato do dropado, rosterado — mesmo grupo de prefixo
+        db.session.add(Player(name="Cortado Moore", position="WR", nfl_team="DAL",
+                              team_id=self.t2.id, salary=2, sleeper_player_id="9100"))
+        db.session.commit()
+        res = [p for p in self.get(q="Cortado") if p["name"] == "Cortado Moore"]
+        self.assertEqual([p["is_dropped"] for p in res], [False, True])
 
     # ── filtros e limites ────────────────────────────────────────────────────
-    def test_dropado_fica_fora(self):
-        self.assertNotIn("Cortado Moore", [p["name"] for p in self.get(q="Moore")])
 
     def test_filtro_por_time_da_liga(self):
         res = self.get(q="Moore", team_id=self.t2.id)
@@ -251,6 +283,44 @@ class TestGuardasDeIdentidade(unittest.TestCase):
     def test_sem_replica_de_escape_no_js_global(self):
         """escapeHtml é fonte única — as réplicas inline viraram uma."""
         self.assertEqual(len(re.findall(r"'&':'&amp;'", self.base)), 1)
+
+    # ── M21-A: guardas da fatia A ────────────────────────────────────────────
+
+    def test_fa_troca_a_franquia_pelo_badge(self):
+        """O badge substitui a franquia — sem isso o FA parece rosterado
+        (o sync preserva fantasy_team no drop)."""
+        self.assertIn("ps-fa-badge", self.base)
+        bloco = self.base.split("function optionInner")[1].split("\n  }")[0]
+        self.assertIn("p.is_dropped", bloco)
+
+    def test_endpoint_nao_filtra_mais_dropado(self):
+        """A decisão da fatia A: o filtro de inércia da v1.0 caiu."""
+        corpo = self.roster.split("def search_players")[1].split("\n@")[0]
+        corpo = corpo.split('"""')[2]
+        self.assertNotIn("is_dropped == False", corpo)
+        # e o desempate rosterado-antes-de-FA está na ordenação
+        self.assertIn("Player.is_dropped, func.lower", corpo)
+
+    def test_perfil_de_fa_sem_botao_de_trade(self):
+        """Q2 da F1a: propor trade de jogador sem dono não tem significado."""
+        bloco = self.roster.split("can_propose_trade = (")[1].split(")")[0]
+        self.assertIn("not player.is_dropped", bloco)
+
+    def test_perfil_de_fa_rotula_salario_como_historico(self):
+        detail = (BASE_DIR / "templates" / "player_detail.html").read_text(encoding="utf-8")
+        self.assertIn("Último salário (histórico)", detail)
+        self.assertIn("Salário atual", detail)          # rosterado intocado
+
+    def test_perfil_de_fa_nao_exibe_tag_ir_stale(self):
+        """Carona da Q2: is_on_ir fica stale em dropado — a tag some."""
+        detail = (BASE_DIR / "templates" / "player_detail.html").read_text(encoding="utf-8")
+        self.assertIn("player.is_on_ir and not player.is_dropped", detail)
+
+    def test_hint_da_calculadora_reflete_fa(self):
+        """FA selecionável (uso pré-auction) com rótulo honesto no hint."""
+        self.assertIn("último salário", self.calc)
+        bloco = self.calc.split("function fillFromPlayer")[1].split("\n}")[0]
+        self.assertIn("p.is_dropped", bloco)
 
 
 if __name__ == "__main__":

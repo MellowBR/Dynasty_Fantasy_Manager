@@ -2462,6 +2462,16 @@ a.player-name:hover {
 .ps-nfl { font-weight: 600; }
 .ps-team { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
 .ps-salary { font-size: .82rem; font-weight: 700; color: var(--green); flex-shrink: 0; }
+/* M21-A: badge de FA no resultado — substitui a franquia (o dropado não tem dono) */
+.ps-fa-badge {
+  font-size: .68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: rgba(245,158,11,.15);
+  color: var(--yellow);
+  flex-shrink: 0;
+}
 .ps-empty { padding: .7rem .6rem; font-size: .82rem; color: var(--text-dim); text-align: center; }
 
 /* Wrap da calculadora (consumidor 2) */

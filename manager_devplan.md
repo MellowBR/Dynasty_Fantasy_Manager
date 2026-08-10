@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 10/08/2026-pt4 (MAN-M21-F1a, **diagnose read-only da fatia A do [[M21]]** — zero mutação, zero query em prod. **Q1 decide a origem do filtro:** `is_dropped=False` nasceu na v1.0 dentro de um endpoint **sem nenhum consumidor** até o M10 (`git log --all -S`) — nunca protegeu fluxo; hipóteses de proteção caem por anacronismo, sobra inércia, e a inclusão de FAs é decisão só sobre os 2 consumidores do M10. **Q2:** perfil já trata pela metade (tag “Dropado” desde o M13; sync preserva `team_id`); enganosos = botão de trade que **aparece para FA** e label “Salário atual” em número histórico; `is_on_ir` stale é menor. **Q3 recomenda (a)**: incluir marcado “FA” **no lugar da franquia** — sem badge o FA parece rosterado (mata a (b)); toggle (c) mata o caso-âncora; FA na calculadora faz sentido (alvo da auction); custo: `to_search_dict()` não expõe `is_dropped` (+1 campo). **Q4:** pico pós-20/08 ok (teto 20 por query; ordenação rosterado-antes-de-FA registrada como opção); urna **zero interseção**; “Reativar (ano 1)” já trata dropado como recomprável. **Q5:** 2 SELECTs prontos p/ Render Shell, ⛔ não executados — o seed nem contém o Helm. METH-REG: 2 contradições, 4 omissões. Item segue 🔲; decisão do owner. Zero código.)
+> Última atualização: 10/08/2026-pt5 (MAN-M21-A: **fatia A entregue** — FAs na busca, marcados (opção (a), decisão do owner). Filtro caiu; payload +`is_dropped`; badge "FA" **substitui** a franquia no `optionInner` único (2 consumidores de graça); ordenação `(prefixo, is_dropped, nome)`. Perfil de FA: sem botão de trade (`not is_dropped` no `can_propose_trade`), salário "Último salário (histórico)", tag IR suprimida (carona; sync intocado). Medição de prod: 41 dropados; **Helm não existe em prod** → âncora vira **Kamara**. Testes 27→35; suítes verdes; smoke local com Kamara/Waller/Detroit + regressão DJ Moore. M21 → ⚠️ (smoke prod pendente, PROC1). Fatia B intocada.)
+> Anterior: 10/08/2026-pt4 (MAN-M21-F1a, **diagnose read-only da fatia A do [[M21]]** — zero mutação, zero query em prod. **Q1 decide a origem do filtro:** `is_dropped=False` nasceu na v1.0 dentro de um endpoint **sem nenhum consumidor** até o M10 (`git log --all -S`) — nunca protegeu fluxo; hipóteses de proteção caem por anacronismo, sobra inércia, e a inclusão de FAs é decisão só sobre os 2 consumidores do M10. **Q2:** perfil já trata pela metade (tag “Dropado” desde o M13; sync preserva `team_id`); enganosos = botão de trade que **aparece para FA** e label “Salário atual” em número histórico; `is_on_ir` stale é menor. **Q3 recomenda (a)**: incluir marcado “FA” **no lugar da franquia** — sem badge o FA parece rosterado (mata a (b)); toggle (c) mata o caso-âncora; FA na calculadora faz sentido (alvo da auction); custo: `to_search_dict()` não expõe `is_dropped` (+1 campo). **Q4:** pico pós-20/08 ok (teto 20 por query; ordenação rosterado-antes-de-FA registrada como opção); urna **zero interseção**; “Reativar (ano 1)” já trata dropado como recomprável. **Q5:** 2 SELECTs prontos p/ Render Shell, ⛔ não executados — o seed nem contém o Helm. METH-REG: 2 contradições, 4 omissões. Item segue 🔲; decisão do owner. Zero código.)
 > Anterior: 10/08/2026-pt3 (MAN-M21-REG, **docs-only**: registro do **[[M21]] 🔲 — busca cobre o universo Sleeper**, pedido do owner após o smoke do [[M10]]. **Duas fatias, e a razão do corte é de natureza:** **A — FAs da liga** (Alta, alvo **pré-24/08**; âncora **Gunnar Helm**) é **predicado de query** sobre dado que já existe — o jogador **é** `Player` e o perfil abre; só o filtro `is_dropped=False` da busca o esconde (mecanismo conferido no código) — enquanto **B — universo não-`Player`** (Média, pós-intertemporada) é **decisão de arquitetura de dados**. ⚠️ **A arbitragem da B ficou EM ABERTO de propósito** (importar o pool como `Player` × busca **federada**): a hipótese do owner é **premissa a testar**, e a F1b tem de mapear os consumidores da tabela `Player` contra ~12 mil linhas sem contrato — precedente do [[O2]], que lê o pool **sem persistir**. Questões registradas sem resposta: por que o filtro `is_dropped` existe (herdado do endpoint pré-M10; a razão condiciona incluir-marcado × sem-distinção × toggle), botão de trade no perfil de FA, destino do clique em não-`Player`, colisão de identidade (⛔ sempre por `sleeper_player_id`) e relação com [[DP1]]. **Fatia A não bloqueia nem é bloqueada pelo smoke pendente do M10.** Status Rápido +1 linha, nada mais mexido. **Exceção de commit docs-only logada.** Zero código.)
 > Anterior: 10/08/2026-pt2 (MAN-UX11-F2, **carona de causa conhecida**: [[UX11]] a **⚠️** — a franquia NFL aparece no quadro de trades. **1 linha de render**, como a F1-por-transbordo da UX12-F1 previu: `nfl_team` **já vinha** no payload de `/api/roster/by_name` (`to_dict()`), a tela só não desenhava. Entra na linha dim existente (`BUF · $21 · Ano 2/4`), padrão das demais telas. ⛔ Zero backend (21 chaves do `to_dict()` idênticas) e ⛔ nada derivado na tela — a réplica que a Q1 temia não foi criada. Conferência cruzada: DJ Moore `BUF` no quadro × `🏈 BUF` no perfil. Staleness registrado **no código** (frescor = último sync; FA mantém time antigo). Nenhuma outra tela alterada; 54/54. Smoke prod pendente — PROC1.)
 > Anterior: 10/08/2026 (MAN-M10-F2: **busca de jogador entregue** — [[M10]] a **⚠️** (smoke prod pendente, PROC1). Os 2 consumidores da spec de 28/04 sobre **um componente só** (`createPlayerSearch` em `base.html`): navbar desktop + overlay mobile **navegam** (`<a href>` real p/ `/player/<id>`), calculadora **seleciona** e preenche ESPN/ano/aquisição. **Identidade:** substring é sugestão exibida, cada linha traz pos+time NFL+franquia, e ⛔ **Enter sem item destacado não escolhe nada** — resolução é sempre ato explícito, destino sai do `id`. Backend reusado com 3 ajustes (payload `to_search_dict()` — `to_dict()` fazia **20 projeções de contrato por tecla**; ordem prefixo-primeiro — sem ela o teto de 20 cortava arbitrário; escape do LIKE — '%' devolvia o elenco). ⚠️ **Conversão fácil de errar:** campo da calculadora é RAW e o banco é ajustado → autofill **divide por 1.2**; ⛔ 'ano 1' não é preenchido (banco tem salário corrente). 27 testes novos; smoke local: Mahomes resolve em 1 (caso de 28/04 morre) e 'brown' vira **lista de 5 distinguíveis**. **Falta o navegador** — smoke do owner.)
@@ -4702,3 +4703,53 @@ mutação, zero chamada externa, zero query em produção. Item segue **🔲** �
 
 **Exceção de commit docs-only logada (diagnose pura).** Status Rápido intocado; a seção M21 ganhou
 a F1a e o cabeçalho dela registra a recomendação pendente de decisão. Zero código.
+
+### MAN-M21-A — fatia A entregue: FAs da liga na busca, marcados (10/08/2026, Fable)
+
+F2 da fatia A do [[M21]], executando a **opção (a)** da F1a — decidida pelo owner após a medição
+de produção (41 dropados no vivo). [[M21]] vai a **⚠️** (fatia A implementada, smoke prod
+pendente); fatia B segue **🔲**, intocada.
+
+- **O âncora mudou, e isso ficou registrado:** o Gunnar Helm do registro **não existe no DB de
+  prod** (proveniência em aberto, fora deste escopo — nota na seção). O âncora operacional da
+  fatia passou a ser **Alvin Kamara** (RB, $13, `is_on_ir=1` stale — o caso perfeito, porque
+  exercita também a carona do IR), com **Darren Waller** (`nfl_team` vazio) e **Detroit Lions**
+  (DEF, sid sigla) como casos-limite. Os três existem no seed — o smoke local usou os mesmos
+  jogadores da medição de prod.
+
+- **Busca:** o filtro `is_dropped=False` caiu (a F1a provou: inércia da v1.0, zero consumidores a
+  proteger). `to_search_dict()` ganhou `is_dropped` — o custo de +1 campo que a F1a previu. O
+  badge "FA" entra **no lugar** da franquia no `optionInner` — a engrenagem única faz os dois
+  consumidores de graça, sem fork; substituir (e não acompanhar) é obrigatório porque
+  `fantasy_team_name` de dropado devolve a última franquia, que leria como posse atual.
+
+- **Ordenação:** adotada a opção registrada na Q4 — `order_by(prefixo, is_dropped, nome)`.
+  Rosterado antes de FA a empate de relevância; o pico pós-20/08 fica legível dentro do teto de 20.
+
+- **Perfil de FA — os dois enganosos da Q2:** (1) `can_propose_trade` agora exige
+  `not player.is_dropped` — propor trade de jogador sem dono não tem significado; o `team_id`
+  preservado pelo sync é histórico, não posse. (2) O rótulo do salário vira **"Último salário
+  (histórico)"** quando dropado — "atual" prometia vigência de um número que `roster_salary`
+  nem soma. Rosterado intocado nos dois pontos (regressão coberta por teste e smoke).
+
+- **Carona do achado menor, dentro da régua:** a tag IR não renderiza para dropado
+  (`is_on_ir and not is_dropped` no template). O campo continua stale no banco — **o sync não foi
+  tocado**, exatamente como o prompt restringia; o tratamento coube como condicional de template.
+
+- **Calculadora:** FA selecionável e preenchendo os 3 campos — o uso pré-auction que a F1a
+  identificou; hint honesto ("FA · último salário").
+
+- **Testes 27 → 35** (`player_search_test.py`): os testes de exclusão viraram testes de **inclusão
+  marcada**; novos: flag no payload, homônimo rosterado×FA com rosterado primeiro, alfabética por
+  bloco (rosterados, depois FAs), e 6 guardas estáticas — badge substitui franquia, filtro não
+  volta, `can_propose_trade` checa dropado, rótulo histórico presente com "Salário atual"
+  preservado, tag IR suprimida, hint da calculadora. Suítes completas verdes.
+
+- **Smoke local (GET-only, cópia do seed):** Kamara encontrável e marcado, perfil sem botão de
+  trade, com rótulo histórico e **sem** tag IR apesar do `is_on_ir=1`; Waller e Detroit renderizam
+  sem erro; **DJ Moore idêntico ao de antes** (busca e perfil — zero regressão no caminho
+  rosterado); mistura "con" lista Falcons e McConkey antes de James Conner. ⚠️ Não exercido:
+  navegador (smoke do owner) e o pico real de 40+ FAs (coberto por desenho, não por observação).
+
+**Commit único código+docs, push incluído** (alvo 24/08; PROC1 pede o hash live). Guardas: sync/
+schema/salary_engine/folha intocados; identidade por sid; engrenagem única; fatia B não tocada.

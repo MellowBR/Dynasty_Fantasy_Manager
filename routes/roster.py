@@ -335,7 +335,13 @@ def search_players():
     """
     M10 — backend ÚNICO dos dois consumidores da busca (barra global da navbar e
     autocomplete da calculadora). Assinatura preservada: `q` + `team_id` opcional,
-    `is_dropped=False`, teto de 20.
+    teto de 20.
+
+    M21-A (decisão do owner, 10/08/2026): FAs da liga ENTRAM no resultado, marcados.
+    O filtro `is_dropped=False` que vivia aqui era inércia da v1.0 — o endpoint não
+    teve consumidor nenhum antes do M10 (arqueologia na F1a do M21). O payload leva
+    `is_dropped` e a UI troca a franquia pelo badge "FA" (obrigatório: o sync preserva
+    `fantasy_team` no drop, então sem badge o FA pareceria rosterado).
 
     ⛔ Substring (`ilike`) é SUGESTÃO EXIBIDA, nunca resolução de identidade — quem
     resolve é o clique do usuário, e o destino é o `id` da linha. Este caminho não
@@ -343,22 +349,20 @@ def search_players():
     reconciliação de imports) e não pode ser usado para casar jogador por nome:
     o incidente Brown é sobre exatamente isso.
 
-    Ordenação (M10): prefixo primeiro, depois alfabética — "moore" traz os Moore
-    antes de "Moorehead"; sem ordem explícita o teto de 20 cortava arbitrariamente.
+    Ordenação (M10 + M21-A): prefixo primeiro, rosterado antes de FA a empate de
+    relevância, depois alfabética — mantém o pico de FAs pós-20/08 legível dentro
+    do teto de 20; sem ordem explícita o teto cortava arbitrariamente.
     """
     q = request.args.get("q", "").strip()
     team_id = request.args.get("team_id", type=int)
     if not q:
         return jsonify([])
     term = _like_term(q)
-    query = Player.query.filter(
-        Player.name.ilike(f"%{term}%", escape="\\"),
-        Player.is_dropped == False,
-    )
+    query = Player.query.filter(Player.name.ilike(f"%{term}%", escape="\\"))
     if team_id:
         query = query.filter_by(team_id=team_id)
     prefix_first = case((Player.name.ilike(f"{term}%", escape="\\"), 0), else_=1)
-    players = (query.order_by(prefix_first, func.lower(Player.name))
+    players = (query.order_by(prefix_first, Player.is_dropped, func.lower(Player.name))
                     .limit(SEARCH_LIMIT).all())
     return jsonify([p.to_search_dict() for p in players])
 
@@ -411,9 +415,12 @@ def player_detail(player_id):
     except Exception:
         dynasty_value = None  # fallback silencioso se cache/API indisponível
 
+    # M21-A: dropado não tem dono — propor trade de FA não tem significado (o
+    # team_id preservado pelo sync é histórico, não posse).
     can_propose_trade = (
         my_team_name is not None
         and team is not None
+        and not player.is_dropped
         and player.team_id != current_user.team_id
     )
 

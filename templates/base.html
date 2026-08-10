@@ -344,13 +344,19 @@ function createPlayerSearch(opts) {
 
   function optionInner(p) {
     const pos = p.position || '?';
+    // M21-A: dropado exibe o badge "FA" NO LUGAR da franquia — o sync preserva
+    // fantasy_team no drop, então sem a troca o FA pareceria rosterado pelo
+    // último time. Badge é exibição; a identidade segue no id/sid da linha.
+    const teamLabel = p.is_dropped
+      ? '<span class="ps-fa-badge">FA</span>'
+      : `<span class="ps-team">${escapeHtml(p.fantasy_team || '—')}</span>`;
     return renderPlayerPhoto(p, 'ps-photo') +
       `<span class="ps-main">
          <span class="ps-name">${escapeHtml(p.name)}</span>
          <span class="ps-sub">
            <span class="pos-badge pos-${escapeHtml(pos).replace('/', '')}">${escapeHtml(pos)}</span>
-           <span class="ps-nfl">${escapeHtml(p.nfl_team || 'FA')}</span>
-           <span class="ps-team">${escapeHtml(p.fantasy_team || '—')}</span>
+           <span class="ps-nfl">${escapeHtml(p.nfl_team || '—')}</span>
+           ${teamLabel}
          </span>
        </span>
        <span class="ps-salary">$${escapeHtml(p.salary)}</span>`;

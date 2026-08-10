@@ -31,7 +31,9 @@
           <strong><a href="{{ url_for('league.team_detail', team_id=team.id) }}"
                      title="Abrir página do time">{{ team.name }}</a></strong>
           {% if team.owner_name %}<span class="text-dim">({{ team.owner_name }})</span>{% endif %}
-          {% if player.is_on_ir %}<span class="tag tag-review">IR</span>{% endif %}
+          {# M21-A: is_on_ir fica stale em dropado (sync só reescreve quem está em
+             roster) — IR de FA não significa nada, então a tag some. #}
+          {% if player.is_on_ir and not player.is_dropped %}<span class="tag tag-review">IR</span>{% endif %}
           {% if player.is_dropped %}<span class="tag tag-review">Dropado</span>{% endif %}
         {% else %}
           <span class="text-dim">Sem time</span>
@@ -54,7 +56,9 @@
   <h2 class="card-title">📊 Contrato e Valores</h2>
   <div class="player-contract-grid">
     <div class="player-contract-field">
-      <div class="field-label">Salário atual</div>
+      {# M21-A: em dropado o número é o do último contrato — não conta em folha
+         nenhuma (roster_salary filtra is_dropped); "atual" prometeria vigência. #}
+      <div class="field-label">{% if player.is_dropped %}Último salário (histórico){% else %}Salário atual{% endif %}</div>
       <div class="field-value">${{ player.salary|int }}</div>
     </div>
     <div class="player-contract-field">

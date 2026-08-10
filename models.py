@@ -191,10 +191,13 @@ class Player(db.Model):
           (foto — mesma chave do `renderPlayerPhoto`; ⛔ nunca o nome);
         - desambiguação de homônimos na lista: posição + time NFL + franquia;
         - autocomplete da calculadora: contrato, aquisição e ESPN (**ajustado**, como
-          está no banco — quem exibe em cru divide por 1.2, ver `salary.html`).
+          está no banco — quem exibe em cru divide por 1.2, ver `salary.html`);
+        - status FA (M21-A): `is_dropped` alimenta o badge "FA" da linha — sem ele o
+          dropado apareceria com a última franquia como se fosse dono atual.
         """
         return {
             "id": self.id,
+            "is_dropped": self.is_dropped,
             "sleeper_player_id": self.sleeper_player_id,
             "name": self.name,
             "position": self.position,

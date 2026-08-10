@@ -160,9 +160,12 @@ function fillFromPlayer(p) {
   const hint = document.getElementById('calc-search-hint');
   const acqTxt = ACQ_OPTIONS.includes(p.acquisition_type)
     ? '' : ` · aquisição "${p.acquisition_type || '—'}" fora da lista (mantida a seleção atual)`;
+  // M21-A: FA no lugar da franquia + "último salário" (histórico, fora de folha)
+  const teamTxt = p.is_dropped ? 'FA' : (p.fantasy_team || '—');
+  const salaryTxt = p.is_dropped ? 'último salário' : 'salário atual';
   hint.innerHTML = `✔️ <a href="/player/${p.id}">${escapeHtml(p.name)}</a> · ` +
-    `${escapeHtml(p.position || '?')} ${escapeHtml(p.nfl_team || 'FA')} · ` +
-    `${escapeHtml(p.fantasy_team || '—')} · salário atual $${escapeHtml(p.salary)} ` +
+    `${escapeHtml(p.position || '?')} ${escapeHtml(p.nfl_team || '—')} · ` +
+    `${escapeHtml(teamTxt)} · ${salaryTxt} $${escapeHtml(p.salary)} ` +
     `(${escapeHtml(p.contract_display || '')})${escapeHtml(acqTxt)}`;
 }
 
