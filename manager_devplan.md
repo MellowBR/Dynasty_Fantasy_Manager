@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 10/08/2026-pt10 (MAN-OFF26-23-FIX: **SyntaxError no JS da /offseason** (introduzido no `6ecb90e` — `\n\n` virou quebra real na edição gerada; bloco inteiro sem parse, `toggleFlag is not defined`, passos 3/4 mudos). Fix de 1 linha; varredura de TODOS os templates (só o offseason quebrado); DOM headless: 13/13 onclick definidas, cancelar não grava, force reposta. **Guarda permanente `template_js_test.py`** (node + fallback heurístico, nunca silencioso; **falha no `6ecb90e`, passa no fix**). Lição candidata METH-REG: *poka-yoke silencioso é meio poka-yoke*. Suítes verdes. Push imediato.)
+> Última atualização: 10/08/2026-pt11 (MAN-OFF26-23-VERIFY, read-only: veredito **leitura (1)** — ordem correta por necessidade, relato “no topo” impreciso. Insumos do gate (`is_rookie`, `season`) nascem da leitura do draft; not-found antes do gate é desenho certo; nada é escrito antes dele. **Domingo dispara**: id válido 2026 + rollover pendente → 400 nos dois endpoints. Hoje inexercitável com draft real (linear 2026 = `pre_draft`; status check vem antes); **teste que vale = domingo à noite, preview antes do rollover, esperar a recusa** (zero efeito colateral). Suíte: decisão + fiação cobertas; ponta-a-ponta no smoke da F2; parecer opcional (endpoint monkeypatchado) registrado. Zero código.)
+> Anterior: 10/08/2026-pt10 (MAN-OFF26-23-FIX: **SyntaxError no JS da /offseason** (introduzido no `6ecb90e` — `\n\n` virou quebra real na edição gerada; bloco inteiro sem parse, `toggleFlag is not defined`, passos 3/4 mudos). Fix de 1 linha; varredura de TODOS os templates (só o offseason quebrado); DOM headless: 13/13 onclick definidas, cancelar não grava, force reposta. **Guarda permanente `template_js_test.py`** (node + fallback heurístico, nunca silencioso; **falha no `6ecb90e`, passa no fix**). Lição candidata METH-REG: *poka-yoke silencioso é meio poka-yoke*. Suítes verdes. Push imediato.)
 > Anterior: 10/08/2026-pt9 (MAN-OFF26-23 F2: **poka-yoke nos 3 pontos de não-retorno** — o sistema recusa a ordem errada (diretriz do owner, registrada como candidato a baseline). (1) `rollover_order_gate` no import (preview E confirm; auction fora de propósito — transitivamente gateado; histórico permitido); (2) passo 5 → 409 `requires_force` informado (consumidor crítico do store é o próprio import), UI com confirmação explícita; (3) clear com backup automático F13 + `restore_rookie_espn_backup` pela porta única — “sem undo” caiu. Runbooks com a seção 17→18/08 + passo 5 pós-24/08. 15 testes novos; suítes verdes; smoke local nos 3 gates. Caminho feliz intocado; once-only preservado. OFF26-23 → ⚠️ (PROC1).)
 > Anterior: 10/08/2026-pt8 (MAN-OFF26-23-REG-F1: **[[OFF26-23]] registrado + F1 read-only** — rookie 2026 × rollover × passo 5. **Achado central: a ordem segura não é imposta por código** — o import do draft não tem gate de `rollover_done`; antes do rollover, a varredura cega (`offseason.py:686`) faria a classe inteira virar Ano 2 (Gainwell em massa). Depois: Ano 1 intocado até 2027 (rollover once-only). **Prod: rollover 2026 não rodou** (o smoke da urna usou o escape de ensaio — prova indireta; Shell check pronto). **Plano do passo 5 validado e endurecido:** nada lê a flag além da UI, mas o consumidor crítico do store é o PRÓPRIO import (clicar antes de importar = classe a $1; clear sem undo). Gainwell: mesma manifestação, raiz distinta (canal ≠ ordem). **Roteiro 17→24/08 na seção**, 3 pontos de não-retorno; sem conflito entre os objetivos. Gate de código no import = candidato, não arbitrado. Zero código.)
 > Anterior: 10/08/2026-pt7 (MAN-M21-F1b, **diagnose read-only da fatia B** — produto delimitado: prep da FA auction, mostrar+marcar. **Q1:** premissa meia-verdade — membership local (287) mas valor 15/296 e fonte **transitória**; ⚠️ **maior achado: o clear do store roda no passo 5, ENTRE draft (17/08) e auction (24/08)** — valor pode evaporar na semana do caso de uso (pendência de desenho, não arbitrada). Store cobre veteranos do Top-300 (Ridley); canônico só rosterados (DP1, 277). **Q2: FEDERAR** — importar quebraria o import ESPN (not_found morre por vacuidade), multiplicaria homônimos (Brown ~40×), inundaria needs_review e o rollover pegaria 12k fantasmas; federar: índice do nfl_context já tem `full_name`, falta busca por nome + fusão por sid. **Q3:** disponível = 1 query/request; 3º estado cabe na engrenagem (extensão do M21-A). **Q4:** valor por classe; sem valor é correto p/ fora do Top-300. **Q5:** corte sem clique; pool rows sem `Player.id` → `origin` obrigatório no payload. **Q6a:** corte “busca federada informativa” nomeado; **Q6b:** fronteira limpa c/ redesenho do cap projector. Fatia B segue 🔲; decisão do owner. Zero código.)
@@ -5005,3 +5006,35 @@ clique do passo 5 não fazia nada. Console: `Uncaught SyntaxError` + `toggleFlag
 
 **Gates de servidor intocados** (restrição do prompt): `rollover_order_gate`, 409 do passo 5 e
 backup do clear seguem byte-idênticos. Push imediato — o smoke do owner precisa do hash hoje.
+
+### MAN-OFF26-23-VERIFY — a ordem real do gate: correta por necessidade; o teste que vale é domingo (10/08/2026, Fable) · docs-only
+
+O smoke do owner (preview com id inexistente → "não encontrado", não a recusa do gate) abria 3
+leituras. **Veredito: leitura (1)** — ordem correta por necessidade; o relato da entrega ("no
+topo do build_preview") era impreciso.
+
+- **A evidência que fecha:** os dois insumos do gate — `is_rookie` (de `draft.type`) e `season`
+  (de `draft.season`) — **nascem da leitura do draft** (`draft_import.py:154-161`). Sem draft não
+  há o que julgar: not-found antes do gate é o desenho certo. A posição real do gate: após
+  leitura + status + `_team_by_roster`, **antes de exclusão/matching/qualquer escrita** — e o
+  confirm reusa o build_preview, então a recusa vale nos dois. Nota menor (não é fix): o gate
+  antes do `_team_by_roster` pouparia 1 chamada de API na recusa.
+
+- **Consequência para domingo: nenhuma reordenação necessária.** Id válido de 2026, completo,
+  rollover pendente → passos 1-2 passam, gate dispara → **400 `rollover_pendente`** em preview e
+  confirm.
+
+- **Por que hoje não dá para exercitar com draft real:** o único linear 2026 está `pre_draft` e o
+  check de status vem antes do gate; o draft 2025 é `complete` mas exercita o **bypass**
+  (histórico), não o gate. **O teste prescrito é o de domingo à noite:** draft real completo +
+  rollover ainda pendente → abrir o preview → esperar a recusa. Zero efeito colateral (preview
+  não escreve) — o poka-yoke se provando in situ; entra como conferência do roteiro. Opcional
+  hoje: mock draft linear 2026 no Sleeper (fora da liga; preview não escreve).
+
+- **Suíte:** decisão de domingo = `test_classe_de_season_futura_bloqueia` (exatamente
+  `(True, 2026, 2025)`); fiação = guarda estática do preview; ponta-a-ponta (400 nos dois
+  endpoints) viveu no smoke da F2 (app real, `_read_draft` simulado) — não está na suíte por
+  exigir mock de rede. **Parecer opcional registrado, não implementado:** caso de endpoint
+  monkeypatchado no poka_yoke_test (~10 linhas).
+
+**Exceção de commit docs-only logada (verificação pura). Zero código.**
