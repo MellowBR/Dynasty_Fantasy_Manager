@@ -1,12 +1,12 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 10/08/2026-pt6 (sessão MAN-ARC-BUSCA-DONE, **docs-only**: **fechamento consolidado do arco da busca — smoke de produção do owner sobre o hash `20b346b` (PROC1) aprova três frentes de uma vez.** **[[M10]] fecha ✅** (caso Mahomes morto em prod, homônimos distinguíveis, autocomplete funcional, **validação do solicitante Michel**) e **[[UX11]] fecha ✅** com a **primeira observação real do fix em prod** — e a ocorrência da família *observation/provenance* registrada: os smokes anteriores ocorreram **antes do push do `a63d6ab`**, então nenhum “quadro conferido” daquelas passagens valia para o item. **[[M21]]: fatia A fecha ✅** (Kamara badge FA → perfil com rótulo histórico, sem botão de trade, sem tag IR; Waller e Detroit sem quebra; rosterado sem regressão) e **o item segue 🔲 pela fatia B** — que **herda o caso Helm**: a medição do Shell (10/08) provou que ele **nunca foi `Player`** (zero em `players`, zero em `player_history`, **zero históricos órfãos** — achado positivo registrado como evidência: a integridade do `player_history` está intacta e diagnoses futuras não precisam remedir); a lembrança do owner era de outra superfície, e **Kamara é consagrado âncora da fatia A**. Migração O3 executada: seções M10 e UX11 movidas **verbatim** ao archive (1× lá / 0× no ativo, conferido). **Dois registros novos do smoke** (sem diagnose): **[[UX14]]** — time NFL de dropado com fallback de leitura no pool (caso Waller `🏈 —`; hipótese não arbitrada, precedente [[O2]] sem persistir, e a questão de réplica obrigatória: fonte única da Q1 da UX12-F1 ou 2ª fonte por tela?) — e **[[UX15]]** — jogador pré-selecionado na página de trade (refinamento do campo 3 do [[UX12]]; provável F2 direta, a confirmar réplica dos caminhos de entrada). **Status Rápido: M10 e UX11 → ✅, linha M21 refletindo A ✅/B 🔲, exatamente 2 linhas novas.** Exceção de commit docs-only logada. Zero código.)
 > Atualizado em: 10/08/2026-pt5 (sessão MAN-M21-A: **fatia A do [[M21]] entregue — FAs da liga na busca, marcados** (decisão do owner: opção (a) da F1a). O filtro `is_dropped=False` caiu do endpoint (a F1a provara que era inércia da v1.0 sem consumidor); `to_search_dict()` ganhou `is_dropped` (+1 campo, o custo previsto) e o `optionInner` da **engrenagem única** troca a franquia pelo **badge "FA"** — nos dois consumidores de graça, sem fork; o badge **substitui** a franquia porque `fantasy_team_name` de dropado devolve o último time e exibi-lo leria como posse. **Ordenação adotada:** `(prefixo, is_dropped, nome)` — rosterado antes de FA a empate, pico pós-20/08 legível no teto de 20. **Perfil de FA corrigido (os 2 enganosos da Q2):** `can_propose_trade` exige `not is_dropped` (team_id preservado é histórico, não posse) e o salário vira **"Último salário (histórico)"**; carona trivial: tag IR suprimida p/ dropado (`is_on_ir` stale — **sync intocado**). Calculadora: FA selecionável (uso pré-auction), hint com "FA · último salário". **Medição de prod que precedeu (owner, Shell): 41 dropados**; ⚠️ o Gunnar Helm **não existe em prod** (proveniência em aberto, fora de escopo) — **o âncora vira Kamara**, que existe também no seed junto com Waller (`nfl_team` vazio) e Detroit (DEF): material do smoke local. **Testes 27 → 35** (inclusão marcada + 6 guardas novas); todas as suítes verdes; smoke local com os 3 casos + regressão DJ Moore idêntica. Fatia B intocada (🔲, arbitragem na F1b). M21 → **⚠️** (smoke prod pendente, PROC1, push incluído).)
 > Atualizado em: 10/08/2026-pt4 (sessão MAN-M21-F1a, **diagnose read-only da fatia A do [[M21]]** — zero mutação, zero query em produção. **Q1, o achado que reordena a fatia: o filtro `is_dropped=False` nunca protegeu fluxo nenhum** — o endpoint de busca nasceu na v1.0 (`f2271ba`) já com o filtro e **sem nenhum consumidor** (`git log --all -S`: a primeira referência em template é o próprio M10), então as hipóteses “evitar poluição” e “proteger o trade” caem por **anacronismo** e sobra inércia; a decisão de incluir FAs é só sobre os 2 consumidores do M10, sem legado. **Q2, perfil de FA campo a campo:** o tratamento **já é parcial** (tag “Dropado” no header desde o M13 — o sync preserva `team_id` ao dropar); os enganosos são o botão **“Propor Trade” que aparece para FA** (`can_propose_trade` não checa `is_dropped`) e a label **“Salário atual”** num número histórico que não conta em folha alguma; `is_on_ir` stale em dropado é o menor. **Q3, recomendação (a)**: incluir sempre, marcado “FA” **no lugar da franquia** na sub-linha — `fantasy_team_name` de dropado devolve a última franquia e sem o badge o FA *parece rosterado* (o argumento que mata a opção (b); o toggle (c) mata o caso-âncora por default); FA na calculadora **faz sentido** (simular contrato de alvo da auction é o uso pré-24/08); custo real: `to_search_dict()` **não expõe `is_dropped`** — badge exige +1 campo. **Q4:** pico de FAs pós-20/08 chega de uma vez no sync; teto de 20 segue válido, ordenação “rosterado antes de FA” registrada como opção da F2a; **urna: zero interseção** (queries próprias, bilhete recusa dropado); “Reativar (ano 1)” do importador já trata dropado como entidade recomprável — precedente de coerência. **Q5:** 2 SELECTs read-only prontos para o Render Shell (⛔ não executados; **o seed nem contém o Helm** — o caso-âncora só existe no vivo). Listas (a)/(b) do MAN-METH-REG: 2 premissas decididas/contraditas, 4 omissões com parecer. Item segue **🔲** — decisão de desenho é do owner. Zero código.)
 > Atualizado em: 10/08/2026-pt3 (sessão MAN-M21-REG, **docs-only**: registro do **[[M21]] 🔲 — busca cobre o universo Sleeper**, pedido do owner logo após o smoke do [[M10]]. O item nasce **partido em duas fatias com prazos próprios, e a razão é de natureza, não de tamanho**: a **fatia A** (FAs da liga — caso-âncora **Gunnar Helm**) é **um predicado de query** sobre dados que já existem — o jogador **é** `Player`, o perfil abre, só o filtro `is_dropped=False` da busca o esconde (mecanismo confirmado no código: o sync marca dropado quem sumiu do roster do Sleeper) —, e é **Alta com alvo pré-24/08** por valor operacional na preparação da FA auction; a **fatia B** (rookies não-drafteados e o resto do pool) é **decisão de arquitetura de dados** e fica **Média, pós-intertemporada**. ⚠️ **A arbitragem central da B foi deixada EM ABERTO de propósito** — importar o pool como `Player` × **busca federada** em duas fontes: a hipótese do owner (“deveriam estar na nossa base”) entra como **premissa a testar**, e a F1b tem de mapear os consumidores da tabela `Player` (folha/[[OFF26-16]], keeper exclusion, `needs_review`, agregações, portas de aquisição) contra o que ~12 mil linhas sem contrato fariam com cada um — tendo como precedente o [[O2]], que **lê o pool sem persistir nada**. Demais questões registradas sem resposta: **por que o filtro `is_dropped` existe** (herdado do endpoint pré-M10 — a razão condiciona o desenho: incluir marcado × sem distinção × toggle), o que o perfil de um FA oferece que precisa de ajuste (o botão de trade), destino do clique num não-`Player`, colisão de identidade entre duas fontes (⛔ sempre por `sleeper_player_id`) e a relação com [[DP1]]/`RookieEspnValue`. Registrado que a **engrenagem do M10 é a base — as fatias estendem, não reescrevem** — e que a **fatia A não bloqueia nem é bloqueada pelo smoke pendente do M10**. **Status Rápido ganhou exatamente 1 linha**; nenhum status existente alterado. **Exceção de commit docs-only logada.** Zero código.)
 > Atualizado em: 10/08/2026-pt2 (sessão MAN-UX11-F2, **carona de causa conhecida**: o [[UX11]] vai a **⚠️** — o quadro de trades passa a exibir a **franquia NFL** de cada jogador. Fix de **1 linha de renderização**, exatamente como a F1-por-transbordo da UX12-F1 previu: o `nfl_team` **já vinha** no payload de `/api/roster/by_name` (via `to_dict()`) e a tela apenas não o desenhava. Entra na **linha dim que já existia** (`BUF · $21 · Ano 2/4`), no padrão das demais telas. ⛔ **Zero backend**: payload, rota, sync e lógica intocados — as 21 chaves do `to_dict()` seguem idênticas, e **nada é derivado na tela** (a réplica que a Q1 da UX12-F1 temia não foi criada). **Conferência cruzada do caso concreto:** DJ Moore → quadro `BUF · $21 · Ano 2/4` × perfil `🏈 BUF` — mesma coluna, mesmo valor. A **ressalva de staleness** está registrada no código, não só no backlog: frescor = último sync, e quem vira FA **mantém o time antigo** (o sync só sobrescreve com valor truthy) — por isso o `to_dict()` já devolve `—` para nulo. Nenhuma outra tela alterada (`/`, `/salary`, `/cap_projector`, `/league` conferidas em 200); suítes verdes (54/54 no salary_engine). **Smoke em produção pendente** — gate [[PROC1]].)
-> Atualizado em: 10/08/2026 (sessão MAN-M10-F2: **a busca de jogador está no ar** — o [[M10]] vai a **⚠️** (implementado, smoke em produção pendente). Os **dois consumidores** da spec de 28/04 entregues sobre **uma engrenagem só**: barra global na navbar (desktop, no slot entre `.nav-links` e `.nav-right`) + section no topo do overlay mobile (padrão N1) que **navegam** para `/player/<id>`, e **autocomplete da calculadora** que **seleciona** e preenche ESPN/ano/aquisição. `createPlayerSearch` em `base.html` é o componente único — modo navegação (link real `<a href>`, ctrl+clique funciona) × modo seleção (`onSelect`); ⛔ **nenhuma tela deriva a sua busca**. **Identidade (a régua do prompt e do incidente Brown):** a substring do backend é **sugestão exibida**, e cada linha traz **posição + time NFL + franquia** para desambiguar homônimos; a resolução é **sempre ato explícito do usuário** — Enter sem item destacado **não seleciona nada** (teste estático falha se voltar), e o destino sai do **`id` da linha**, nunca do nome. Backend reusado com **3 ajustes**: `to_search_dict()` enxuto (12 campos — `to_dict()` invocava `project_next_salary` **20× por tecla** para exibir 4 campos), **ordenação prefixo-primeiro** (sem ordem explícita o teto de 20 cortava arbitrariamente — 'moore' podia perder o Moore) e **escape dos curingas do LIKE** ('%' digitado é texto, não 'tudo'). Assinatura, `is_dropped=False` e teto de 20 **preservados**. ⚠️ **Uma conversão que faltava e é fácil de errar:** o campo 'ESPN Ref Value' da calculadora é **RAW** (o backend multiplica por 1.2) e o banco guarda o **ajustado** — o autofill **divide por 1.2**, senão infla o contrato inteiro; ⛔ 'Valor Pago no Ano 1' **não** é preenchido (o banco tem o salário corrente, não o do ano 1 — inventá-lo daria tabela falsa). **27 testes novos** (`player_search_test.py`: âncora Mahomes, homônimos com ids distintos, ordenação, curingas, teto, payload, guardas estáticas de identidade). **Smoke local GET-only com dado real:** 'Mahomes' resolve em 1 (o caso de 28/04 morre), 'brown' devolve **os 5 Browns distinguíveis** (o incidente vira lista, não escolha silenciosa), inexistente/curinga → vazio gracioso. ⚠️ **O caso literal 'dois DJ Moore' não é exercível em dado real** — só um está rosterado (a busca é do DB local, por desenho da spec); foi montado nos testes e num harness de DOM headless. **Interação em navegador é o que falta** — é o smoke do owner. Zero schema, zero toque em folha/cap/sync/perfil.)
-> 📁 Entradas anteriores em **`improvements_sessions.md`** (72 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
+> 📁 Entradas anteriores em **`improvements_sessions.md`** (73 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
@@ -37,7 +37,7 @@
 | M4 | Banner de sync desatualizada com timestamp e botão "Sincronizar agora" | Baixa | 🔲 |
 | M8 | Auditoria do lottery (seed + página de verificação) + visualização de bolinhas + fluxo em 2 fases | Baixa | ✅ 23/04/2026 |
 | M9 | Redesign tela de picks: grid navegável + atalho para trade | Média | ✅ 23/04/2026 |
-| M10 | Busca de Jogador: Global + Calculadora (refinado 28/04/2026 — MAN-M10-REFINE; **F2 10/08/2026 — MAN-M10-F2**: navbar desktop+mobile e autocomplete da calculadora sobre `createPlayerSearch` único; 27 testes) | Média | ⚠️ 10/08/2026 (**implementado — smoke de produção pendente**, gate [[PROC1]]) |
+| M10 | Busca de Jogador: Global + Calculadora (refinado 28/04/2026 — MAN-M10-REFINE; F2 10/08/2026 — MAN-M10-F2: navbar desktop+mobile e autocomplete da calculadora sobre `createPlayerSearch` único; 27→35 testes) | Média | ✅ 10/08/2026 (**smoke prod aprovado — MAN-ARC-BUSCA-DONE, hash `20b346b`; caso Mahomes morto, validação do Michel. Detalhe no archive**) |
 | M11 | Teste de auto-containment documental | Média | ✅ 22/04/2026 |
 | M12 | Vincular owners a times via tela de admin com lookup do Sleeper | Média | ✅ 22/04/2026 |
 | M13 | Página de jogador + "Propor Trade" | Média | ✅ 23/04/2026 |
@@ -142,10 +142,12 @@
 | DOC1 | CLAUDE.md "App Startup Sequence" desatualizada: `init_auth` listado antes de sync/backfill (código: depois, app.py:138) + sync/backfill são condicionais a `fresh_import` (app.py:61), não passos de todo boot — docs-only fix — achado AUD1 Lente 6 | Média (blast radius: doc carregada em toda sessão) | ✅ 12/06/2026 (seção reescrita contra o boot real, passo a passo com âncoras) |
 | O3 | Split do improvements.md: ativo (cabeçalho + Status Rápido completo + seções 🔲/⚠️) + `improvements_archive.md` (seções ✅, movidas verbatim); migração no fim de sessão quando item → ✅ — MAN-O3-REG. **Estendido 08/08/2026 (3º arquivo):** o bloco `> Atualizado em:` do cabeçalho tinha chegado a **66 entradas / 114 KB = 22% do arquivo**, duplicando o log de decisões do devplan e o `git log` — o ativo passa a manter as **5 mais recentes** e o resto vive em `improvements_sessions.md` (verbatim). Junto, a **dívida de migração** foi quitada (3 seções ✅ que nunca saíram: OFF26-5, OFF26-6, F8). Ativo: **522 KB → 377 KB (-28%)**, Status Rápido **byte-idêntico**, zero conteúdo perdido — MAN-UX10-UX11-REG | Média | ✅ 11/06/2026 (esquema estendido 08/08/2026) |
 | UX10 | **Fotos de jogadores desatualizadas** — alguns jogadores exibem a foto da temporada anterior (exemplo do owner: **David Montgomery**). Cosmético, **sem impacto em dados** (identidade segue por `sleeper_id`). F1 precisa **distinguir as hipóteses antes de qualquer fix**: (a) URL do CDN correta e **cache** (navegador ou CDN) servindo imagem velha; (b) URL **construída** com componente desatualizado (temporada, time) em algum ponto do Manager; (c) fonte da imagem **keyed por algo além do `sleeper_id`**. F1 pergunta também: **a construção da URL de foto existe em mais de um lugar** (templates, JS, Python)? — MAN-UX10-UX11-REG | Baixa | 🔲 |
-| UX11 | **Quadro de trades não mostra o time atual do jogador** — F1 respondida por **transbordo** da MAN-UX12-F1 (fonte única `Player.nfl_team`, payload já continha o campo, faltava só renderizar); **F2 de carona 10/08/2026 (MAN-UX11-F2)**: a franquia NFL entra na linha dim do quadro (`BUF · $21 · Ano 2/4`), 1 linha de template, zero backend — MAN-UX10-UX11-REG/UX11-F2 | Média | ⚠️ 10/08/2026 (**implementado — smoke de produção pendente**, gate [[PROC1]]) |
+| UX11 | **Quadro de trades não mostra o time atual do jogador** — F1 por transbordo da MAN-UX12-F1; F2 de carona 10/08 (MAN-UX11-F2): franquia NFL na linha dim do quadro, 1 linha de template, zero backend — MAN-UX10-UX11-REG/UX11-F2 | Média | ✅ 10/08/2026 (**primeira observação em prod no smoke do `20b346b` — MAN-ARC-BUSCA-DONE; ocorrência observation/provenance registrada: checks pré-push não valiam. Detalhe no archive**) |
 | UX12 | **Busca de jogador + página de perfil enriquecida** (pedido do co-admin **Michel**) — registrado 08/08 (MAN-UX12-REG) com questão 0 explícita de sobreposição; **F1 08/08 (MAN-UX12-F1, read-only):** 3 dos 7 campos já existiam na página atual, spec do [[M10]] conferida viva, réplica de fonte refutada, F1 do [[UX11]] respondida de carona, [[UX10]] estreitado, depth chart/idade viáveis via pool — recomendação (b) **despachar**, confirmada pelo owner — MAN-UX12-REG/F1/REFINE | Média | ✅ 08/08/2026 (**ROTEADO — despachado em [[M10]] (busca) e [[O2]] (perfil, refinado in-place absorvendo campos 2+5 + F1 do MAN-O2-F1); sem escopo próprio remanescente. Registro + diagnose no archive**) |
 | UX13 | **Timeline exibe `event_type` cru `contract_year_correction`** — os demais eventos têm label PT-BR + badge; este cai no fallback (`EVENT_LABELS[e.event_type] \|\| e.event_type`). Causa evidente, sem diagnose: a chave (escrita por `contract_year_correction.py`, OFF26-20-FIX) falta nos **dois** dicionários `EVENT_LABELS` copiados (`player_detail.html` + `salary_history.html` — réplica declarada no próprio comentário do template; o fix toca os dois). Display de 1 linha, **candidato a carona** — MAN-O2-B1-DONE | Baixa | 🔲 |
-| M21 | **Busca cobre o universo Sleeper** — duas fatias: **A — FAs da liga** (Alta, pré-24/08) e **B — universo não-Player** (Média, pós-intertemporada; ⚠️ arbitragem importar×federar em aberto p/ F1b). **F1a 10/08 (MAN-M21-F1a):** filtro era inércia da v1.0 sem consumidor; recomendação (a) incluir marcado, **decidida pelo owner**. **F2a 10/08 (MAN-M21-A):** FAs entram marcados (badge "FA" no lugar da franquia, payload +`is_dropped`, rosterado antes de FA no desempate) + perfil de FA corrigido (sem botão de trade, salário rotulado histórico, tag IR stale suprimida). Âncora de prod: **Kamara** (41 dropados medidos) — MAN-M21-REG/F1a/A | A: Alta · B: Média | ⚠️ 10/08/2026 (**fatia A implementada — smoke de produção pendente**, gate [[PROC1]]; fatia B 🔲) |
+| UX14 | **Time NFL de dropado com fallback no pool** — perfil do Waller exibe `—` porque `Player.nfl_team` está vazio (sync só atualiza rosterados). Hipótese registrada, NÃO arbitrada: fallback de LEITURA no pool ([[O2]] como precedente), sem persistir; pool sem time → `—` correto (FA real). F1 responde a réplica: entra na fonte única da Q1 da UX12-F1 ou vira 2ª fonte por tela? — MAN-ARC-BUSCA-DONE | Baixa/Média | 🔲 |
+| UX15 | **Jogador pré-selecionado na página de trade** — o botão do perfil ([[M14]]) já leva os dois times; falta o jogador chegar marcado. Refinamento do campo 3 do [[UX12]] (archive); provável F2 direta, a confirmar réplica (quantos caminhos de entrada têm pré-seleção?) — MAN-ARC-BUSCA-DONE | Baixa | 🔲 |
+| M21 | **Busca cobre o universo Sleeper** — duas fatias: **A — FAs da liga** (**✅ 10/08/2026**, MAN-M21-A + smoke prod MAN-ARC-BUSCA-DONE: badge FA, ordenação rosterado-antes-de-FA, perfil de FA corrigido; âncora **Kamara**, 41 dropados medidos) e **B — universo não-Player** (Média, pós-intertemporada, 🔲; ⚠️ arbitragem importar×federar em aberto p/ F1b; **caso Helm migrado p/ cá** — nunca foi Player, medição Shell 10/08) — MAN-M21-REG/F1a/A/ARC-BUSCA-DONE | A: Alta · B: Média | 🔲 (fatia A ✅ 10/08/2026 · fatia B pendente) |
 
 ---
 
@@ -3379,167 +3381,30 @@ exatamente o `max(1, int(value_paid))` que o bloco inline calculava, logo **valo
 ---
 
 
-### M10 — Busca de Jogador: Global + Calculadora
-⚠️ **IMPLEMENTADO 10/08/2026 (MAN-M10-F2) — smoke de produção PENDENTE (gate [[PROC1]])** —
-Prioridade **Média** — spec refinada em 28/04/2026 (MAN-M10-REFINE), conferida viva pela
-MAN-UX12-F1 e executada sem redesenho
-
-#### F2 — entregue (MAN-M10-F2, 10/08/2026)
-
-Os **dois consumidores** da spec estão no ar sobre **uma engrenagem só** — `createPlayerSearch`
-em `templates/base.html`, com dois modos:
-
-- **Consumidor 1 — busca global.** Barra na navbar **desktop** (o slot vazio entre `.nav-links` e
-  `.nav-right`, como a spec desenhou) e **section no topo do overlay mobile**, acima de
-  "Navegação" (padrão N1 preservado). Modo **navegação**: cada resultado é um `<a href="/player/
-  <id>">` de verdade — ctrl+clique e clique do meio funcionam, e o destino é o `id`.
-- **Consumidor 2 — autocomplete da calculadora.** Modo **seleção** (`onSelect`): preenche
-  **ESPN ref value, ano de contrato e tipo de aquisição**, exatamente os 3 campos da spec, e
-  mostra um hint com o jogador escolhido (linkado para o perfil).
-
-**Identidade — a régua que governa a tela** (mesma do `player_lookup`, mesmo precedente Brown):
-o `ilike` do backend produz **sugestão exibida**, nunca resolução. Cada linha traz **posição +
-time NFL + franquia**, que é o que separa um homônimo do outro; a resolução é **sempre ato
-explícito** — clique, ou seta + Enter. ⛔ **Enter sem item destacado não seleciona nada** (não
-existe "vai no primeiro resultado"), e nada resolve por nome em lugar nenhum do caminho.
-`player_lookup.find_player_by_name` **não** foi tocado nem chamado — segue sendo a reconciliação
-estrita dos imports.
-
-**Backend: reusado, com 3 ajustes** (a spec previa "ajustes opcionais"; assinatura, filtro
-`is_dropped=False` e teto de 20 **preservados**):
-1. **`Player.to_search_dict()`** (12 campos) — `to_dict()` invocava `is_renewal_candidate()` +
-   `project_next_salary()` por jogador: **20 projeções de contrato por tecla digitada** para
-   exibir 4 campos. Era a otimização que as "Notas para F1" deixaram condicional; o custo de
-   criar o método é uma dúzia de linhas.
-2. **Ordenação prefixo-primeiro**, depois alfabética. Sem `order_by` o teto de 20 cortava em
-   ordem arbitrária de tabela — em liga cheia, "moore" podia devolver 20 linhas **sem o Moore**.
-3. **Escape dos curingas do LIKE** — `%` e `_` digitados são texto. Sem isso, `%` sozinho
-   devolvia o elenco inteiro como se fosse "resultado da busca".
-
-**Decisões das questões que a spec delegou à F2:**
-- **Breakpoint:** reusa o **768px** que a navbar já usa (⛔ nenhum breakpoint novo). Acima, barra
-  inline; abaixo, `.nav-search { display: none }` e a busca vive no overlay.
-- **Dropdown no mobile:** **fluxo normal** (`.ps-dropdown-inline`, `position: static`) — empurra o
-  painel em vez de flutuar sobre ele; num `aside` que já rola, dropdown absoluto vaza.
-- **Renderização do resultado:** link montado no componente, **não** `renderPlayerNameLink` — a
-  linha inteira é o `<a>` e âncora aninhada é HTML inválido. O mesmo destino (`/player/<id>`) e a
-  foto vêm do **`renderPlayerPhoto` já existente** (keyed por `sleeper_player_id`), as fontes
-  comuns mapeadas na Q1 da UX12-F1; **nenhuma derivação nova por tela**.
-- **Batching:** os 2 consumidores numa camada só — o custo do segundo, com o componente pronto,
-  foi o `onSelect`.
-
-⚠️ **A conversão que era fácil de errar:** o campo "ESPN Ref Value (PPR)" da calculadora é
-**RAW** (o `×1.2` acontece em `routes/salary.py`), e `Player.espn_ref_value` guarda o
-**ajustado** — o autofill **divide por 1.2**. Sem isso o valor entraria ajustado, seria
-multiplicado de novo e **inflaria a tabela de contrato inteira**. ⛔ **"Valor Pago no Ano 1" não
-é preenchido**: o banco tem o salário **corrente**, não o do ano 1; preenchê-lo produziria uma
-tabela plausível e falsa.
-
-**Testes — `player_search_test.py` (27):** escape do LIKE (núcleo puro) · endpoint contra ORM em
-memória (âncora Mahomes; **dois DJ Moore com ids e sids distintos**, distinguíveis por
-posição+time; prefixo antes de substring; dropado fora; filtro por time; vazio gracioso; curinga;
-teto de 20; payload enxuto sem projeção) · **guardas estáticas de identidade** (engrenagem única,
-Enter sem destaque não escolhe, navegação por `id`, a busca não chama `player_lookup`, a
-calculadora não inventa o ano 1 e converte o ESPN, escape de HTML sem réplica).
-
-**Smoke local (GET-only, test client logado, cópia do DB):**
-- **"Mahomes" → 1 resultado**, com link direto ao perfil: **o caso âncora de 28/04 morre** (zero
-  rosters abertos).
-- **"brown" → 5 resultados** (A.J. Brown, Amon-Ra St. Brown, Chase Brown, Cleveland Browns DEF,
-  Hollywood Brown), cada um com posição/time/franquia e **id próprio** — o incidente Brown vira
-  uma **lista para o usuário escolher**, que é exatamente o comportamento pedido. De carona, dois
-  casos-limite reais renderizam sem erro: DEF com `sleeper_player_id` **sigla** ("CLE") e jogador
-  **sem sid** (Hollywood Brown → sem foto, silenciosamente).
-- Inexistente, `%` e `_` → **lista vazia**, sem erro. As 3 páginas conferidas (`/`, `/salary`,
-  `/salary_history`) trazem os 3 entry points.
-- **Componente exercido em DOM headless** (harness descartável em node): debounce de 1 request,
-  `<2` caracteres não busca, os 2 homônimos com hrefs diferentes, Enter sem destaque **não**
-  navega, seta+Enter navega para o id certo, Escape fecha, modo seleção não vira link, e a
-  conversão 68.4 → 57.
-
-⚠️ **O que NÃO foi exercido, e é o smoke do owner:** a **interação em navegador** (aparência do
-dropdown, foco/teclado reais, overlay mobile em tela pequena). E o caso literal **"dois DJ Moore"
-com dado real é inexercível**: só o WR do BUF está rosterado, e a busca é do **DB local** — por
-desenho da spec, que o separou da fonte do [[O2]] (pool). O cenário existe nos testes e no
-harness; em produção, o análogo real é o "brown".
-
-**Suítes:** 27 novos + 54 (salary_engine) + 34 + 25 + 36 + 64 + 22 + 14 + 19 — todas verdes.
-Zero schema, zero toque em folha/cap/sync e **zero mudança na página de perfil** (a busca leva
-até ela; quem a enriquece é o [[O2]]).
-
----
-
-#### Spec autoritativa (MAN-M10-REFINE, 28/04/2026) — origem, preservada
-
-> ⚠️ Texto de 28/04 mantido **verbatim** como origem do escopo; a F2 acima é o que está no
-> código. Onde os dois divergem, vale a F2 — em especial o payload do endpoint, que **deixou de
-> ser `to_dict()`** (hoje `to_search_dict()`), e as "Questões em aberto delegadas a F1", **todas
-> decididas** na seção acima.
-
-**Histórico:** item aberto originalmente como "Autocomplete de Jogador na Calculadora de Salário" (Baixa). Refinado in-place em 28/04/2026 após diagnose MAN-SEARCH-F1 — escopo ampliado para absorver busca global de jogador, prioridade promovida para Média, ID preservado. Calculadora segue como um dos consumidores; não é mais o único.
-
-**Problema (escopo ampliado):**
-- (1) **Busca global ausente.** Manager não tem ponto de entrada para chegar à player page (`/player/<id>`, M13) sem antes saber em que time fantasy o jogador está. Os 5 entry points existentes (`templates/roster.html:83,92`, `templates/admin_review.html:43,77`, `templates/salary_history.html:282`, `templates/trades.html:312`) todos pressupõem contexto. Caso de uso real de 28/04/2026: owner queria ver o contrato do Patrick Mahomes e teria que abrir os 12 rosters procurando visualmente.
-- (2) **Calculadora de salário sem autocomplete.** `POST /api/salary/calculate` (`routes/salary.py:37-58`) recebe `player_name`, `espn_ref_value`, `contract_year`, `acquisition_type` como input manual. Se o jogador já existe no banco, esses dados estão disponíveis e poderiam ser pré-preenchidos.
-
-**Objetivo (2 consumidores sob mesmo backend):**
-
-- **Consumidor 1 — busca global na navbar.** Input acessível de qualquer tela. Dropdown de matches durante o typing. Ao selecionar um match, navegar para `/player/<id>`. Desktop: input inline na navbar, no slot vazio entre `.nav-links` e `.nav-right` (`templates/base.html:23-93`, `static/style.css:69-156`). Mobile: section nova no topo de `aside.nav-mobile-overlay` (`templates/base.html:97-133`), acima da section "Navegação" — padrão N1 preservado.
-- **Consumidor 2 — autocomplete na calculadora de salário.** Substitui o input manual de `player_name` na tela `/salary` por input com dropdown de sugestões. Ao selecionar, preencher automaticamente ESPN ref value, contract year e acquisition type. Escopo original do M10, preservado.
-
-**Backend — endpoint já existe (correção factual do diagnose):**
-- `GET /api/player/search?q=<nome>&team_id=<opt>` em `routes/roster.py:312-326`. Singular (não `/api/players/search` plural como sugeria a versão pré-refinamento). Substring match (`Player.name.ilike("%q%")`), filtro opcional por `team_id`, `Player.is_dropped == False`, limit 20. Retorna `[p.to_dict() for p in players]`.
-- F2 não precisa criar endpoint do zero. Possíveis ajustes (opcionais): payload reduzido (ver nota sobre `to_dict()` abaixo) e/ou inclusão/exclusão de campos derivados específicos para autocomplete da calculadora.
-
-**Código a reusar (validado pelo diagnose):**
-- Padrão de dropdown UI: `team-filter` em `templates/roster.html:51-65, 159-170` + classes em `static/style.css:311-340` (vanilla JS, abs-positioned, sem libs externas). Clonável diretamente para `player-dropdown` / `player-option`.
-- Helper JS `renderPlayerNameLink` em `templates/base.html:245` — gera `<a href="/player/${id}" class="player-name">`. Já reusado por `salary_history.html:282` e `trades.html:312`. Disponível para renderização dos resultados, mas avaliar em F1 se vale usar direto ou montar link manual no JS local.
-- Padrão debounce: `oninput="loadHistoryDebounced()"` em `templates/salary_history.html:27-31`. Aplicar para reduzir spam de requests durante typing.
-
-**Código que NÃO serve (correção factual do diagnose):**
-- `player_lookup.find_player_by_name()` é matching **estrito 4-tier** (exact → case-insensitive → normalized → None) usado em reconciliação de imports Sleeper/CSV (`player_lookup.py:53-122`). **Não serve para autocomplete** — incompatível com prefix typing ("mah" → Mahomes). O endpoint `/api/player/search` já usa `ilike` substring, que é o caminho certo. A versão pré-refinamento do M10 sugeria reusar `find_player_by_name`, premissa incorreta agora corrigida.
-
-**Por que não absorver em O2 (refutação explícita da Opção D do diagnose, baseada nos 3 critérios de MAN-O2-REFINE de 27/04/2026):**
-- (a) **Target page diferente:** O2 enriquece o conteúdo de `/player/<id>` (cards de NFL/stats/ADP no template). Busca global atravessa o app via navbar — não é "da página".
-- (b) **Fonte de dados diferente:** O2 puxa Sleeper API (`/stats/nfl/...`, `/v1/state/nfl`) + Sleeper players cache. Busca usa apenas DB local (`Player.query.filter`). Zero overlap de fonte.
-- (c) **Escopo natural distinto:** "enriquecer página" e "navegar até a página" são verbos diferentes. Absorver em O2 forçaria escopo heterogêneo e travaria O2 atrás da busca, ou inverso.
-
-**Por que não criar item novo (refutação da Opção A — "S1 — Search"):** ID novo seria mais descritivo, mas perderia o histórico do M10 (a calculadora segue sendo um consumidor legítimo) sem ganho técnico. Opção C (refinar in-place) preserva continuidade auditável.
-
-**Notas para F1:**
-- `Player.to_dict()` em `models.py:173-197` retorna 21 campos por jogador, incluindo invocação de `is_renewal_candidate()` (método) e `projected_next_salary` (função). Para 20 resultados de busca = ~5KB JSON + 20 invocações por request. F1 avalia se vale criar `Player.to_search_dict()` minimal (~6 campos: `id, name, position, nfl_team, fantasy_team, salary`) ou se 5KB é aceitável. Otimização condicional, não pré-requisito.
-- Diagnose qualificou ausência de rate limiting global em endpoints Flask como decisão de plataforma — não absorvida neste item.
-
-**Questões em aberto delegadas a F1:**
-- **Breakpoint exato desktop ↔ mobile.** Diagnose sugeriu <768px só overlay; >1024px inline na navbar; faixa intermediária a definir.
-- **Layout do dropdown dentro do overlay mobile.** Flow normal (dentro do `aside`, sem `position: absolute`) vs absolute. Define se o dropdown empurra conteúdo do overlay ou flutua sobre ele.
-- **`Player.to_search_dict()` minimal vs `to_dict()` completo.** F1 decide com base em medição (5KB × frequência typing) ou simplesmente custo de criar o método.
-- **Renderização do link no result item.** Reusar `renderPlayerNameLink` direto vs link manual no JS local — escolha de consistência.
-- **Decisão de batching.** 2 consumidores numa única camada vs quebrar (ex: navbar primeiro, calculadora depois). F1 avalia priorizando o gap UX maior (navegação global) primeiro.
-
-**Validação de demanda (08/08/2026, MAN-UX12-REFINE — sem mudança de escopo):** segundo usuário
-relatando o mesmo sintoma do caso de uso original — o co-admin **Michel** pediu busca de jogador
-via [[UX12]], que foi **despachado** para cá (roteamento (b), decisão do owner; a UX12-F1
-conferiu esta spec **inteira e viva**: endpoint na mesma assinatura, entry points todos
-presentes). A spec de 28/04 segue autoritativa. **Requisitos originais e diagnose no
-`improvements_archive.md`, seção UX12.**
-
----
-
 ### M21 — Busca cobre o universo Sleeper (FAs da liga + não-rosterados)
-⚠️ **FATIA A IMPLEMENTADA 10/08/2026 (MAN-M21-A) — smoke de produção PENDENTE (gate
-[[PROC1]]); fatia B segue 🔲 (F1b não iniciada)** — Registrado 10/08/2026 (MAN-M21-REG); F1a
-concluída no mesmo dia (MAN-M21-F1a) com recomendação (a), **decidida pelo owner**
+🔲 **FATIA A ✅ CONCLUÍDA 10/08/2026 (MAN-M21-A → MAN-ARC-BUSCA-DONE; PROC1 cumprido — hash
+`20b346b` live, smoke do owner com Kamara/Waller/Detroit); o item segue 🔲 pela fatia B
+(Média, pós-intertemporada — F1b não iniciada)** — Registrado 10/08/2026 (MAN-M21-REG); F1a
+no mesmo dia (MAN-M21-F1a), recomendação (a) decidida pelo owner
 
 **Pedido do owner (10/08/2026, logo após o smoke do [[M10]]):** a busca deve encontrar **qualquer
 jogador do universo Sleeper**, não só os que estão em roster. Dois casos concretos expuseram o gap,
 e eles são **de naturezas diferentes** — daí o item nascer partido em duas fatias, com prioridade e
 prazo próprios:
 
-| Caso-âncora | Existe como `Player`? | Por que some da busca hoje | Fatia |
+| Caso-âncora | Existe como `Player`? | Por que some da busca | Fatia |
 |---|---|---|---|
-| **Gunnar Helm** — FA da liga | **Sim** (contrato histórico no DB; `/player/<id>` funciona) | O filtro `is_dropped=False` do M10 o exclui do resultado | **A** |
-| **Rookies não-drafteados** (classe 2026) | **Não** | Não são linha da tabela `Player`; vivem no `RookieEspnValue` e no pool do Sleeper | **B** |
+| **Alvin Kamara** — FA da liga (âncora consagrado no fechamento da fatia; o registro original citava Gunnar Helm — ver correção abaixo) | **Sim** (contrato histórico no DB; `/player/<id>` funciona) | O filtro `is_dropped=False` do M10 o excluía — **resolvido pela fatia A** | **A ✅** |
+| **Rookies não-drafteados** (classe 2026) e demais não-`Player` — **incluindo o caso Gunnar Helm** | **Não** | Não são linha da tabela `Player`; vivem no `RookieEspnValue` e no pool do Sleeper | **B** |
+
+**Correção do caso Helm (medição do owner, Render Shell, 10/08/2026):** o Gunnar Helm **nunca foi
+`Player`** — zero linhas em `players` (`%Helm%`), **zero menções em `player_history`** (nem em
+notes) e **zero históricos órfãos** no banco vivo. A lembrança do owner ("existia com contrato
+histórico") é de **outra superfície**, não do DB do Manager. O caso migra da fatia A para a
+**fatia B**: encontrar o Helm é encontrar um **não-`Player`** do pool. **Achado positivo que fica
+como evidência: a integridade do `player_history` está intacta (órfãos = 0, conferido em prod)** —
+diagnoses futuras não precisam remedir. A medição completa: **41 dropados** em prod (Kamara $13
+com `is_on_ir` stale, Waller sem `nfl_team`, Detroit Lions DEF entre eles).
 
 **Mecanismo do sumiço na fatia A (fato de código, não hipótese):** o sync marca
 `is_dropped=True` para jogador que está num time do DB mas **não** no roster do Sleeper daquele
@@ -3561,9 +3426,10 @@ não deve esperar a B**, e a B não deve ser resolvida "de carona" na A.
 
 **Medição de produção que precedeu a decisão (owner, Render Shell, 10/08):** **41 dropados** no
 banco vivo, incluindo **Alvin Kamara** (RB, $13, `is_on_ir=1` stale), **Darren Waller** (TE,
-`nfl_team` vazio) e **Detroit Lions** (DEF, sid sigla). ⚠️ **O caso-âncora original (Gunnar Helm)
-NÃO existe em prod** — investigação de proveniência em aberto, fora deste escopo; **o âncora da
-fatia passa a ser Kamara**. Os três casos existem também no seed, e foram o material do smoke local.
+`nfl_team` vazio) e **Detroit Lions** (DEF, sid sigla). O caso-âncora original (Gunnar Helm)
+**não existe em prod** — a investigação fechou no fechamento da fatia (ver correção no topo da
+seção): **Helm nunca foi `Player`**, o caso é da fatia B. **O âncora da fatia A é Kamara.** Os
+três casos existem também no seed, e foram o material do smoke local.
 
 **O que entrou:**
 - **Busca inclui FAs, marcados.** O filtro `is_dropped=False` caiu do endpoint (a F1a provou que
@@ -3584,6 +3450,11 @@ fatia passa a ser Kamara**. Os três casos existem também no seed, e foram o ma
   está em roster; **o sync não foi tocado**, como a régua do prompt pedia.
 - **Autocomplete da calculadora:** FA é selecionável e preenche os 3 campos (o uso pré-auction da
   F1a); o hint exibe "FA" e **"último salário"** no lugar de "salário atual".
+
+**Smoke de PRODUÇÃO aprovado (owner, 10/08/2026, hash `20b346b` — fecha a fatia):** Kamara com
+badge FA na busca → perfil com tag "Dropado", **rótulo "Último salário (histórico)"**, **sem**
+botão de trade e **sem** tag IR (o stale suprimido); Waller e Detroit Lions sem quebra; rosterado
+sem regressão; autocomplete com FA + hint. A fatia A está **✅**; o que resta do M21 é a fatia B.
 
 **Guardas respeitadas:** sync/schema/salary_engine/folha intocados (a fatia **consome** o estado
 `is_dropped`, não o redefine); fatia B e a arbitragem importar×federar não tocadas; identidade
@@ -3735,6 +3606,10 @@ zero linhas). O caso-âncora só existe no banco vivo, criado por sync; a mediç
 
 **Objetivo declarado:** rookies não-drafteados e demais jogadores do pool do Sleeper que **nunca
 foram `Player`** também são encontráveis.
+
+**Caso-âncora herdado da fatia A (correção de 10/08):** **Gunnar Helm** — o jogador que o owner
+procurou no smoke do M10. A medição no Shell provou que ele **nunca foi `Player`** (zero em
+`players`, `player_history` e órfãos); encontrá-lo é exatamente o problema desta fatia.
 
 **Questões abertas para a F1b (⛔ registrar, não responder aqui):**
 
@@ -5091,82 +4966,6 @@ deste item é confrontar o caso-âncora (David Montgomery) com o que o CDN devol
 
 ---
 
-### UX11 — Quadro de trades não mostra o time atual do jogador
-⚠️ **IMPLEMENTADO 10/08/2026 (MAN-UX11-F2, carona) — smoke de produção PENDENTE (gate [[PROC1]])**
-— Prioridade **Média** — registrado em 08/08/2026 (MAN-UX10-UX11-REG); **F1 respondida por
-transbordo** da MAN-UX12-F1, sem diagnose própria
-
-#### F2 — entregue (MAN-UX11-F2, 10/08/2026)
-
-O fix foi **o que o transbordo previu**: uma linha de renderização em `templates/trades.html`. A
-franquia NFL entra na **linha dim que já existia** sob o nome do jogador — `BUF · $21 · Ano 2/4`
-—, no padrão que as demais telas usam para o mesmo dado (`text-dim`, separador `·`).
-
-- ⛔ **Zero backend.** Payload, rota, sync e lógica **intocados**: `/api/roster/by_name/<team>`
-  segue devolvendo `to_dict()` com as mesmas 21 chaves, e `nfl_team` **já era uma delas**.
-- ⛔ **Nada derivado na tela** — o campo é consumido como vem. É a réplica que a Q1 da UX12-F1
-  temia e que este item, por ser justamente o "mais um consumidor", poderia ter criado.
-- **`—` para nulo sai de graça:** `to_dict()` já devolve `self.nfl_team or "—"`, o mesmo fallback
-  de `_macros.html` e do `cap_projector`. Nenhum tratamento novo de ausência.
-- **Ressalva de staleness registrada no código, não só aqui:** comentário no ponto do render diz
-  que o frescor é o do **último sync** e que quem vira FA **mantém o time antigo** (o sync só
-  sobrescreve `nfl_team` com valor truthy — 17 casos medidos em 28/04) e que o sync **não roda em
-  todo boot** (DOC1). Quem ler a linha entende o que ela promete.
-
-**Smoke local (GET-only, cópia do DB):** caso concreto conferido nas duas pontas — **DJ Moore** no
-quadro (`BUF · $21 · Ano 2/4`) × no perfil (`🏈 BUF`): **mesma coluna, mesmo valor**. Amostra do
-quadro mostra franquias distintas por jogador (NYG, HOU, SEA, PHI, KC, TEN — não é constante nem
-herdada do time da liga). Nenhuma outra tela alterada — `/`, `/salary`, `/cap_projector` e
-`/league` respondem 200. Suítes verdes, **`salary_engine_test` 54/54**.
-
-⚠️ **Não exercido:** a aparência em navegador (é o smoke do owner) e o **caso do FA com time
-antigo** — nenhum jogador do roster de teste está nessa condição hoje; é a ressalva conhecida,
-não um caminho novo.
-
-**Escopo do que NÃO entrou:** a página de proposta compartilhável (`trade_proposal.html`) renderiza
-assets por `player_name_link` (Jinja, outra superfície) e **não foi tocada** — o sintoma registrado
-é o quadro do simulador, e ampliar por conta própria seria outro item.
-
----
-
-#### Registro original (MAN-UX10-UX11-REG, 08/08/2026) — preservado
-
-**Sintoma reportado pelo owner (08/08/2026):** no **quadro de trade**, o jogador aparece **sem
-indicação da franquia NFL** em que está.
-
-**Por que Média e por que sem prazo:** o time do jogador é informação **usada para avaliar a
-troca** (bye week, situação do backfield, contexto ofensivo) e hoje o owner precisa buscá-la fora
-da tela. Não é bug de dado nem bloqueia nada — **não está no caminho crítico de 24/08**.
-
-#### O que a F1 tem de responder
-
-1. **De onde vem o dado de time hoje?** É campo do `Player` (escrito pelo sync do Sleeper) ou é
-   derivado na hora, em cada tela? O Sleeper é autoridade sobre nome/posição/time NFL — mas isso é
-   o contrato declarado, e a F1 confere se ele vale aqui.
-2. **O dado está atualizado?** Um jogador que trocou de franquia na offseason precisa aparecer com
-   o time novo. Se estiver stale, o item deixa de ser só de exibição — e aí encosta no [[UX10]]
-   (hipótese (b): componente de time desatualizado também explicaria foto velha).
-3. **Pergunta de réplica (obrigatória):** **a exibição de time do jogador existe em outras
-   superfícies com fonte comum, ou cada tela deriva a sua?** Se cada tela deriva, acrescentar mais
-   uma no quadro de trades **piora** o problema; o fix nasce na fonte única.
-
-**Cross-refs:** [[UX10]] (mesmo registro; a hipótese (b) de lá e a pergunta 2 daqui podem ter a
-mesma raiz), [[T1]]/[[T2]]/[[T3]] (o simulador e o preview de trades, onde o quadro vive).
-
-**Transbordo da UX12-F1 (08/08/2026, MAN-UX12-REFINE): a F1 deste item está respondida.** A Q1
-da diagnose do [[UX12]] (evidência no `improvements_archive.md`, seção UX12) respondeu as três
-perguntas acima: (1) o dado vem de **fonte única** — `Player.nfl_team`, coluna escrita só pelo
-sync a partir do pool do Sleeper, exposta em `to_dict()`; (3) **não há derivação por tela** —
-os 8 sítios que exibem time do jogador leem a mesma coluna, e o quadro de trades busca
-`/api/roster/by_name/<team>`, cujo payload **já contém `nfl_team`** — a tela simplesmente não
-renderiza o campo (`trades.html:303-318`). **O item vira candidato a F2 direta de causa
-conhecida** (1 edição de template literal, sem backend — carona em sessão futura). (2) A única
-pendência real é a ressalva de **staleness**, que a F2 deve exibir ciente: o sync só atualiza
-`nfl_team` com valor truthy (jogador que vira FA **mantém o time antigo** — 17 casos medidos em
-28/04) e o sync não roda em todo boot (DOC1) — frescor = último sync.
-
----
-
 ### UX13 — Timeline exibe `event_type` cru `contract_year_correction`
 🔲 **Registrado 08/08/2026 (MAN-O2-B1-DONE)** — Prioridade **Baixa** — **display de 1 linha,
 causa evidente, sem diagnose; candidato a carona** em qualquer sessão que toque os templates
@@ -5188,5 +4987,49 @@ linha entra **nos dois**; se um dia os dicionários forem unificados, é outra c
 item — não este).
 
 **Cross-refs:** [[O2]] (onde o sintoma apareceu), OFF26-20-FIX (quem escreve o evento).
+
+---
+
+### UX14 — Time NFL de dropado com fallback no pool
+🔲 **Registrado 10/08/2026 (MAN-ARC-BUSCA-DONE)** — Prioridade **Baixa/Média** — **registro
+apenas; nenhuma diagnose feita**
+
+**Sintoma (visto pelo owner no smoke do M21-A, 10/08):** o perfil do **Darren Waller** exibe
+`🏈 —` — `Player.nfl_team` está **vazio** no banco, porque o sync só atualiza o campo de quem
+está em roster (e só com valor truthy, a ressalva do [[UX11]]). Com FAs agora alcançáveis pela
+busca (fatia A do [[M21]]), esse `—` aparece com mais frequência.
+
+**Hipótese registrada (⛔ NÃO arbitrada):** **fallback de LEITURA no pool do Sleeper** quando o
+campo local é vazio/dropado — o precedente é o [[O2]], que lê o pool **sem persistir nada**
+(`nfl_context.py`, cache F13, sem rede no caminho de página). Se o pool também não tiver time,
+`—` é **correto** (FA real na NFL — Waller pode ser exatamente esse caso).
+
+**Questão de réplica OBRIGATÓRIA para a F1:** o fallback entra **na fonte única** mapeada pela
+Q1 da UX12-F1 (`Player.nfl_team`, 8 sítios lendo a mesma coluna) ou vira **segunda fonte por
+tela**? Se cada tela decidir seu fallback, a réplica que a Q1 refutou nasce aqui.
+
+**Cross-refs:** [[M21]] (a fatia A tornou o sintoma visível), [[UX11]] (a mesma ressalva de
+staleness, decidida — não reabrir), [[O2]] (o precedente de leitura do pool), [[F13]] (onde o
+cache vive).
+
+---
+
+### UX15 — Jogador pré-selecionado na página de trade
+🔲 **Registrado 10/08/2026 (MAN-ARC-BUSCA-DONE)** — Prioridade **Baixa** — **registro apenas;
+nenhuma diagnose feita**
+
+**Pedido do owner (smoke de 10/08):** o botão "⇄ Propor Trade" do perfil ([[M14]]) já navega com
+**os dois times pré-selecionados**; falta **o jogador chegar marcado** no quadro — hoje o usuário
+re-encontra na lista o jogador de cujo perfil veio.
+
+**Enquadramento:** refinamento do **campo 3 do [[UX12]]** ("link p/ trade com o time já
+pré-selecionado" — requisitos no archive, seção UX12); o campo fechou como "já existe" porque a
+pré-seleção de times existia, e este item registra o degrau seguinte. **Provável F2 direta** — a
+confirmar na F1 a **réplica**: a pré-seleção via query params existe em **quantos caminhos de
+entrada** da página de trade (perfil, [[M9]]/picks, outros)? O novo param deve entrar na mesma
+engrenagem, não criar um caminho paralelo.
+
+**Cross-refs:** [[M14]] (query params existentes), [[UX12]] (origem do campo 3, archive),
+[[M13]] (o botão no perfil), [[T1]] (o simulador onde o quadro vive).
 
 ---

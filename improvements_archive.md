@@ -7582,3 +7582,242 @@ o O2 já parte da premissa "mesma página alvo". Não há evidência que sustent
    absorvesse o M10 tenderia a perder esse consumidor; despachando, ele fica onde sempre esteve.
 
 ---
+
+---
+
+### M10 — Busca de Jogador: Global + Calculadora
+✅ **CONCLUÍDO 10/08/2026 (MAN-M10-F2 → MAN-ARC-BUSCA-DONE; gate [[PROC1]] cumprido — hash
+`20b346b` live confirmado pelo owner)** — Prioridade **Média** — spec refinada em 28/04/2026
+(MAN-M10-REFINE), conferida viva pela MAN-UX12-F1 e executada sem redesenho
+
+**Smoke de produção aprovado (owner, 10/08/2026):** o caso âncora de 28/04 **morreu em prod** —
+"Mahomes" resolve da navbar direto ao perfil, zero rosters abertos; homônimos distinguíveis na
+lista (posição + time NFL + franquia); autocomplete da calculadora funcional preenchendo os 3
+campos. **Validação do solicitante: Michel** (o pedido do [[UX12]] que virou a demanda dupla)
+conferiu e aprovou a busca. A extensão de universo (FAs marcados) validada junto vive no [[M21]],
+fatia A.
+
+#### F2 — entregue (MAN-M10-F2, 10/08/2026)
+
+Os **dois consumidores** da spec estão no ar sobre **uma engrenagem só** — `createPlayerSearch`
+em `templates/base.html`, com dois modos:
+
+- **Consumidor 1 — busca global.** Barra na navbar **desktop** (o slot vazio entre `.nav-links` e
+  `.nav-right`, como a spec desenhou) e **section no topo do overlay mobile**, acima de
+  "Navegação" (padrão N1 preservado). Modo **navegação**: cada resultado é um `<a href="/player/
+  <id>">` de verdade — ctrl+clique e clique do meio funcionam, e o destino é o `id`.
+- **Consumidor 2 — autocomplete da calculadora.** Modo **seleção** (`onSelect`): preenche
+  **ESPN ref value, ano de contrato e tipo de aquisição**, exatamente os 3 campos da spec, e
+  mostra um hint com o jogador escolhido (linkado para o perfil).
+
+**Identidade — a régua que governa a tela** (mesma do `player_lookup`, mesmo precedente Brown):
+o `ilike` do backend produz **sugestão exibida**, nunca resolução. Cada linha traz **posição +
+time NFL + franquia**, que é o que separa um homônimo do outro; a resolução é **sempre ato
+explícito** — clique, ou seta + Enter. ⛔ **Enter sem item destacado não seleciona nada** (não
+existe "vai no primeiro resultado"), e nada resolve por nome em lugar nenhum do caminho.
+`player_lookup.find_player_by_name` **não** foi tocado nem chamado — segue sendo a reconciliação
+estrita dos imports.
+
+**Backend: reusado, com 3 ajustes** (a spec previa "ajustes opcionais"; assinatura, filtro
+`is_dropped=False` e teto de 20 **preservados**):
+1. **`Player.to_search_dict()`** (12 campos) — `to_dict()` invocava `is_renewal_candidate()` +
+   `project_next_salary()` por jogador: **20 projeções de contrato por tecla digitada** para
+   exibir 4 campos. Era a otimização que as "Notas para F1" deixaram condicional; o custo de
+   criar o método é uma dúzia de linhas.
+2. **Ordenação prefixo-primeiro**, depois alfabética. Sem `order_by` o teto de 20 cortava em
+   ordem arbitrária de tabela — em liga cheia, "moore" podia devolver 20 linhas **sem o Moore**.
+3. **Escape dos curingas do LIKE** — `%` e `_` digitados são texto. Sem isso, `%` sozinho
+   devolvia o elenco inteiro como se fosse "resultado da busca".
+
+**Decisões das questões que a spec delegou à F2:**
+- **Breakpoint:** reusa o **768px** que a navbar já usa (⛔ nenhum breakpoint novo). Acima, barra
+  inline; abaixo, `.nav-search { display: none }` e a busca vive no overlay.
+- **Dropdown no mobile:** **fluxo normal** (`.ps-dropdown-inline`, `position: static`) — empurra o
+  painel em vez de flutuar sobre ele; num `aside` que já rola, dropdown absoluto vaza.
+- **Renderização do resultado:** link montado no componente, **não** `renderPlayerNameLink` — a
+  linha inteira é o `<a>` e âncora aninhada é HTML inválido. O mesmo destino (`/player/<id>`) e a
+  foto vêm do **`renderPlayerPhoto` já existente** (keyed por `sleeper_player_id`), as fontes
+  comuns mapeadas na Q1 da UX12-F1; **nenhuma derivação nova por tela**.
+- **Batching:** os 2 consumidores numa camada só — o custo do segundo, com o componente pronto,
+  foi o `onSelect`.
+
+⚠️ **A conversão que era fácil de errar:** o campo "ESPN Ref Value (PPR)" da calculadora é
+**RAW** (o `×1.2` acontece em `routes/salary.py`), e `Player.espn_ref_value` guarda o
+**ajustado** — o autofill **divide por 1.2**. Sem isso o valor entraria ajustado, seria
+multiplicado de novo e **inflaria a tabela de contrato inteira**. ⛔ **"Valor Pago no Ano 1" não
+é preenchido**: o banco tem o salário **corrente**, não o do ano 1; preenchê-lo produziria uma
+tabela plausível e falsa.
+
+**Testes — `player_search_test.py` (27):** escape do LIKE (núcleo puro) · endpoint contra ORM em
+memória (âncora Mahomes; **dois DJ Moore com ids e sids distintos**, distinguíveis por
+posição+time; prefixo antes de substring; dropado fora; filtro por time; vazio gracioso; curinga;
+teto de 20; payload enxuto sem projeção) · **guardas estáticas de identidade** (engrenagem única,
+Enter sem destaque não escolhe, navegação por `id`, a busca não chama `player_lookup`, a
+calculadora não inventa o ano 1 e converte o ESPN, escape de HTML sem réplica).
+
+**Smoke local (GET-only, test client logado, cópia do DB):**
+- **"Mahomes" → 1 resultado**, com link direto ao perfil: **o caso âncora de 28/04 morre** (zero
+  rosters abertos).
+- **"brown" → 5 resultados** (A.J. Brown, Amon-Ra St. Brown, Chase Brown, Cleveland Browns DEF,
+  Hollywood Brown), cada um com posição/time/franquia e **id próprio** — o incidente Brown vira
+  uma **lista para o usuário escolher**, que é exatamente o comportamento pedido. De carona, dois
+  casos-limite reais renderizam sem erro: DEF com `sleeper_player_id` **sigla** ("CLE") e jogador
+  **sem sid** (Hollywood Brown → sem foto, silenciosamente).
+- Inexistente, `%` e `_` → **lista vazia**, sem erro. As 3 páginas conferidas (`/`, `/salary`,
+  `/salary_history`) trazem os 3 entry points.
+- **Componente exercido em DOM headless** (harness descartável em node): debounce de 1 request,
+  `<2` caracteres não busca, os 2 homônimos com hrefs diferentes, Enter sem destaque **não**
+  navega, seta+Enter navega para o id certo, Escape fecha, modo seleção não vira link, e a
+  conversão 68.4 → 57.
+
+⚠️ **O que NÃO foi exercido, e é o smoke do owner:** a **interação em navegador** (aparência do
+dropdown, foco/teclado reais, overlay mobile em tela pequena). E o caso literal **"dois DJ Moore"
+com dado real é inexercível**: só o WR do BUF está rosterado, e a busca é do **DB local** — por
+desenho da spec, que o separou da fonte do [[O2]] (pool). O cenário existe nos testes e no
+harness; em produção, o análogo real é o "brown".
+
+**Suítes:** 27 novos + 54 (salary_engine) + 34 + 25 + 36 + 64 + 22 + 14 + 19 — todas verdes.
+Zero schema, zero toque em folha/cap/sync e **zero mudança na página de perfil** (a busca leva
+até ela; quem a enriquece é o [[O2]]).
+
+---
+
+#### Spec autoritativa (MAN-M10-REFINE, 28/04/2026) — origem, preservada
+
+> ⚠️ Texto de 28/04 mantido **verbatim** como origem do escopo; a F2 acima é o que está no
+> código. Onde os dois divergem, vale a F2 — em especial o payload do endpoint, que **deixou de
+> ser `to_dict()`** (hoje `to_search_dict()`), e as "Questões em aberto delegadas a F1", **todas
+> decididas** na seção acima.
+
+**Histórico:** item aberto originalmente como "Autocomplete de Jogador na Calculadora de Salário" (Baixa). Refinado in-place em 28/04/2026 após diagnose MAN-SEARCH-F1 — escopo ampliado para absorver busca global de jogador, prioridade promovida para Média, ID preservado. Calculadora segue como um dos consumidores; não é mais o único.
+
+**Problema (escopo ampliado):**
+- (1) **Busca global ausente.** Manager não tem ponto de entrada para chegar à player page (`/player/<id>`, M13) sem antes saber em que time fantasy o jogador está. Os 5 entry points existentes (`templates/roster.html:83,92`, `templates/admin_review.html:43,77`, `templates/salary_history.html:282`, `templates/trades.html:312`) todos pressupõem contexto. Caso de uso real de 28/04/2026: owner queria ver o contrato do Patrick Mahomes e teria que abrir os 12 rosters procurando visualmente.
+- (2) **Calculadora de salário sem autocomplete.** `POST /api/salary/calculate` (`routes/salary.py:37-58`) recebe `player_name`, `espn_ref_value`, `contract_year`, `acquisition_type` como input manual. Se o jogador já existe no banco, esses dados estão disponíveis e poderiam ser pré-preenchidos.
+
+**Objetivo (2 consumidores sob mesmo backend):**
+
+- **Consumidor 1 — busca global na navbar.** Input acessível de qualquer tela. Dropdown de matches durante o typing. Ao selecionar um match, navegar para `/player/<id>`. Desktop: input inline na navbar, no slot vazio entre `.nav-links` e `.nav-right` (`templates/base.html:23-93`, `static/style.css:69-156`). Mobile: section nova no topo de `aside.nav-mobile-overlay` (`templates/base.html:97-133`), acima da section "Navegação" — padrão N1 preservado.
+- **Consumidor 2 — autocomplete na calculadora de salário.** Substitui o input manual de `player_name` na tela `/salary` por input com dropdown de sugestões. Ao selecionar, preencher automaticamente ESPN ref value, contract year e acquisition type. Escopo original do M10, preservado.
+
+**Backend — endpoint já existe (correção factual do diagnose):**
+- `GET /api/player/search?q=<nome>&team_id=<opt>` em `routes/roster.py:312-326`. Singular (não `/api/players/search` plural como sugeria a versão pré-refinamento). Substring match (`Player.name.ilike("%q%")`), filtro opcional por `team_id`, `Player.is_dropped == False`, limit 20. Retorna `[p.to_dict() for p in players]`.
+- F2 não precisa criar endpoint do zero. Possíveis ajustes (opcionais): payload reduzido (ver nota sobre `to_dict()` abaixo) e/ou inclusão/exclusão de campos derivados específicos para autocomplete da calculadora.
+
+**Código a reusar (validado pelo diagnose):**
+- Padrão de dropdown UI: `team-filter` em `templates/roster.html:51-65, 159-170` + classes em `static/style.css:311-340` (vanilla JS, abs-positioned, sem libs externas). Clonável diretamente para `player-dropdown` / `player-option`.
+- Helper JS `renderPlayerNameLink` em `templates/base.html:245` — gera `<a href="/player/${id}" class="player-name">`. Já reusado por `salary_history.html:282` e `trades.html:312`. Disponível para renderização dos resultados, mas avaliar em F1 se vale usar direto ou montar link manual no JS local.
+- Padrão debounce: `oninput="loadHistoryDebounced()"` em `templates/salary_history.html:27-31`. Aplicar para reduzir spam de requests durante typing.
+
+**Código que NÃO serve (correção factual do diagnose):**
+- `player_lookup.find_player_by_name()` é matching **estrito 4-tier** (exact → case-insensitive → normalized → None) usado em reconciliação de imports Sleeper/CSV (`player_lookup.py:53-122`). **Não serve para autocomplete** — incompatível com prefix typing ("mah" → Mahomes). O endpoint `/api/player/search` já usa `ilike` substring, que é o caminho certo. A versão pré-refinamento do M10 sugeria reusar `find_player_by_name`, premissa incorreta agora corrigida.
+
+**Por que não absorver em O2 (refutação explícita da Opção D do diagnose, baseada nos 3 critérios de MAN-O2-REFINE de 27/04/2026):**
+- (a) **Target page diferente:** O2 enriquece o conteúdo de `/player/<id>` (cards de NFL/stats/ADP no template). Busca global atravessa o app via navbar — não é "da página".
+- (b) **Fonte de dados diferente:** O2 puxa Sleeper API (`/stats/nfl/...`, `/v1/state/nfl`) + Sleeper players cache. Busca usa apenas DB local (`Player.query.filter`). Zero overlap de fonte.
+- (c) **Escopo natural distinto:** "enriquecer página" e "navegar até a página" são verbos diferentes. Absorver em O2 forçaria escopo heterogêneo e travaria O2 atrás da busca, ou inverso.
+
+**Por que não criar item novo (refutação da Opção A — "S1 — Search"):** ID novo seria mais descritivo, mas perderia o histórico do M10 (a calculadora segue sendo um consumidor legítimo) sem ganho técnico. Opção C (refinar in-place) preserva continuidade auditável.
+
+**Notas para F1:**
+- `Player.to_dict()` em `models.py:173-197` retorna 21 campos por jogador, incluindo invocação de `is_renewal_candidate()` (método) e `projected_next_salary` (função). Para 20 resultados de busca = ~5KB JSON + 20 invocações por request. F1 avalia se vale criar `Player.to_search_dict()` minimal (~6 campos: `id, name, position, nfl_team, fantasy_team, salary`) ou se 5KB é aceitável. Otimização condicional, não pré-requisito.
+- Diagnose qualificou ausência de rate limiting global em endpoints Flask como decisão de plataforma — não absorvida neste item.
+
+**Questões em aberto delegadas a F1:**
+- **Breakpoint exato desktop ↔ mobile.** Diagnose sugeriu <768px só overlay; >1024px inline na navbar; faixa intermediária a definir.
+- **Layout do dropdown dentro do overlay mobile.** Flow normal (dentro do `aside`, sem `position: absolute`) vs absolute. Define se o dropdown empurra conteúdo do overlay ou flutua sobre ele.
+- **`Player.to_search_dict()` minimal vs `to_dict()` completo.** F1 decide com base em medição (5KB × frequência typing) ou simplesmente custo de criar o método.
+- **Renderização do link no result item.** Reusar `renderPlayerNameLink` direto vs link manual no JS local — escolha de consistência.
+- **Decisão de batching.** 2 consumidores numa única camada vs quebrar (ex: navbar primeiro, calculadora depois). F1 avalia priorizando o gap UX maior (navegação global) primeiro.
+
+**Validação de demanda (08/08/2026, MAN-UX12-REFINE — sem mudança de escopo):** segundo usuário
+relatando o mesmo sintoma do caso de uso original — o co-admin **Michel** pediu busca de jogador
+via [[UX12]], que foi **despachado** para cá (roteamento (b), decisão do owner; a UX12-F1
+conferiu esta spec **inteira e viva**: endpoint na mesma assinatura, entry points todos
+presentes). A spec de 28/04 segue autoritativa. **Requisitos originais e diagnose no
+`improvements_archive.md`, seção UX12.**
+
+---
+
+### UX11 — Quadro de trades não mostra o time atual do jogador
+✅ **CONCLUÍDO 10/08/2026 (MAN-UX11-F2 → MAN-ARC-BUSCA-DONE; gate [[PROC1]] cumprido — hash
+`20b346b` live)** — Prioridade **Média** — registrado em 08/08/2026 (MAN-UX10-UX11-REG); **F1
+respondida por transbordo** da MAN-UX12-F1, sem diagnose própria
+
+**Smoke de produção aprovado (owner, 10/08/2026) — PRIMEIRA observação do fix em prod.** ⚠️
+**Ressalva de proveniência registrada (família "observação verdadeira, procedência errada"):** os
+smokes de produção anteriores a este ocorreram **antes do push do `a63d6ab`** — qualquer impressão
+de "quadro conferido" naquelas passagens não valia para este item; a franquia NFL no quadro só
+passou a existir em prod no deploy do lote `5e3c403..456b49d`, e a primeira observação real é a
+desta sessão (10/08, junto com o smoke do M21-A sobre `20b346b`).
+
+#### F2 — entregue (MAN-UX11-F2, 10/08/2026)
+
+O fix foi **o que o transbordo previu**: uma linha de renderização em `templates/trades.html`. A
+franquia NFL entra na **linha dim que já existia** sob o nome do jogador — `BUF · $21 · Ano 2/4`
+—, no padrão que as demais telas usam para o mesmo dado (`text-dim`, separador `·`).
+
+- ⛔ **Zero backend.** Payload, rota, sync e lógica **intocados**: `/api/roster/by_name/<team>`
+  segue devolvendo `to_dict()` com as mesmas 21 chaves, e `nfl_team` **já era uma delas**.
+- ⛔ **Nada derivado na tela** — o campo é consumido como vem. É a réplica que a Q1 da UX12-F1
+  temia e que este item, por ser justamente o "mais um consumidor", poderia ter criado.
+- **`—` para nulo sai de graça:** `to_dict()` já devolve `self.nfl_team or "—"`, o mesmo fallback
+  de `_macros.html` e do `cap_projector`. Nenhum tratamento novo de ausência.
+- **Ressalva de staleness registrada no código, não só aqui:** comentário no ponto do render diz
+  que o frescor é o do **último sync** e que quem vira FA **mantém o time antigo** (o sync só
+  sobrescreve `nfl_team` com valor truthy — 17 casos medidos em 28/04) e que o sync **não roda em
+  todo boot** (DOC1). Quem ler a linha entende o que ela promete.
+
+**Smoke local (GET-only, cópia do DB):** caso concreto conferido nas duas pontas — **DJ Moore** no
+quadro (`BUF · $21 · Ano 2/4`) × no perfil (`🏈 BUF`): **mesma coluna, mesmo valor**. Amostra do
+quadro mostra franquias distintas por jogador (NYG, HOU, SEA, PHI, KC, TEN — não é constante nem
+herdada do time da liga). Nenhuma outra tela alterada — `/`, `/salary`, `/cap_projector` e
+`/league` respondem 200. Suítes verdes, **`salary_engine_test` 54/54**.
+
+⚠️ **Não exercido:** a aparência em navegador (é o smoke do owner) e o **caso do FA com time
+antigo** — nenhum jogador do roster de teste está nessa condição hoje; é a ressalva conhecida,
+não um caminho novo.
+
+**Escopo do que NÃO entrou:** a página de proposta compartilhável (`trade_proposal.html`) renderiza
+assets por `player_name_link` (Jinja, outra superfície) e **não foi tocada** — o sintoma registrado
+é o quadro do simulador, e ampliar por conta própria seria outro item.
+
+---
+
+#### Registro original (MAN-UX10-UX11-REG, 08/08/2026) — preservado
+
+**Sintoma reportado pelo owner (08/08/2026):** no **quadro de trade**, o jogador aparece **sem
+indicação da franquia NFL** em que está.
+
+**Por que Média e por que sem prazo:** o time do jogador é informação **usada para avaliar a
+troca** (bye week, situação do backfield, contexto ofensivo) e hoje o owner precisa buscá-la fora
+da tela. Não é bug de dado nem bloqueia nada — **não está no caminho crítico de 24/08**.
+
+#### O que a F1 tem de responder
+
+1. **De onde vem o dado de time hoje?** É campo do `Player` (escrito pelo sync do Sleeper) ou é
+   derivado na hora, em cada tela? O Sleeper é autoridade sobre nome/posição/time NFL — mas isso é
+   o contrato declarado, e a F1 confere se ele vale aqui.
+2. **O dado está atualizado?** Um jogador que trocou de franquia na offseason precisa aparecer com
+   o time novo. Se estiver stale, o item deixa de ser só de exibição — e aí encosta no [[UX10]]
+   (hipótese (b): componente de time desatualizado também explicaria foto velha).
+3. **Pergunta de réplica (obrigatória):** **a exibição de time do jogador existe em outras
+   superfícies com fonte comum, ou cada tela deriva a sua?** Se cada tela deriva, acrescentar mais
+   uma no quadro de trades **piora** o problema; o fix nasce na fonte única.
+
+**Cross-refs:** [[UX10]] (mesmo registro; a hipótese (b) de lá e a pergunta 2 daqui podem ter a
+mesma raiz), [[T1]]/[[T2]]/[[T3]] (o simulador e o preview de trades, onde o quadro vive).
+
+**Transbordo da UX12-F1 (08/08/2026, MAN-UX12-REFINE): a F1 deste item está respondida.** A Q1
+da diagnose do [[UX12]] (evidência no `improvements_archive.md`, seção UX12) respondeu as três
+perguntas acima: (1) o dado vem de **fonte única** — `Player.nfl_team`, coluna escrita só pelo
+sync a partir do pool do Sleeper, exposta em `to_dict()`; (3) **não há derivação por tela** —
+os 8 sítios que exibem time do jogador leem a mesma coluna, e o quadro de trades busca
+`/api/roster/by_name/<team>`, cujo payload **já contém `nfl_team`** — a tela simplesmente não
+renderiza o campo (`trades.html:303-318`). **O item vira candidato a F2 direta de causa
+conhecida** (1 edição de template literal, sem backend — carona em sessão futura). (2) A única
+pendência real é a ressalva de **staleness**, que a F2 deve exibir ciente: o sync só atualiza
+`nfl_team` com valor truthy (jogador que vira FA **mantém o time antigo** — 17 casos medidos em
+28/04) e o sync não roda em todo boot (DOC1) — frescor = último sync.
+
+---

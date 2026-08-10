@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 10/08/2026-pt5 (MAN-M21-A: **fatia A entregue** — FAs na busca, marcados (opção (a), decisão do owner). Filtro caiu; payload +`is_dropped`; badge "FA" **substitui** a franquia no `optionInner` único (2 consumidores de graça); ordenação `(prefixo, is_dropped, nome)`. Perfil de FA: sem botão de trade (`not is_dropped` no `can_propose_trade`), salário "Último salário (histórico)", tag IR suprimida (carona; sync intocado). Medição de prod: 41 dropados; **Helm não existe em prod** → âncora vira **Kamara**. Testes 27→35; suítes verdes; smoke local com Kamara/Waller/Detroit + regressão DJ Moore. M21 → ⚠️ (smoke prod pendente, PROC1). Fatia B intocada.)
+> Última atualização: 10/08/2026-pt6 (MAN-ARC-BUSCA-DONE, **docs-only**: smoke prod do `20b346b` aprova o arco da busca. **[[M10]] ✅** (Mahomes morto, Michel validou) · **[[UX11]] ✅** (1ª observação real em prod; ocorrência observation/provenance: checks pré-push do `a63d6ab` não valiam) · **[[M21]] fatia A ✅**, item segue 🔲 pela B — que **herda o caso Helm** (Shell: nunca foi `Player`; `player_history` íntegro, órfãos=0 — evidência registrada); **Kamara consagrado âncora da A**. Migração O3: M10 e UX11 → archive verbatim (1×/0× conferido). Registros novos: **[[UX14]]** fallback de pool p/ time NFL de dropado (caso Waller; réplica obrigatória na F1) e **[[UX15]]** jogador pré-selecionado no trade (refino do campo 3 do UX12). Zero código.)
+> Anterior: 10/08/2026-pt5 (MAN-M21-A: **fatia A entregue** — FAs na busca, marcados (opção (a), decisão do owner). Filtro caiu; payload +`is_dropped`; badge "FA" **substitui** a franquia no `optionInner` único (2 consumidores de graça); ordenação `(prefixo, is_dropped, nome)`. Perfil de FA: sem botão de trade (`not is_dropped` no `can_propose_trade`), salário "Último salário (histórico)", tag IR suprimida (carona; sync intocado). Medição de prod: 41 dropados; **Helm não existe em prod** → âncora vira **Kamara**. Testes 27→35; suítes verdes; smoke local com Kamara/Waller/Detroit + regressão DJ Moore. M21 → ⚠️ (smoke prod pendente, PROC1). Fatia B intocada.)
 > Anterior: 10/08/2026-pt4 (MAN-M21-F1a, **diagnose read-only da fatia A do [[M21]]** — zero mutação, zero query em prod. **Q1 decide a origem do filtro:** `is_dropped=False` nasceu na v1.0 dentro de um endpoint **sem nenhum consumidor** até o M10 (`git log --all -S`) — nunca protegeu fluxo; hipóteses de proteção caem por anacronismo, sobra inércia, e a inclusão de FAs é decisão só sobre os 2 consumidores do M10. **Q2:** perfil já trata pela metade (tag “Dropado” desde o M13; sync preserva `team_id`); enganosos = botão de trade que **aparece para FA** e label “Salário atual” em número histórico; `is_on_ir` stale é menor. **Q3 recomenda (a)**: incluir marcado “FA” **no lugar da franquia** — sem badge o FA parece rosterado (mata a (b)); toggle (c) mata o caso-âncora; FA na calculadora faz sentido (alvo da auction); custo: `to_search_dict()` não expõe `is_dropped` (+1 campo). **Q4:** pico pós-20/08 ok (teto 20 por query; ordenação rosterado-antes-de-FA registrada como opção); urna **zero interseção**; “Reativar (ano 1)” já trata dropado como recomprável. **Q5:** 2 SELECTs prontos p/ Render Shell, ⛔ não executados — o seed nem contém o Helm. METH-REG: 2 contradições, 4 omissões. Item segue 🔲; decisão do owner. Zero código.)
 > Anterior: 10/08/2026-pt3 (MAN-M21-REG, **docs-only**: registro do **[[M21]] 🔲 — busca cobre o universo Sleeper**, pedido do owner após o smoke do [[M10]]. **Duas fatias, e a razão do corte é de natureza:** **A — FAs da liga** (Alta, alvo **pré-24/08**; âncora **Gunnar Helm**) é **predicado de query** sobre dado que já existe — o jogador **é** `Player` e o perfil abre; só o filtro `is_dropped=False` da busca o esconde (mecanismo conferido no código) — enquanto **B — universo não-`Player`** (Média, pós-intertemporada) é **decisão de arquitetura de dados**. ⚠️ **A arbitragem da B ficou EM ABERTO de propósito** (importar o pool como `Player` × busca **federada**): a hipótese do owner é **premissa a testar**, e a F1b tem de mapear os consumidores da tabela `Player` contra ~12 mil linhas sem contrato — precedente do [[O2]], que lê o pool **sem persistir**. Questões registradas sem resposta: por que o filtro `is_dropped` existe (herdado do endpoint pré-M10; a razão condiciona incluir-marcado × sem-distinção × toggle), botão de trade no perfil de FA, destino do clique em não-`Player`, colisão de identidade (⛔ sempre por `sleeper_player_id`) e relação com [[DP1]]. **Fatia A não bloqueia nem é bloqueada pelo smoke pendente do M10.** Status Rápido +1 linha, nada mais mexido. **Exceção de commit docs-only logada.** Zero código.)
 > Anterior: 10/08/2026-pt2 (MAN-UX11-F2, **carona de causa conhecida**: [[UX11]] a **⚠️** — a franquia NFL aparece no quadro de trades. **1 linha de render**, como a F1-por-transbordo da UX12-F1 previu: `nfl_team` **já vinha** no payload de `/api/roster/by_name` (`to_dict()`), a tela só não desenhava. Entra na linha dim existente (`BUF · $21 · Ano 2/4`), padrão das demais telas. ⛔ Zero backend (21 chaves do `to_dict()` idênticas) e ⛔ nada derivado na tela — a réplica que a Q1 temia não foi criada. Conferência cruzada: DJ Moore `BUF` no quadro × `🏈 BUF` no perfil. Staleness registrado **no código** (frescor = último sync; FA mantém time antigo). Nenhuma outra tela alterada; 54/54. Smoke prod pendente — PROC1.)
@@ -4753,3 +4754,47 @@ pendente); fatia B segue **🔲**, intocada.
 
 **Commit único código+docs, push incluído** (alvo 24/08; PROC1 pede o hash live). Guardas: sync/
 schema/salary_engine/folha intocados; identidade por sid; engrenagem única; fatia B não tocada.
+
+### MAN-ARC-BUSCA-DONE — o arco da busca fecha: M10 ✅, UX11 ✅, M21-A ✅; Helm migra de fatia; 2 registros novos (10/08/2026, Fable) · docs-only
+
+Smoke de produção do owner sobre o hash `20b346b` (live confirmado — PROC1) aprovou de uma vez as
+três frentes empilhadas do arco: a busca (M10), a franquia no quadro (UX11) e os FAs marcados
+(M21-A). Michel validou a busca como solicitante. Sessão docs-only.
+
+- **[[M10]] ✅.** O caso âncora de 28/04 morreu em produção: "Mahomes" da navbar ao perfil sem
+  abrir roster; homônimos distinguíveis; autocomplete preenchendo os 3 campos. Com a validação do
+  solicitante, o item fecha. Seção migrada **verbatim** ao archive (regra O3).
+
+- **[[UX11]] ✅ — e a ocorrência de proveniência registrada.** Esta foi a **primeira observação
+  real** do fix em produção: os smokes anteriores ocorreram **antes do push do `a63d6ab`** (o
+  commit ficou local por duas sessões), então qualquer impressão de "quadro conferido" naquelas
+  passagens **não valia para este item**. Família *"observação verdadeira, procedência errada"*
+  ganha a ocorrência — desta vez pega antes de virar conclusão. Seção no archive.
+
+- **[[M21]]: fatia A ✅; o item segue 🔲 pela fatia B.** O smoke exercitou a tríade da medição:
+  Kamara (badge FA → perfil com "Último salário (histórico)", sem botão de trade, sem tag IR — o
+  stale suprimido), Waller e Detroit sem quebra, rosterado sem regressão, autocomplete com FA.
+
+- **A correção do caso Helm — de "âncora da fatia A" para "caso da fatia B".** A medição do owner
+  no Shell (10/08) fechou a proveniência: **Gunnar Helm nunca foi `Player`** — zero linhas em
+  `players`, **zero menções em `player_history`** e **zero históricos órfãos**. A lembrança do
+  owner ("existia com contrato histórico") é de outra superfície, não do DB do Manager. Encontrar
+  o Helm é encontrar um **não-`Player`** — exatamente o problema da fatia B, que herda o caso como
+  âncora. **Kamara é consagrado âncora da fatia A** (fechada). **Achado positivo registrado como
+  evidência: a integridade do `player_history` de prod está intacta (órfãos = 0)** — diagnoses
+  futuras não precisam remedir. Medição completa: 41 dropados.
+
+- **[[UX14]] registrado (Baixa/Média, sem diagnose):** time NFL de dropado com fallback de leitura
+  no pool — o perfil do Waller exibe `🏈 —` porque o sync só atualiza `nfl_team` de rosterados.
+  Hipótese **não arbitrada** (precedente [[O2]]: ler o pool sem persistir; pool sem time → `—` é
+  correto). A F1 responde a **réplica obrigatória**: o fallback entra na fonte única da Q1 da
+  UX12-F1 ou vira segunda fonte por tela?
+
+- **[[UX15]] registrado (Baixa, sem diagnose):** jogador pré-selecionado na página de trade — o
+  botão do perfil (M14) já leva os dois times; falta o jogador chegar marcado. Refinamento do
+  campo 3 do [[UX12]] (archive); provável F2 direta, a confirmar a réplica dos caminhos de entrada
+  da página.
+
+- **Higiene:** Status Rápido com M10/UX11 → ✅, linha M21 refletindo A ✅ / B 🔲, exatamente 2
+  linhas novas; migração O3 conferida (cada seção 1× no archive, 0× no ativo); fatia B intocada
+  além da herança do caso Helm. **Exceção de commit docs-only logada.** Zero código.
