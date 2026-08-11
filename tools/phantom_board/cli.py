@@ -124,6 +124,7 @@ def cmd_designate(args):
 
     log = []
     slot_source = "manual(--team-slot)"
+    ok = False          # FIX4: definido ANTES do try — o finally sempre o encontra
     pw, ctx, page, draft_id = open_board(headless=False)
     try:
         # FIX3: o slot do time-alvo sai da CADEIA (a)→(b)→(c); a confirmação final
@@ -149,15 +150,20 @@ def cmd_designate(args):
         print(f"\n✅ {alvo['name']} → Team {team_slot} (${price}): {verdict} "
               f"(confirmado na API, não no board)")
         ok = True
-    except BoardAbort as e:
+    except Exception as e:
+        # FIX4: QUALQUER exceção (BoardAbort ou Playwright/timeout cru) produz o
+        # abort padrão — screenshot + relatório — em vez de crash no handler
+        # (o call log real: UnboundLocalError de 'ok' engoliu o abort limpo).
         shot = Path(__file__).parent / config.RUNS_DIR_NAME / "abort.png"
         shot.parent.mkdir(exist_ok=True)
         try:
             page.screenshot(path=str(shot))
         except Exception:
             shot = None
-        print(f"\n⛔ ABORTADO: {e}" + (f"\nScreenshot: {shot}" if shot else ""))
-        ok = False
+        rotulo = ("ABORTADO" if isinstance(e, BoardAbort)
+                  else f"ERRO ({type(e).__name__})")
+        log.append({"event": "abort", "tipo": type(e).__name__, "msg": str(e)[:300]})
+        print(f"\n⛔ {rotulo}: {e}" + (f"\nScreenshot: {shot}" if shot else ""))
     finally:
         trace = Path(__file__).parent / config.RUNS_DIR_NAME / "trace.zip"
         try:

@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 11/08/2026-pt4 (MAN-OFF26-24-F2a-FIX3: mapa slot↔owner vazio no 1º designate → **cadeia (a) draft_order → (b) slot_to_roster_id×rosters → (c) picks** (diagnóstico na API viva: draft_order=None em pre_draft, slot_to_roster_id completo). Fonte no relatório; abort nomeia o que faltou; --team-slot como último recurso com confirmação no DOM. **Achado: check de owner do validate estava inerte** — agora confere de verdade. Testes 36→42. Re-execução do owner.)
+> Última atualização: 11/08/2026-pt5 (MAN-OFF26-24-F2a-FIX4: célula **por COLUNA do slot** (.team-column → .cell sem .drafted; ordem candidata, menu decide via `choose_menu_item` puro, N por fronteira); **Change Player = proibição** (célula preenchida → Escape+abort, nunca prosseguir — o call log real virou fixture); handler do CLI sem crash (`ok` antes do try; qualquer exceção → abort padrão com screenshot+relatório). Testes 42→50; suítes verdes. Re-execução do owner: mesmo comando Cam Ward.)
+> Anterior: 11/08/2026-pt4 (MAN-OFF26-24-F2a-FIX3: mapa slot↔owner vazio no 1º designate → **cadeia (a) draft_order → (b) slot_to_roster_id×rosters → (c) picks** (diagnóstico na API viva: draft_order=None em pre_draft, slot_to_roster_id completo). Fonte no relatório; abort nomeia o que faltou; --team-slot como último recurso com confirmação no DOM. **Achado: check de owner do validate estava inerte** — agora confere de verdade. Testes 36→42. Re-execução do owner.)
 > Anterior: 11/08/2026-pt3 (MAN-OFF26-24-F2a-FIX2: **hCaptcha recusa o Chromium de teste** → launch pelo **Chrome real** (`channel=“chrome”`, mesmo perfil dedicado) + mitigações padrão p/ o desafio renderizar ao humano (⛔ nada resolve/burla — teste de zero lib de resolução); Chrome ausente → aborto acionável, nunca fallback silencioso. Testes 35→36; gitignore do perfil conferido. Probe é do owner.)
 > Anterior: 11/08/2026-pt2 (MAN-OFF26-24-F2a-FIX: guarda de identidade refeita **por construção** — o 1º probe real abortou procurando o nome da liga numa página que não o exibe; agora `url_guard` (URL × draft_id derivado, puro+testado), título = log; `LEAGUE_NAME` não pode voltar a ser gate (teste estático). 1ª vida do perfil: espera de login manual (Enter/120s) em vez de estourar; **JOIN DRAFT na lista proibida**, fluxo de login sem `.click()`. `designate` herda pelo mesmo `open_board`. **`validate` já VERDE em execução real (18/18, $176)**. Testes 30→35; suítes verdes. Probe é do owner.)
 > Anterior: 11/08/2026 (MAN-OFF26-24-F2a: **F2a entregue** — `tools/phantom_board/` (núcleo puro + API + Playwright + CLI + README) sobre a spec do ensaio de 11/08 (18=$176 por API). **Arquitetura: o cliente MENTE → comando via DOM, verdade via API** (toast nunca é veredito; duplicata=sucesso; caso Caleb → 1 re-comando; depois aborta barulhento). Guardas de nascença testadas (guard ANTES do browser; START/RESET DRAFT proibidos); teclas reais; anti-homônimo por DOM (sigla divergente = aviso/frescor). Manager: endpoint fino `keeper_sheet_export` (pacote do `build_sheet`; auditoria intocada). 3 correções de runbook do ensaio aplicadas; Cowork segue plano A. 30 testes; suítes verdes; validate roda sem playwright. ⚠️ driver não exercido em navegador — validação do owner (README, 4 passos); F2b após o resultado.)
@@ -5252,3 +5253,34 @@ está presente e completo** (mesmo estado), e `/league/rosters` dá roster→own
 
 **Roteiro do owner: re-rodar o MESMO comando do designate (Cam Ward)** — esperado:
 `slot_resolvido (source: slot_to_roster_id×rosters)` → menu confirma Team 10 → assentado na API.
+
+### MAN-OFF26-24-F2a-FIX4 — célula por coluna, "Change Player" proibido, handler sem crash (11/08/2026, Fable)
+
+O designate real (Cam Ward, slot 10 já resolvido pela cadeia do FIX3) expôs dois furos pelo call
+log: **a ordem do DOM das células não corresponde a colunas** — `[id^='draft-cell']` nth(1) caiu
+numa célula PREENCHIDA do MellowBR e abriu **"Change Player"**, cujo underlay interceptou 30s de
+retries até timeout (zero picks novos — o board não foi alterado); e no tratamento do timeout o
+CLI crashou com `UnboundLocalError: 'ok'`, engolindo o abort limpo.
+
+- **(1) Navegação por coluna, nunca nth global.** A coluna do slot N é a N-ésima `.team-column`
+  (12 no DOM, ensaio+probe); dentro dela, a primeira `.cell` sem `.drafted` (vazia = "cell
+  false"). A ordem é **candidata** — quem decide é o menu, agora julgado pelo núcleo puro
+  `choose_menu_item` (7 testes): "Set Player … for Team {N}" com o **N casando por fronteira**
+  ("for Team 1" não casa slot 10 — lookahead sem dígito). Qualquer outra coisa → **Escape (fecha
+  o underlay) + abort barulhento**; ⛔ nada de varrer células tentando (o comportamento antigo).
+- **(2) "Change Player" é proibição.** Entrou em `FORBIDDEN_CLICK_LABELS` E tem decisão própria
+  no julgamento do menu: célula preenchida = célula errada, nunca prosseguir — inclusive quando
+  o menu misto também oferece Set Player.
+- **(3) Handler sem crash.** `ok = False` nasce ANTES do try; `except Exception` (BoardAbort ou
+  Playwright cru) produz o abort padrão — screenshot + relatório JSON + evento `abort` no log com
+  tipo e mensagem. O rótulo distingue ABORTADO (BoardAbort) de ERRO (exceção crua).
+- **Regressão:** testes 42 → **50** — o call log real é fixture (Change Player intercepta,
+  wrong_team, fronteira do N, menu vazio) + 3 guardas estáticas (coluna-nunca-nth,
+  CHANGE PLAYER na lista, `ok` antes do try + except genérico). Suítes completas verdes;
+  diffstat conferido antes do push. `BOARD_CELL_SELECTOR` removido (a navegação por coluna o
+  substitui; o probe vira ferramenta de conferência de DOM).
+
+**Roteiro do owner: o MESMO comando (Cam Ward).** Esperado: coluna 10 → célula vazia → menu
+"for Team 10" → busca → "+" → $13? (preço da sheet) → SET PLAYER → assentado na API.
+⚠️ Nota de pull: o config local do owner tem a edição do probe (`BOARD_CELL_SELECTOR`) — antes
+do pull, `git checkout -- tools/phantom_board/config.py` descarta a edição (não é mais usada).

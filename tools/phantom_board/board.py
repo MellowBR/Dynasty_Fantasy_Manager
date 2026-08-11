@@ -23,8 +23,8 @@ import time
 from pathlib import Path
 
 from . import config
-from .core import (PENDING, SETTLED, ALREADY, TIMEOUT, league_guard,
-                   settlement_decision, url_guard)
+from .core import (PENDING, SETTLED, ALREADY, TIMEOUT, choose_menu_item,
+                   league_guard, settlement_decision, url_guard)
 from .sleeper_api import fetch_draft, fetch_draft_id, fetch_picks
 
 
@@ -132,42 +132,61 @@ def _wait_for_login_if_needed(page):
 
 
 def probe(page):
-    """Abre o Playwright Inspector para o owner anotar o seletor da CÉLULA do board
-    (o único que a spec resumida do ensaio não fixou) → vai para
-    `config.BOARD_CELL_SELECTOR`. Nenhum clique automatizado acontece aqui."""
+    """Abre o Playwright Inspector para inspeção do DOM real (FIX4: a navegação é
+    por coluna — `.team-column` → `.cell` sem `.drafted`; o probe serve para
+    conferir esses seletores se apodrecerem). Nenhum clique automatizado."""
     page.pause()
 
 
 def _open_set_player_menu(page, team_slot: int):
-    """Clica células candidatas da coluna até o menu confirmar o time PELO TEXTO —
-    'Manually set a player for Team {N}' (a verificação canônica do runbook §B.2b).
-    Mismatch de N → Escape e próxima célula; esgotou → aborta."""
-    if not config.BOARD_CELL_SELECTOR:
-        raise BoardAbort(
-            "BOARD_CELL_SELECTOR vazio — rode `probe` primeiro e anote a classe real "
-            "da célula no config (o único seletor que o ensaio resumido não fixou).")
-    cells = page.locator(config.BOARD_CELL_SELECTOR)
-    n = cells.count()
-    if n == 0:
-        raise BoardAbort(f"Nenhuma célula casa com '{config.BOARD_CELL_SELECTOR}' — "
-                         f"seletor apodreceu? Rode `probe` de novo.")
-    expected = f"{config.MENU_DESC_PREFIX}{team_slot}"
-    for i in range(n):
-        cells.nth(i).click()
-        menu = page.locator(config.SEL_MENU_ITEM,
-                            has_text=config.MENU_TITLE_SET_PLAYER)
-        try:
-            menu.first.wait_for(timeout=3_000)
-        except Exception:
-            continue                      # célula sem menu (ocupada?) — próxima
-        desc = menu.first.inner_text()
-        if expected in desc:
-            assert_allowed_click(desc)
-            menu.first.click()
-            return
-        page.keyboard.press("Escape")     # time errado — fecha e segue a varredura
-    raise BoardAbort(f"Nenhuma célula abriu o menu de '{expected}' — coluna do time "
-                     f"{team_slot} não encontrada. Nada foi designado.")
+    """FIX4 — navega POR COLUNA, nunca por índice global de célula (o call log real:
+    nth(1) de células caiu numa célula PREENCHIDA do MellowBR e o menu "Change
+    Player" interceptou tudo). A coluna do slot N é a N-ésima `.team-column`;
+    dentro dela, a primeira célula VAZIA (sem `.drafted`). A ordem é CANDIDATA —
+    quem decide é o menu: "Manually set a player for Team {N}" com o N esperado,
+    julgado pelo núcleo puro (`choose_menu_item`). Qualquer outra coisa → Escape e
+    aborto barulhento. Nada de varrer células tentando."""
+    cols = page.locator(config.SEL_TEAM_COLUMN)
+    ncols = cols.count()
+    if ncols == 0:
+        raise BoardAbort(f"Nenhuma coluna casa com '{config.SEL_TEAM_COLUMN}' — "
+                         f"seletor apodreceu? Rode `probe` e confira o DOM.")
+    if team_slot < 1 or team_slot > ncols:
+        raise BoardAbort(f"Slot {team_slot} fora do board ({ncols} colunas).")
+    col = cols.nth(team_slot - 1)
+    empty = col.locator(
+        f"{config.SEL_CELL}:not(.{config.CELL_DRAFTED_CLASS})")
+    if empty.count() == 0:
+        raise BoardAbort(f"Coluna do slot {team_slot} sem célula VAZIA — time "
+                         f"cheio? Nada foi clicado além da inspeção.")
+    empty.first.click()
+
+    menu = page.locator(config.SEL_MENU_ITEM)
+    try:
+        menu.first.wait_for(timeout=4_000)
+    except Exception:
+        raise BoardAbort(f"A célula vazia do slot {team_slot} não abriu menu de "
+                         f"contexto — DOM mudou? Nada designado.")
+    texts = [menu.nth(i).inner_text() for i in range(menu.count())]
+    action, detail = choose_menu_item(
+        texts, team_slot, set_title=config.MENU_TITLE_SET_PLAYER,
+        change_title=config.MENU_TITLE_CHANGE,
+        desc_prefix=config.MENU_DESC_PREFIX)
+    if action == "click":
+        assert_allowed_click(texts[detail])
+        menu.nth(detail).click()
+        return
+    page.keyboard.press("Escape")         # fecha o menu ANTES de abortar
+    page.wait_for_timeout(300)
+    motivo = {
+        "change_player": (f"menu 'Change Player' — a célula está PREENCHIDA "
+                          f"(célula errada; a lista de proibições cobre o rótulo)"),
+        "wrong_team": (f"o menu é de OUTRO time — a correspondência coluna↔slot "
+                       f"quebrou (esperado 'for Team {team_slot}')"),
+        "no_menu": "nenhum item reconhecível no menu",
+    }[detail]
+    raise BoardAbort(f"Slot {team_slot}: {motivo}. Itens vistos: {texts}. "
+                     f"Nada designado — parando barulhento.")
 
 
 def _pick_search_result(page, player_name: str, position: str, nfl_team: str):

@@ -16,9 +16,9 @@ from pathlib import Path
 from tools.phantom_board import config
 from tools.phantom_board.core import (
     ALREADY, PENDING, SETTLED, TIMEOUT,
-    build_slot_map, flatten_sheet, league_guard, match_picks_to_sheet,
-    parse_pick, resolve_slot_map, settlement_decision, slot_map_from_picks,
-    slot_map_from_rosters, team_totals, url_guard,
+    build_slot_map, choose_menu_item, flatten_sheet, league_guard,
+    match_picks_to_sheet, parse_pick, resolve_slot_map, settlement_decision,
+    slot_map_from_picks, slot_map_from_rosters, team_totals, url_guard,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -253,6 +253,45 @@ class TestMatch(unittest.TestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 4b. Menu de contexto (FIX4 — o call log do 1º designate virou fixture)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestChooseMenuItem(unittest.TestCase):
+
+    def test_set_player_do_time_certo_clica(self):
+        texts = ["Set Player\nManually set a player for Team 10",
+                 "Reset Nomination\nChange nominator to Team 10"]
+        self.assertEqual(choose_menu_item(texts, 10), ("click", 0))
+
+    def test_change_player_aborta(self):
+        """O call log real: célula PREENCHIDA abriu 'Change Player' e interceptou
+        30s de retries — agora é abort imediato, nunca prosseguir."""
+        texts = ["Change Player\nManually change the player for Team 1"]
+        self.assertEqual(choose_menu_item(texts, 1), ("abort", "change_player"))
+
+    def test_change_player_vence_mesmo_com_set_presente(self):
+        """Menu misto: a presença de Change Player denuncia célula errada."""
+        texts = ["Change Player\n...", "Set Player\nManually set a player for Team 1"]
+        self.assertEqual(choose_menu_item(texts, 1), ("abort", "change_player"))
+
+    def test_set_player_de_outro_time_aborta(self):
+        """Coluna↔slot quebrou: fechar e abortar — nada de tentar a próxima."""
+        texts = ["Set Player\nManually set a player for Team 3"]
+        self.assertEqual(choose_menu_item(texts, 10), ("abort", "wrong_team"))
+
+    def test_team_1_nao_casa_com_team_10(self):
+        """'for Team 1' é prefixo de 'for Team 10' — o N esperado tem de casar
+        o slot pedido, não um prefixo dele."""
+        texts = ["Set Player\nManually set a player for Team 10"]
+        self.assertEqual(choose_menu_item(texts, 10), ("click", 0))
+        self.assertEqual(choose_menu_item(texts, 1)[0], "abort")
+
+    def test_menu_vazio_ou_irreconhecivel(self):
+        self.assertEqual(choose_menu_item([], 5), ("abort", "no_menu"))
+        self.assertEqual(choose_menu_item(["Lixo"], 5), ("abort", "no_menu"))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 5. Decisão de assentamento (o toast nunca é veredito)
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -320,7 +359,24 @@ class TestGuardasEstaticas(unittest.TestCase):
         self.assertIn("START DRAFT", str(config.FORBIDDEN_CLICK_LABELS))
         self.assertIn("RESET DRAFT", str(config.FORBIDDEN_CLICK_LABELS))
         self.assertIn("JOIN DRAFT", str(config.FORBIDDEN_CLICK_LABELS))
+        self.assertIn("CHANGE PLAYER", str(config.FORBIDDEN_CLICK_LABELS))  # FIX4
         self.assertIn("assert_allowed_click", self.board)
+
+    def test_navegacao_por_coluna_nunca_nth_global(self):
+        """FIX4: a célula vem da COLUNA do slot (.team-column nth(N-1) → .cell sem
+        .drafted); índice global de célula não navega o board."""
+        corpo = self.board.split("def _open_set_player_menu")[1].split("\ndef ")[0]
+        self.assertIn("SEL_TEAM_COLUMN", corpo)
+        self.assertIn("CELL_DRAFTED_CLASS", corpo)
+        self.assertIn("choose_menu_item", corpo)       # decisão no núcleo puro
+        self.assertNotIn("BOARD_CELL_SELECTOR", self.board)
+
+    def test_cli_nao_crasha_no_handler(self):
+        """FIX4: ok nasce antes do try e QUALQUER exceção vira abort padrão
+        (o UnboundLocalError real engoliu o abort limpo)."""
+        corpo = self.cli.split("def cmd_designate")[1]
+        self.assertLess(corpo.index("ok = False"), corpo.index("try:"))
+        self.assertIn("except Exception as e:", corpo)
 
     def test_identidade_por_url_nao_por_texto(self):
         """FIX 11/08: o gate é url_guard(page.url, draft_id); o título da página é

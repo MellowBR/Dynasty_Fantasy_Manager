@@ -24,7 +24,8 @@ DRAFT_URL_TMPL = "https://sleeper.com/draft/nfl/{draft_id}"
 # ⛔ Lista de proibições: estes rótulos NUNCA são clicados. `board.assert_allowed_click`
 # recusa qualquer alvo cujo texto case com eles — e há teste estático de que a lista
 # existe e o driver a consulta.
-FORBIDDEN_CLICK_LABELS = ("START DRAFT", "RESET DRAFT", "JOIN DRAFT")
+FORBIDDEN_CLICK_LABELS = ("START DRAFT", "RESET DRAFT", "JOIN DRAFT",
+                          "CHANGE PLAYER")
 
 # Seletores da spec do ensaio de 11/08 (classes BEM legíveis; board no documento
 # principal, sem iframe; 264 células no DOM, sem virtualização).
@@ -40,10 +41,16 @@ PLUS_DISABLED_CLASS = "disable"
 SEL_CONFIRM_BUTTON = ".linear_gradient"         # nasce "Assign a player" → "SET PLAYER"
 CONFIRM_READY_TEXT = "SET PLAYER"
 
-# ⚠️ Único seletor que o relatório resumido do ensaio NÃO fixou: a CÉLULA do board.
-# O comando `probe` abre o board com o Playwright Inspector para o owner anotar a
-# classe real; até lá, `designate` aborta barulhento se isto estiver vazio.
-BOARD_CELL_SELECTOR = ""
+# FIX4 (11/08, do call log do 1º designate): a navegação até a célula é POR COLUNA,
+# nunca por índice global — a ordem do DOM das células não corresponde a colunas
+# (`[id^='draft-cell']` nth(1) caiu numa célula PREENCHIDA do MellowBR e abriu
+# "Change Player"). A coluna do slot N é a N-ésima `.team-column` (12 no DOM,
+# ensaio + probe); dentro dela, a primeira célula VAZIA (`.cell` sem `.drafted`).
+# A ordem é CANDIDATA — a confirmação obrigatória segue sendo o menu "for Team {N}".
+SEL_TEAM_COLUMN = ".team-column"
+SEL_CELL = ".cell"
+CELL_DRAFTED_CLASS = "drafted"          # célula preenchida (ex.: "cell rb drafted")
+MENU_TITLE_CHANGE = "Change Player"     # menu de célula PREENCHIDA — proibido
 
 # Assentamento (o achado que define a arquitetura): comando via DOM, VERDADE via API.
 # O board pode não atualizar e o toast vermelho pode MENTIR ("This pick could not be

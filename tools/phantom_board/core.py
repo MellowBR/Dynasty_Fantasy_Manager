@@ -182,6 +182,32 @@ def team_totals(report: dict, team_name: str) -> dict:
             "total": sum(m["sheet_salary"] for m in rows)}
 
 
+def choose_menu_item(menu_texts: list, team_slot: int,
+                     set_title: str = "Set Player",
+                     change_title: str = "Change Player",
+                     desc_prefix: str = "Manually set a player for Team "):
+    """FIX4 — decisão PURA sobre o menu de contexto aberto. Retorna (ação, detalhe):
+    - ("click", i): o item i é "Set Player ... for Team {N}" com o N esperado
+      (o N casa por FRONTEIRA — "for Team 1" não casa slot 10 nem vice-versa);
+    - ("abort", "change_player"): menu de célula PREENCHIDA — célula errada, NUNCA
+      prosseguir (o call log real: "Change Player" interceptou 30s de retries);
+    - ("abort", "wrong_team"): Set Player de OUTRO time — a correspondência
+      coluna↔slot quebrou; fechar e abortar (nada de tentar a próxima);
+    - ("abort", "no_menu"): nenhum item reconhecível."""
+    import re as _re
+    pat = _re.compile(_re.escape(f"{desc_prefix}{team_slot}") + r"(?!\d)")
+    wrong_team = False
+    for i, text in enumerate(menu_texts or []):
+        t = text or ""
+        if change_title.lower() in t.lower():
+            return ("abort", "change_player")
+        if pat.search(t):
+            return ("click", i)
+        if set_title.lower() in t.lower():
+            wrong_team = True
+    return ("abort", "wrong_team" if wrong_team else "no_menu")
+
+
 # ── Assentamento: a decisão pós-comando (comando via DOM, verdade via API) ──────
 
 SETTLED = "assentado"
