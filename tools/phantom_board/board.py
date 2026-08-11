@@ -24,8 +24,8 @@ from pathlib import Path
 
 from . import config
 from .core import (PENDING, SETTLED, ALREADY, TIMEOUT, choose_menu_item,
-                   league_guard, parse_result_row, select_candidate_rows,
-                   settlement_decision, url_guard)
+                   league_guard, parse_result_row, search_filter_check,
+                   select_candidate_rows, settlement_decision, url_guard)
 from .sleeper_api import fetch_draft, fetch_draft_id, fetch_picks
 
 
@@ -190,27 +190,50 @@ def _open_set_player_menu(page, team_slot: int):
                      f"Nada designado — parando barulhento.")
 
 
+def _modal(page):
+    """FIX6 — o CONTAINER do modal de manual pick, ancorado por estrutura: o menor
+    ancestral do botão de confirmação ("Assign a player" → "SET PLAYER") que também
+    contém um input de busca. TUDO (busca, linhas, "+", preço) é escopado NELE —
+    a página de FUNDO tem a mesma lista e os mesmos inputs (o call log real: 57
+    linhas do ranking geral vazaram no matching)."""
+    confirm = page.locator(config.SEL_CONFIRM_BUTTON).first
+    try:
+        confirm.wait_for(timeout=5_000)
+    except Exception:
+        raise BoardAbort("Botão de confirmação do modal não apareceu — o menu 'Set "
+                         "Player' abriu mesmo? Nada designado.")
+    modal = confirm.locator(
+        f'xpath=ancestor::*[.//input[@placeholder="Find player Ctrl + U"]][1]')
+    if modal.count() == 0:
+        raise BoardAbort("Não achei o container do modal (ancestral do botão de "
+                         "confirmação contendo o input de busca) — DOM mudou? "
+                         "Rode `probe` e confira o wrapper (README).")
+    return modal.first
+
+
 def _pick_search_result(page, player_name: str, position: str, nfl_team: str,
                         log: list = None):
-    """Digita a busca com teclas REAIS e elege a linha pelo DOM — parseado pelo
-    núcleo puro (FIX5: o innerText real vem empilhado por newlines, com sigla
-    duplicada e status de injury — 'QB
-TEN TEN', 'RB
-DET
-QUES DET'). O critério
-    segue ESTRITO: posição exata; 0 ou 2+ candidatos abortam. A sigla é LOGADA
-    para conferência humana (a sheet não a carrega); divergência explícita da
-    sheet vira aviso (dado fresco — Diggs/D.Jones). ⛔ O "+" clicado é o da linha
-    ELEITA, nunca o da primeira."""
-    search = page.locator(config.SEL_SEARCH_INPUT + ":visible").last  # o do modal
+    """Digita a busca NO MODAL e elege a linha pelo DOM do MODAL (FIX6 — nenhum
+    locator global sobrevive: a página de fundo tem a mesma lista). Antes de
+    qualquer matching, a digitação tem de ter FILTRADO (núcleo:
+    `search_filter_check` — 57 linhas = fundo, abort). Critério do anti-homônimo
+    intacto: posição exata; 0 ou 2+ candidatos abortam; sigla logada. ⛔ O "+"
+    clicado é o da linha ELEITA."""
+    modal = _modal(page)
+    search = modal.locator(config.SEL_SEARCH_INPUT).first
     search.click()
     search.press("Control+a")
     search.press_sequentially(player_name, delay=40)
     page.wait_for_timeout(600)            # o filtro reage a teclas — deixa assentar
 
-    rows = page.locator(config.SEL_RESULT_ROW + ":visible")
+    rows = modal.locator(config.SEL_RESULT_ROW + ":visible")
+    n = rows.count()
+    err = search_filter_check(n, config.SEARCH_MAX_RESULTS)
+    if err:
+        raise BoardAbort(f"'{player_name}': {err} (escopo: modal; se persistir, o "
+                         f"wrapper do modal mudou — probe/README).")
     parsed = []
-    for i in range(rows.count()):
+    for i in range(n):
         row = rows.nth(i)
         pos_text = row.locator(config.SEL_ROW_POSITION).first.inner_text()
         team_text = row.locator(config.SEL_ROW_TEAM).first.inner_text()
@@ -225,7 +248,8 @@ QUES DET'). O critério
     pos, sigla = parsed[idx]
     if log is not None:
         log.append({"event": "linha_eleita", "player": player_name,
-                    "position": pos, "nfl_team_no_board": sigla})
+                    "position": pos, "nfl_team_no_board": sigla,
+                    "linhas_no_modal": n})
     warn = None
     if nfl_team and sigla and sigla != nfl_team.upper():
         warn = (f"time NFL divergente: sheet={nfl_team} board={sigla} — pode ser "
@@ -241,13 +265,16 @@ QUES DET'). O critério
 
 
 def _set_price_and_confirm(page, price: int):
-    """Preço nasce $1 SEMPRE (mesmo com $PROJ maior). >$1 → Ctrl+A + digitar."""
-    confirm = page.locator(config.SEL_CONFIRM_BUTTON,
-                           has_text=config.CONFIRM_READY_TEXT).first
+    """Preço nasce $1 SEMPRE (mesmo com $PROJ maior). >$1 → Ctrl+A + digitar.
+    FIX6: o input de preço também é escopado ao MODAL (o único input do modal que
+    não é o de busca)."""
+    modal = _modal(page)
+    confirm = modal.locator(config.SEL_CONFIRM_BUTTON,
+                            has_text=config.CONFIRM_READY_TEXT).first
     confirm.wait_for(timeout=5_000)       # "Assign a player" já virou "SET PLAYER"
     if price and price > 1:
-        bar = confirm.locator("xpath=..")
-        price_input = bar.locator("input").first
+        price_input = modal.locator(
+            f'input:not([placeholder="Find player Ctrl + U"])').first
         price_input.click()
         price_input.press("Control+a")
         price_input.press_sequentially(str(price), delay=40)

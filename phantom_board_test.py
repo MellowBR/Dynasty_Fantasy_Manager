@@ -18,8 +18,8 @@ from tools.phantom_board.core import (
     ALREADY, PENDING, SETTLED, TIMEOUT,
     build_slot_map, choose_menu_item, flatten_sheet, league_guard,
     match_picks_to_sheet, parse_pick, parse_result_row, resolve_slot_map,
-    select_candidate_rows, settlement_decision, slot_map_from_picks,
-    slot_map_from_rosters, team_totals, url_guard,
+    search_filter_check, select_candidate_rows, settlement_decision,
+    slot_map_from_picks, slot_map_from_rosters, team_totals, url_guard,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -326,6 +326,24 @@ class TestParseResultRow(unittest.TestCase):
         self.assertEqual(parse_result_row("", ""), ("", ""))
 
 
+class TestSearchFilterCheck(unittest.TestCase):
+    """FIX6 — a lista de FUNDO vazou no matching (57 linhas do ranking geral):
+    dezenas de linhas = busca não aplicada/escopo errado → abort, nunca parsear."""
+
+    def test_57_linhas_do_abort_real_abortam(self):
+        err = search_filter_check(57)
+        self.assertIn("busca não filtrou", err)
+        self.assertIn("57", err)
+
+    def test_lista_filtrada_passa(self):
+        self.assertIsNone(search_filter_check(1))
+        self.assertIsNone(search_filter_check(8))
+
+    def test_limite_configurado(self):
+        self.assertIsNone(search_filter_check(10, max_expected=10))
+        self.assertIsNotNone(search_filter_check(11, max_expected=10))
+
+
 class TestSelectCandidateRows(unittest.TestCase):
 
     def _rows(self):
@@ -436,6 +454,24 @@ class TestGuardasEstaticas(unittest.TestCase):
         self.assertIn("select_candidate_rows", corpo)
         self.assertIn("parse_result_row", corpo)
         self.assertIn("rows.nth(idx)", corpo)
+
+    def test_busca_e_linhas_escopadas_ao_modal(self):
+        """FIX6: nenhum locator GLOBAL de busca/linha sobrevive — tudo sai do
+        container do modal (_modal), e o filtro é conferido ANTES do matching."""
+        corpo = self.board.split("def _pick_search_result")[1].split("def _set_price")[0]
+        self.assertIn("_modal(page)", corpo)
+        self.assertIn("modal.locator(config.SEL_SEARCH_INPUT", corpo)
+        self.assertIn("modal.locator(config.SEL_RESULT_ROW", corpo)
+        self.assertNotIn("page.locator(config.SEL_SEARCH_INPUT", corpo)
+        self.assertNotIn("page.locator(config.SEL_RESULT_ROW", corpo)
+        # o check do filtro vem antes da eleição
+        self.assertLess(corpo.index("search_filter_check"),
+                        corpo.index("select_candidate_rows"))
+
+    def test_preco_escopado_ao_modal(self):
+        corpo = self.board.split("def _set_price_and_confirm")[1].split("def ")[0]
+        self.assertIn("_modal(page)", corpo)
+        self.assertIn("modal.locator(", corpo)
 
     def test_cli_nao_crasha_no_handler(self):
         """FIX4: ok nasce antes do try e QUALQUER exceção vira abort padrão

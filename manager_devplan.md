@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 11/08/2026-pt6 (MAN-OFF26-24-F2a-FIX5: **parser do anti-homônimo lê o DOM real** — “0 candidatos QB” com o Cam Ward na lista (`'QB
+> Última atualização: 11/08/2026-pt7 (MAN-OFF26-24-F2a-FIX6: **a lista de FUNDO vazava no matching** (57 linhas do ranking; abort “5 candidatos QB” correto). Fix: `_modal` ancorado por estrutura (ancestral do botão Assign/SET PLAYER com o input de busca) e TUDO escopado nele (busca/linhas/+/preço; locator global proibido por guarda estática) + `search_filter_check` puro ANTES do matching (57 = fixture). Anti-homônimo intacto. Testes 60→65. Re-execução do owner.)
+> Anterior: 11/08/2026-pt6 (MAN-OFF26-24-F2a-FIX5: **parser do anti-homônimo lê o DOM real** — “0 candidatos QB” com o Cam Ward na lista (`'QB
 TEN TEN'`): innerText empilhado por newlines + sigla duplicada + injury. `parse_result_row`/`select_candidate_rows` no núcleo puro; critério INTACTO (posição exata, 0/2+ abortam; sigla logada); “+” da linha ELEITA. Testes 50→60 (linhas literais do abort = fixture). Re-execução do owner.)
 > Anterior: 11/08/2026-pt5 (MAN-OFF26-24-F2a-FIX4: célula **por COLUNA do slot** (.team-column → .cell sem .drafted; ordem candidata, menu decide via `choose_menu_item` puro, N por fronteira); **Change Player = proibição** (célula preenchida → Escape+abort, nunca prosseguir — o call log real virou fixture); handler do CLI sem crash (`ok` antes do try; qualquer exceção → abort padrão com screenshot+relatório). Testes 42→50; suítes verdes. Re-execução do owner: mesmo comando Cam Ward.)
 > Anterior: 11/08/2026-pt4 (MAN-OFF26-24-F2a-FIX3: mapa slot↔owner vazio no 1º designate → **cadeia (a) draft_order → (b) slot_to_roster_id×rosters → (c) picks** (diagnóstico na API viva: draft_order=None em pre_draft, slot_to_roster_id completo). Fonte no relatório; abort nomeia o que faltou; --team-slot como último recurso com confirmação no DOM. **Achado: check de owner do validate estava inerte** — agora confere de verdade. Testes 36→42. Re-execução do owner.)
@@ -5320,3 +5321,28 @@ QUES CHI'`).
 **Roteiro do owner: o MESMO comando (Cam Ward).** Cada fix desta série morreu numa camada mais
 funda que o anterior — mapa → célula → menu → parser; o caminho até o "+" está agora inteiro
 coberto por fixtures reais.
+
+### MAN-OFF26-24-F2a-FIX6 — o modal vira o escopo de tudo; o filtro é conferido antes do matching (11/08/2026, Fable)
+
+O parser do FIX5 funcionou — sobre a lista errada. As 57 linhas parseadas limpas eram o
+**ranking de FUNDO da página** (todas as posições, 5 QBs), não o resultado da busca do modal. O
+abort "5 candidatos QB" foi **correto** (recusou clicar um QB aleatório) e denunciou o vazamento:
+a linha de resultado era lida na página inteira, e a digitação possivelmente foi ao input errado
+(o ensaio já registrara 3 inputs com o mesmo placeholder — a dualidade modal×fundo vale para as
+linhas também; 57 linhas visíveis = nenhum filtro aplicado, o sinal confirmatório do prompt).
+
+- **`_modal(page)` — o container ancorado por ESTRUTURA:** o menor ancestral do botão de
+  confirmação ("Assign a player" → "SET PLAYER") que também contém o input de busca. Busca,
+  linhas de resultado, "+" e campo de preço saem TODOS dele; ⛔ **nenhum locator global
+  sobrevive** — guarda estática proíbe page.locator dos seletores de busca/linha no corpo.
+- **O efeito da digitação é conferido ANTES do matching:** `search_filter_check` (núcleo puro) —
+  dezenas de linhas visíveis = lista de fundo/busca não aplicada → abort **"busca não filtrou"**,
+  nunca parsear. As 57 linhas do caso real são a fixture (57 → abort nomeado; ≤8 → segue).
+- **Anti-homônimo intacto** (a restrição): posição exata, 0 ou 2+ candidatos abortam — a correção
+  é ONDE ler, não o critério.
+- **README:** instrução do probe para capturar o wrapper do modal se o DOM mudar.
+- **Testes 60 → 65.** Suítes verdes; diffstat conferido antes do push.
+
+**Roteiro do owner: o MESMO comando (Cam Ward).** A série F2a: mapa (FIX3) → célula/menu (FIX4)
+→ parser (FIX5) → escopo (FIX6) — cada abort real morreu uma camada mais fundo, e cada camada
+virou fixture. Resta inexplorado: preço + SET PLAYER + assentamento.

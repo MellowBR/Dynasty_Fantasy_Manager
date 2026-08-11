@@ -77,6 +77,13 @@ conhecido).
 `config.py` para outro id e rode o `validate` — deve recusar **antes de qualquer coisa**
 com `⛔ GUARDA DE LIGA`. Desfaça a edição.
 
+## Se o wrapper do modal mudar (abort "não achei o container do modal")
+
+O modal de manual pick é localizado por estrutura: o menor ancestral do botão
+"Assign a player"/"SET PLAYER" que contém o input de busca. Se o Sleeper mudar esse DOM,
+rode o `probe`, abra o menu Set Player numa célula manualmente, e no Inspector examine o
+ancestral comum do input de busca e do botão — ajuste o xpath em `board._modal` se preciso.
+
 ## Falhas
 
 Qualquer mismatch **aborta barulhento**: screenshot + trace (`runs/abort.png`,

@@ -234,6 +234,18 @@ TEN TEN'). Tokeniza por whitespace: posição = 1º token do vocabulário
     return pos, sigla
 
 
+def search_filter_check(row_count: int, max_expected: int = 8):
+    """FIX6 — a digitação tem de FILTRAR antes de qualquer matching: dezenas de
+    linhas visíveis = lista de FUNDO/ranking (o caso real: 57 linhas, todas as
+    posições, 5 QBs) ou busca que não foi aplicada — nunca parsear isso. Retorna
+    None (ok) ou a mensagem do abort."""
+    if row_count > max_expected:
+        return (f"busca não filtrou: {row_count} linhas visíveis — é a lista de "
+                f"fundo/ranking, não o resultado do modal. Nada parseado, nada "
+                f"designado.")
+    return None
+
+
 def select_candidate_rows(parsed_rows, position):
     """FIX5 — índices das linhas cuja POSIÇÃO casa exatamente. O critério segue
     estrito: 0 candidatos = não achou; 2+ = homônimo real → quem chama aborta.

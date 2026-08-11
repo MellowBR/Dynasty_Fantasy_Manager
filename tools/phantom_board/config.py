@@ -40,6 +40,9 @@ SEL_PLUS_BUTTON = ".draft-button"               # habilitado quando NÃO tem .di
 PLUS_DISABLED_CLASS = "disable"
 SEL_CONFIRM_BUTTON = ".linear_gradient"         # nasce "Assign a player" → "SET PLAYER"
 CONFIRM_READY_TEXT = "SET PLAYER"
+# FIX6: busca aplicada tem POUCAS linhas; dezenas = lista de fundo vazando no
+# matching (o caso real: 57 linhas do ranking geral) → abort, nunca parsear.
+SEARCH_MAX_RESULTS = 8
 
 # FIX4 (11/08, do call log do 1º designate): a navegação até a célula é POR COLUNA,
 # nunca por índice global — a ordem do DOM das células não corresponde a colunas
