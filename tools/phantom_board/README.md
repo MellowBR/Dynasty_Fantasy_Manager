@@ -4,9 +4,11 @@ Ferramenta operacional **standalone** (fora do app Flask). Comando via DOM (Play
 **verdade via API** — o board/toast do Sleeper mente (achado do ensaio de 11/08); um pick
 só existe quando aparece em `/v1/draft/{id}/picks`.
 
-⛔ **Guardas de nascença:** só opera na liga fantasma (`1389725099556372481`, hardcoded) e
-confere o nome "Dynasty SB FA Auction" na página antes de qualquer clique. START DRAFT e
-RESET DRAFT estão na lista de cliques proibidos do código.
+⛔ **Guardas de nascença:** só opera na liga fantasma (`1389725099556372481`, hardcoded).
+A identidade do board é provada **por construção**: o script deriva o `draft_id` da liga
+pela API, navega até ele e confere que **a URL contém o draft_id derivado** — a página do
+draft não exibe o nome da liga (mostra "MellowBR's Draft" etc.), então o título é só log.
+START DRAFT, RESET DRAFT e **JOIN DRAFT** estão na lista de cliques proibidos do código.
 
 ## Instalar (uma vez)
 
@@ -18,9 +20,12 @@ playwright install chromium
 ## Primeiro login (uma vez)
 
 O script usa um **perfil de navegador dedicado** (`.phantom_board_profile/` dentro desta
-pasta — criado no primeiro run; ⛔ nunca o seu Chrome principal). No primeiro `probe` ou
-`designate`, a janela abre deslogada: **faça login no Sleeper manualmente nessa janela**.
-A sessão persiste no perfil; nenhuma credencial entra no código.
+pasta — criado no primeiro run; ⛔ nunca o seu Chrome principal). **Fluxo real da primeira
+execução:** a janela abre **deslogada** — o board renderiza mesmo assim, como espectador,
+com **"JOIN DRAFT" visível** (não clique; o script também nunca clica). O script detecta
+isso, pausa e pede: *"logue na janela e pressione Enter"* — faça login no Sleeper **nessa
+janela** e dê Enter no terminal. A sessão persiste no perfil; das próximas vezes esse
+passo não aparece. Nenhuma credencial entra no código.
 
 ## Baixar a keeper sheet (a cada uso)
 

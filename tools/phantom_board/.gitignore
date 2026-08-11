@@ -1,0 +1,5 @@
+# OFF26-24 — NUNCA commitar: perfil de navegador (cookies de sessão do Sleeper!),
+# relatórios de execução e a sheet baixada (dado operacional local).
+.phantom_board_profile/
+runs/
+sheet.json

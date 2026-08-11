@@ -24,7 +24,7 @@ from pathlib import Path
 
 from . import config
 from .core import (PENDING, SETTLED, ALREADY, TIMEOUT, league_guard,
-                   settlement_decision)
+                   settlement_decision, url_guard)
 from .sleeper_api import fetch_draft, fetch_draft_id, fetch_picks
 
 
@@ -33,7 +33,7 @@ class BoardAbort(RuntimeError):
 
 
 def assert_allowed_click(label_text: str):
-    """⛔ Lista de proibições: START DRAFT / RESET DRAFT nunca são clicados."""
+    """⛔ Lista de proibições: START/RESET/JOIN DRAFT nunca são clicados."""
     up = (label_text or "").strip().upper()
     for forbidden in config.FORBIDDEN_CLICK_LABELS:
         if forbidden in up:
@@ -66,14 +66,53 @@ def open_board(headless: bool = False, profile_dir: Path | None = None):
     page = ctx.pages[0] if ctx.pages else ctx.new_page()
     page.goto(config.DRAFT_URL_TMPL.format(draft_id=draft_id), wait_until="load")
 
-    # 2) conferência dupla pré-clique: o board aberto é o da liga certa
+    # 2) IDENTIDADE POR CONSTRUÇÃO (fix do 1º probe, 11/08): derivação → navegação →
+    #    a URL contém o draft_id derivado. Texto de título NÃO é gate — a página do
+    #    draft não exibe o nome da liga ("MellowBR's Draft" etc.); ele vira log.
+    page.wait_for_timeout(1_500)          # deixa qualquer redirect acontecer
+    err = url_guard(page.url, draft_id)
+    if err:
+        raise BoardAbort(err)
     try:
-        page.get_by_text(config.LEAGUE_NAME).first.wait_for(timeout=20_000)
+        title = page.title()
     except Exception:
-        raise BoardAbort(
-            f"O board aberto NÃO exibe '{config.LEAGUE_NAME}' — liga errada ou página "
-            f"não carregou. Nenhum clique será feito.")
+        title = "?"
+    print(f"Identidade do board confirmada pela URL (draft {draft_id}). "
+          f"Título da página (informativo): {title!r}")
+
+    # 3) 1ª vida do perfil: janela DESLOGADA renderiza o board como espectador, com
+    #    "JOIN DRAFT" visível. Espera o login manual do owner — nunca clica nada.
+    _wait_for_login_if_needed(page)
     return pw, ctx, page, draft_id
+
+
+def _wait_for_login_if_needed(page):
+    """Se "JOIN DRAFT" (sinal de sessão deslogada/espectador) estiver visível, pausa
+    e espera o owner logar NA PRÓPRIA JANELA — Enter no terminal ou o sinal sumir
+    (timeout generoso). ⛔ O script nunca clica em JOIN DRAFT (lista de proibições)."""
+    join = page.get_by_text("JOIN DRAFT", exact=False)
+    try:
+        visible = join.first.is_visible(timeout=3_000)
+    except Exception:
+        visible = False
+    if not visible:
+        return
+    print('\n⚠️ A janela parece DESLOGADA ("JOIN DRAFT" visível — modo espectador).')
+    print("   Logue no Sleeper NESSA janela (a sessão fica no perfil dedicado).")
+    try:
+        input(f"   Pressione Enter quando terminar (ou aguarde até "
+              f"{config.LOGIN_WAIT_SECONDS}s)... ")
+    except EOFError:
+        # sem stdin interativo: espera o sinal sumir, com timeout generoso
+        deadline = time.monotonic() + config.LOGIN_WAIT_SECONDS
+        while time.monotonic() < deadline:
+            try:
+                if not join.first.is_visible(timeout=1_000):
+                    break
+            except Exception:
+                break
+            time.sleep(2)
+    print("   Seguindo.")
 
 
 def probe(page):

@@ -17,7 +17,7 @@ from tools.phantom_board import config
 from tools.phantom_board.core import (
     ALREADY, PENDING, SETTLED, TIMEOUT,
     build_slot_map, flatten_sheet, league_guard, match_picks_to_sheet,
-    parse_pick, settlement_decision, team_totals,
+    parse_pick, settlement_decision, team_totals, url_guard,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -81,6 +81,24 @@ class TestLeagueGuard(unittest.TestCase):
     def test_league_id_e_o_da_fantasma(self):
         """⛔ Hardcoded de propósito — mudar isso é mudar a guarda de nascença."""
         self.assertEqual(config.LEAGUE_ID, "1389725099556372481")
+
+    # ── FIX 11/08: identidade do board POR CONSTRUÇÃO (URL × draft_id derivado) ──
+
+    def test_url_com_draft_id_derivado_passa(self):
+        """O 1º probe real provou: a página do draft NÃO exibe o nome da liga — a
+        prova é a URL conter o draft_id que o script derivou pela API."""
+        self.assertIsNone(url_guard(
+            "https://sleeper.com/draft/nfl/1392654933580353536",
+            "1392654933580353536"))
+
+    def test_url_divergente_aborta(self):
+        err = url_guard("https://sleeper.com/draft/nfl/999", "1392654933580353536")
+        self.assertIn("GUARDA DE IDENTIDADE", err)
+        self.assertIn("Nenhum clique", err)
+
+    def test_url_vazia_ou_sem_draft_abortam(self):
+        self.assertIsNotNone(url_guard("", "123"))
+        self.assertIsNotNone(url_guard("https://sleeper.com/x", ""))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -250,7 +268,23 @@ class TestGuardasEstaticas(unittest.TestCase):
     def test_lista_de_proibicoes_existe_e_e_consultada(self):
         self.assertIn("START DRAFT", str(config.FORBIDDEN_CLICK_LABELS))
         self.assertIn("RESET DRAFT", str(config.FORBIDDEN_CLICK_LABELS))
+        self.assertIn("JOIN DRAFT", str(config.FORBIDDEN_CLICK_LABELS))
         self.assertIn("assert_allowed_click", self.board)
+
+    def test_identidade_por_url_nao_por_texto(self):
+        """FIX 11/08: o gate é url_guard(page.url, draft_id); o título da página é
+        log informativo — LEAGUE_NAME não pode voltar a ser gate no driver."""
+        corpo = self.board.split("def open_board")[1].split("\ndef ")[0]
+        self.assertIn("url_guard(page.url, draft_id)", corpo)
+        self.assertIn("informativo", corpo)
+        self.assertNotIn("config.LEAGUE_NAME", corpo)
+
+    def test_login_espera_nunca_clica_join(self):
+        """1ª vida do perfil: espera o login manual; JOIN DRAFT jamais é clicado."""
+        corpo = self.board.split("def _wait_for_login_if_needed")[1].split("\ndef ")[0]
+        self.assertIn("input(", corpo)                 # Enter do owner
+        self.assertIn("LOGIN_WAIT_SECONDS", corpo)     # fallback sem stdin
+        self.assertNotIn(".click()", corpo)            # nenhum clique no fluxo de login
 
     def test_guarda_roda_antes_do_browser(self):
         """A guarda de liga vem ANTES de abrir o browser no open_board."""

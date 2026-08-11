@@ -23,6 +23,21 @@ def league_guard(draft_obj: dict, expected_league_id: str):
     return None
 
 
+def url_guard(page_url: str, derived_draft_id: str):
+    """⛔ Identidade do board POR CONSTRUÇÃO (fix do 1º probe, 11/08): a prova de que
+    o board aberto é o certo é a URL conter o draft_id que o script DERIVOU da
+    LEAGUE_ID pela API — derivação → navegação → conferência. Texto de título não é
+    gate (a página do draft não exibe o nome da liga). Retorna None ou erro."""
+    if not derived_draft_id:
+        return "Sem draft_id derivado — nada a conferir."
+    if derived_draft_id not in str(page_url or ""):
+        return (f"GUARDA DE IDENTIDADE: a URL do board ({page_url or '?'}) não contém "
+                f"o draft_id derivado da liga fantasma ({derived_draft_id}) — houve "
+                f"redirect ou a página não é o board esperado. Nenhum clique será "
+                f"feito.")
+    return None
+
+
 def parse_pick(pick: dict) -> dict:
     """Normaliza um pick da API `/v1/draft/<id>/picks` para o que o casamento usa.
     sid SEMPRE string (DEF é sigla); amount int quando presente (vem string)."""

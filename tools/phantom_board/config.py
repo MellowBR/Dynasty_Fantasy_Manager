@@ -9,7 +9,10 @@ em hipótese alguma.
 # A liga fantasma (estável — sobrevive a RESET DRAFT). ⛔ Hardcoded de propósito.
 LEAGUE_ID = "1389725099556372481"
 
-# Conferência dupla pré-clique: este texto tem de estar visível na página do board.
+# Nome da liga — conferência SECUNDÁRIA informativa (logada no relatório). ⛔ NÃO é
+# gate: a página do draft não exibe o nome da liga (exibe "MellowBR's Draft" etc. —
+# achado do 1º probe, 11/08). A identidade do board é provada POR CONSTRUÇÃO:
+# derivação do draft_id pela API → navegação → URL contém o draft_id (core.url_guard).
 LEAGUE_NAME = "Dynasty SB FA Auction"
 
 # ⛔ O draft_id MUDA a cada RESET DRAFT — derivado da API pública a cada uso, NUNCA
@@ -21,7 +24,7 @@ DRAFT_URL_TMPL = "https://sleeper.com/draft/nfl/{draft_id}"
 # ⛔ Lista de proibições: estes rótulos NUNCA são clicados. `board.assert_allowed_click`
 # recusa qualquer alvo cujo texto case com eles — e há teste estático de que a lista
 # existe e o driver a consulta.
-FORBIDDEN_CLICK_LABELS = ("START DRAFT", "RESET DRAFT")
+FORBIDDEN_CLICK_LABELS = ("START DRAFT", "RESET DRAFT", "JOIN DRAFT")
 
 # Seletores da spec do ensaio de 11/08 (classes BEM legíveis; board no documento
 # principal, sem iframe; 264 células no DOM, sem virtualização).
@@ -45,6 +48,11 @@ BOARD_CELL_SELECTOR = ""
 # Assentamento (o achado que define a arquitetura): comando via DOM, VERDADE via API.
 # O board pode não atualizar e o toast vermelho pode MENTIR ("This pick could not be
 # processed" com o pick gravado) — só a API decide. Lag observado ~3s.
+# 1ª vida do perfil dedicado: a janela abre DESLOGADA (sinal: "JOIN DRAFT" de
+# espectador — o board renderiza mesmo assim). O probe/designate esperam o login
+# manual do owner em vez de estourar.
+LOGIN_WAIT_SECONDS = 120
+
 SETTLE_POLL_SECONDS = 1.5
 SETTLE_TIMEOUT_SECONDS = 15.0
 COMMAND_RETRIES = 1        # servidor rejeita duplicata — re-comando é seguro

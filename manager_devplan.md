@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 11/08/2026 (MAN-OFF26-24-F2a: **F2a entregue** — `tools/phantom_board/` (núcleo puro + API + Playwright + CLI + README) sobre a spec do ensaio de 11/08 (18=$176 por API). **Arquitetura: o cliente MENTE → comando via DOM, verdade via API** (toast nunca é veredito; duplicata=sucesso; caso Caleb → 1 re-comando; depois aborta barulhento). Guardas de nascença testadas (guard ANTES do browser; START/RESET DRAFT proibidos); teclas reais; anti-homônimo por DOM (sigla divergente = aviso/frescor). Manager: endpoint fino `keeper_sheet_export` (pacote do `build_sheet`; auditoria intocada). 3 correções de runbook do ensaio aplicadas; Cowork segue plano A. 30 testes; suítes verdes; validate roda sem playwright. ⚠️ driver não exercido em navegador — validação do owner (README, 4 passos); F2b após o resultado.)
+> Última atualização: 11/08/2026-pt2 (MAN-OFF26-24-F2a-FIX: guarda de identidade refeita **por construção** — o 1º probe real abortou procurando o nome da liga numa página que não o exibe; agora `url_guard` (URL × draft_id derivado, puro+testado), título = log; `LEAGUE_NAME` não pode voltar a ser gate (teste estático). 1ª vida do perfil: espera de login manual (Enter/120s) em vez de estourar; **JOIN DRAFT na lista proibida**, fluxo de login sem `.click()`. `designate` herda pelo mesmo `open_board`. **`validate` já VERDE em execução real (18/18, $176)**. Testes 30→35; suítes verdes. Probe é do owner.)
+> Anterior: 11/08/2026 (MAN-OFF26-24-F2a: **F2a entregue** — `tools/phantom_board/` (núcleo puro + API + Playwright + CLI + README) sobre a spec do ensaio de 11/08 (18=$176 por API). **Arquitetura: o cliente MENTE → comando via DOM, verdade via API** (toast nunca é veredito; duplicata=sucesso; caso Caleb → 1 re-comando; depois aborta barulhento). Guardas de nascença testadas (guard ANTES do browser; START/RESET DRAFT proibidos); teclas reais; anti-homônimo por DOM (sigla divergente = aviso/frescor). Manager: endpoint fino `keeper_sheet_export` (pacote do `build_sheet`; auditoria intocada). 3 correções de runbook do ensaio aplicadas; Cowork segue plano A. 30 testes; suítes verdes; validate roda sem playwright. ⚠️ driver não exercido em navegador — validação do owner (README, 4 passos); F2b após o resultado.)
 > Anterior: 10/08/2026-pt12 (MAN-OFF26-24-REG-F1: **[[OFF26-24]] registrado + F1** — script de população do board da fantasma p/ 2026 (decisão do owner; Cowork segue plano A; validação até **19/08** senão fica p/ 2027). **Q1:** Playwright headed, perfil persistente dedicado (login manual 1×, zero credencial). **Q2:** sheet JSON **sem sid/owner_id** (D3) → expor `build_sheet` ao script (⛔ sem 2ª definição de keeper); `draft_id` pela API PÚBLICA (D1 do OFF26-4, não a vetada). **Q3:** runbook já fixa o fluxo; **7 itens só o ensaio de 11/08 responde** (lista p/ virar spec). **Q4:** texto visível como âncora (junho→agosto mudou posição, não rótulo), falha barulhenta, checkpoint por time. **Q5:** auditoria OFF26-4 = verificador independente; critério: 12/12 + auditoria zerada + zero intervenção + RESET exercido. **Q6:** league_id hardcoded + nome conferido + START DRAFT proibido. Plano F2 em 4 fases até 19/08. Zero código.)
 > Anterior: 10/08/2026-pt11 (MAN-OFF26-23-VERIFY, read-only: veredito **leitura (1)** — ordem correta por necessidade, relato “no topo” impreciso. Insumos do gate (`is_rookie`, `season`) nascem da leitura do draft; not-found antes do gate é desenho certo; nada é escrito antes dele. **Domingo dispara**: id válido 2026 + rollover pendente → 400 nos dois endpoints. Hoje inexercitável com draft real (linear 2026 = `pre_draft`; status check vem antes); **teste que vale = domingo à noite, preview antes do rollover, esperar a recusa** (zero efeito colateral). Suíte: decisão + fiação cobertas; ponta-a-ponta no smoke da F2; parecer opcional (endpoint monkeypatchado) registrado. Zero código.)
 > Anterior: 10/08/2026-pt10 (MAN-OFF26-23-FIX: **SyntaxError no JS da /offseason** (introduzido no `6ecb90e` — `\n\n` virou quebra real na edição gerada; bloco inteiro sem parse, `toggleFlag is not defined`, passos 3/4 mudos). Fix de 1 linha; varredura de TODOS os templates (só o offseason quebrado); DOM headless: 13/13 onclick definidas, cancelar não grava, force reposta. **Guarda permanente `template_js_test.py`** (node + fallback heurístico, nunca silencioso; **falha no `6ecb90e`, passa no fix**). Lição candidata METH-REG: *poka-yoke silencioso é meio poka-yoke*. Suítes verdes. Push imediato.)
@@ -5150,3 +5151,36 @@ fatia é do owner, e o critério final continua sendo o de 19/08.
 
 **Commit único código+docs, push incluído. F2b (loop completo por time) só após o resultado da
 validação do owner.**
+
+### MAN-OFF26-24-F2a-FIX — identidade por construção; login esperado, não estourado (11/08/2026, Fable)
+
+O 1º probe real do owner abortou na guarda — e o print provou que **o board certo tinha
+carregado** (URL com o draft_id derivado, picks do ensaio visíveis). A guarda procurava o nome
+da liga numa superfície que **não o exibe** (a página do draft mostra "MellowBR's Draft" e
+"12-team PPR Auction"). Antes do fix, o **`validate` já tinha rodado VERDE em execução real:
+18/18, $176, zero divergências** — meia F2a validada.
+
+- **A guarda mudou de fonte, não de exigência.** `core.url_guard` (puro, 3 testes): a prova de
+  identidade é **a URL conter o draft_id que o script derivou da LEAGUE_ID pela API** —
+  derivação → navegação → conferência; redirect/mismatch → aborto barulhento. O título da página
+  virou conferência secundária **informativa** (impressa/logada). Teste estático novo:
+  `open_board` usa `url_guard(page.url, draft_id)` e `config.LEAGUE_NAME` **não aparece** no
+  corpo — o gate por texto não pode voltar.
+
+- **1ª vida do perfil dedicado tratada.** Deslogado, o board renderiza como espectador com
+  **"JOIN DRAFT"** visível — sinal, não erro. `_wait_for_login_if_needed`: detecta, pausa e pede
+  "logue na janela e pressione Enter" (fallback sem stdin: espera o sinal sumir, até
+  `LOGIN_WAIT_SECONDS=120`). **JOIN DRAFT entrou em `FORBIDDEN_CLICK_LABELS`** e o teste
+  estático garante que o fluxo de login **não contém `.click()`** — o script nunca clica nada
+  ali. README atualizado com o fluxo real da primeira execução.
+
+- **`designate` herda por construção** — os dois comandos passam pelo mesmo `open_board`;
+  nenhuma segunda guarda foi criada.
+
+- **Regressão:** `phantom_board_test.py` 30 → **35** (url_guard ×3, JOIN DRAFT na lista,
+  identidade-por-URL + login-sem-clique estáticos). Suítes completas verdes. App Flask intocado
+  (restrição).
+
+**Commit + push. A re-execução do probe é do owner** — com o fix, a sequência esperada é:
+identidade confirmada pela URL → aviso de deslogado → login manual → Enter → Inspector aberto
+para anotar o seletor da célula.
