@@ -301,12 +301,18 @@ do board (§B.2).
 2. Clique em **Set Player**. A barra do topo muda para **"Make Manual Pick for Team N"** com
    **"Assign a player"** e o campo de busca.
 3. Clique no campo de busca e **digite o nome** do jogador (ex.: `Mahomes`).
-   - 🔧 **CORREÇÃO 02/08 — para K e DEF, use o FILTRO DE POSIÇÃO** (K / DEF) em vez de digitar o
-     nome. Digitar nome de kicker/defesa é lento e errático; o filtro entrega a lista curta direto.
-     🔧 **Confirmado na 2ª execução**, com uma propriedade útil: **kickers e defesas já designados
-     SOMEM do filtro** — então **"pegar o primeiro disponível" é limpo e sem risco de colisão**.
+   - 🔧 **CORREÇÃO 11/08 (ensaio) — o filtro K/DEF vira FALLBACK, não regra:** digitar o nome
+     funcionou normalmente para K e DEF no ensaio; use a busca por nome como caminho padrão (igual
+     aos demais) e **o filtro de posição quando a busca falhar ou o nome for ambíguo**. A
+     propriedade da 2ª execução segue valendo no fallback: **já designados SOMEM do filtro** —
+     "pegar o primeiro disponível" é limpo.
 4. **VERIFICAÇÃO (anti-homônimo):** confira, na linha do resultado, **a posição e a sigla do time
    da NFL** sob o nome (ex.: "QB **KC**", "RB **ATL**").
+   - 🔧 **NOTA 11/08 (ensaio, casos Diggs e D. Jones):** a sigla do board pode **divergir do que a
+     keeper sheet/Manager mostra** — o board usa o **dado fresco do Sleeper** e o `nfl_team` do
+     Manager tem a frescura do último sync (jogador trocado/cortado recentemente). Divergência de
+     TIME com **posição batendo e nome exato** não é homônimo — é frescor. O que invalida a
+     escolha é posição errada ou nome ambíguo, não a sigla.
    - 🔧 **CORREÇÃO 02/08 — alerta SUAVIZADO, não removido.** O pool de designação traz **apenas
      ofensivos elegíveis**, então o caso clássico do **Josh Allen LB/JAX simplesmente NÃO APARECE**
      na busca. O risco residual é menor do que a versão anterior dava a entender — mas **dois
@@ -328,6 +334,13 @@ do board (§B.2).
      "+/–" (andam de 1 em 1). 🔧 **Nota 02/08:** o **Ctrl+A funcionou em 100% dos casos** na
      transcrição cronometrada — era alerta na versão anterior, é **nota** agora.
    - **Confira o valor** antes de confirmar (o cursor pode tapar o número).
+7. 🔧 **CORREÇÃO 11/08 (ensaio) — a VERIFICAÇÃO do pick é pela API, não pelo board nem pelo
+   toast.** O cliente do Sleeper **dessincroniza do servidor**: pós-SET PLAYER o board pode não
+   atualizar, e um toast vermelho **"This pick could not be processed" pode aparecer COM o pick
+   gravado**. O veredito é `GET api.sleeper.app/v1/draft/{draft_id}/picks` (lag ~3s — releia se
+   não aparecer de primeira); na UI, o equivalente é **recarregar a página** antes de concluir
+   qualquer coisa. Propriedade útil confirmada: **o servidor rejeita pick duplicado** — repetir
+   um SET PLAYER em dúvida é seguro.
 7. Clique em **SET PLAYER** para confirmar.
 8. A célula é preenchida (colorida) com jogador + salário, ex.: **"P. Mahomes $40 / QB - KC (5)"**.
    Os contadores embaixo atualizam (ex.: "All 1/15", "QB 1/1").

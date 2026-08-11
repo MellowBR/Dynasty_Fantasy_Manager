@@ -91,6 +91,46 @@ def keeper_audit_json():
     return jsonify(run_audit())
 
 
+def _sheet_export_payload(raw: dict) -> dict:
+    """OFF26-24 — reshape do pacote do `keeper_audit.build_sheet` para o script de
+    população do board (tuplas → dicts nomeados; contrato estável para o consumidor
+    externo). PURO — testável sem DB (`phantom_board_test.py`)."""
+    teams = []
+    for t in raw.get("teams", []):
+        teams.append({
+            "team_id": t.get("team_id"),
+            "team_name": t.get("team_name"),
+            "sleeper_owner_id": t.get("sleeper_owner_id"),
+            "fa_budget": t.get("fa_budget"),
+            "keepers": [{"sleeper_player_id": sid, "name": name,
+                         "position": pos, "salary": sal}
+                        for (sid, name, pos, sal) in t.get("keepers", [])],
+        })
+    return {
+        "season": raw.get("season"),
+        "revealed": raw.get("revealed"),
+        "stage_meta": raw.get("stage_meta"),
+        "lock_timestamp": raw.get("lock_timestamp"),
+        "teams": teams,
+    }
+
+
+@admin_bp.route("/api/admin/keeper_sheet_export")
+@admin_required
+def keeper_sheet_export():
+    """OFF26-24 — o pacote do `build_sheet` (keepers COM `sleeper_player_id` + times
+    COM `sleeper_owner_id`) para o script de população do board da fantasma.
+
+    Parecer Q2 da F1 executado: a sheet JSON (`/api/cuts/keeper_sheet`) não expõe
+    sid/owner_id (decisão D3 — o enriquecimento vive no `build_sheet` da auditoria);
+    este endpoint EXPÕE aquele pacote em vez de o script re-derivar. ⛔ Nenhuma
+    segunda definição de "quem é keeper" (guarda do OFF26-11): a fonte É o
+    `build_sheet`, intocado. Leitura pura; o owner logado salva a resposta e passa o
+    arquivo ao script (`--sheet`)."""
+    from keeper_audit import build_sheet
+    return jsonify(_sheet_export_payload(build_sheet()))
+
+
 @admin_bp.route("/api/admin/phantom_league", methods=["POST"])
 @admin_required
 def set_phantom_league():

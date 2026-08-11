@@ -36,6 +36,9 @@ python poka_yoke_test.py
 # Run parse do JS inline de todos os templates (OFF26-23-FIX — 3 testes; node ou fallback)
 python template_js_test.py
 
+# Run núcleo do script de população do board da fantasma (OFF26-24 — 30 testes; sem browser)
+python phantom_board_test.py
+
 # Run janela selada / runner do ensaio (OFF26-1 — 22 testes)
 python janela_ensaio_test.py
 
@@ -325,6 +328,9 @@ fantasy_manager/
   late_drop_test.py                 # OFF26-10: urna do late drop + keeper sheet via sync (47)
   poka_yoke_test.py                 # OFF26-23: gates da ordem rollover→import→passo 5 (15)
   template_js_test.py               # OFF26-23-FIX: JS inline de todo template parseia (3)
+  phantom_board_test.py             # OFF26-24: núcleo do script de população do board (30)
+  tools/phantom_board/              # OFF26-24: script standalone (Playwright; comando via DOM,
+                                    #   verdade via API; guardas de nascença; ver README local)
   janela_ensaio_test.py             # OFF26-1: runner do ensaio/reset da janela e da urna (22)
   ensaio_janela_selada.py           # OFF26-1/10: status · banner · reset (janela E urna)
   keeper_audit_fixtures.py          # material de TESTE congelado (NÃO é a keeper sheet real)

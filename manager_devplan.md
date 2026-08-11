@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 10/08/2026-pt12 (MAN-OFF26-24-REG-F1: **[[OFF26-24]] registrado + F1** — script de população do board da fantasma p/ 2026 (decisão do owner; Cowork segue plano A; validação até **19/08** senão fica p/ 2027). **Q1:** Playwright headed, perfil persistente dedicado (login manual 1×, zero credencial). **Q2:** sheet JSON **sem sid/owner_id** (D3) → expor `build_sheet` ao script (⛔ sem 2ª definição de keeper); `draft_id` pela API PÚBLICA (D1 do OFF26-4, não a vetada). **Q3:** runbook já fixa o fluxo; **7 itens só o ensaio de 11/08 responde** (lista p/ virar spec). **Q4:** texto visível como âncora (junho→agosto mudou posição, não rótulo), falha barulhenta, checkpoint por time. **Q5:** auditoria OFF26-4 = verificador independente; critério: 12/12 + auditoria zerada + zero intervenção + RESET exercido. **Q6:** league_id hardcoded + nome conferido + START DRAFT proibido. Plano F2 em 4 fases até 19/08. Zero código.)
+> Última atualização: 11/08/2026 (MAN-OFF26-24-F2a: **F2a entregue** — `tools/phantom_board/` (núcleo puro + API + Playwright + CLI + README) sobre a spec do ensaio de 11/08 (18=$176 por API). **Arquitetura: o cliente MENTE → comando via DOM, verdade via API** (toast nunca é veredito; duplicata=sucesso; caso Caleb → 1 re-comando; depois aborta barulhento). Guardas de nascença testadas (guard ANTES do browser; START/RESET DRAFT proibidos); teclas reais; anti-homônimo por DOM (sigla divergente = aviso/frescor). Manager: endpoint fino `keeper_sheet_export` (pacote do `build_sheet`; auditoria intocada). 3 correções de runbook do ensaio aplicadas; Cowork segue plano A. 30 testes; suítes verdes; validate roda sem playwright. ⚠️ driver não exercido em navegador — validação do owner (README, 4 passos); F2b após o resultado.)
+> Anterior: 10/08/2026-pt12 (MAN-OFF26-24-REG-F1: **[[OFF26-24]] registrado + F1** — script de população do board da fantasma p/ 2026 (decisão do owner; Cowork segue plano A; validação até **19/08** senão fica p/ 2027). **Q1:** Playwright headed, perfil persistente dedicado (login manual 1×, zero credencial). **Q2:** sheet JSON **sem sid/owner_id** (D3) → expor `build_sheet` ao script (⛔ sem 2ª definição de keeper); `draft_id` pela API PÚBLICA (D1 do OFF26-4, não a vetada). **Q3:** runbook já fixa o fluxo; **7 itens só o ensaio de 11/08 responde** (lista p/ virar spec). **Q4:** texto visível como âncora (junho→agosto mudou posição, não rótulo), falha barulhenta, checkpoint por time. **Q5:** auditoria OFF26-4 = verificador independente; critério: 12/12 + auditoria zerada + zero intervenção + RESET exercido. **Q6:** league_id hardcoded + nome conferido + START DRAFT proibido. Plano F2 em 4 fases até 19/08. Zero código.)
 > Anterior: 10/08/2026-pt11 (MAN-OFF26-23-VERIFY, read-only: veredito **leitura (1)** — ordem correta por necessidade, relato “no topo” impreciso. Insumos do gate (`is_rookie`, `season`) nascem da leitura do draft; not-found antes do gate é desenho certo; nada é escrito antes dele. **Domingo dispara**: id válido 2026 + rollover pendente → 400 nos dois endpoints. Hoje inexercitável com draft real (linear 2026 = `pre_draft`; status check vem antes); **teste que vale = domingo à noite, preview antes do rollover, esperar a recusa** (zero efeito colateral). Suíte: decisão + fiação cobertas; ponta-a-ponta no smoke da F2; parecer opcional (endpoint monkeypatchado) registrado. Zero código.)
 > Anterior: 10/08/2026-pt10 (MAN-OFF26-23-FIX: **SyntaxError no JS da /offseason** (introduzido no `6ecb90e` — `\n\n` virou quebra real na edição gerada; bloco inteiro sem parse, `toggleFlag is not defined`, passos 3/4 mudos). Fix de 1 linha; varredura de TODOS os templates (só o offseason quebrado); DOM headless: 13/13 onclick definidas, cancelar não grava, force reposta. **Guarda permanente `template_js_test.py`** (node + fallback heurístico, nunca silencioso; **falha no `6ecb90e`, passa no fix**). Lição candidata METH-REG: *poka-yoke silencioso é meio poka-yoke*. Suítes verdes. Push imediato.)
 > Anterior: 10/08/2026-pt9 (MAN-OFF26-23 F2: **poka-yoke nos 3 pontos de não-retorno** — o sistema recusa a ordem errada (diretriz do owner, registrada como candidato a baseline). (1) `rollover_order_gate` no import (preview E confirm; auction fora de propósito — transitivamente gateado; histórico permitido); (2) passo 5 → 409 `requires_force` informado (consumidor crítico do store é o próprio import), UI com confirmação explícita; (3) clear com backup automático F13 + `restore_rookie_espn_backup` pela porta única — “sem undo” caiu. Runbooks com a seção 17→18/08 + passo 5 pós-24/08. 15 testes novos; suítes verdes; smoke local nos 3 gates. Caminho feliz intocado; once-only preservado. OFF26-23 → ⚠️ (PROC1).)
@@ -5094,3 +5095,58 @@ Sleeper; qualquer execução fora da fantasma (guarda de `league_id` de nascenç
 
 **Exceção de commit docs-only logada. Runbook Cowork INTOCADO** (segue plano A — restrição).
 Status Rápido +1 linha (OFF26-24 🔲). Zero código; nenhuma exploração commitada.
+
+### MAN-OFF26-24-F2a — esqueleto do script: guardas, verdade via API, 1 designação (11/08/2026, Fable)
+
+F2a do [[OFF26-24]] sobre a spec do ensaio de 11/08 (Cowork: 18 keepers do MellowBR no board,
+$176 conferido por API — os picks ficam como fixture viva). Item segue **🔲** — a validação da
+fatia é do owner, e o critério final continua sendo o de 19/08.
+
+- **A arquitetura veio do achado do ensaio: o cliente do Sleeper MENTE.** Pós-SET PLAYER o board
+  pode não atualizar e o toast vermelho pode aparecer COM o pick gravado. O script trata o DOM
+  como CANAL DE COMANDO e a API pública como ÚNICA VERDADE: `settlement_decision` (puro) decide
+  por poll em `/v1/draft/{id}/picks` — assentado · duplicata (=sucesso: o servidor rejeita pick
+  duplicado) · pendente (lag ~3s) · timeout (caso Caleb: staging revertido → 1 re-comando; o 2º
+  timeout aborta barulhento com screenshot + trace + relatório JSON).
+
+- **`tools/phantom_board/`, mesma separação da casa.** `core.py` puro (guarda de liga; parse de
+  picks com as armadilhas do OFF26-4 — sid de DEF é sigla, amount é string; mapa slot↔owner por
+  `draft_order`+users; casamento sheet↔picks POR SID em 5 baldes: casado/salário divergente/owner
+  divergente/fora da sheet/faltantes; totais por time) · `sleeper_api.py` (read-only, caminho D1;
+  `draft_id` derivado a cada uso) · `board.py` (Playwright headed, perfil persistente dedicado,
+  login manual 1×, zero credencial; teclas REAIS — `.value` não dispara o filtro; célula→menu com
+  verificação canônica pelo texto "for Team {N}"; anti-homônimo pelo DOM com sigla divergente
+  rebaixada a aviso — Diggs/D.Jones = dado fresco; "+" nunca o nome; preço Ctrl+A) · `cli.py`
+  (`validate` read-only sem browser · `probe` p/ anotar o único seletor que o resumo não fixou —
+  a célula · `designate` ponta a ponta) · README com o roteiro do owner.
+
+- **Guardas de nascença, com teste estático:** `league_guard` roda ANTES de `sync_playwright()`
+  (o teste falha se a ordem inverter); `LEAGUE_ID` hardcoded conferido por teste; nome da liga
+  visível exigido antes do 1º clique; `assert_allowed_click` consulta a lista de proibições
+  (START DRAFT / RESET DRAFT). Playwright é import LAZY — o `validate` roda sem ele.
+
+- **Manager: a exposição mínima do parecer Q2.** `GET /api/admin/keeper_sheet_export`
+  (`@admin_required`) devolve o pacote do `build_sheet` (keepers com sid + times com owner_id)
+  via `_sheet_export_payload` — reshape PURO, testado com o caso indisponível. ⛔ `build_sheet`,
+  núcleo da auditoria, salary_engine e sync intocados; nenhuma segunda definição de keeper.
+
+- **Runbook Cowork: as 3 correções do ensaio aplicadas** (segue plano A): (1) verificação do
+  pick é PELA API, não pelo board/toast — o toast pode mentir, o servidor rejeita duplicado;
+  (2) o filtro K/DEF vira FALLBACK — digitar o nome funcionou no ensaio; (3) nota Diggs/D.Jones:
+  sigla do board divergente da sheet = dado fresco do Sleeper, não homônimo (posição + nome exato
+  é o que decide).
+
+- **Testes: `phantom_board_test.py` (30)** — guarda (4), parsing (4), slots (3, com a fixture dos
+  12 do ensaio como conferência de formato), casamento (7), assentamento (4), reshape do endpoint
+  (2), guardas estáticas do driver (6). Suítes completas verdes
+  (54+35+15+3+30+14+19+34+25+36+64+22).
+
+- ⚠️ **Não exercido: o driver em navegador** (sem browser logado nesta máquina — o padrão das
+  entregas da semana, agora com o furo conhecido documentado). **A validação da F2a é do owner**,
+  em 4 passos no README: `validate` (18=$176) → `probe` (anota `BOARD_CELL_SELECTOR`) →
+  `designate` de 1 keeper de outro time (assenta na API; board confere após reload) → abort com
+  league_id errado. De carona, a guarda de liga já passou contra a fantasma REAL na sanidade de
+  CLI (derivou o draft ao vivo e só falhou no arquivo de sheet inexistente — como desenhado).
+
+**Commit único código+docs, push incluído. F2b (loop completo por time) só após o resultado da
+validação do owner.**
