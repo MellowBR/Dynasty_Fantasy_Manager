@@ -455,11 +455,25 @@ class TestGuardasEstaticas(unittest.TestCase):
         self.assertIn("parse_result_row", corpo)
         self.assertIn("rows.nth(idx)", corpo)
 
+    def test_ancora_e_o_modal_real_com_fallback_logado(self):
+        """FIX7: a âncora é #modal[role=alertdialog] quando presente (o caso do
+        abort — input resolvido FORA do dialog aberto — é impossível por
+        construção: o escopo nasce do próprio #modal); a heurística de ancestral
+        é FALLBACK e se anuncia no log. O modal certo é provado pelo header."""
+        corpo = self.board.split("def _modal")[1].split("def _pick_search_result")[0]
+        self.assertIn("config.SEL_MODAL", corpo)
+        self.assertIn("modal_header_check", corpo)
+        self.assertIn("ancestral_fallback", corpo)
+        self.assertIn("NÃO abriu", corpo)              # espera de ESTADO nomeada
+        # e a espera acontece antes de qualquer interação de busca
+        pick = self.board.split("def _pick_search_result")[1].split("def _set_price")[0]
+        self.assertIn("wait_open=True", pick)
+
     def test_busca_e_linhas_escopadas_ao_modal(self):
         """FIX6: nenhum locator GLOBAL de busca/linha sobrevive — tudo sai do
         container do modal (_modal), e o filtro é conferido ANTES do matching."""
         corpo = self.board.split("def _pick_search_result")[1].split("def _set_price")[0]
-        self.assertIn("_modal(page)", corpo)
+        self.assertIn("_modal(page", corpo)
         self.assertIn("modal.locator(config.SEL_SEARCH_INPUT", corpo)
         self.assertIn("modal.locator(config.SEL_RESULT_ROW", corpo)
         self.assertNotIn("page.locator(config.SEL_SEARCH_INPUT", corpo)

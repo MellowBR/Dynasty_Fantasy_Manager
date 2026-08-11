@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 11/08/2026-pt7 (MAN-OFF26-24-F2a-FIX6: **a lista de FUNDO vazava no matching** (57 linhas do ranking; abort “5 candidatos QB” correto). Fix: `_modal` ancorado por estrutura (ancestral do botão Assign/SET PLAYER com o input de busca) e TUDO escopado nele (busca/linhas/+/preço; locator global proibido por guarda estática) + `search_filter_check` puro ANTES do matching (57 = fixture). Anti-homônimo intacto. Testes 60→65. Re-execução do owner.)
+> Última atualização: 11/08/2026-pt8 (MAN-OFF26-24-F2a-FIX7: **âncora no #modal real** — o screenshot provou o manual pick dentro de `#modal[role=alertdialog]` (header “Make Manual Pick for Team 10”) e o fundo duplicando a interface; a heurística do FIX6 pegou o trio do fundo. Agora: #modal quando presente (fallback logado), espera de ESTADO pós-Set Player, header como identidade (`modal_header_check` puro; wrong_team/unexpected → Esc+abort). Caso do abort impossível por construção. Testes 65→66. Re-execução do owner.)
+> Anterior: 11/08/2026-pt7 (MAN-OFF26-24-F2a-FIX6: **a lista de FUNDO vazava no matching** (57 linhas do ranking; abort “5 candidatos QB” correto). Fix: `_modal` ancorado por estrutura (ancestral do botão Assign/SET PLAYER com o input de busca) e TUDO escopado nele (busca/linhas/+/preço; locator global proibido por guarda estática) + `search_filter_check` puro ANTES do matching (57 = fixture). Anti-homônimo intacto. Testes 60→65. Re-execução do owner.)
 > Anterior: 11/08/2026-pt6 (MAN-OFF26-24-F2a-FIX5: **parser do anti-homônimo lê o DOM real** — “0 candidatos QB” com o Cam Ward na lista (`'QB
 TEN TEN'`): innerText empilhado por newlines + sigla duplicada + injury. `parse_result_row`/`select_candidate_rows` no núcleo puro; critério INTACTO (posição exata, 0/2+ abortam; sigla logada); “+” da linha ELEITA. Testes 50→60 (linhas literais do abort = fixture). Re-execução do owner.)
 > Anterior: 11/08/2026-pt5 (MAN-OFF26-24-F2a-FIX4: célula **por COLUNA do slot** (.team-column → .cell sem .drafted; ordem candidata, menu decide via `choose_menu_item` puro, N por fronteira); **Change Player = proibição** (célula preenchida → Escape+abort, nunca prosseguir — o call log real virou fixture); handler do CLI sem crash (`ok` antes do try; qualquer exceção → abort padrão com screenshot+relatório). Testes 42→50; suítes verdes. Re-execução do owner: mesmo comando Cam Ward.)
@@ -5346,3 +5347,31 @@ linhas também; 57 linhas visíveis = nenhum filtro aplicado, o sinal confirmat�
 **Roteiro do owner: o MESMO comando (Cam Ward).** A série F2a: mapa (FIX3) → célula/menu (FIX4)
 → parser (FIX5) → escopo (FIX6) — cada abort real morreu uma camada mais fundo, e cada camada
 virou fixture. Resta inexplorado: preço + SET PLAYER + assentamento.
+
+### MAN-OFF26-24-F2a-FIX7 — a âncora certa era o próprio dialog (11/08/2026, Fable)
+
+O abort do FIX6 (timeout de 30s no clique do input) veio com a causa exata no call log e no
+screenshot: o manual pick vive num **`<div id="modal" role="alertdialog">`** — com o header
+**"Make Manual Pick for Team 10"** dentro (o sinal que o ensaio já descrevera) — e a página de
+FUNDO **duplica** input, lista e botão. A heurística "menor ancestral do botão com input" achou
+o trio do fundo; o input eleito ficou FORA do dialog aberto e o `modal-item-underlay` interceptou
+todos os pointer events. A dualidade fundo×modal, invertida.
+
+- **Âncora no elemento real:** `#modal, [role="alertdialog"]` quando presente/visível — input,
+  linhas, "+", preço e confirmação escopados NELE. A heurística de ancestral do FIX6 vira
+  **fallback** apenas se `#modal` não existir no DOM, e se anuncia no relatório
+  (`modal_ancorado: ancestral_fallback`). O caso deste abort é **impossível por construção** —
+  o escopo nasce do próprio dialog aberto.
+- **Sequenciamento explícito:** após o "Set Player" do menu, espera de **ESTADO** pelo #modal
+  (`wait_for(state="visible")`, não sleep); não abriu → abort "modal do manual pick não abriu".
+- **O header vira identidade** (`modal_header_check`, núcleo puro, 3 testes): "ok" · "wrong_team"
+  (com a fronteira Team 1 ≠ Team 10, a mesma lição do FIX4) · "unexpected" — dialog residual/
+  aviso sem o header → **Esc + abort nomeando o conteúdo** (o tratamento pedido na tarefa 4; o
+  abort.png desta run foi conferido: o dialog ERA o manual pick correto do Team 10 — o problema
+  era só a âncora).
+- **Guardas intactas:** anti-homônimo, filtro conferido antes do matching, lista de proibições.
+- **Testes 65 → 66** (header check + estático da âncora/fallback/espera). Suítes verdes;
+  diffstat conferido antes do push.
+
+**Roteiro do owner: o MESMO comando (Cam Ward).** Série F2a: mapa → célula/menu → parser →
+escopo → **âncora**. O modal agora é achado pelo id/role que o DOM real declara.

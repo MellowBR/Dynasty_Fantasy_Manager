@@ -43,6 +43,12 @@ CONFIRM_READY_TEXT = "SET PLAYER"
 # FIX6: busca aplicada tem POUCAS linhas; dezenas = lista de fundo vazando no
 # matching (o caso real: 57 linhas do ranking geral) → abort, nunca parsear.
 SEARCH_MAX_RESULTS = 8
+# FIX7 (screenshot do abort): o manual pick vive num `<div id="modal"
+# role="alertdialog">` com o header "Make Manual Pick for Team {N}" — e a página
+# de FUNDO duplica input/lista/botão (a heurística de ancestral do FIX6 achou o
+# trio do fundo). A âncora é o #modal; a heurística vira FALLBACK logado.
+SEL_MODAL = '#modal, [role="alertdialog"]'
+MODAL_HEADER_PREFIX = "Make Manual Pick for Team "
 
 # FIX4 (11/08, do call log do 1º designate): a navegação até a célula é POR COLUNA,
 # nunca por índice global — a ordem do DOM das células não corresponde a colunas

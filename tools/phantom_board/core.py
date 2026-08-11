@@ -234,6 +234,21 @@ TEN TEN'). Tokeniza por whitespace: posição = 1º token do vocabulário
     return pos, sigla
 
 
+def modal_header_check(modal_text: str, team_slot: int,
+                       prefix: str = "Make Manual Pick for Team "):
+    """FIX7 — o header do #modal é a prova de que o dialog aberto é o manual pick
+    DO TIME CERTO. Retorna: "ok" · "wrong_team" (header presente, N de outro time
+    — fronteira: 'Team 1' não casa slot 10) · "unexpected" (dialog sem o header —
+    residual/aviso; quem chama fecha via Esc e aborta nomeando o conteúdo)."""
+    import re as _re
+    t = modal_text or ""
+    if _re.search(_re.escape(f"{prefix}{team_slot}") + r"(?!\d)", t):
+        return "ok"
+    if prefix in t:
+        return "wrong_team"
+    return "unexpected"
+
+
 def search_filter_check(row_count: int, max_expected: int = 8):
     """FIX6 — a digitação tem de FILTRAR antes de qualquer matching: dezenas de
     linhas visíveis = lista de FUNDO/ranking (o caso real: 57 linhas, todas as

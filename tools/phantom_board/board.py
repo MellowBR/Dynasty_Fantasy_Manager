@@ -24,8 +24,9 @@ from pathlib import Path
 
 from . import config
 from .core import (PENDING, SETTLED, ALREADY, TIMEOUT, choose_menu_item,
-                   league_guard, parse_result_row, search_filter_check,
-                   select_candidate_rows, settlement_decision, url_guard)
+                   league_guard, modal_header_check, parse_result_row,
+                   search_filter_check, select_candidate_rows,
+                   settlement_decision, url_guard)
 from .sleeper_api import fetch_draft, fetch_draft_id, fetch_picks
 
 
@@ -190,36 +191,75 @@ def _open_set_player_menu(page, team_slot: int):
                      f"Nada designado — parando barulhento.")
 
 
-def _modal(page):
-    """FIX6 — o CONTAINER do modal de manual pick, ancorado por estrutura: o menor
-    ancestral do botão de confirmação ("Assign a player" → "SET PLAYER") que também
-    contém um input de busca. TUDO (busca, linhas, "+", preço) é escopado NELE —
-    a página de FUNDO tem a mesma lista e os mesmos inputs (o call log real: 57
-    linhas do ranking geral vazaram no matching)."""
+def _modal(page, team_slot=None, wait_open=False, log=None):
+    """FIX7 — o container REAL do manual pick é `#modal[role=alertdialog]`
+    (screenshot do abort: header "Make Manual Pick for Team N" dentro dele; a
+    página de FUNDO duplica input/lista/botão — a heurística de ancestral do FIX6
+    achou o trio do fundo). Âncora: o #modal quando presente; a heurística vira
+    FALLBACK, logada como tal, só se #modal não existir no DOM.
+
+    Com `team_slot`, o header é verificado (núcleo puro `modal_header_check`):
+    time errado → abort; dialog sem o header (residual/aviso) → Esc + abort
+    nomeando o conteúdo. `wait_open` espera ESTADO (não sleep) após o Set Player."""
+    modal = page.locator(config.SEL_MODAL)
+    if wait_open:
+        try:
+            modal.first.wait_for(state="visible", timeout=8_000)
+        except Exception:
+            raise BoardAbort("O modal do manual pick NÃO abriu após o 'Set Player' "
+                             "(#modal ausente/invisível). Nada designado.")
+    try:
+        has_modal = modal.count() > 0 and modal.first.is_visible()
+    except Exception:
+        has_modal = False
+
+    if has_modal:
+        m = modal.first
+        if team_slot is not None:
+            texto = (m.inner_text() or "")
+            veredito = modal_header_check(texto, team_slot,
+                                          config.MODAL_HEADER_PREFIX)
+            if veredito == "wrong_team":
+                page.keyboard.press("Escape")
+                raise BoardAbort(f"O modal aberto é de OUTRO time (esperado "
+                                 f"'{config.MODAL_HEADER_PREFIX}{team_slot}'). "
+                                 f"Nada designado.")
+            if veredito == "unexpected":
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(300)
+                raise BoardAbort(f"Dialog inesperado aberto (sem o header do manual "
+                                 f"pick): '{texto[:160]}'. Fechado via Esc; nada "
+                                 f"designado — reabra o fluxo.")
+        if log is not None:
+            log.append({"event": "modal_ancorado", "ancora": "#modal"})
+        return m
+
+    # FALLBACK (DOM sem #modal) — a heurística estrutural do FIX6, logada como tal
     confirm = page.locator(config.SEL_CONFIRM_BUTTON).first
     try:
         confirm.wait_for(timeout=5_000)
     except Exception:
-        raise BoardAbort("Botão de confirmação do modal não apareceu — o menu 'Set "
-                         "Player' abriu mesmo? Nada designado.")
-    modal = confirm.locator(
+        raise BoardAbort("Nem #modal nem botão de confirmação visíveis — o fluxo "
+                         "do manual pick não está aberto. Nada designado.")
+    anc = confirm.locator(
         f'xpath=ancestor::*[.//input[@placeholder="Find player Ctrl + U"]][1]')
-    if modal.count() == 0:
-        raise BoardAbort("Não achei o container do modal (ancestral do botão de "
-                         "confirmação contendo o input de busca) — DOM mudou? "
-                         "Rode `probe` e confira o wrapper (README).")
-    return modal.first
+    if anc.count() == 0:
+        raise BoardAbort("Sem #modal no DOM e a heurística de ancestral não achou "
+                         "container — DOM mudou? Rode `probe` (README).")
+    if log is not None:
+        log.append({"event": "modal_ancorado", "ancora": "ancestral_fallback"})
+    return anc.first
 
 
-def _pick_search_result(page, player_name: str, position: str, nfl_team: str,
-                        log: list = None):
+def _pick_search_result(page, team_slot: int, player_name: str, position: str,
+                        nfl_team: str, log: list = None):
     """Digita a busca NO MODAL e elege a linha pelo DOM do MODAL (FIX6 — nenhum
     locator global sobrevive: a página de fundo tem a mesma lista). Antes de
     qualquer matching, a digitação tem de ter FILTRADO (núcleo:
     `search_filter_check` — 57 linhas = fundo, abort). Critério do anti-homônimo
     intacto: posição exata; 0 ou 2+ candidatos abortam; sigla logada. ⛔ O "+"
     clicado é o da linha ELEITA."""
-    modal = _modal(page)
+    modal = _modal(page, team_slot=team_slot, wait_open=True, log=log)
     search = modal.locator(config.SEL_SEARCH_INPUT).first
     search.click()
     search.press("Control+a")
@@ -297,7 +337,8 @@ def designate(page, draft_id: str, team_slot: int, player_name: str, position: s
     while True:
         attempts += 1
         _open_set_player_menu(page, team_slot)
-        warn = _pick_search_result(page, player_name, position, nfl_team, log)
+        warn = _pick_search_result(page, team_slot, player_name, position,
+                                   nfl_team, log)
         if warn:
             log.append({"sid": sid, "warning": warn})
         _set_price_and_confirm(page, price)
