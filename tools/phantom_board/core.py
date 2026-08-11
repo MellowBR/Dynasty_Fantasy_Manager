@@ -71,6 +71,55 @@ def build_slot_map(draft_obj: dict, users: list) -> dict:
     return slot_map
 
 
+def slot_map_from_rosters(draft_obj: dict, rosters: list, users: list) -> dict:
+    """FIX3 (11/08): fallback (b) — `slot_to_roster_id` (presente MESMO em pre_draft
+    com `draft_order` null, medido no draft real) × rosters da liga (roster→owner) ×
+    users (handle). Composição 100% API, sem ambiguidade."""
+    handles = {str(u.get("user_id")): (u.get("display_name") or "")
+               for u in (users or [])}
+    owner_by_roster = {r.get("roster_id"): str(r.get("owner_id") or "")
+                       for r in (rosters or [])}
+    out = {}
+    for slot, roster_id in (draft_obj.get("slot_to_roster_id") or {}).items():
+        owner = owner_by_roster.get(roster_id, "")
+        if owner:
+            out[int(slot)] = {"user_id": owner, "handle": handles.get(owner, "")}
+    return out
+
+
+def slot_map_from_picks(picks: list, users: list) -> dict:
+    """FIX3 — fallback (c): slots OBSERVADOS nos picks existentes (`draft_slot` ×
+    `picked_by`). Parcial por natureza (só times que já têm pick) — entra por último."""
+    handles = {str(u.get("user_id")): (u.get("display_name") or "")
+               for u in (users or [])}
+    out = {}
+    for raw in picks or []:
+        p = parse_pick(raw)
+        if p["slot"] and p["picked_by"]:
+            out[int(p["slot"])] = {"user_id": p["picked_by"],
+                                   "handle": handles.get(p["picked_by"], "")}
+    return out
+
+
+def resolve_slot_map(draft_obj: dict, users: list, rosters: list = None,
+                     picks: list = None):
+    """FIX3 — cadeia em ordem de confiança: (a) `draft_order` quando presente;
+    (b) `slot_to_roster_id` × rosters; (c) slots observados nos picks. Retorna
+    (mapa, fonte) — a fonte vai ao relatório JSON (rastreabilidade). Mapa vazio =
+    nenhuma fonte serviu; quem chama aborta nomeando o que faltou. A confirmação
+    final continua sendo o DOM no fluxo ("for Team {N}"), nunca fonte primária."""
+    m = build_slot_map(draft_obj, users)
+    if m:
+        return m, "draft_order"
+    m = slot_map_from_rosters(draft_obj, rosters or [], users)
+    if m:
+        return m, "slot_to_roster_id×rosters"
+    m = slot_map_from_picks(picks or [], users)
+    if m:
+        return m, "picks_observados"
+    return {}, "nenhuma"
+
+
 def flatten_sheet(sheet: dict) -> list:
     """Achata o pacote do build_sheet (endpoint `/api/admin/keeper_sheet_export`)
     em linhas {sid, name, position, salary, team_name, owner_id}.

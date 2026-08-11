@@ -17,7 +17,8 @@ from tools.phantom_board import config
 from tools.phantom_board.core import (
     ALREADY, PENDING, SETTLED, TIMEOUT,
     build_slot_map, flatten_sheet, league_guard, match_picks_to_sheet,
-    parse_pick, settlement_decision, team_totals, url_guard,
+    parse_pick, resolve_slot_map, settlement_decision, slot_map_from_picks,
+    slot_map_from_rosters, team_totals, url_guard,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -150,6 +151,56 @@ class TestSlotMap(unittest.TestCase):
     def test_user_sem_handle_degrada(self):
         m = build_slot_map({"draft_order": {"u9": 3}}, [])
         self.assertEqual(m[3], {"user_id": "u9", "handle": ""})
+
+    # ── FIX3 (11/08): cadeia de resolução — o abort real do 1º designate ─────────
+    # Medido no draft vivo (pre_draft pós-RESET): draft_order=None, MAS
+    # slot_to_roster_id presente e completo; rosters dão roster→owner.
+
+    def test_cadeia_a_draft_order_presente(self):
+        draft = {"draft_order": {"u10": 1}}
+        users = [{"user_id": "u10", "display_name": "MellowBR"}]
+        m, fonte = resolve_slot_map(draft, users)
+        self.assertEqual(fonte, "draft_order")
+        self.assertEqual(m[1]["handle"], "MellowBR")
+
+    def test_cadeia_b_slot_to_roster_com_draft_order_nulo(self):
+        """O caso REAL do abort (Cam Ward → michelzela): pre_draft com draft_order
+        null resolve por slot_to_roster_id × rosters — API pura, sem ambiguidade."""
+        draft = {"draft_order": None,
+                 "slot_to_roster_id": {"1": 1, "10": 10}}
+        rosters = [{"roster_id": 1, "owner_id": "1130162144764506112"},
+                   {"roster_id": 10, "owner_id": "1126909140380569600"}]
+        users = [{"user_id": "1130162144764506112", "display_name": "MellowBR"},
+                 {"user_id": "1126909140380569600", "display_name": "michelzela"}]
+        m, fonte = resolve_slot_map(draft, users, rosters, [])
+        self.assertEqual(fonte, "slot_to_roster_id×rosters")
+        self.assertEqual(m[10]["handle"], "michelzela")   # o alvo do abort real
+        self.assertEqual(m[1]["handle"], "MellowBR")
+
+    def test_cadeia_c_picks_observados(self):
+        draft = {"draft_order": None}
+        picks = [pick("11628", 1, "1", picked_by="1130162144764506112")]
+        users = [{"user_id": "1130162144764506112", "display_name": "MellowBR"}]
+        m, fonte = resolve_slot_map(draft, users, [], picks)
+        self.assertEqual(fonte, "picks_observados")
+        self.assertEqual(m[1]["user_id"], "1130162144764506112")
+
+    def test_cadeia_esgotada_mapa_vazio_e_fonte_nomeada(self):
+        """Irresolvível: mapa vazio + fonte 'nenhuma' — o CLI aborta nomeando o que
+        faltou (o abort barulhento permanece)."""
+        m, fonte = resolve_slot_map({"draft_order": None}, [], [], [])
+        self.assertEqual((m, fonte), ({}, "nenhuma"))
+
+    def test_fallback_b_ignora_roster_sem_owner(self):
+        m = slot_map_from_rosters({"slot_to_roster_id": {"1": 1, "2": 2}},
+                                  [{"roster_id": 1, "owner_id": "u1"},
+                                   {"roster_id": 2, "owner_id": None}],
+                                  [])
+        self.assertEqual(list(m.keys()), [1])
+
+    def test_fallback_c_ignora_pick_sem_slot(self):
+        m = slot_map_from_picks([{"player_id": "x", "picked_by": "u1"}], [])
+        self.assertEqual(m, {})
 
 
 # ══════════════════════════════════════════════════════════════════════════════

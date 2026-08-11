@@ -37,3 +37,8 @@ def fetch_picks(draft_id: str) -> list:
 
 def fetch_users(league_id: str = LEAGUE_ID) -> list:
     return _get(f"{SLEEPER_API}/league/{league_id}/users") or []
+
+
+def fetch_rosters(league_id: str = LEAGUE_ID) -> list:
+    """FIX3 — insumo do fallback (b) do mapa slot↔owner (roster_id → owner_id)."""
+    return _get(f"{SLEEPER_API}/league/{league_id}/rosters") or []

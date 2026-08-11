@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 11/08/2026-pt3 (MAN-OFF26-24-F2a-FIX2: **hCaptcha recusa o Chromium de teste** → launch pelo **Chrome real** (`channel=“chrome”`, mesmo perfil dedicado) + mitigações padrão p/ o desafio renderizar ao humano (⛔ nada resolve/burla — teste de zero lib de resolução); Chrome ausente → aborto acionável, nunca fallback silencioso. Testes 35→36; gitignore do perfil conferido. Probe é do owner.)
+> Última atualização: 11/08/2026-pt4 (MAN-OFF26-24-F2a-FIX3: mapa slot↔owner vazio no 1º designate → **cadeia (a) draft_order → (b) slot_to_roster_id×rosters → (c) picks** (diagnóstico na API viva: draft_order=None em pre_draft, slot_to_roster_id completo). Fonte no relatório; abort nomeia o que faltou; --team-slot como último recurso com confirmação no DOM. **Achado: check de owner do validate estava inerte** — agora confere de verdade. Testes 36→42. Re-execução do owner.)
+> Anterior: 11/08/2026-pt3 (MAN-OFF26-24-F2a-FIX2: **hCaptcha recusa o Chromium de teste** → launch pelo **Chrome real** (`channel=“chrome”`, mesmo perfil dedicado) + mitigações padrão p/ o desafio renderizar ao humano (⛔ nada resolve/burla — teste de zero lib de resolução); Chrome ausente → aborto acionável, nunca fallback silencioso. Testes 35→36; gitignore do perfil conferido. Probe é do owner.)
 > Anterior: 11/08/2026-pt2 (MAN-OFF26-24-F2a-FIX: guarda de identidade refeita **por construção** — o 1º probe real abortou procurando o nome da liga numa página que não o exibe; agora `url_guard` (URL × draft_id derivado, puro+testado), título = log; `LEAGUE_NAME` não pode voltar a ser gate (teste estático). 1ª vida do perfil: espera de login manual (Enter/120s) em vez de estourar; **JOIN DRAFT na lista proibida**, fluxo de login sem `.click()`. `designate` herda pelo mesmo `open_board`. **`validate` já VERDE em execução real (18/18, $176)**. Testes 30→35; suítes verdes. Probe é do owner.)
 > Anterior: 11/08/2026 (MAN-OFF26-24-F2a: **F2a entregue** — `tools/phantom_board/` (núcleo puro + API + Playwright + CLI + README) sobre a spec do ensaio de 11/08 (18=$176 por API). **Arquitetura: o cliente MENTE → comando via DOM, verdade via API** (toast nunca é veredito; duplicata=sucesso; caso Caleb → 1 re-comando; depois aborta barulhento). Guardas de nascença testadas (guard ANTES do browser; START/RESET DRAFT proibidos); teclas reais; anti-homônimo por DOM (sigla divergente = aviso/frescor). Manager: endpoint fino `keeper_sheet_export` (pacote do `build_sheet`; auditoria intocada). 3 correções de runbook do ensaio aplicadas; Cowork segue plano A. 30 testes; suítes verdes; validate roda sem playwright. ⚠️ driver não exercido em navegador — validação do owner (README, 4 passos); F2b após o resultado.)
 > Anterior: 10/08/2026-pt12 (MAN-OFF26-24-REG-F1: **[[OFF26-24]] registrado + F1** — script de população do board da fantasma p/ 2026 (decisão do owner; Cowork segue plano A; validação até **19/08** senão fica p/ 2027). **Q1:** Playwright headed, perfil persistente dedicado (login manual 1×, zero credencial). **Q2:** sheet JSON **sem sid/owner_id** (D3) → expor `build_sheet` ao script (⛔ sem 2ª definição de keeper); `draft_id` pela API PÚBLICA (D1 do OFF26-4, não a vetada). **Q3:** runbook já fixa o fluxo; **7 itens só o ensaio de 11/08 responde** (lista p/ virar spec). **Q4:** texto visível como âncora (junho→agosto mudou posição, não rótulo), falha barulhenta, checkpoint por time. **Q5:** auditoria OFF26-4 = verificador independente; critério: 12/12 + auditoria zerada + zero intervenção + RESET exercido. **Q6:** league_id hardcoded + nome conferido + START DRAFT proibido. Plano F2 em 4 fases até 19/08. Zero código.)
@@ -5224,3 +5225,30 @@ exigiram captcha.
 
 **Commit + push. Sequência esperada da re-execução do owner:** probe → janela do CHROME abre →
 login com captcha resolvível pelo humano → Enter → Inspector → anotar o seletor da célula.
+
+### MAN-OFF26-24-F2a-FIX3 — o mapa vazio vira cadeia de resolução; o validate ganha o check que achava que tinha (11/08/2026, Fable)
+
+O 1º `designate` real (Cam Ward → Trust The Process) abortou **correto e barulhento**: mapa
+slot↔owner vazio. O diagnóstico contra a API viva fechou a causa e entregou a solução melhor que
+a hipótese: `draft_order` é **None** no draft `pre_draft` pós-RESET — **mas `slot_to_roster_id`
+está presente e completo** (mesmo estado), e `/league/rosters` dá roster→owner.
+
+- **Cadeia em ordem de confiança** (`core.resolve_slot_map`, pura): (a) `draft_order` quando
+  presente; (b) **`slot_to_roster_id` × rosters × users** — API pura, sem ambiguidade, resolve o
+  caso real; (c) slots observados nos picks existentes (parcial por natureza). Esgotou → mapa
+  vazio + fonte "nenhuma" → **o CLI aborta nomeando o que faltou**, com `--team-slot N` como
+  último recurso documentado — e o menu do DOM ("for Team {N}") segue confirmando o N antes de
+  qualquer designação (confirmação, nunca fonte primária — a restrição do prompt).
+- **Rastreabilidade:** `slot_map_source` entra no relatório JSON dos dois modos e no log do
+  designate (evento `slot_resolvido`).
+- **Achado de carona (o diagnóstico pagou dobrado):** o check de owner do `validate` estava
+  **INERTE** — com o mapa vazio, `slot_owner=""` e a comparação nunca disparava; os "18/18" da
+  execução real valiam para **sid+salário**, não para owner. Com a cadeia, o `validate` passa a
+  conferir owner de verdade (a classe `owner_divergent` fica viva).
+- **Testes 36 → 42:** as três pontas da cadeia com fixtures no **formato real medido** (o par
+  Cam Ward/michelzela do abort é fixture), roster sem owner ignorado, pick sem slot ignorado,
+  cadeia esgotada nomeada. Suítes completas verdes. Diffstat conferido antes do push (lição do
+  incidente aplicada).
+
+**Roteiro do owner: re-rodar o MESMO comando do designate (Cam Ward)** — esperado:
+`slot_resolvido (source: slot_to_roster_id×rosters)` → menu confirma Team 10 → assentado na API.

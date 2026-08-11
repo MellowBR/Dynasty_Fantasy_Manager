@@ -19,8 +19,9 @@ from pathlib import Path
 
 from . import config
 from .core import (flatten_sheet, league_guard, match_picks_to_sheet,
-                   build_slot_map, team_totals)
-from .sleeper_api import fetch_draft, fetch_draft_id, fetch_picks, fetch_users
+                   resolve_slot_map, team_totals)
+from .sleeper_api import (fetch_draft, fetch_draft_id, fetch_picks,
+                          fetch_rosters, fetch_users)
 
 
 def _write_report(kind: str, payload: dict) -> Path:
@@ -62,7 +63,11 @@ def cmd_validate(args):
     draft_id, draft = _guarded_draft()
     picks = fetch_picks(draft_id)
     users = fetch_users(config.LEAGUE_ID)
-    slot_map = build_slot_map(draft, users)
+    # FIX3: cadeia (a) draft_order → (b) slot_to_roster_id×rosters → (c) picks.
+    # Em pre_draft recém-resetado o draft_order vem null — a (b) resolve por API.
+    slot_map, slot_source = resolve_slot_map(draft, users,
+                                             fetch_rosters(config.LEAGUE_ID), picks)
+    print(f"Mapa slot↔owner: {len(slot_map)} slots via {slot_source}")
     sheet = _load_sheet(args.sheet)
     rows = flatten_sheet(sheet)
     report = match_picks_to_sheet(picks, rows, slot_map)
@@ -84,6 +89,7 @@ def cmd_validate(args):
     _write_report("validate", {
         "mode": "validate", "league_id": config.LEAGUE_ID, "draft_id": draft_id,
         "sheet_stage": (sheet.get("stage_meta") or {}).get("stage"),
+        "slot_map_source": slot_source,
         "picks": len(picks), "report": report,
     })
 
@@ -117,15 +123,27 @@ def cmd_designate(args):
     price = args.price if args.price is not None else alvo["salary"]
 
     log = []
+    slot_source = "manual(--team-slot)"
     pw, ctx, page, draft_id = open_board(headless=False)
     try:
-        # o slot do time-alvo sai do mapa derivado por API (owner_id → slot)
-        slot_map = build_slot_map(fetch_draft(draft_id), fetch_users(config.LEAGUE_ID))
+        # FIX3: o slot do time-alvo sai da CADEIA (a)→(b)→(c); a confirmação final
+        # segue sendo o menu do DOM ("for Team {N}") dentro do designate.
+        slot_map, chain_source = resolve_slot_map(
+            fetch_draft(draft_id), fetch_users(config.LEAGUE_ID),
+            fetch_rosters(config.LEAGUE_ID), fetch_picks(draft_id))
         slots = {v["user_id"]: k for k, v in slot_map.items()}
         team_slot = args.team_slot or slots.get(alvo["owner_id"])
+        if not args.team_slot:
+            slot_source = chain_source
         if not team_slot:
-            raise BoardAbort(f"Owner {alvo['owner_id']} ({alvo['team_name']}) sem slot "
-                             f"no draft — mapa: {slot_map}")
+            raise BoardAbort(
+                f"Owner {alvo['owner_id']} ({alvo['team_name']}) sem slot no draft — "
+                f"fonte da cadeia: {chain_source}; mapa: {slot_map or '{}'}. Faltou: "
+                f"draft_order (null em pre_draft), slot_to_roster_id×rosters e picks "
+                f"não cobrem o owner-alvo. Último recurso: --team-slot N (o menu do "
+                f"DOM confirma o N antes de designar).")
+        log.append({"event": "slot_resolvido", "team_slot": int(team_slot),
+                    "source": slot_source})
         verdict = designate(page, draft_id, int(team_slot), alvo["name"],
                             alvo["position"], "", price, alvo["sid"], log)
         print(f"\n✅ {alvo['name']} → Team {team_slot} (${price}): {verdict} "
@@ -150,7 +168,7 @@ def cmd_designate(args):
         pw.stop()
         _write_report("designate", {
             "mode": "designate", "ok": ok, "player": args.player,
-            "price": price, "log": log,
+            "price": price, "slot_map_source": slot_source, "log": log,
         })
     sys.exit(0 if ok else 1)
 
