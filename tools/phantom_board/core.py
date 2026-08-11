@@ -208,6 +208,41 @@ def choose_menu_item(menu_texts: list, team_slot: int,
     return ("abort", "wrong_team" if wrong_team else "no_menu")
 
 
+# ── Anti-homônimo: parser do DOM real da linha de resultado (FIX5) ─────────────
+
+_ROW_POSITIONS = {"QB", "RB", "WR", "TE", "K", "DEF", "DST", "D/ST", "FLEX"}
+
+
+def parse_result_row(position_text, team_text=""):
+    """FIX5 — extrai (posição, sigla NFL) do DOM REAL da linha de resultado.
+
+    O formato do abort de 11/08 (fixture nos testes): o nó `.position` vem
+    EMPILHADO por newlines ('QB
+TEN', 'RB
+DET
+QUES' — posição, sigla e status
+    de injury no mesmo innerText) e o `.team` pode DUPLICAR a sigla no conjunto
+    ('QB
+TEN TEN'). Tokeniza por whitespace: posição = 1º token do vocabulário
+    de posições; sigla = 1º token de 2-3 letras maiúsculas fora do vocabulário
+    (o que exclui QUES/DOUB/OUT etc. por tamanho ou por não serem siglas). Puro."""
+    tokens = f"{position_text or ''} {team_text or ''}".split()
+    pos = next((t.upper() for t in tokens if t.upper() in _ROW_POSITIONS), "")
+    sigla = next((t.upper() for t in tokens
+                  if t.upper() not in _ROW_POSITIONS
+                  and 2 <= len(t) <= 3 and t.isalpha() and t.upper() == t), "")
+    return pos, sigla
+
+
+def select_candidate_rows(parsed_rows, position):
+    """FIX5 — índices das linhas cuja POSIÇÃO casa exatamente. O critério segue
+    estrito: 0 candidatos = não achou; 2+ = homônimo real → quem chama aborta.
+    A sigla NÃO entra no critério (a sheet não a carrega) — é logada para
+    conferência humana."""
+    want = (position or "").upper()
+    return [i for i, (pos, _sigla) in enumerate(parsed_rows) if pos == want]
+
+
 # ── Assentamento: a decisão pós-comando (comando via DOM, verdade via API) ──────
 
 SETTLED = "assentado"

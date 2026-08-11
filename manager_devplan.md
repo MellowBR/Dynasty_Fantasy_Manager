@@ -1,7 +1,9 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 11/08/2026-pt5 (MAN-OFF26-24-F2a-FIX4: célula **por COLUNA do slot** (.team-column → .cell sem .drafted; ordem candidata, menu decide via `choose_menu_item` puro, N por fronteira); **Change Player = proibição** (célula preenchida → Escape+abort, nunca prosseguir — o call log real virou fixture); handler do CLI sem crash (`ok` antes do try; qualquer exceção → abort padrão com screenshot+relatório). Testes 42→50; suítes verdes. Re-execução do owner: mesmo comando Cam Ward.)
+> Última atualização: 11/08/2026-pt6 (MAN-OFF26-24-F2a-FIX5: **parser do anti-homônimo lê o DOM real** — “0 candidatos QB” com o Cam Ward na lista (`'QB
+TEN TEN'`): innerText empilhado por newlines + sigla duplicada + injury. `parse_result_row`/`select_candidate_rows` no núcleo puro; critério INTACTO (posição exata, 0/2+ abortam; sigla logada); “+” da linha ELEITA. Testes 50→60 (linhas literais do abort = fixture). Re-execução do owner.)
+> Anterior: 11/08/2026-pt5 (MAN-OFF26-24-F2a-FIX4: célula **por COLUNA do slot** (.team-column → .cell sem .drafted; ordem candidata, menu decide via `choose_menu_item` puro, N por fronteira); **Change Player = proibição** (célula preenchida → Escape+abort, nunca prosseguir — o call log real virou fixture); handler do CLI sem crash (`ok` antes do try; qualquer exceção → abort padrão com screenshot+relatório). Testes 42→50; suítes verdes. Re-execução do owner: mesmo comando Cam Ward.)
 > Anterior: 11/08/2026-pt4 (MAN-OFF26-24-F2a-FIX3: mapa slot↔owner vazio no 1º designate → **cadeia (a) draft_order → (b) slot_to_roster_id×rosters → (c) picks** (diagnóstico na API viva: draft_order=None em pre_draft, slot_to_roster_id completo). Fonte no relatório; abort nomeia o que faltou; --team-slot como último recurso com confirmação no DOM. **Achado: check de owner do validate estava inerte** — agora confere de verdade. Testes 36→42. Re-execução do owner.)
 > Anterior: 11/08/2026-pt3 (MAN-OFF26-24-F2a-FIX2: **hCaptcha recusa o Chromium de teste** → launch pelo **Chrome real** (`channel=“chrome”`, mesmo perfil dedicado) + mitigações padrão p/ o desafio renderizar ao humano (⛔ nada resolve/burla — teste de zero lib de resolução); Chrome ausente → aborto acionável, nunca fallback silencioso. Testes 35→36; gitignore do perfil conferido. Probe é do owner.)
 > Anterior: 11/08/2026-pt2 (MAN-OFF26-24-F2a-FIX: guarda de identidade refeita **por construção** — o 1º probe real abortou procurando o nome da liga numa página que não o exibe; agora `url_guard` (URL × draft_id derivado, puro+testado), título = log; `LEAGUE_NAME` não pode voltar a ser gate (teste estático). 1ª vida do perfil: espera de login manual (Enter/120s) em vez de estourar; **JOIN DRAFT na lista proibida**, fluxo de login sem `.click()`. `designate` herda pelo mesmo `open_board`. **`validate` já VERDE em execução real (18/18, $176)**. Testes 30→35; suítes verdes. Probe é do owner.)
@@ -5284,3 +5286,37 @@ CLI crashou com `UnboundLocalError: 'ok'`, engolindo o abort limpo.
 "for Team 10" → busca → "+" → $13? (preço da sheet) → SET PLAYER → assentado na API.
 ⚠️ Nota de pull: o config local do owner tem a edição do probe (`BOARD_CELL_SELECTOR`) — antes
 do pull, `git checkout -- tools/phantom_board/config.py` descarta a edição (não é mais usada).
+
+### MAN-OFF26-24-F2a-FIX5 — o parser passa a ler o DOM real; o critério não relaxa (11/08/2026, Fable)
+
+A run avançou por todo o caminho novo (mapa via cadeia ✓, coluna do slot 10 ✓, célula vazia ✓,
+menu "for Team 10" ✓, busca digitada ✓) e abortou no anti-homônimo com **"0 candidatos QB" — com
+o Cam Ward presente na própria lista do abort** (`'QB
+TEN TEN'`). Bug de **parsing, não de
+busca** — e o abort em 0 candidatos estava CERTO como comportamento: o que não prestava era o
+critério de reconhecimento, que esperava o formato limpo do ensaio (".position" = "QB TEN") e o
+innerText real entrega **posição/sigla empilhadas por newline, sigla duplicada e status de
+injury concatenado** (`'RB
+DET
+QUES DET'`, `'WR
+CHI
+QUES CHI'`).
+
+- **`parse_result_row` (núcleo puro):** tokenização por whitespace/newline; posição = 1º token
+  do vocabulário ({QB,RB,WR,TE,K,DEF,DST,FLEX}); sigla = 1º token de 2-3 maiúsculas fora do
+  vocabulário — QUES/DOUB/OUT caem por tamanho ou por não serem siglas. As 4 linhas literais do
+  abort verificadas uma a uma na suíte.
+- **`select_candidate_rows` (núcleo puro):** posição EXATA; devolve índices. **Nada relaxou** —
+  0 candidatos = não achou; 2+ = homônimo real → o driver aborta como desenhado. A sigla NÃO
+  entra no critério (a sheet não a carrega) — vai ao relatório (`linha_eleita` no log, com
+  `nfl_team_no_board`) para conferência humana; divergência explícita segue virando o aviso
+  Diggs/D.Jones.
+- **O "+" clicado é o da linha ELEITA** (`rows.nth(idx)` do índice que o matcher devolveu) —
+  guarda estática nova cobre os três pontos (parse no núcleo, seleção no núcleo, nth(idx)).
+- **Testes 50 → 60:** parser (5, com as linhas literais), seleção (4, incluindo Cam Ward → 
+  exatamente 1 QB e o caso 2 homônimos), guarda estática. Suítes completas verdes; diffstat
+  conferido antes do push.
+
+**Roteiro do owner: o MESMO comando (Cam Ward).** Cada fix desta série morreu numa camada mais
+funda que o anterior — mapa → célula → menu → parser; o caminho até o "+" está agora inteiro
+coberto por fixtures reais.

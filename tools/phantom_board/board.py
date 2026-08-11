@@ -24,7 +24,8 @@ from pathlib import Path
 
 from . import config
 from .core import (PENDING, SETTLED, ALREADY, TIMEOUT, choose_menu_item,
-                   league_guard, settlement_decision, url_guard)
+                   league_guard, parse_result_row, select_candidate_rows,
+                   settlement_decision, url_guard)
 from .sleeper_api import fetch_draft, fetch_draft_id, fetch_picks
 
 
@@ -189,10 +190,18 @@ def _open_set_player_menu(page, team_slot: int):
                      f"Nada designado — parando barulhento.")
 
 
-def _pick_search_result(page, player_name: str, position: str, nfl_team: str):
-    """Digita a busca com teclas REAIS e escolhe a linha por DOM (anti-homônimo:
-    posição obrigatória; time NFL divergente vira AVISO — pode ser dado fresco do
-    Sleeper (caso Diggs/D.Jones do ensaio) — mas 0 ou 2+ candidatos abortam."""
+def _pick_search_result(page, player_name: str, position: str, nfl_team: str,
+                        log: list = None):
+    """Digita a busca com teclas REAIS e elege a linha pelo DOM — parseado pelo
+    núcleo puro (FIX5: o innerText real vem empilhado por newlines, com sigla
+    duplicada e status de injury — 'QB
+TEN TEN', 'RB
+DET
+QUES DET'). O critério
+    segue ESTRITO: posição exata; 0 ou 2+ candidatos abortam. A sigla é LOGADA
+    para conferência humana (a sheet não a carrega); divergência explícita da
+    sheet vira aviso (dado fresco — Diggs/D.Jones). ⛔ O "+" clicado é o da linha
+    ELEITA, nunca o da primeira."""
     search = page.locator(config.SEL_SEARCH_INPUT + ":visible").last  # o do modal
     search.click()
     search.press("Control+a")
@@ -200,23 +209,28 @@ def _pick_search_result(page, player_name: str, position: str, nfl_team: str):
     page.wait_for_timeout(600)            # o filtro reage a teclas — deixa assentar
 
     rows = page.locator(config.SEL_RESULT_ROW + ":visible")
-    candidates, infos = [], []
+    parsed = []
     for i in range(rows.count()):
         row = rows.nth(i)
-        pos = row.locator(config.SEL_ROW_POSITION).first.inner_text().strip()
-        team = row.locator(config.SEL_ROW_TEAM).first.inner_text().strip()
-        infos.append(f"{pos} {team}")
-        if pos.upper() == (position or "").upper():
-            candidates.append((row, pos, team))
-    if len(candidates) != 1:
+        pos_text = row.locator(config.SEL_ROW_POSITION).first.inner_text()
+        team_text = row.locator(config.SEL_ROW_TEAM).first.inner_text()
+        parsed.append(parse_result_row(pos_text, team_text))
+    chosen = select_candidate_rows(parsed, position)
+    if len(chosen) != 1:
         raise BoardAbort(
-            f"Anti-homônimo: {len(candidates)} candidato(s) {position} para "
-            f"'{player_name}' (linhas visíveis: {infos or 'nenhuma'}). Nada designado.")
-    row, pos, team = candidates[0]
+            f"Anti-homônimo: {len(chosen)} candidato(s) {position} para "
+            f"'{player_name}' (linhas parseadas: {parsed or 'nenhuma'}). "
+            f"Nada designado.")
+    idx = chosen[0]
+    pos, sigla = parsed[idx]
+    if log is not None:
+        log.append({"event": "linha_eleita", "player": player_name,
+                    "position": pos, "nfl_team_no_board": sigla})
     warn = None
-    if nfl_team and team.upper() != nfl_team.upper():
-        warn = (f"time NFL divergente: sheet={nfl_team} board={team} — pode ser dado "
-                f"fresco do Sleeper (nota Diggs/D.Jones do ensaio)")
+    if nfl_team and sigla and sigla != nfl_team.upper():
+        warn = (f"time NFL divergente: sheet={nfl_team} board={sigla} — pode ser "
+                f"dado fresco do Sleeper (nota Diggs/D.Jones do ensaio)")
+    row = rows.nth(idx)                   # ⛔ a linha ELEITA pelo matcher
     plus = row.locator(config.SEL_PLUS_BUTTON).first
     klass = plus.get_attribute("class") or ""
     if config.PLUS_DISABLED_CLASS in klass.split():
@@ -256,7 +270,7 @@ def designate(page, draft_id: str, team_slot: int, player_name: str, position: s
     while True:
         attempts += 1
         _open_set_player_menu(page, team_slot)
-        warn = _pick_search_result(page, player_name, position, nfl_team)
+        warn = _pick_search_result(page, player_name, position, nfl_team, log)
         if warn:
             log.append({"sid": sid, "warning": warn})
         _set_price_and_confirm(page, price)

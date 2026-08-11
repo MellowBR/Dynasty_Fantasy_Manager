@@ -17,11 +17,13 @@ from tools.phantom_board import config
 from tools.phantom_board.core import (
     ALREADY, PENDING, SETTLED, TIMEOUT,
     build_slot_map, choose_menu_item, flatten_sheet, league_guard,
-    match_picks_to_sheet, parse_pick, resolve_slot_map, settlement_decision,
-    slot_map_from_picks, slot_map_from_rosters, team_totals, url_guard,
+    match_picks_to_sheet, parse_pick, parse_result_row, resolve_slot_map,
+    select_candidate_rows, settlement_decision, slot_map_from_picks,
+    slot_map_from_rosters, team_totals, url_guard,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
+NL = "\n"     # linhas do DOM real vêm empilhadas por newline (fixtures do FIX5)
 
 # Mapa medido no ensaio de 11/08 — fixture de CONFERÊNCIA (a fonte é a derivação).
 ENSAIO_SLOTS = {1: "MellowBR", 2: "rafadgil", 3: "TropadoJarra", 4: "icarocosta1",
@@ -292,6 +294,62 @@ class TestChooseMenuItem(unittest.TestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 4c. Anti-homônimo: o parser do DOM real (FIX5 — o abort de 11/08 é a fixture)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestParseResultRow(unittest.TestCase):
+    """As linhas LITERAIS do abort real ('0 candidatos QB' com o Cam Ward na
+    lista): .position empilhado por newlines, sigla duplicada, status de injury."""
+
+    def test_cam_ward_a_linha_do_abort(self):
+        self.assertEqual(parse_result_row("QB" + NL + "TEN", "TEN"), ("QB", "TEN"))
+
+    def test_injury_status_tolerado(self):
+        self.assertEqual(parse_result_row("RB" + NL + "DET" + NL + "QUES", "DET"),
+                         ("RB", "DET"))
+        self.assertEqual(parse_result_row("WR" + NL + "NYG" + NL + "QUES", "NYG"),
+                         ("WR", "NYG"))
+        self.assertEqual(parse_result_row("WR" + NL + "CHI" + NL + "QUES", "CHI"),
+                         ("WR", "CHI"))
+
+    def test_string_unica_concatenada(self):
+        """O formato como apareceu na mensagem do abort (pos+team juntos)."""
+        self.assertEqual(parse_result_row("QB" + NL + "TEN TEN"), ("QB", "TEN"))
+        self.assertEqual(parse_result_row("RB" + NL + "DET" + NL + "QUES DET"),
+                         ("RB", "DET"))
+
+    def test_formato_limpo_do_ensaio_segue_ok(self):
+        self.assertEqual(parse_result_row("QB", "KC"), ("QB", "KC"))
+        self.assertEqual(parse_result_row("DEF", "LAR"), ("DEF", "LAR"))
+
+    def test_vazio_degrada(self):
+        self.assertEqual(parse_result_row("", ""), ("", ""))
+
+
+class TestSelectCandidateRows(unittest.TestCase):
+
+    def _rows(self):
+        return [parse_result_row("WR" + NL + "CHI" + NL + "QUES", "CHI"),
+                parse_result_row("QB" + NL + "TEN", "TEN"),
+                parse_result_row("RB" + NL + "DET" + NL + "QUES", "DET")]
+
+    def test_cam_ward_acha_exatamente_um_qb(self):
+        """O caso do abort: 1 QB na lista → 1 candidato, o índice certo."""
+        self.assertEqual(select_candidate_rows(self._rows(), "QB"), [1])
+
+    def test_dois_homonimos_mesma_posicao_dao_dois(self):
+        """Anti-homônimo NÃO relaxou: 2+ candidatos → quem chama aborta."""
+        rows = self._rows() + [parse_result_row("QB" + NL + "MIA", "MIA")]
+        self.assertEqual(len(select_candidate_rows(rows, "QB")), 2)
+
+    def test_zero_candidatos_quando_posicao_nao_esta(self):
+        self.assertEqual(select_candidate_rows(self._rows(), "K"), [])
+
+    def test_posicao_case_insensitive(self):
+        self.assertEqual(select_candidate_rows(self._rows(), "qb"), [1])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 5. Decisão de assentamento (o toast nunca é veredito)
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -370,6 +428,14 @@ class TestGuardasEstaticas(unittest.TestCase):
         self.assertIn("CELL_DRAFTED_CLASS", corpo)
         self.assertIn("choose_menu_item", corpo)       # decisão no núcleo puro
         self.assertNotIn("BOARD_CELL_SELECTOR", self.board)
+
+    def test_plus_clicado_e_o_da_linha_eleita(self):
+        """FIX5: o "+" vem de rows.nth(idx) — a linha que o matcher elegeu, nunca
+        a primeira; e a eleição passa pelo núcleo puro."""
+        corpo = self.board.split("def _pick_search_result")[1].split("def _set_price")[0]
+        self.assertIn("select_candidate_rows", corpo)
+        self.assertIn("parse_result_row", corpo)
+        self.assertIn("rows.nth(idx)", corpo)
 
     def test_cli_nao_crasha_no_handler(self):
         """FIX4: ok nasce antes do try e QUALQUER exceção vira abort padrão
