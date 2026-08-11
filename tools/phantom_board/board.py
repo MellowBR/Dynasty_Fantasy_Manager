@@ -23,10 +23,11 @@ import time
 from pathlib import Path
 
 from . import config
-from .core import (ALREADY, BLOQUEADO_TETO, PENDING, SETTLED, TIMEOUT,
+from .core import (ALREADY, ASSENTADO_LOCAL, BLOQUEADO_TETO, SETTLED,
                    choose_menu_item, is_budget_block, league_guard,
-                   modal_header_check, parse_result_row, search_filter_check,
-                   select_candidate_rows, settlement_decision, url_guard)
+                   modal_header_check, parse_result_row, post_teto_decision,
+                   search_filter_check, select_candidate_rows, split_settled,
+                   url_guard)
 from .sleeper_api import fetch_draft, fetch_draft_id, fetch_picks
 
 
@@ -345,63 +346,167 @@ def _visible_toast_text(page) -> str:
         return ""
 
 
-def designate(page, draft_id: str, team_slot: int, player_name: str, position: str,
-              nfl_team: str, price: int, sid: str, log: list) -> str:
-    """Uma designação ponta a ponta. Comando via DOM; ASSENTAMENTO via API (poll).
+def command_pick(page, team_slot: int, player_name: str, position: str,
+                 nfl_team: str, price: int, sid: str, log: list) -> str:
+    """FIX8 — envia UM comando (menu→busca→+→preço→SET PLAYER) e retorna SEM
+    poll: o assentamento é ASSÍNCRONO (lag real medido: 3s a >5min — o board
+    local preenchendo a célula é feedback suficiente para seguir). A recusa de
+    TETO é a exceção síncrona: o aviso aparece na hora → `bloqueado_teto`.
+    Retorna "comandado" ou BLOQUEADO_TETO. EmptySearchResult propaga — o
+    chamador decide (recheck da API / board local / estado da própria run)."""
+    _open_set_player_menu(page, team_slot)
+    warn = _pick_search_result(page, team_slot, player_name, position,
+                               nfl_team, log)
+    if warn:
+        log.append({"sid": sid, "warning": warn})
+    _set_price_and_confirm(page, price)
+    page.wait_for_timeout(1_500)          # a recusa de teto é imediata, se houver
+    try:
+        teto = page.get_by_text(config.BUDGET_BLOCK_TEXT,
+                                exact=False).first.is_visible()
+    except Exception:
+        teto = False
+    if teto or is_budget_block(_visible_toast_text(page)):
+        page.keyboard.press("Escape")
+        log.append({"sid": sid, "event": BLOQUEADO_TETO})
+        return BLOQUEADO_TETO
+    log.append({"sid": sid, "event": "comandado"})
+    return "comandado"
 
-    Retorna o veredito do core (assentado/duplicata/…) ou levanta BoardAbort."""
+
+def board_shows_designated(page, team_slot: int, player_name: str) -> bool:
+    """FIX8 — o board LOCAL mostra o jogador designado na coluna do slot? (célula
+    `.cell.drafted` da coluna contendo o SOBRENOME — as células abreviam o
+    primeiro nome: "J. Allen"). Usado só para REBAIXAR pendente a
+    `assentado_local_api_atrasada` — nunca como verdade de campanha."""
+    try:
+        col = page.locator(config.SEL_TEAM_COLUMN).nth(team_slot - 1)
+        last = (player_name or "").split()[-1]
+        return col.locator(f"{config.SEL_CELL}.{config.CELL_DRAFTED_CLASS}",
+                           has_text=last).count() > 0
+    except Exception:
+        return False
+
+
+def reconcile_team(page, draft_id: str, pendentes: list, log: list,
+                   teto: float = None, poll: float = None) -> list:
+    """FIX8 — reconciliação POR TIME: varre a API com paciência (teto generoso)
+    até os pendentes assentarem. No MEIO do teto com pendência viva, um RELOAD
+    do board — tarefa 7: a visita do próprio script como possível gatilho do
+    cache preguiçoso; a telemetria (`segundos_apos_comando` + `apos_reload`)
+    distingue lag puro (fila contínua) de cache por visita (rajada pós-reload).
+
+    `pendentes`: [{sid, name, slot, price, cmd_at}]. Retorna os AINDA pendentes
+    no teto (decisão pós-teto é do chamador via post_teto_decision)."""
+    teto = teto or config.RECONCILE_TETO_SECONDS
+    poll = poll or config.RECONCILE_POLL_SECONDS
+    start = time.monotonic()
+    reloaded = False
+    pend = {p["sid"]: p for p in pendentes}
+    while pend and time.monotonic() - start < teto:
+        time.sleep(poll)
+        api_sids = {str(x.get("player_id")) for x in fetch_picks(draft_id)}
+        settled, _rest = split_settled(list(pend), api_sids)
+        for sid in settled:
+            item = pend.pop(sid)
+            log.append({"sid": sid, "event": "assentado",
+                        "segundos_apos_comando":
+                            round(time.monotonic() - item["cmd_at"], 1),
+                        "apos_reload": reloaded})
+        if pend and not reloaded and (time.monotonic() - start) >= teto / 2:
+            log.append({"event": "reload_do_board",
+                        "segundos": round(time.monotonic() - start, 1),
+                        "pendentes": sorted(pend)})
+            try:
+                page.reload(wait_until="load")
+                page.wait_for_timeout(1_500)
+            except Exception:
+                pass
+            reloaded = True
+    return list(pend.values())
+
+
+def settle_pendentes(page, draft_id: str, pendentes: list, log: list) -> dict:
+    """FIX8 — fecha os pendentes de um time: reconciliação paciente → decisão
+    pós-teto por pendente (board local → `assentado_local_api_atrasada` com
+    aviso, NUNCA re-comando; disponível → 1 re-comando + mini-reconciliação;
+    esgotou → falha DO KEEPER, preservando o resto). Retorna o placar."""
+    placar = {"assentados": 0, "locais": 0, "falhas": []}
+    sobras = reconcile_team(page, draft_id, pendentes, log)
+    placar["assentados"] = len(pendentes) - len(sobras)
+    for item in sobras:
+        recomandos = 0
+        while True:
+            decisao = post_teto_decision(
+                board_shows_designated(page, item["slot"], item["name"]),
+                recomandos, config.COMMAND_RETRIES)
+            if decisao == ASSENTADO_LOCAL:
+                log.append({"sid": item["sid"], "event": ASSENTADO_LOCAL,
+                            "aviso": "board local designado; API atrasada — "
+                                     "conferir na auditoria"})
+                placar["locais"] += 1
+                break
+            if decisao == "recomandar":
+                recomandos += 1
+                log.append({"sid": item["sid"], "event": "recomando"})
+                try:
+                    r = command_pick(page, item["slot"], item["name"],
+                                     item.get("position", ""), "",
+                                     item["price"], item["sid"], log)
+                except EmptySearchResult:
+                    # sumiu da busca logo após o próprio comando desta run →
+                    # sinal de sucesso LOCAL (tarefa 5), não mistério
+                    log.append({"sid": item["sid"],
+                                "event": "sumiu_da_busca_pos_comando"})
+                    r = "comandado"
+                except BoardAbort as e:
+                    placar["falhas"].append({"keeper": item["name"],
+                                             "falha": str(e)[:200]})
+                    break
+                if r == BLOQUEADO_TETO:
+                    placar["falhas"].append({"keeper": item["name"],
+                                             "falha": BLOQUEADO_TETO})
+                    break
+                item["cmd_at"] = time.monotonic()
+                ainda = reconcile_team(page, draft_id, [item], log,
+                                       teto=config.RECOMMAND_RECONCILE_SECONDS)
+                if not ainda:
+                    placar["assentados"] += 1
+                    break
+                continue          # volta ao post_teto_decision (board check)
+            placar["falhas"].append({"keeper": item["name"],
+                                     "falha": "não assentou nem no board local "
+                                              "após re-comando"})
+            break
+    return placar
+
+
+def designate(page, draft_id: str, team_slot: int, player_name: str,
+              position: str, nfl_team: str, price: int, sid: str,
+              log: list) -> str:
+    """Uma designação (o comando único do CLI): comando assíncrono + os MESMOS
+    fecho e decisão pós-teto da campanha. Verdade continua sendo a API."""
     before = {str(p.get("player_id")) for p in fetch_picks(draft_id)}
-    present_before = sid in before
-    if present_before:
+    if sid in before:
         log.append({"sid": sid, "event": "ja_assentado_antes_do_comando"})
         return ALREADY
-
-    attempts = 0
-    while True:
-        attempts += 1
-        _open_set_player_menu(page, team_slot)
-        try:
-            warn = _pick_search_result(page, team_slot, player_name, position,
-                                       nfl_team, log)
-        except EmptySearchResult as e:
-            # F2b: a lição da F2a — re-checa a API ANTES de abortar (o desync
-            # pode ter assentado o pick entre a checagem inicial e o modal)
-            now = {str(p.get("player_id")) for p in fetch_picks(draft_id)}
-            if sid in now:
-                log.append({"sid": sid, "event": "ja_assentado_no_recheck"})
-                return ALREADY
-            raise BoardAbort(str(e))
-        if warn:
-            log.append({"sid": sid, "warning": warn})
-        _set_price_and_confirm(page, price)
-        log.append({"sid": sid, "event": f"comando_enviado (tentativa {attempts})"})
-
-        # o toast NÃO é veredito — poll na API até o timeout
-        deadline = time.monotonic() + config.SETTLE_TIMEOUT_SECONDS
-        verdict = PENDING
-        while verdict == PENDING:
-            time.sleep(config.SETTLE_POLL_SECONDS)
-            now = {str(p.get("player_id")) for p in fetch_picks(draft_id)}
-            verdict = settlement_decision(sid, present_before, sid in now,
-                                          time.monotonic() >= deadline)
-        if verdict in (SETTLED, ALREADY):
-            log.append({"sid": sid, "event": verdict})
-            return verdict
-        # TIMEOUT com recusa de TETO visível → resultado esperado, não erro
-        # (§B.3.2: o Sleeper recusa acima do bid máximo — pré-late-drop é normal)
-        try:
-            teto = page.get_by_text(config.BUDGET_BLOCK_TEXT,
-                                    exact=False).first.is_visible()
-        except Exception:
-            teto = False
-        if teto or is_budget_block(_visible_toast_text(page)):
-            page.keyboard.press("Escape")
-            log.append({"sid": sid, "event": BLOQUEADO_TETO})
-            return BLOQUEADO_TETO
-        # TIMEOUT: caso Caleb (staging revertido) → re-comando, uma vez
-        log.append({"sid": sid, "event": "timeout_sem_assentar"})
-        if attempts > config.COMMAND_RETRIES:
-            raise BoardAbort(
-                f"'{player_name}' NÃO assentou na API após {attempts} comando(s) — "
-                f"parando barulhento. O board pode estar dessincronizado; confira "
-                f"os picks pela API antes de qualquer novo comando.")
+    try:
+        r = command_pick(page, team_slot, player_name, position, nfl_team,
+                         price, sid, log)
+    except EmptySearchResult as e:
+        now = {str(p.get("player_id")) for p in fetch_picks(draft_id)}
+        if sid in now:
+            log.append({"sid": sid, "event": "ja_assentado_no_recheck"})
+            return ALREADY
+        if board_shows_designated(page, team_slot, player_name):
+            log.append({"sid": sid, "event": ASSENTADO_LOCAL})
+            return ASSENTADO_LOCAL
+        raise BoardAbort(str(e))
+    if r == BLOQUEADO_TETO:
+        return BLOQUEADO_TETO
+    pend = [{"sid": sid, "name": player_name, "slot": team_slot,
+             "price": price, "position": position, "cmd_at": time.monotonic()}]
+    placar = settle_pendentes(page, draft_id, pend, log)
+    if placar["falhas"]:
+        raise BoardAbort(f"'{player_name}' não assentou: {placar['falhas']}")
+    return SETTLED if placar["assentados"] else ASSENTADO_LOCAL

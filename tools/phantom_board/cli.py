@@ -18,10 +18,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import config
-from .core import (BLOQUEADO_TETO, CONFLITO, JA_ASSENTADO, campaign_summary,
-                   flatten_sheet, idempotency_decision, league_guard,
-                   match_picks_to_sheet, parse_pick, resolve_slot_map,
-                   team_totals)
+from .core import (ASSENTADO_LOCAL, BLOQUEADO_TETO, CONFLITO, JA_ASSENTADO,
+                   campaign_summary, classify_team_keepers, flatten_sheet,
+                   idempotency_decision, league_guard, match_picks_to_sheet,
+                   parse_pick, resolve_slot_map, team_totals)
 from .sleeper_api import (fetch_draft, fetch_draft_id, fetch_picks,
                           fetch_rosters, fetch_users)
 
@@ -237,10 +237,16 @@ def cmd_populate(args):
                 continue
             print(f"[slot {slot} {handle}] {len(team_rows)} keepers na sheet")
 
+            # FIX8 (tarefa 4): idempotência EM LOTE — 1 chamada antes do 1º clique
+            # (pendência de run anterior já entra como ja_assentado aqui).
+            import time as _time
+            from .board import command_pick, settle_pendentes, EmptySearchResult
+            from .board import board_shows_designated
             picks = fetch_picks(draft_id)
+            lote = classify_team_keepers(team_rows, picks, slot_map)
+            pendentes = []
             for r in team_rows:
-                dec, det = idempotency_decision(r["sid"], owner, r["salary"],
-                                                picks, slot_map)
+                dec, det = lote.get(r["sid"], (None, None))
                 if dec == JA_ASSENTADO:
                     res["ja_assentados"] += 1
                     continue
@@ -250,10 +256,35 @@ def cmd_populate(args):
                     res["eventos"].append({"keeper": r["name"], "conflito": det})
                     print(f"  ⛔ CONFLITO em {r['name']}: {det} — abortando o time")
                     break
+                # FIX8: comando ASSÍNCRONO — registra pendente e SEGUE (o board
+                # local preenchendo a célula é o feedback; a API pode atrasar 5min)
                 try:
-                    verdict = designate(page, draft_id, slot, r["name"],
-                                        r["position"], "", r["salary"],
-                                        r["sid"], res["eventos"])
+                    verdict = command_pick(page, slot, r["name"], r["position"],
+                                           "", r["salary"], r["sid"],
+                                           res["eventos"])
+                except EmptySearchResult:
+                    # tarefa 5: comandado NESTA run? sinal de sucesso local.
+                    if any(pd["sid"] == r["sid"] for pd in pendentes):
+                        res["eventos"].append({"sid": r["sid"],
+                                               "event": "sumiu_da_busca_pos_comando"})
+                        continue
+                    now = {str(x.get("player_id"))
+                           for x in fetch_picks(draft_id)}
+                    if r["sid"] in now:
+                        res["ja_assentados"] += 1
+                        continue
+                    if board_shows_designated(page, slot, r["name"]):
+                        res["eventos"].append({"sid": r["sid"],
+                                               "event": ASSENTADO_LOCAL})
+                        res["designados"] += 1
+                        continue
+                    res["status"] = "falha"
+                    res["eventos"].append({"keeper": r["name"],
+                                           "falha": "busca vazia sem rastro na "
+                                                    "API nem no board local"})
+                    print(f"  ⛔ FALHA em {r['name']} (busca vazia sem rastro) — "
+                          f"abortando o time (o que assentou permanece)")
+                    break
                 except BoardAbort as e:
                     res["status"] = "falha"
                     res["eventos"].append({"keeper": r["name"],
@@ -274,12 +305,30 @@ def cmd_populate(args):
                     print(f"  🧱 teto de lance em {r['name']} — esperado "
                           f"pré-late-drop; seguindo para o próximo time")
                     break
-                if verdict == SETTLED:
-                    res["designados"] += 1
-                    print(f"  ✅ {r['name']} (${r['salary']}) assentado na API")
-                else:
-                    res["ja_assentados"] += 1
-                picks = fetch_picks(draft_id)
+                pendentes.append({"sid": r["sid"], "name": r["name"],
+                                  "slot": slot, "price": r["salary"],
+                                  "position": r["position"],
+                                  "cmd_at": _time.monotonic()})
+                print(f"  📤 {r['name']} (${r['salary']}) comandado — "
+                      f"pendente de confirmação")
+
+            # FIX8 (tarefas 2/3/7): reconciliação paciente do TIME inteiro —
+            # teto generoso, reload no meio (hipótese do cache por visita),
+            # decisão pós-teto por pendente. Telemetria no relatório.
+            if pendentes:
+                print(f"  ⏳ reconciliando {len(pendentes)} pendentes "
+                      f"(teto {config.RECONCILE_TETO_SECONDS}s)...")
+                placar = settle_pendentes(page, draft_id, pendentes,
+                                          res["eventos"])
+                res["designados"] += placar["assentados"] + placar["locais"]
+                if placar["locais"]:
+                    print(f"  ⚠️ {placar['locais']} assentado(s) SÓ no board "
+                          f"local (API atrasada) — conferir na auditoria")
+                if placar["falhas"]:
+                    res["status"] = "falha_parcial"
+                    res["eventos"].append({"falhas_de_keeper": placar["falhas"]})
+                    print(f"  ⛔ {len(placar['falhas'])} keeper(s) falharam — "
+                          f"o resto do time permanece")
 
             if res["status"] == "ok":
                 res["conferencia"] = _team_conference(fetch_picks(draft_id),
@@ -315,6 +364,7 @@ def cmd_populate(args):
         })
     ruim = [t for t in team_results
             if t["status"] not in ("ok", BLOQUEADO_TETO, "sem_keepers_na_sheet")]
+    # (falha, falha_parcial, conflito e divergencia_na_conferencia caem aqui)
     sys.exit(1 if ruim else 0)
 
 

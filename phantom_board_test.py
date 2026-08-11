@@ -602,14 +602,34 @@ class TestGuardasEstaticas(unittest.TestCase):
         self.assertIn("modal.locator(", corpo)
 
     def test_f2b_idempotencia_primeiro_e_recheck(self):
-        """F2b: o populate decide por idempotency_decision ANTES do designate; a
-        busca vazia re-checa a API (EmptySearchResult) antes de abortar."""
+        """F2b/FIX8: o populate classifica o LOTE (classify_team_keepers) ANTES
+        do primeiro comando; a busca vazia cruza run própria → API → board local
+        antes de abortar (tarefa 5)."""
         corpo = self.cli.split("def cmd_populate")[1].split("def main")[0]
-        self.assertLess(corpo.index("idempotency_decision"),
-                        corpo.index("designate(page"))
+        self.assertLess(corpo.index("classify_team_keepers"),
+                        corpo.index("command_pick(page"))
+        self.assertIn("sumiu_da_busca_pos_comando", corpo)   # sinal da própria run
+        self.assertIn("board_shows_designated", corpo)       # board local por último
         self.assertIn("EmptySearchResult", self.board)
-        recheck = self.board.split("except EmptySearchResult")[1].split("if warn")[0]
-        self.assertIn("fetch_picks", recheck)          # API antes de abortar
+
+    def test_fix8_assincrono_com_reconciliacao(self):
+        """FIX8: comando SEM poll (pendente_confirmacao e segue); reconciliação
+        POR TIME com teto generoso + reload no MEIO do teto (tarefa 7 — a visita
+        como possível gatilho do cache); telemetria por keeper; pendente com
+        board local designado NUNCA é re-comandado."""
+        self.assertIn("def command_pick", self.board)
+        rec = self.board.split("def reconcile_team")[1].split("def settle_pendentes")[0]
+        self.assertIn("teto / 2", rec)                       # reload no meio
+        self.assertIn("reload_do_board", rec)
+        self.assertIn("segundos_apos_comando", rec)          # telemetria
+        self.assertIn("apos_reload", rec)
+        sett = self.board.split("def settle_pendentes")[1].split("def designate")[0]
+        self.assertIn("post_teto_decision", sett)            # decisão no núcleo
+        self.assertEqual(config.RECONCILE_TETO_SECONDS, 300)
+        # populate comanda e SEGUE — o poll bloqueante por keeper morreu
+        corpo = self.cli.split("def cmd_populate")[1].split("def main")[0]
+        self.assertIn("pendente de confirmação", corpo)
+        self.assertIn("settle_pendentes", corpo)
 
     def test_f2b_teto_e_resultado_nao_erro(self):
         corpo = self.cli.split("def cmd_populate")[1].split("def main")[0]
@@ -677,10 +697,12 @@ class TestGuardasEstaticas(unittest.TestCase):
         self.assertLess(corpo.index("league_guard"), corpo.index("sync_playwright()"))
 
     def test_verdade_e_a_api_nunca_o_toast(self):
-        """O driver decide por fetch_picks + settlement_decision; 'toast' só aparece
-        em comentário — nenhuma leitura de toast como veredito."""
+        """FIX8: o driver decide por fetch_picks + split_settled (reconciliação
+        assíncrona); o toast só entra como RECUSA nomeada (teto) — nunca como
+        veredito de sucesso."""
         self.assertIn("fetch_picks", self.board)
-        self.assertIn("settlement_decision", self.board)
+        self.assertIn("split_settled", self.board)
+        self.assertIn("reconcile_team", self.board)
 
     def test_playwright_e_lazy(self):
         """`validate` (read-only) roda sem playwright instalado — o import vive

@@ -346,6 +346,68 @@ def campaign_summary(team_results: list) -> dict:
     return tally
 
 
+# ── FIX8: assentamento ASSÍNCRONO — reconciliação por time (núcleo puro) ───────
+#
+# O lag real medido matou o poll bloqueante: o pick do Josh Allen GRAVOU na hora
+# (board local certo) e a API pública levou >5 MINUTOS para refleti-lo — o poll de
+# 15s desistiu de um sucesso lento e o retry viu "busca vazia" (o board escondia o
+# designado). No ensaio o lag fora ~3s: A VARIÂNCIA É O FATO CENTRAL. Hipótese do
+# owner (tarefa 7, em teste): a propagação pode depender de VISITA de cliente
+# (cache preguiçoso) — o validate que enfim viu 20 rodou logo após abrir o board
+# num navegador. Bloquear 5min por keeper × 218 é inviável → assíncrono:
+# comanda → pendente_confirmacao → segue; reconcilia POR TIME com teto generoso.
+
+PENDENTE_CONFIRMACAO = "pendente_confirmacao"
+ASSENTADO_LOCAL = "assentado_local_api_atrasada"
+
+
+def split_settled(pending_sids, api_sids):
+    """Reconciliação de uma varredura: quais pendentes JÁ aparecem na API.
+    Retorna (assentados_agora, ainda_pendentes) — ordem preservada. Puro."""
+    api = {str(x) for x in api_sids or []}
+    settled = [s for s in pending_sids if str(s) in api]
+    remaining = [s for s in pending_sids if str(s) not in api]
+    return settled, remaining
+
+
+def post_teto_decision(board_mostra_designado: bool, recomandos_feitos: int,
+                       max_recomandos: int = 1) -> str:
+    """Pendente que NÃO apareceu na API após o teto:
+    - o board LOCAL o mostra designado no slot → `assentado_local_api_atrasada`
+      (com aviso; ⛔ NUNCA re-comandar — o pick existe, a API que está atrás);
+    - board o mostra disponível e ainda há re-comando no orçamento → "recomandar"
+      (máx 1 — duplicata é rejeitada pelo servidor, a rede de segurança);
+    - esgotou → "abort" (do KEEPER, preservando o resto do time). Puro."""
+    if board_mostra_designado:
+        return ASSENTADO_LOCAL
+    if recomandos_feitos < max_recomandos:
+        return "recomandar"
+    return "abort"
+
+
+def classify_team_keepers(team_rows, picks, slot_map):
+    """FIX8 (tarefa 4) — idempotência EM LOTE: classifica todos os keepers do time
+    numa passada única sobre os picks, ANTES do primeiro clique (pendência de run
+    anterior entra como ja_assentado aqui). Retorna {sid: (decisão, detalhe)}."""
+    return {r["sid"]: idempotency_decision(r["sid"], r["owner_id"], r["salary"],
+                                           picks, slot_map)
+            for r in team_rows if r["sid"]}
+
+
+def simulate_reconciliation(pending_sids, arrival_times, teto, poll):
+    """Simulador PURO da reconciliação (para testes com lags de 3s/40s/6min, sem
+    sleep): `arrival_times` = {sid: segundos até aparecer na API}. Devolve
+    (assentados_com_tempo, ainda_pendentes_no_teto)."""
+    settled, pending = [], list(pending_sids)
+    t = 0.0
+    while pending and t < teto:
+        t += poll
+        api_now = {s for s, at in arrival_times.items() if at <= t}
+        just, pending = split_settled(pending, api_now)
+        settled.extend((s, t) for s in just)
+    return settled, pending
+
+
 # ── Assentamento: a decisão pós-comando (comando via DOM, verdade via API) ──────
 
 SETTLED = "assentado"

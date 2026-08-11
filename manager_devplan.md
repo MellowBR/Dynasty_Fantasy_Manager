@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 11/08/2026-pt9 (MAN-OFF26-24-F2b: **F2a fechada** (Cam Ward assentado via API; validate 19/19) + lição: **idempotência PRIMEIRO** (pick gravou em run morta; busca vazia misteriosa). **F2b:** `idempotency_decision` (4 casos) + recheck em busca vazia; `populate --team-slot`/`--all` retomável; conferência por time vs sheet; `bloqueado_teto` = resultado (§B.3.2); falha aborta o time preservando o feito; **juiz = auditoria OFF26-4**. Critério 19/08 no README (RESET → --all 12/12 → auditoria → RESET). Testes 66→86. Ensaio do owner.)
+> Última atualização: 11/08/2026-pt10 (MAN-OFF26-24-FIX8: **assíncrono** — lag real >5min (Josh Allen; ensaio ~3s: variância é o fato) matou o poll bloqueante. `command_pick` sem poll; `reconcile_team` por time (300s, reload no meio — hipótese do cache por visita; telemetria decide); `post_teto_decision` puro (board local → `assentado_local_api_atrasada`, nunca re-comando · 1 re-comando · falha do KEEPER preservando o time); lote de idempotência; busca vazia cruza run→API→board. Testes 86→87. Re-teste morno do owner: slot 10.)
+> Anterior: 11/08/2026-pt9 (MAN-OFF26-24-F2b: **F2a fechada** (Cam Ward assentado via API; validate 19/19) + lição: **idempotência PRIMEIRO** (pick gravou em run morta; busca vazia misteriosa). **F2b:** `idempotency_decision` (4 casos) + recheck em busca vazia; `populate --team-slot`/`--all` retomável; conferência por time vs sheet; `bloqueado_teto` = resultado (§B.3.2); falha aborta o time preservando o feito; **juiz = auditoria OFF26-4**. Critério 19/08 no README (RESET → --all 12/12 → auditoria → RESET). Testes 66→86. Ensaio do owner.)
 > Anterior: 11/08/2026-pt8 (MAN-OFF26-24-F2a-FIX7: **âncora no #modal real** — o screenshot provou o manual pick dentro de `#modal[role=alertdialog]` (header “Make Manual Pick for Team 10”) e o fundo duplicando a interface; a heurística do FIX6 pegou o trio do fundo. Agora: #modal quando presente (fallback logado), espera de ESTADO pós-Set Player, header como identidade (`modal_header_check` puro; wrong_team/unexpected → Esc+abort). Caso do abort impossível por construção. Testes 65→66. Re-execução do owner.)
 > Anterior: 11/08/2026-pt7 (MAN-OFF26-24-F2a-FIX6: **a lista de FUNDO vazava no matching** (57 linhas do ranking; abort “5 candidatos QB” correto). Fix: `_modal` ancorado por estrutura (ancestral do botão Assign/SET PLAYER com o input de busca) e TUDO escopado nele (busca/linhas/+/preço; locator global proibido por guarda estática) + `search_filter_check` puro ANTES do matching (57 = fixture). Anti-homônimo intacto. Testes 60→65. Re-execução do owner.)
 > Anterior: 11/08/2026-pt6 (MAN-OFF26-24-F2a-FIX5: **parser do anti-homônimo lê o DOM real** — “0 candidatos QB” com o Cam Ward na lista (`'QB
@@ -5410,3 +5411,39 @@ misteriosa" — designado some do pool designável. **Idempotência é a PRIMEIR
 
 **O ensaio 12/12 é do owner** — go/no-go de 19/08. Guardas da F2a intactas; RESET/START seguem
 fora do alcance do script.
+
+### MAN-OFF26-24-FIX8 — o assentamento vira assíncrono; a reconciliação vira ciência (11/08/2026, Fable)
+
+O teste morno do populate provou o defeito com precisão de fixture temporal: o pick do Josh
+Allen ($30 — o caminho de preço >$1 provado de brinde) **gravou na hora** no board, e a API
+pública de leitura levou **mais de 5 minutos** para refleti-lo (comando 16:50; validate 16:54
+ainda 19 picks; 16:57 → 20, tudo casado). O poll de 15s desistiu de um sucesso lento →
+`timeout_sem_assentar` → retry → busca vazia (o board local, CERTO, já escondia o designado) →
+abort falso do time. No ensaio o lag fora ~3s: **a variância é o fato central**. E bloquear 5min
+× 218 keepers é inviável — a resposta é assíncrono.
+
+- **`command_pick`** comanda e SEGUE (`pendente_confirmacao`) — o board local preenchendo a
+  célula é feedback suficiente; a recusa de TETO continua síncrona (aviso imediato).
+- **`reconcile_team`** — POR TIME: teto 300s, poll 5s, e **um reload do board no MEIO do teto**
+  com pendência viva. É o teste da **hipótese do owner (tarefa 7)**: o validate que enfim viu 20
+  rodou logo após abrir o board num navegador — a propagação pode depender de VISITA (cache
+  preguiçoso), não de tempo. A **telemetria por keeper** (`segundos_apos_comando` +
+  `apos_reload`) distingue os padrões: fila contínua = lag puro; rajada pós-reload = cache por
+  visita. O achado, qualquer que seja, redefine a estratégia de espera de 22/08.
+- **`post_teto_decision` (núcleo puro):** pendente que não apareceu → board local o mostra
+  designado no slot → **`assentado_local_api_atrasada`** com aviso (⛔ NUNCA re-comandar — o pick
+  existe, a API que está atrás); disponível → **1 re-comando** + mini-reconciliação de 60s;
+  esgotou → **falha do KEEPER**, preservando o resto do time (o abort de time por keeper morreu).
+- **Idempotência em LOTE** (`classify_team_keepers`, tarefa 4): o time inteiro classificado numa
+  chamada antes do 1º clique — a pendência da run anterior entra como `ja_assentado` aqui.
+- **Busca vazia com contexto** (tarefa 5): cruza a PRÓPRIA run (comandado há pouco →
+  `sumiu_da_busca_pos_comando`, sinal de sucesso local) → API → board local — só então falha.
+- **Testes 86 → 87:** simulador PURO de reconciliação (lags 3s/40s/6min contra teto/poll reais),
+  `post_teto_decision` (3 ramos), lote, e a guarda estática do assíncrono (reload no meio,
+  telemetria, `settle_pendentes` no populate, poll bloqueante morto). Suítes completas verdes;
+  diffstat conferido antes do push.
+
+**Re-teste morno do owner: `populate --team-slot 10`** — esperado: lote abre com 2
+`ja_assentados` (Ward + Allen), 19 comandos em sequência, reconciliação fechando o time — e a
+telemetria respondendo à hipótese do cache. Guardas intactas; máx 1 re-comando; falha barulhenta
+preservada — mudou o QUANDO conferir, não o rigor.

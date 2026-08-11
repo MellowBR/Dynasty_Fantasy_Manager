@@ -76,6 +76,15 @@ SETTLE_POLL_SECONDS = 1.5
 SETTLE_TIMEOUT_SECONDS = 15.0
 COMMAND_RETRIES = 1        # servidor rejeita duplicata — re-comando é seguro
 
+# FIX8: assentamento ASSÍNCRONO — o lag da API de leitura variou de ~3s (ensaio)
+# a >5min (Josh Allen, medido); o poll bloqueante por keeper morreu. Reconciliação
+# POR TIME com teto generoso; no MEIO do teto, um RELOAD do board (tarefa 7: a
+# visita do próprio script como possível gatilho de refresh do cache preguiçoso —
+# a telemetria distingue lag puro de rajada pós-reload).
+RECONCILE_TETO_SECONDS = 300
+RECONCILE_POLL_SECONDS = 5
+RECOMMAND_RECONCILE_SECONDS = 60   # mini-reconciliação após um re-comando
+
 # FIX2 (11/08): o hCaptcha do Sleeper RECUSA verificar no Chromium de teste do
 # Playwright ("Failed to get captcha verification" — anti-bot detecta o navegador de
 # automação; o desafio nem renderiza). O launch usa o CHROME REAL instalado
