@@ -5184,3 +5184,17 @@ da liga numa superfície que **não o exibe** (a página do draft mostra "Mellow
 **Commit + push. A re-execução do probe é do owner** — com o fix, a sequência esperada é:
 identidade confirmada pela URL → aviso de deslogado → login manual → Enter → Inspector aberto
 para anotar o seletor da célula.
+
+⛔ **INCIDENTE NO PRÓPRIO COMMIT DESTA SESSÃO (registrado na hora, remediado em minutos):** o
+`git add tools/phantom_board/` arrastou o **perfil de navegador criado pelo probe do owner**
+(`.phantom_board_profile/`, 300+ arquivos — **contendo os cookies de sessão do Sleeper**) + a
+`sheet.json` + `runs/` para o commit `a161bdf`, que foi **pushado ao GitHub**. Detectado na
+conferência pós-push (o diffstat acusou 323 arquivos); remediação imediata: `git rm --cached` do
+trio, **`.gitignore` do diretório** (perfil/runs/sheet nunca mais entram), commit amendado e
+**force-push** (`a161bdf` → `9b08635`) — o remoto está limpo (0 arquivos de perfil na árvore) e
+o perfil local segue intacto (a sessão do owner funciona). **Janela de exposição: minutos.**
+Recomendação passada ao owner: **invalidar a sessão do Sleeper** (logout de todos os aparelhos
+ou troca de senha) — objetos órfãos podem persistir em cache do GitHub. Causa-raiz: o diretório
+do perfil **não existia** quando a estrutura foi commitada na F2a (nasceu no probe do owner,
+entre os commits) e o `.gitignore` só foi criado na remediação — a lição é a ordem: **artefatos
+de runtime ganham .gitignore no MESMO commit que cria o diretório que os conterá**, não depois.
