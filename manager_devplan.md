@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 11/08/2026-pt2 (MAN-OFF26-24-F2a-FIX: guarda de identidade refeita **por construção** — o 1º probe real abortou procurando o nome da liga numa página que não o exibe; agora `url_guard` (URL × draft_id derivado, puro+testado), título = log; `LEAGUE_NAME` não pode voltar a ser gate (teste estático). 1ª vida do perfil: espera de login manual (Enter/120s) em vez de estourar; **JOIN DRAFT na lista proibida**, fluxo de login sem `.click()`. `designate` herda pelo mesmo `open_board`. **`validate` já VERDE em execução real (18/18, $176)**. Testes 30→35; suítes verdes. Probe é do owner.)
+> Última atualização: 11/08/2026-pt3 (MAN-OFF26-24-F2a-FIX2: **hCaptcha recusa o Chromium de teste** → launch pelo **Chrome real** (`channel=“chrome”`, mesmo perfil dedicado) + mitigações padrão p/ o desafio renderizar ao humano (⛔ nada resolve/burla — teste de zero lib de resolução); Chrome ausente → aborto acionável, nunca fallback silencioso. Testes 35→36; gitignore do perfil conferido. Probe é do owner.)
+> Anterior: 11/08/2026-pt2 (MAN-OFF26-24-F2a-FIX: guarda de identidade refeita **por construção** — o 1º probe real abortou procurando o nome da liga numa página que não o exibe; agora `url_guard` (URL × draft_id derivado, puro+testado), título = log; `LEAGUE_NAME` não pode voltar a ser gate (teste estático). 1ª vida do perfil: espera de login manual (Enter/120s) em vez de estourar; **JOIN DRAFT na lista proibida**, fluxo de login sem `.click()`. `designate` herda pelo mesmo `open_board`. **`validate` já VERDE em execução real (18/18, $176)**. Testes 30→35; suítes verdes. Probe é do owner.)
 > Anterior: 11/08/2026 (MAN-OFF26-24-F2a: **F2a entregue** — `tools/phantom_board/` (núcleo puro + API + Playwright + CLI + README) sobre a spec do ensaio de 11/08 (18=$176 por API). **Arquitetura: o cliente MENTE → comando via DOM, verdade via API** (toast nunca é veredito; duplicata=sucesso; caso Caleb → 1 re-comando; depois aborta barulhento). Guardas de nascença testadas (guard ANTES do browser; START/RESET DRAFT proibidos); teclas reais; anti-homônimo por DOM (sigla divergente = aviso/frescor). Manager: endpoint fino `keeper_sheet_export` (pacote do `build_sheet`; auditoria intocada). 3 correções de runbook do ensaio aplicadas; Cowork segue plano A. 30 testes; suítes verdes; validate roda sem playwright. ⚠️ driver não exercido em navegador — validação do owner (README, 4 passos); F2b após o resultado.)
 > Anterior: 10/08/2026-pt12 (MAN-OFF26-24-REG-F1: **[[OFF26-24]] registrado + F1** — script de população do board da fantasma p/ 2026 (decisão do owner; Cowork segue plano A; validação até **19/08** senão fica p/ 2027). **Q1:** Playwright headed, perfil persistente dedicado (login manual 1×, zero credencial). **Q2:** sheet JSON **sem sid/owner_id** (D3) → expor `build_sheet` ao script (⛔ sem 2ª definição de keeper); `draft_id` pela API PÚBLICA (D1 do OFF26-4, não a vetada). **Q3:** runbook já fixa o fluxo; **7 itens só o ensaio de 11/08 responde** (lista p/ virar spec). **Q4:** texto visível como âncora (junho→agosto mudou posição, não rótulo), falha barulhenta, checkpoint por time. **Q5:** auditoria OFF26-4 = verificador independente; critério: 12/12 + auditoria zerada + zero intervenção + RESET exercido. **Q6:** league_id hardcoded + nome conferido + START DRAFT proibido. Plano F2 em 4 fases até 19/08. Zero código.)
 > Anterior: 10/08/2026-pt11 (MAN-OFF26-23-VERIFY, read-only: veredito **leitura (1)** — ordem correta por necessidade, relato “no topo” impreciso. Insumos do gate (`is_rookie`, `season`) nascem da leitura do draft; not-found antes do gate é desenho certo; nada é escrito antes dele. **Domingo dispara**: id válido 2026 + rollover pendente → 400 nos dois endpoints. Hoje inexercitável com draft real (linear 2026 = `pre_draft`; status check vem antes); **teste que vale = domingo à noite, preview antes do rollover, esperar a recusa** (zero efeito colateral). Suíte: decisão + fiação cobertas; ponta-a-ponta no smoke da F2; parecer opcional (endpoint monkeypatchado) registrado. Zero código.)
@@ -5198,3 +5199,28 @@ ou troca de senha) — objetos órfãos podem persistir em cache do GitHub. Caus
 do perfil **não existia** quando a estrutura foi commitada na F2a (nasceu no probe do owner,
 entre os commits) e o `.gitignore` só foi criado na remediação — a lição é a ordem: **artefatos
 de runtime ganham .gitignore no MESMO commit que cria o diretório que os conterá**, não depois.
+
+### MAN-OFF26-24-F2a-FIX2 — hCaptcha × Chromium de teste: o canal vira Chrome real (11/08/2026, Fable)
+
+Re-execução do probe (pós-FIX, pós-logout global): o fluxo novo funcionou até o login — e o
+**hCaptcha do Sleeper recusou verificar dentro do Chrome for Testing** ("Failed to get captcha
+verification", persistente; o desafio nem renderiza). Anti-bot detectando o navegador de
+automação. É bloqueio de **porta** (login), não de operação — as designações do Cowork nunca
+exigiram captcha.
+
+- **Fix:** `launch_persistent_context(channel="chrome", ...)` — o binário passa a ser o Chrome
+  instalado do owner, com o **mesmo perfil dedicado** (`.phantom_board_profile/`; o perfil do dia
+  a dia segue intocado). Duas mitigações **padrão** do Playwright para o widget renderizar o
+  desafio ao humano: `--disable-blink-features=AutomationControlled` e remoção do
+  `--enable-automation`. ⛔ **Nada resolve nem burla captcha** — o owner o resolve na janela; o
+  teste estático confere que nenhuma lib/serviço de resolução (2captcha etc.) aparece no driver.
+- **Fallback declarado:** Chrome ausente/inacessível pelo canal → `BoardAbort` com instrução
+  (instalar Chrome ou ajustar `CHROME_CHANNEL` no config) — **nunca** cair em silêncio para o
+  Chromium de teste, onde o login não funciona.
+- **Preservados:** pausa de login manual, guarda por URL×draft_id, lista de cliques proibidos
+  (JOIN DRAFT incluso), perfil dedicado. Testes 35 → **36**; suítes verdes; `.gitignore` do
+  perfil/runs/sheet **conferido por `check-ignore`** antes do commit (a lição do incidente de
+  hoje, aplicada).
+
+**Commit + push. Sequência esperada da re-execução do owner:** probe → janela do CHROME abre →
+login com captcha resolvível pelo humano → Enter → Inspector → anotar o seletor da célula.

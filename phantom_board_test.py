@@ -279,6 +279,21 @@ class TestGuardasEstaticas(unittest.TestCase):
         self.assertIn("informativo", corpo)
         self.assertNotIn("config.LEAGUE_NAME", corpo)
 
+    def test_canal_chrome_real_nunca_chromium_de_teste(self):
+        """FIX2: hCaptcha recusa o Chromium de teste — launch pelo Chrome real
+        (channel), com erro ACIONÁVEL se ausente; nunca fallback silencioso. As
+        flags são as mitigações padrão p/ o desafio renderizar ao humano — nada
+        resolve/burla captcha."""
+        self.assertEqual(config.CHROME_CHANNEL, "chrome")
+        corpo = self.board.split("def open_board")[1].split(chr(92) + "ndef ")[0]
+        corpo = self.board.split("def open_board")[1]
+        self.assertIn("channel=config.CHROME_CHANNEL", corpo)
+        self.assertIn("Instale o Google Chrome", corpo)
+        self.assertIn("AutomationControlled", corpo)
+        # nada de serviço/lib de resolução de captcha — a solução é humana
+        for proibido in ("2captcha", "anticaptcha", "capsolver", "hcaptcha_solver"):
+            self.assertNotIn(proibido, self.board.lower())
+
     def test_login_espera_nunca_clica_join(self):
         """1ª vida do perfil: espera o login manual; JOIN DRAFT jamais é clicado."""
         corpo = self.board.split("def _wait_for_login_if_needed")[1].split("\ndef ")[0]

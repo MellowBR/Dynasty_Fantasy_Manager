@@ -14,8 +14,14 @@ START DRAFT, RESET DRAFT e **JOIN DRAFT** estão na lista de cliques proibidos d
 
 ```powershell
 pip install playwright
-playwright install chromium
 ```
+
+**Requisito: Google Chrome instalado** (o navegador normal serve — o script abre o
+**Chrome real** via `channel="chrome"`, com o perfil dedicado próprio; seu perfil do dia
+a dia não é tocado). Motivo: o hCaptcha do Sleeper **recusa verificar no Chromium de
+teste** do Playwright ("Failed to get captcha verification") — no Chrome real o desafio
+renderiza e **você** o resolve manualmente no login. Nada no script resolve ou burla
+captcha.
 
 ## Primeiro login (uma vez)
 

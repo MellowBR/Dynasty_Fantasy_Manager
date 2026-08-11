@@ -57,7 +57,16 @@ SETTLE_POLL_SECONDS = 1.5
 SETTLE_TIMEOUT_SECONDS = 15.0
 COMMAND_RETRIES = 1        # servidor rejeita duplicata — re-comando é seguro
 
+# FIX2 (11/08): o hCaptcha do Sleeper RECUSA verificar no Chromium de teste do
+# Playwright ("Failed to get captcha verification" — anti-bot detecta o navegador de
+# automação; o desafio nem renderiza). O launch usa o CHROME REAL instalado
+# (channel abaixo) — mesmo perfil dedicado, só muda o binário. Se o Chrome não
+# estiver instalado, o script aborta com instrução (nunca cai para o Chromium em
+# silêncio). Valores aceitos pelo Playwright: "chrome", "chrome-beta", "msedge"…
+CHROME_CHANNEL = "chrome"
+
 # Perfil de navegador DEDICADO e persistente (login manual 1×; zero credencial no
-# código). ⛔ Nunca o perfil principal do Chrome.
+# código). ⛔ Nunca o perfil principal do Chrome — o CANAL usa o binário instalado,
+# mas o user_data_dir continua sendo o diretório dedicado abaixo.
 PROFILE_DIR_NAME = ".phantom_board_profile"
 RUNS_DIR_NAME = "runs"

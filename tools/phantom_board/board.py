@@ -58,10 +58,26 @@ def open_board(headless: bool = False, profile_dir: Path | None = None):
 
     profile = profile_dir or (Path(__file__).parent / config.PROFILE_DIR_NAME)
     pw = sync_playwright().start()
-    ctx = pw.chromium.launch_persistent_context(
-        user_data_dir=str(profile), headless=headless, viewport=None,
-        args=["--start-maximized"],
-    )
+    # FIX2: CHROME REAL via channel — o hCaptcha do Sleeper recusa verificar no
+    # Chromium de teste (anti-bot). As duas flags abaixo são as mitigações PADRÃO do
+    # Playwright para o widget renderizar o desafio ao HUMANO (⛔ nada aqui resolve
+    # ou burla captcha — o owner resolve na janela). Mesmo perfil dedicado.
+    try:
+        ctx = pw.chromium.launch_persistent_context(
+            user_data_dir=str(profile), channel=config.CHROME_CHANNEL,
+            headless=headless, viewport=None,
+            args=["--start-maximized",
+                  "--disable-blink-features=AutomationControlled"],
+            ignore_default_args=["--enable-automation"],
+        )
+    except Exception as e:
+        pw.stop()
+        raise BoardAbort(
+            f"Não consegui abrir o Chrome instalado (channel="
+            f"'{config.CHROME_CHANNEL}'): {e}. Instale o Google Chrome ou ajuste "
+            f"CHROME_CHANNEL no config (ex.: 'chrome-beta', 'msedge'). ⛔ Sem "
+            f"fallback silencioso para o Chromium de teste — o captcha do login "
+            f"não verifica nele.")
     ctx.tracing.start(screenshots=True, snapshots=True)
     page = ctx.pages[0] if ctx.pages else ctx.new_page()
     page.goto(config.DRAFT_URL_TMPL.format(draft_id=draft_id), wait_until="load")
