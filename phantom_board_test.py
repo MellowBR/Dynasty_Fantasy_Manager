@@ -16,10 +16,13 @@ from pathlib import Path
 from tools.phantom_board import config
 from tools.phantom_board.core import (
     ALREADY, PENDING, SETTLED, TIMEOUT,
-    build_slot_map, choose_menu_item, flatten_sheet, league_guard,
-    match_picks_to_sheet, parse_pick, parse_result_row, resolve_slot_map,
+    BLOQUEADO_TETO, CONFLITO, DESIGNAR, JA_ASSENTADO,
+    build_slot_map, campaign_summary, choose_menu_item, flatten_sheet,
+    idempotency_decision, is_budget_block, league_guard, match_picks_to_sheet,
+    modal_header_check, parse_pick, parse_result_row, resolve_slot_map,
     search_filter_check, select_candidate_rows, settlement_decision,
-    slot_map_from_picks, slot_map_from_rosters, team_totals, url_guard,
+    slot_map_from_picks, slot_map_from_rosters, team_pending_keepers,
+    team_totals, url_guard,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -344,6 +347,117 @@ class TestSearchFilterCheck(unittest.TestCase):
         self.assertIsNotNone(search_filter_check(11, max_expected=10))
 
 
+class TestModalHeaderCheck(unittest.TestCase):
+    """FIX7 — o header 'Make Manual Pick for Team N' do #modal (screenshot do
+    abort real) prova que o dialog aberto é o manual pick DO TIME CERTO."""
+
+    def test_header_do_time_certo(self):
+        self.assertEqual(modal_header_check(
+            "Proj $$ Make Manual Pick for Team 10 Assign a player", 10), "ok")
+
+    def test_time_errado_com_fronteira(self):
+        """'Team 1' não pode casar slot 10 — nem 'Team 10' casar slot 1."""
+        self.assertEqual(modal_header_check("Make Manual Pick for Team 10", 1),
+                         "wrong_team")
+        self.assertEqual(modal_header_check("Make Manual Pick for Team 1", 10),
+                         "wrong_team")
+
+    def test_dialog_inesperado(self):
+        """Dialog residual/aviso sem o header → Esc + abort nomeado (driver)."""
+        self.assertEqual(modal_header_check("Draft not started", 10), "unexpected")
+        self.assertEqual(modal_header_check("", 10), "unexpected")
+
+
+class TestIdempotencyDecision(unittest.TestCase):
+    """F2b — a lição da F2a: o pick de Cam Ward gravou numa run que morreu antes
+    do poll — idempotência é a PRIMEIRA verificação, não a última."""
+
+    def setUp(self):
+        self.picks = [pick("12522", 10, "1", picked_by="u10")]
+        self.slots = {10: {"user_id": "u10", "handle": "michelzela"}}
+
+    def test_ausente_designa(self):
+        self.assertEqual(idempotency_decision("999", "u10", 1,
+                                              self.picks, self.slots),
+                         (DESIGNAR, None))
+
+    def test_presente_certo_e_sucesso_zero_cliques(self):
+        dec, det = idempotency_decision("12522", "u10", 1, self.picks, self.slots)
+        self.assertEqual(dec, JA_ASSENTADO)
+        self.assertEqual(det["slot"], 10)
+
+    def test_time_divergente_e_conflito(self):
+        dec, det = idempotency_decision("12522", "u1", 1, self.picks, self.slots)
+        self.assertEqual(dec, CONFLITO)
+        self.assertEqual(det["motivo"], "time divergente")
+
+    def test_preco_divergente_e_conflito(self):
+        dec, det = idempotency_decision("12522", "u10", 5, self.picks, self.slots)
+        self.assertEqual(dec, CONFLITO)
+        self.assertEqual(det["motivo"], "preço divergente")
+
+    def test_preco_sem_amount_no_pick_aceita(self):
+        """Pick sem metadata.amount → não conferível → assentado (não conflito)."""
+        picks = [{"player_id": "12522", "draft_slot": 10, "picked_by": "u10"}]
+        dec, _ = idempotency_decision("12522", "u10", 5, picks, self.slots)
+        self.assertEqual(dec, JA_ASSENTADO)
+
+
+class TestTeamPendingKeepers(unittest.TestCase):
+    """F2b — retomabilidade por construção: o que já assentou sai do plano."""
+
+    def test_pula_os_ja_designados(self):
+        rows = flatten_sheet(sheet_fixture())          # u1: 4046 + LAR; u2: 4983
+        picks = [pick("4046", 1, "42", picked_by="u1")]
+        pend = team_pending_keepers(rows, picks, "u1")
+        self.assertEqual([r["sid"] for r in pend], ["LAR"])
+
+    def test_time_completo_da_plano_vazio(self):
+        rows = flatten_sheet(sheet_fixture())
+        picks = [pick("4046", 1, "42"), pick("LAR", 1, "1")]
+        self.assertEqual(team_pending_keepers(rows, picks, "u1"), [])
+
+    def test_sem_picks_plano_inteiro(self):
+        rows = flatten_sheet(sheet_fixture())
+        self.assertEqual(len(team_pending_keepers(rows, [], "u1")), 2)
+
+
+class TestBudgetBlock(unittest.TestCase):
+    """F2b — bloqueado_teto é resultado esperado pré-late-drop (§B.3.2), não
+    erro; casos reais da sheet: AlexTheDawg $203 e Miller Time! $200."""
+
+    def test_mensagem_real_do_sleeper(self):
+        self.assertTrue(is_budget_block("Team 4 does not have enough budget"))
+        self.assertTrue(is_budget_block("DOES NOT HAVE ENOUGH BUDGET!"))
+
+    def test_outros_textos_nao(self):
+        self.assertFalse(is_budget_block("This pick could not be processed"))
+        self.assertFalse(is_budget_block(""))
+        self.assertFalse(is_budget_block(None))
+
+
+class TestCampaignSummary(unittest.TestCase):
+
+    def test_agregacao_por_status(self):
+        times = [
+            {"status": "ok", "designados": 20, "ja_assentados": 1},
+            {"status": BLOQUEADO_TETO, "designados": 3},
+            {"status": "falha", "designados": 2},
+            {"status": "conflito", "designados": 0, "conflitos": 1},
+        ]
+        r = campaign_summary(times)
+        self.assertEqual(r["times_processados"], 4)
+        self.assertEqual(r["designados"], 25)
+        self.assertEqual(r["ja_assentados"], 1)
+        self.assertEqual(r["times_ok"], 1)
+        self.assertEqual(r["times_bloqueados"], 1)
+        self.assertEqual(r["times_com_falha"], 2)      # falha + conflito
+        self.assertEqual(r["conflitos"], 1)
+
+    def test_campanha_vazia(self):
+        self.assertEqual(campaign_summary([])["times_processados"], 0)
+
+
 class TestSelectCandidateRows(unittest.TestCase):
 
     def _rows(self):
@@ -486,6 +600,39 @@ class TestGuardasEstaticas(unittest.TestCase):
         corpo = self.board.split("def _set_price_and_confirm")[1].split("def ")[0]
         self.assertIn("_modal(page)", corpo)
         self.assertIn("modal.locator(", corpo)
+
+    def test_f2b_idempotencia_primeiro_e_recheck(self):
+        """F2b: o populate decide por idempotency_decision ANTES do designate; a
+        busca vazia re-checa a API (EmptySearchResult) antes de abortar."""
+        corpo = self.cli.split("def cmd_populate")[1].split("def main")[0]
+        self.assertLess(corpo.index("idempotency_decision"),
+                        corpo.index("designate(page"))
+        self.assertIn("EmptySearchResult", self.board)
+        recheck = self.board.split("except EmptySearchResult")[1].split("if warn")[0]
+        self.assertIn("fetch_picks", recheck)          # API antes de abortar
+
+    def test_f2b_teto_e_resultado_nao_erro(self):
+        corpo = self.cli.split("def cmd_populate")[1].split("def main")[0]
+        self.assertIn("BLOQUEADO_TETO", corpo)
+        self.assertIn("seguindo para o próximo time", corpo)
+        # e o exit code trata bloqueado_teto como não-falha
+        self.assertIn('("ok", BLOQUEADO_TETO, "sem_keepers_na_sheet")', corpo)
+
+    def test_f2b_falha_aborta_o_time_sem_contaminar(self):
+        corpo = self.cli.split("def cmd_populate")[1].split("def main")[0]
+        self.assertIn("abortando o time", corpo)
+        self.assertIn("o que assentou permanece", corpo)
+
+    def test_f2b_juiz_e_a_auditoria(self):
+        corpo = self.cli.split("def cmd_populate")[1].split("def main")[0]
+        self.assertIn("keeper_audit", corpo)
+        self.assertIn("juiz", corpo)
+
+    def test_f2b_populate_nao_toca_reset_ou_start(self):
+        """RESET é ato do owner — o script nunca o executa."""
+        corpo = self.cli.split("def cmd_populate")[1].split("def main")[0]
+        self.assertNotIn("RESET DRAFT", corpo)
+        self.assertNotIn("START DRAFT", corpo)
 
     def test_cli_nao_crasha_no_handler(self):
         """FIX4: ok nasce antes do try e QUALQUER exceção vira abort padrão

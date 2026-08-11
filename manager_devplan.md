@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 11/08/2026-pt8 (MAN-OFF26-24-F2a-FIX7: **âncora no #modal real** — o screenshot provou o manual pick dentro de `#modal[role=alertdialog]` (header “Make Manual Pick for Team 10”) e o fundo duplicando a interface; a heurística do FIX6 pegou o trio do fundo. Agora: #modal quando presente (fallback logado), espera de ESTADO pós-Set Player, header como identidade (`modal_header_check` puro; wrong_team/unexpected → Esc+abort). Caso do abort impossível por construção. Testes 65→66. Re-execução do owner.)
+> Última atualização: 11/08/2026-pt9 (MAN-OFF26-24-F2b: **F2a fechada** (Cam Ward assentado via API; validate 19/19) + lição: **idempotência PRIMEIRO** (pick gravou em run morta; busca vazia misteriosa). **F2b:** `idempotency_decision` (4 casos) + recheck em busca vazia; `populate --team-slot`/`--all` retomável; conferência por time vs sheet; `bloqueado_teto` = resultado (§B.3.2); falha aborta o time preservando o feito; **juiz = auditoria OFF26-4**. Critério 19/08 no README (RESET → --all 12/12 → auditoria → RESET). Testes 66→86. Ensaio do owner.)
+> Anterior: 11/08/2026-pt8 (MAN-OFF26-24-F2a-FIX7: **âncora no #modal real** — o screenshot provou o manual pick dentro de `#modal[role=alertdialog]` (header “Make Manual Pick for Team 10”) e o fundo duplicando a interface; a heurística do FIX6 pegou o trio do fundo. Agora: #modal quando presente (fallback logado), espera de ESTADO pós-Set Player, header como identidade (`modal_header_check` puro; wrong_team/unexpected → Esc+abort). Caso do abort impossível por construção. Testes 65→66. Re-execução do owner.)
 > Anterior: 11/08/2026-pt7 (MAN-OFF26-24-F2a-FIX6: **a lista de FUNDO vazava no matching** (57 linhas do ranking; abort “5 candidatos QB” correto). Fix: `_modal` ancorado por estrutura (ancestral do botão Assign/SET PLAYER com o input de busca) e TUDO escopado nele (busca/linhas/+/preço; locator global proibido por guarda estática) + `search_filter_check` puro ANTES do matching (57 = fixture). Anti-homônimo intacto. Testes 60→65. Re-execução do owner.)
 > Anterior: 11/08/2026-pt6 (MAN-OFF26-24-F2a-FIX5: **parser do anti-homônimo lê o DOM real** — “0 candidatos QB” com o Cam Ward na lista (`'QB
 TEN TEN'`): innerText empilhado por newlines + sigla duplicada + injury. `parse_result_row`/`select_candidate_rows` no núcleo puro; critério INTACTO (posição exata, 0/2+ abortam; sigla logada); “+” da linha ELEITA. Testes 50→60 (linhas literais do abort = fixture). Re-execução do owner.)
@@ -5375,3 +5376,37 @@ todos os pointer events. A dualidade fundo×modal, invertida.
 
 **Roteiro do owner: o MESMO comando (Cam Ward).** Série F2a: mapa → célula/menu → parser →
 escopo → **âncora**. O modal agora é achado pelo id/role que o DOM real declara.
+
+### MAN-OFF26-24-F2b — o loop completo: idempotência primeiro, teto como resultado, auditoria como juiz (11/08/2026, Fable)
+
+F2a fechada com o placar real: **1 designação real assentada e confirmada pela API** (Cam Ward
+$1 → Trust The Process), validate **19/19, zero divergências**, mapa vivo pela cadeia. A lição
+final veio da própria pele: o pick **gravou numa run intermediária que morreu antes do poll** (o
+desync documentado no ensaio mordeu o script) e a run seguinte queimou um ciclo com "busca vazia
+misteriosa" — designado some do pool designável. **Idempotência é a PRIMEIRA verificação.**
+
+- **Núcleo novo (20 testes):** `idempotency_decision` (ausente→designa · certo→ja_assentado com
+  ZERO cliques · time/preço divergente→conflito nomeado, decisão humana · amount ausente no
+  pick→aceita como assentado) · `team_pending_keepers` (retomabilidade: o que assentou sai do
+  plano) · `is_budget_block` ("does not have enough budget" — §B.3.2) · `campaign_summary`.
+- **Driver:** `EmptySearchResult` — lista vazia pós-filtro ou 0 candidatos **re-checa a API
+  antes de abortar** ("designado entre a checagem e o modal?"); TIMEOUT com a recusa de teto
+  visível → veredito `bloqueado_teto` (Esc + segue), não re-comando.
+- **`populate --team-slot N`:** loop pelos keepers do time (idempotência antes de cada um);
+  falha → **aborta O TIME**, o que assentou permanece, screenshot por slot; ao fim, conferência
+  contagem+soma contra a sheet pela API (divergência vira status próprio).
+- **`populate --all`:** 12 times em ordem de slot; `bloqueado_teto` registra e SEGUE (exit code
+  trata como não-falha — é o esperado pré-late-drop: AlexTheDawg $203, Miller Time! $200);
+  retomável por construção (rodar de novo continua de onde parou).
+- **O juiz:** o relatório JSON (placar por time + resumo) instrui a auditoria OFF26-4 sobre o
+  board populado — **o veredito é dela**, nunca da contagem do próprio script.
+- **Critério de 19/08 no README:** RESET (owner) → `populate --all` com a sheet provisória
+  (12/12 processados, zero intervenção manual) → auditoria coerente → RESET final (rollback
+  provado). Sem os 4 passos até 19/08 → Cowork em 2026.
+- **Testes 66 → 86** — incluindo os 3 do `modal_header_check` do FIX7 que um gerador falho tinha
+  deixado de fora (pego na conferência desta sessão) e 5 guardas estáticas novas (idempotência
+  antes do designate · recheck · teto não-erro · falha não contamina · populate sem RESET/START).
+  Suítes completas verdes; diffstat conferido antes do push.
+
+**O ensaio 12/12 é do owner** — go/no-go de 19/08. Guardas da F2a intactas; RESET/START seguem
+fora do alcance do script.

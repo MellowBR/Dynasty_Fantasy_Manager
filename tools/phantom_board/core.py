@@ -270,6 +270,82 @@ def select_candidate_rows(parsed_rows, position):
     return [i for i, (pos, _sigla) in enumerate(parsed_rows) if pos == want]
 
 
+# ── F2b: idempotência, plano por time, teto e agregação (núcleo puro) ──────────
+
+DESIGNAR = "designar"
+JA_ASSENTADO = "ja_assentado"
+CONFLITO = "conflito"
+BLOQUEADO_TETO = "bloqueado_teto"
+
+
+def idempotency_decision(sid, expected_owner_id, expected_price, picks, slot_map):
+    """F2b — A LIÇÃO DA F2a: idempotência é a PRIMEIRA verificação, não a última
+    (o pick de Cam Ward gravou numa run que morreu antes do poll, e a run seguinte
+    gastou um ciclo com "busca vazia misteriosa" — designado some do pool).
+
+    Confere nos PICKS DA API (a verdade) antes de qualquer interação com o board:
+    - ausente → ("designar", None);
+    - presente no time certo, preço certo → ("ja_assentado", pick) — sucesso, zero
+      cliques (preço None no pick = não conferível → aceita como assentado);
+    - presente com time OU preço divergente → ("conflito", detalhe) — decisão
+      humana, quem chama aborta nomeado. Puro."""
+    for raw in picks or []:
+        p = parse_pick(raw)
+        if p["sid"] != str(sid):
+            continue
+        slot_owner = (slot_map.get(p["slot"]) or {}).get("user_id", "")
+        if expected_owner_id and slot_owner and slot_owner != str(expected_owner_id):
+            return (CONFLITO, {"motivo": "time divergente", "slot": p["slot"],
+                               "owner_no_board": slot_owner,
+                               "owner_esperado": str(expected_owner_id)})
+        if (expected_price is not None and p["amount"] is not None
+                and int(p["amount"]) != int(expected_price)):
+            return (CONFLITO, {"motivo": "preço divergente",
+                               "preco_no_board": p["amount"],
+                               "preco_esperado": expected_price})
+        return (JA_ASSENTADO, {"slot": p["slot"], "amount": p["amount"]})
+    return (DESIGNAR, None)
+
+
+def team_pending_keepers(sheet_rows, picks, owner_id):
+    """F2b — os keepers do owner que AINDA não têm pick (retomabilidade por
+    construção: o que já assentou sai do plano). Ordem da sheet preservada."""
+    designados = {parse_pick(p)["sid"] for p in picks or []}
+    return [r for r in sheet_rows
+            if r["owner_id"] == str(owner_id) and r["sid"]
+            and r["sid"] not in designados]
+
+
+def is_budget_block(text: str) -> bool:
+    """F2b — o Sleeper RECUSA designação acima do teto de lance com a mensagem
+    "does not have enough budget" (§B.3.2 do runbook). É resultado ESPERADO
+    pré-late-drop (AlexTheDawg $203, Miller Time! $200), não erro."""
+    return "does not have enough budget" in (text or "").lower()
+
+
+def campaign_summary(team_results: list) -> dict:
+    """F2b — resumo da campanha por status; o VEREDITO é da auditoria OFF26-4
+    sobre o board (o juiz independente), nunca desta contagem."""
+    tally = {"times_processados": len(team_results), "designados": 0,
+             "ja_assentados": 0, "bloqueados_teto": 0, "conflitos": 0,
+             "falhas": 0, "times_ok": 0, "times_bloqueados": 0,
+             "times_com_falha": 0}
+    for t in team_results:
+        tally["designados"] += t.get("designados", 0)
+        tally["ja_assentados"] += t.get("ja_assentados", 0)
+        tally["conflitos"] += t.get("conflitos", 0)
+        st = t.get("status")
+        if st == "ok":
+            tally["times_ok"] += 1
+        elif st == BLOQUEADO_TETO:
+            tally["times_bloqueados"] += 1
+            tally["bloqueados_teto"] += 1
+        else:
+            tally["times_com_falha"] += 1
+            tally["falhas"] += 1
+    return tally
+
+
 # ── Assentamento: a decisão pós-comando (comando via DOM, verdade via API) ──────
 
 SETTLED = "assentado"

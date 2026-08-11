@@ -18,8 +18,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import config
-from .core import (flatten_sheet, league_guard, match_picks_to_sheet,
-                   resolve_slot_map, team_totals)
+from .core import (BLOQUEADO_TETO, CONFLITO, JA_ASSENTADO, campaign_summary,
+                   flatten_sheet, idempotency_decision, league_guard,
+                   match_picks_to_sheet, parse_pick, resolve_slot_map,
+                   team_totals)
 from .sleeper_api import (fetch_draft, fetch_draft_id, fetch_picks,
                           fetch_rosters, fetch_users)
 
@@ -179,6 +181,143 @@ def cmd_designate(args):
     sys.exit(0 if ok else 1)
 
 
+def _team_conference(picks, team_rows):
+    """Conferência do time contra a sheet (contagem + soma), pela API."""
+    sids = {r["sid"] for r in team_rows}
+    got = [parse_pick(p) for p in picks if str(p.get("player_id")) in sids]
+    return {
+        "picks_no_board": len(got),
+        "keepers_na_sheet": len(team_rows),
+        "total_no_board": sum(g["amount"] or 0 for g in got),
+        "total_na_sheet": sum(r["salary"] for r in team_rows),
+    }
+
+
+def cmd_populate(args):
+    """F2b — o loop por time (a unidade do runbook) e a campanha completa.
+
+    Idempotência é a PRIMEIRA verificação (lição da F2a): cada keeper é conferido
+    na API antes de qualquer clique. Falha num keeper → aborta O TIME (o que
+    assentou permanece) e, em --all, segue para o próximo. `bloqueado_teto` é
+    resultado esperado pré-late-drop, não erro. Retomável por construção: rodar
+    de novo pula o que já assentou. O VEREDITO final é da auditoria OFF26-4."""
+    from .board import BoardAbort, designate, open_board
+    from .core import ALREADY, SETTLED
+
+    if not args.all and not args.team_slot:
+        sys.exit("⛔ informe --team-slot N ou --all")
+    sheet = _load_sheet(args.sheet)
+    rows = flatten_sheet(sheet)
+
+    team_results = []
+    slot_source = None
+    pw, ctx, page, draft_id = open_board(headless=False)
+    try:
+        slot_map, slot_source = resolve_slot_map(
+            fetch_draft(draft_id), fetch_users(config.LEAGUE_ID),
+            fetch_rosters(config.LEAGUE_ID), fetch_picks(draft_id))
+        if not slot_map:
+            raise BoardAbort("Mapa slot↔owner vazio — nenhuma fonte da cadeia "
+                             "serviu; nada a popular.")
+        print(f"Mapa slot↔owner: {len(slot_map)} slots via {slot_source}")
+        slots = sorted(slot_map) if args.all else [int(args.team_slot)]
+
+        for slot in slots:
+            owner = slot_map[slot]["user_id"]
+            handle = slot_map[slot]["handle"]
+            team_rows = [r for r in rows if r["owner_id"] == owner]
+            res = {"slot": slot, "handle": handle,
+                   "team_name": team_rows[0]["team_name"] if team_rows else "?",
+                   "designados": 0, "ja_assentados": 0, "conflitos": 0,
+                   "status": "ok", "eventos": []}
+            if not team_rows:
+                res["status"] = "sem_keepers_na_sheet"
+                team_results.append(res)
+                print(f"[slot {slot} {handle}] sem keepers na sheet — pulando")
+                continue
+            print(f"[slot {slot} {handle}] {len(team_rows)} keepers na sheet")
+
+            picks = fetch_picks(draft_id)
+            for r in team_rows:
+                dec, det = idempotency_decision(r["sid"], owner, r["salary"],
+                                                picks, slot_map)
+                if dec == JA_ASSENTADO:
+                    res["ja_assentados"] += 1
+                    continue
+                if dec == CONFLITO:
+                    res["conflitos"] += 1
+                    res["status"] = "conflito"
+                    res["eventos"].append({"keeper": r["name"], "conflito": det})
+                    print(f"  ⛔ CONFLITO em {r['name']}: {det} — abortando o time")
+                    break
+                try:
+                    verdict = designate(page, draft_id, slot, r["name"],
+                                        r["position"], "", r["salary"],
+                                        r["sid"], res["eventos"])
+                except BoardAbort as e:
+                    res["status"] = "falha"
+                    res["eventos"].append({"keeper": r["name"],
+                                           "falha": str(e)[:300]})
+                    print(f"  ⛔ FALHA em {r['name']}: {e} — abortando o time "
+                          f"(o que assentou permanece)")
+                    try:
+                        page.screenshot(path=str(
+                            Path(__file__).parent / config.RUNS_DIR_NAME /
+                            f"abort_slot{slot}.png"))
+                    except Exception:
+                        pass
+                    break
+                if verdict == BLOQUEADO_TETO:
+                    res["status"] = BLOQUEADO_TETO
+                    res["eventos"].append({"keeper": r["name"],
+                                           "resultado": BLOQUEADO_TETO})
+                    print(f"  🧱 teto de lance em {r['name']} — esperado "
+                          f"pré-late-drop; seguindo para o próximo time")
+                    break
+                if verdict == SETTLED:
+                    res["designados"] += 1
+                    print(f"  ✅ {r['name']} (${r['salary']}) assentado na API")
+                else:
+                    res["ja_assentados"] += 1
+                picks = fetch_picks(draft_id)
+
+            if res["status"] == "ok":
+                res["conferencia"] = _team_conference(fetch_picks(draft_id),
+                                                      team_rows)
+                c = res["conferencia"]
+                if (c["picks_no_board"] != c["keepers_na_sheet"]
+                        or c["total_no_board"] != c["total_na_sheet"]):
+                    res["status"] = "divergencia_na_conferencia"
+                print(f"  conferência: {c['picks_no_board']}/"
+                      f"{c['keepers_na_sheet']} picks, "
+                      f"${c['total_no_board']}/${c['total_na_sheet']}")
+            team_results.append(res)
+    finally:
+        try:
+            ctx.tracing.stop(path=str(Path(__file__).parent /
+                                      config.RUNS_DIR_NAME / "trace.zip"))
+        except Exception:
+            pass
+        ctx.close()
+        pw.stop()
+        resumo = campaign_summary(team_results)
+        print("=== CAMPANHA ===")
+        for k, v in resumo.items():
+            print(f"  {k}: {v}")
+        print("⚖️ O VEREDITO é da auditoria OFF26-4 — abra /admin/keeper_audit "
+              "no Manager e confira o board populado contra a sheet (o juiz "
+              "independente; a contagem acima não substitui).")
+        _write_report("populate", {
+            "mode": "populate", "all": bool(args.all),
+            "slot_map_source": slot_source,
+            "resumo": resumo, "times": team_results,
+            "proximo_passo": "auditoria OFF26-4 em /admin/keeper_audit",
+        })
+    ruim = [t for t in team_results
+            if t["status"] not in ("ok", BLOQUEADO_TETO, "sem_keepers_na_sheet")]
+    sys.exit(1 if ruim else 0)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="phantom_board",
                                  description="OFF26-24 — população do board da fantasma")
@@ -196,6 +335,11 @@ def main(argv=None):
     d.add_argument("--price", type=int, default=None,
                    help="opcional — default é o salário da sheet")
     d.set_defaults(fn=cmd_designate)
+    pop = sub.add_parser("populate", help="F2b: loop por time / campanha --all")
+    pop.add_argument("--sheet", required=True)
+    pop.add_argument("--team-slot", type=int, default=None)
+    pop.add_argument("--all", action="store_true")
+    pop.set_defaults(fn=cmd_populate)
     args = ap.parse_args(argv)
     args.fn(args)
 

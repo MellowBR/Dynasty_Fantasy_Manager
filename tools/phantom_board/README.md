@@ -43,6 +43,39 @@ https://dynasty-fantasy-manager.onrender.com/api/admin/keeper_sheet_export
 
 (É o pacote do `build_sheet` — keepers com sid + owner_id. A sheet JSON comum não os tem.)
 
+## F2b — população por time e campanha completa
+
+```powershell
+# um time (a unidade verificável do runbook):
+python -m tools.phantom_board.cli populate --sheet sheet.json --team-slot 10
+
+# a campanha (12 times, em ordem de slot):
+python -m tools.phantom_board.cli populate --sheet sheet.json --all
+```
+
+**Idempotência primeiro** (a lição da F2a): cada keeper é conferido na API **antes** de
+qualquer clique — já assentado no time/preço certo = sucesso com zero cliques; divergente
+= conflito (aborta o time, decisão humana); ausente = designa. **Retomável por
+construção**: rodar de novo continua de onde parou. `bloqueado_teto` ("does not have
+enough budget" — AlexTheDawg $203, Miller Time! $200) é **resultado esperado**
+pré-late-drop, não erro: registra e segue ao próximo time. Falha real → aborta O TIME
+(o que assentou permanece), segue aos demais, relatório JSON com o placar.
+
+**⚖️ O veredito é da auditoria OFF26-4** — ao fim da campanha, abra `/admin/keeper_audit`
+no Manager: ela compara o board vivo com a sheet, classe a classe. A contagem do script
+não substitui o juiz.
+
+## O ensaio de validação (critério de 19/08 — go/no-go do owner)
+
+1. **RESET DRAFT** (você, na UI do Sleeper — o script nunca o faz).
+2. `populate --all` com a **sheet provisória** — meta: **12/12 times processados**
+   (populados ou `bloqueado_teto` legítimo), **zero intervenção manual** no meio.
+3. **Auditoria OFF26-4** sobre o board populado — divergências coerentes com a sheet
+   (zero de salário/time/ausência nos times populados).
+4. **RESET DRAFT final** (rollback provado, não presumido).
+
+Sem os 4 passos até **19/08**, 2026 roda via Cowork (plano A) e o script fica para 2027.
+
 ## Roteiro de validação da F2a (nesta ordem)
 
 **1 — Validação read-only** (zero browser, zero escrita) — confere os 18 picks do ensaio:

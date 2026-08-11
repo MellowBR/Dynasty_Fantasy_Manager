@@ -23,15 +23,22 @@ import time
 from pathlib import Path
 
 from . import config
-from .core import (PENDING, SETTLED, ALREADY, TIMEOUT, choose_menu_item,
-                   league_guard, modal_header_check, parse_result_row,
-                   search_filter_check, select_candidate_rows,
-                   settlement_decision, url_guard)
+from .core import (ALREADY, BLOQUEADO_TETO, PENDING, SETTLED, TIMEOUT,
+                   choose_menu_item, is_budget_block, league_guard,
+                   modal_header_check, parse_result_row, search_filter_check,
+                   select_candidate_rows, settlement_decision, url_guard)
 from .sleeper_api import fetch_draft, fetch_draft_id, fetch_picks
 
 
 class BoardAbort(RuntimeError):
     """Falha real → parar BARULHENTO. Quem captura anexa screenshot/trace/relatório."""
+
+
+class EmptySearchResult(BoardAbort):
+    """F2b — busca sem resultado utilizável (0 linhas pós-filtro ou 0 candidatos).
+    NÃO é abort imediato: o `designate` re-checa a API antes ("designado entre a
+    checagem e o modal?" — o desync corre; a lição da busca vazia misteriosa da
+    F2a). Só vira abort de verdade se a API confirmar que o sid não está lá."""
 
 
 def assert_allowed_click(label_text: str):
@@ -268,6 +275,10 @@ def _pick_search_result(page, team_slot: int, player_name: str, position: str,
 
     rows = modal.locator(config.SEL_RESULT_ROW + ":visible")
     n = rows.count()
+    if n == 0:
+        page.keyboard.press("Escape")     # fecha o modal p/ o chamador re-checar
+        raise EmptySearchResult(f"'{player_name}': lista VAZIA após o filtro — "
+                                f"designado entre a checagem e o modal?")
     err = search_filter_check(n, config.SEARCH_MAX_RESULTS)
     if err:
         raise BoardAbort(f"'{player_name}': {err} (escopo: modal; se persistir, o "
@@ -279,11 +290,14 @@ def _pick_search_result(page, team_slot: int, player_name: str, position: str,
         team_text = row.locator(config.SEL_ROW_TEAM).first.inner_text()
         parsed.append(parse_result_row(pos_text, team_text))
     chosen = select_candidate_rows(parsed, position)
-    if len(chosen) != 1:
+    if len(chosen) == 0:
+        page.keyboard.press("Escape")
+        raise EmptySearchResult(f"'{player_name}': 0 candidatos {position} "
+                                f"(parseadas: {parsed}) — designado some do pool?")
+    if len(chosen) > 1:
         raise BoardAbort(
             f"Anti-homônimo: {len(chosen)} candidato(s) {position} para "
-            f"'{player_name}' (linhas parseadas: {parsed or 'nenhuma'}). "
-            f"Nada designado.")
+            f"'{player_name}' (linhas parseadas: {parsed}). Nada designado.")
     idx = chosen[0]
     pos, sigla = parsed[idx]
     if log is not None:
@@ -322,6 +336,15 @@ def _set_price_and_confirm(page, price: int):
     confirm.click()
 
 
+def _visible_toast_text(page) -> str:
+    """Melhor esforço: texto visível de toasts/avisos p/ classificar a recusa de
+    teto (o toast NÃO é veredito de sucesso — mas a RECUSA nomeada é dele)."""
+    try:
+        return page.locator("body").inner_text()[-500:]
+    except Exception:
+        return ""
+
+
 def designate(page, draft_id: str, team_slot: int, player_name: str, position: str,
               nfl_team: str, price: int, sid: str, log: list) -> str:
     """Uma designação ponta a ponta. Comando via DOM; ASSENTAMENTO via API (poll).
@@ -337,8 +360,17 @@ def designate(page, draft_id: str, team_slot: int, player_name: str, position: s
     while True:
         attempts += 1
         _open_set_player_menu(page, team_slot)
-        warn = _pick_search_result(page, team_slot, player_name, position,
-                                   nfl_team, log)
+        try:
+            warn = _pick_search_result(page, team_slot, player_name, position,
+                                       nfl_team, log)
+        except EmptySearchResult as e:
+            # F2b: a lição da F2a — re-checa a API ANTES de abortar (o desync
+            # pode ter assentado o pick entre a checagem inicial e o modal)
+            now = {str(p.get("player_id")) for p in fetch_picks(draft_id)}
+            if sid in now:
+                log.append({"sid": sid, "event": "ja_assentado_no_recheck"})
+                return ALREADY
+            raise BoardAbort(str(e))
         if warn:
             log.append({"sid": sid, "warning": warn})
         _set_price_and_confirm(page, price)
@@ -355,6 +387,17 @@ def designate(page, draft_id: str, team_slot: int, player_name: str, position: s
         if verdict in (SETTLED, ALREADY):
             log.append({"sid": sid, "event": verdict})
             return verdict
+        # TIMEOUT com recusa de TETO visível → resultado esperado, não erro
+        # (§B.3.2: o Sleeper recusa acima do bid máximo — pré-late-drop é normal)
+        try:
+            teto = page.get_by_text(config.BUDGET_BLOCK_TEXT,
+                                    exact=False).first.is_visible()
+        except Exception:
+            teto = False
+        if teto or is_budget_block(_visible_toast_text(page)):
+            page.keyboard.press("Escape")
+            log.append({"sid": sid, "event": BLOQUEADO_TETO})
+            return BLOQUEADO_TETO
         # TIMEOUT: caso Caleb (staging revertido) → re-comando, uma vez
         log.append({"sid": sid, "event": "timeout_sem_assentar"})
         if attempts > config.COMMAND_RETRIES:

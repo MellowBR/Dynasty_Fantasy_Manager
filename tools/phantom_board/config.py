@@ -69,6 +69,9 @@ MENU_TITLE_CHANGE = "Change Player"     # menu de célula PREENCHIDA — proibid
 # manual do owner em vez de estourar.
 LOGIN_WAIT_SECONDS = 120
 
+# F2b: recusa de teto do Sleeper (§B.3.2) — resultado esperado, não erro.
+BUDGET_BLOCK_TEXT = "does not have enough budget"
+
 SETTLE_POLL_SECONDS = 1.5
 SETTLE_TIMEOUT_SECONDS = 15.0
 COMMAND_RETRIES = 1        # servidor rejeita duplicata — re-comando é seguro
