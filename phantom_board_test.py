@@ -21,7 +21,7 @@ from tools.phantom_board.core import (
     draft_budget_slots, flatten_sheet,
     idempotency_decision, is_budget_block, league_guard, match_picks_to_sheet,
     max_bid, modal_header_check, parse_pick, parse_price_value,
-    parse_result_row, price_readback_decision, resolve_slot_map,
+    parse_result_row, position_matches, price_readback_decision, resolve_slot_map,
     row_matches_name, search_filter_check, select_candidate_rows,
     select_candidate_rows_named, settlement_decision,
     slot_map_from_picks, slot_map_from_rosters, team_pending_keepers,
@@ -736,6 +736,102 @@ class TestCampaignSummaryBloqueados(unittest.TestCase):
         self.assertEqual(r["bloqueados_teto"], 2)
         self.assertEqual(r["times_bloqueados"], 1)
         self.assertEqual(r["times_ok"], 1)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 4f. FIX11 — rótulo multi-posição ("DB,WR"): o caso Travis Hunter RESOLVIDO
+# ══════════════════════════════════════════════════════════════════════════════
+
+# O micro-probe do owner (12/08, screenshots) fechou a pendência OFF26-24-HUNTER:
+# o Hunter ESTÁ no pool da sala (rank 167, tabs All e WR, "+" habilitado) — a
+# linha existia e foi DESCARTADA pelo filtro de posição: o rótulo dela é "DB,WR"
+# (espelho de fantasy_positions da API, DB primeiro) e a eleição exigia
+# igualdade com o "WR" da sheet. Único multi-posição entre os 237 keepers.
+HUNTER_TEXT = "167 Travis Hunter DB,WR JAX $1 - 0.0 0.0 0 0 0 0 0 0 0 0 0"
+
+
+class TestPositionMatches(unittest.TestCase):
+    """FIX11 — pertencimento ao conjunto do rótulo, não igualdade com o rótulo
+    inteiro. Pertencimento NÃO é afrouxamento."""
+
+    def test_membro_do_rotulo_casa(self):
+        self.assertTrue(position_matches("DB,WR", "WR"))
+        self.assertTrue(position_matches("DB,WR", "DB"))
+        self.assertTrue(position_matches("db,wr", "wr"))   # caixa
+
+    def test_nao_membro_nao_casa(self):
+        """Sheet "QB" contra a linha do Hunter → 0 candidatos (a regra não
+        afrouxou)."""
+        self.assertFalse(position_matches("DB,WR", "QB"))
+        self.assertFalse(position_matches("DB,WR", "TE"))
+
+    def test_igualdade_comum_segue_valendo(self):
+        self.assertTrue(position_matches("WR", "WR"))
+        self.assertTrue(position_matches("D/ST", "D/ST"))  # rótulo único, pré-split
+
+    def test_vazios_nao_casam(self):
+        self.assertFalse(position_matches("", "WR"))
+        self.assertFalse(position_matches("DB,WR", ""))
+
+
+class TestParseResultRowMultiPos(unittest.TestCase):
+    """FIX11 — o parse (família FIX5) extrai o rótulo "DB,WR" ÍNTEGRO do
+    innerText real, sem quebrá-lo em posição+sigla."""
+
+    def test_rotulo_integro_com_sigla(self):
+        self.assertEqual(parse_result_row("DB,WR" + NL + "JAX", "JAX"),
+                         ("DB,WR", "JAX"))
+
+    def test_string_unica_do_dom(self):
+        self.assertEqual(parse_result_row("DB,WR JAX"), ("DB,WR", "JAX"))
+
+    def test_injury_status_tolerado_no_multi(self):
+        self.assertEqual(parse_result_row("DB,WR" + NL + "JAX" + NL + "QUES",
+                                          "JAX"),
+                         ("DB,WR", "JAX"))
+
+    def test_compound_sem_membro_do_vocabulario_nao_e_posicao(self):
+        """Um compound sem NENHUMA parte no vocabulário não vira rótulo."""
+        self.assertEqual(parse_result_row("A,B" + NL + "JAX", "JAX")[0], "")
+
+
+class TestFix11Hunter(unittest.TestCase):
+    """A fixture literal do probe: a linha existia — agora conta como candidato."""
+
+    def test_fixture_do_probe_da_um_candidato(self):
+        """"Travis Hunter" · "DB,WR" · JAX, sheet WR → exatamente 1 candidato;
+        a designação prossegue."""
+        self.assertEqual(select_candidate_rows_named(
+            [("DB,WR", "JAX")], "WR", [HUNTER_TEXT], "Travis Hunter"), [0])
+
+    def test_sheet_qb_contra_a_mesma_linha_da_zero(self):
+        self.assertEqual(select_candidate_rows_named(
+            [("DB,WR", "JAX")], "QB", [HUNTER_TEXT], "Travis Hunter"), [])
+
+    def test_busca_por_hunter_com_outras_linhas(self):
+        """O probe por "hunter" devolveu múltiplas linhas — só a dele casa nome
+        E posição."""
+        parsed = [("DB,WR", "JAX"), ("WR", "ARI"), ("RB", "CHI")]
+        texts = [HUNTER_TEXT,
+                 "5 Marvin Harrison WR ARI $22 11",
+                 "80 Hunter Renfrow RB CHI $1 -"]
+        self.assertEqual(select_candidate_rows_named(
+            parsed, "WR", texts, "Travis Hunter"), [0])
+
+    def test_homonimos_verdadeiros_seguem_abortando(self):
+        """⛔ Critério intacto: dois "Travis Hunter" cujos rótulos CONTÊM a
+        posição da sheet → 2 candidatos → quem chama aborta."""
+        parsed = [("DB,WR", "JAX"), ("WR", "")]
+        texts = [HUNTER_TEXT, "900 Travis Hunter WR $1 -"]
+        self.assertEqual(len(select_candidate_rows_named(
+            parsed, "WR", texts, "Travis Hunter")), 2)
+
+    def test_selecao_por_posicao_tambem_ve_o_multi(self):
+        """select_candidate_rows (camada posição-só do FIX5) inclui a linha
+        multi-posição — o pertencimento vive numa fonte única."""
+        rows = [("QB", "TEN"), ("DB,WR", "JAX")]
+        self.assertEqual(select_candidate_rows(rows, "WR"), [1])
+        self.assertEqual(select_candidate_rows(rows, "QB"), [0])
 
 
 # ══════════════════════════════════════════════════════════════════════════════

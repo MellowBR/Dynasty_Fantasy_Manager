@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 12/08/2026-pt2 (MAN-OFF26-24-FIX10: **campanha 12/12 — as DUAS caras do teto + caso Hunter.** O input de preço CLAMPA silenciosamente ao max bid (digitou $6/$4/$3/$2, gravou $5/$1/$1/$1 = $196 sem aviso — preço errado que PARECE certo, severidade alta na doutrina OFF26-4); modelo verificado ao dólar: `max_bid = budget − gasto − $1×(vagas restantes do board de 22)`. Fix: **READ-BACK do input antes do SET PLAYER** (verdade operacional; modelo = anotação) → clampou = `bloqueado_teto` DO KEEPER (pula o keeper, não o time; nada gravado — a sheet é canônica); ilegível/maior = abort. Conferência agora APONTA divergentes/faltantes por nome (`conference_report` no core — a soma inline do CLI morreu). Telemetria tarefa 7: 147 assentamentos, zero reload, lag 8–121s em fila contínua = **lag puro**, contra a hipótese do cache. **Travis Hunter**: único two-way (`fantasy_positions ["DB","WR"]`) dos 237 da sheet; API prova classificação, não o pool da sala → pendência OFF26-24-HUNTER + micro-probe manual, sem tratamento cego. Testes 104→121.)
+> Última atualização: 12/08/2026-pt3 (MAN-OFF26-24-FIX11: **pendência HUNTER fechada pelo micro-probe do owner** — o Travis Hunter ESTÁ no pool da sala (rank 167, tabs All e WR, "+" habilitado), rótulo de posição **"DB,WR"**; o abort real foi a ELEIÇÃO exigindo igualdade ("WR" ≠ "DB,WR" → 0 candidatos → "busca vazia sem rastro" mascarou o descarte). Fix no núcleo puro, board/CLI intocados: `position_matches` = **pertencimento** ao conjunto do rótulo (separadores `,` `/`; igualdade pré-split preserva "D/ST"), fonte única usada por `select_candidate_rows`; parse devolve o rótulo multi-posição ÍNTEGRO com a sigla ao lado. Pertencimento ≠ afrouxamento ("QB" não casa "DB,WR"); anti-homônimo 0/2+ intacto. Réplica: comparação de posição só existia no `pos == want` do core. Testes 121→134.)
+> Anterior: 12/08/2026-pt2 (MAN-OFF26-24-FIX10: **campanha 12/12 — as DUAS caras do teto + caso Hunter.** O input de preço CLAMPA silenciosamente ao max bid (digitou $6/$4/$3/$2, gravou $5/$1/$1/$1 = $196 sem aviso — preço errado que PARECE certo, severidade alta na doutrina OFF26-4); modelo verificado ao dólar: `max_bid = budget − gasto − $1×(vagas restantes do board de 22)`. Fix: **READ-BACK do input antes do SET PLAYER** (verdade operacional; modelo = anotação) → clampou = `bloqueado_teto` DO KEEPER (pula o keeper, não o time; nada gravado — a sheet é canônica); ilegível/maior = abort. Conferência agora APONTA divergentes/faltantes por nome (`conference_report` no core — a soma inline do CLI morreu). Telemetria tarefa 7: 147 assentamentos, zero reload, lag 8–121s em fila contínua = **lag puro**, contra a hipótese do cache. **Travis Hunter**: único two-way (`fantasy_positions ["DB","WR"]`) dos 237 da sheet; API prova classificação, não o pool da sala → pendência OFF26-24-HUNTER + micro-probe manual, sem tratamento cego. Testes 104→121.)
 > Anterior: 12/08/2026 (MAN-OFF26-24-FIX9: **campanha real de 12/08 — dois defeitos encadeados.** (1) Anti-homônimo "2 QBs p/ Malik Willis" NÃO era artefato de DOM: a busca do Sleeper é **FUZZY** — devolveu Malik Williams ×2 + Hajj-Malik Williams QB, FAs reais de sigla vazia; candidato REAL passa a exigir **NOME** (`select_candidate_rows_named`/`row_matches_name` puros; posição exata + 0/2+ intactos; ⛔ sigla vazia não desqualifica). (2) O abort saiu com o **MODAL aberto** → clique do time seguinte interceptado 30s → TimeoutError **cru** (loop só pegava BoardAbort). Higiene: `command_pick` fecha modal em QUALQUER exceção; estado sujo detectado ANTES do 1º clique; populate com abort padrão de TIME e de CAMPANHA (`abort_campanha` no relatório) — nada escapa cru. Réplica conferida: contagem só em core.py. Testes 87→104.)
 > Anterior: 11/08/2026-pt10 (MAN-OFF26-24-FIX8: **assíncrono** — lag real >5min (Josh Allen; ensaio ~3s: variância é o fato) matou o poll bloqueante. `command_pick` sem poll; `reconcile_team` por time (300s, reload no meio — hipótese do cache por visita; telemetria decide); `post_teto_decision` puro (board local → `assentado_local_api_atrasada`, nunca re-comando · 1 re-comando · falha do KEEPER preservando o time); lote de idempotência; busca vazia cruza run→API→board. Testes 86→87. Re-teste morno do owner: slot 10.)
 > Anterior: 11/08/2026-pt9 (MAN-OFF26-24-F2b: **F2a fechada** (Cam Ward assentado via API; validate 19/19) + lição: **idempotência PRIMEIRO** (pick gravou em run morta; busca vazia misteriosa). **F2b:** `idempotency_decision` (4 casos) + recheck em busca vazia; `populate --team-slot`/`--all` retomável; conferência por time vs sheet; `bloqueado_teto` = resultado (§B.3.2); falha aborta o time preservando o feito; **juiz = auditoria OFF26-4**. Critério 19/08 no README (RESET → --all 12/12 → auditoria → RESET). Testes 66→86. Ensaio do owner.)
@@ -5540,3 +5541,34 @@ entre 4 linhas fuzzy, Keenan Allen (FA de sigla vazia) eleito pelo nome, e o abo
   bloqueados por keeper, guardas estáticas (read-back antes do confirm.click; teto pula o
   keeper; conferência exclui bloqueados; sem 2ª conferência). Suítes completas verdes; diffstat
   conferido antes do push.
+
+### MAN-OFF26-24-FIX11 — pertencimento de posição: o caso Hunter fechado (12/08/2026, Fable)
+
+O micro-probe manual do owner (screenshots de 12/08) **fechou a pendência OFF26-24-HUNTER** e
+derrubou a hipótese pessimista: o Travis Hunter **está no pool da sala fantasma** — aparece na
+busca por "travis hunter" e por "hunter" (rank 167), nas tabs **All e WR**, com o **"+"
+habilitado** — designável manualmente; `fora_do_pool_da_sala` não se aplica. O rótulo de
+posição da linha é **"DB,WR"** (multi-posição, espelho de `fantasy_positions ["DB","WR"]` da
+API; único caso entre os 237 keepers da sheet).
+
+- **Mecanismo real do abort (slot 11 da campanha):** a busca DEVOLVEU a linha; a eleição a
+  **descartou** — exigia posição exatamente igual à da sheet ("WR" ≠ "DB,WR") → 0 candidatos →
+  o caminho de lista-vazia cruzou a API (sem pick, corretamente) e abortou como "busca vazia
+  sem rastro", **mascarando que o candidato existia e foi filtrado**.
+- **Fix (inteiro no núcleo puro; board/CLI intocados):** `position_matches` — a posição da
+  sheet casa por **pertencimento** ao conjunto do rótulo (separadores `,` e `/`), com a
+  igualdade cobrindo o caso comum ANTES do split (preserva "D/ST" como rótulo único).
+  `select_candidate_rows` (FIX5) delega — **fonte única** do critério de posição.
+  **Pertencimento não é afrouxamento:** "QB" segue não casando "DB,WR" (testado).
+- **Parse (família FIX5):** token compound é rótulo de posição se 2+ partes e ao menos UMA no
+  vocabulário ("DB" não precisa constar) — devolvido **ÍNTEGRO** ("DB,WR"), nunca quebrado em
+  posição+sigla; a sigla (JAX) segue extraída ao lado, injury status tolerado.
+- ⛔ **Anti-homônimo intacto:** nome como sequência de tokens (FIX9) + posição pertencente;
+  0/2+ candidatos reais abortam — dois "Travis Hunter" com rótulos contendo WR dão 2.
+- **Réplica (pergunta obrigatória):** a comparação de posição existia em UM lugar
+  (`core.select_candidate_rows`, `pos == want`); keeper_audit carrega posição só como display
+  (identidade por sid), validate casa por sid, CLI repassa, testes usam as funções reais.
+- **Testes 121 → 134:** fixture literal do probe (sheet WR → 1 candidato, prossegue; sheet QB
+  → 0; "hunter" multi-linha → só ele; homônimos → 2), rótulo íntegro no parse, compound sem
+  membro do vocabulário não vira rótulo; FIX5/FIX9 sem alteração de expectativa. Suítes
+  completas verdes; diffstat conferido antes do push.

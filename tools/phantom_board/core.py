@@ -213,6 +213,15 @@ def choose_menu_item(menu_texts: list, team_slot: int,
 _ROW_POSITIONS = {"QB", "RB", "WR", "TE", "K", "DEF", "DST", "D/ST", "FLEX"}
 
 
+def _is_multi_position_label(token_upper):
+    """FIX11 — token compound tipo "DB,WR" (caso Travis Hunter, probe de 12/08):
+    é rótulo de posição se tiver 2+ partes nos separadores (,/) e ao menos UMA
+    parte pertencer ao vocabulário — "DB" não precisa estar no vocabulário para
+    o rótulo inteiro ser reconhecido e preservado ÍNTEGRO. Puro."""
+    parts = [p for p in token_upper.replace("/", ",").split(",") if p]
+    return len(parts) > 1 and any(p in _ROW_POSITIONS for p in parts)
+
+
 def parse_result_row(position_text, team_text=""):
     """FIX5 — extrai (posição, sigla NFL) do DOM REAL da linha de resultado.
 
@@ -225,9 +234,19 @@ QUES' — posição, sigla e status
     ('QB
 TEN TEN'). Tokeniza por whitespace: posição = 1º token do vocabulário
     de posições; sigla = 1º token de 2-3 letras maiúsculas fora do vocabulário
-    (o que exclui QUES/DOUB/OUT etc. por tamanho ou por não serem siglas). Puro."""
+    (o que exclui QUES/DOUB/OUT etc. por tamanho ou por não serem siglas).
+
+    FIX11 — rótulo MULTI-POSIÇÃO ("DB,WR", caso Travis Hunter) é devolvido
+    ÍNTEGRO como a posição da linha, nunca quebrado em posição+sigla (a vírgula
+    não é separador de tokens; o pertencimento é julgado na eleição,
+    `position_matches`). Puro."""
     tokens = f"{position_text or ''} {team_text or ''}".split()
-    pos = next((t.upper() for t in tokens if t.upper() in _ROW_POSITIONS), "")
+    pos = ""
+    for t in tokens:
+        up = t.upper()
+        if up in _ROW_POSITIONS or _is_multi_position_label(up):
+            pos = up
+            break
     sigla = next((t.upper() for t in tokens
                   if t.upper() not in _ROW_POSITIONS
                   and 2 <= len(t) <= 3 and t.isalpha() and t.upper() == t), "")
@@ -261,13 +280,31 @@ def search_filter_check(row_count: int, max_expected: int = 8):
     return None
 
 
+def position_matches(row_label, sheet_position):
+    """FIX11 — caso Travis Hunter (probe do owner, 12/08): o rótulo da linha
+    pode ser MULTI-POSIÇÃO ("DB,WR" — espelho de `fantasy_positions` da API, DB
+    primeiro; único caso entre os 237 keepers da sheet). A posição da sheet
+    casa por PERTENCIMENTO ao conjunto do rótulo (separadores `,` e `/`), com a
+    igualdade cobrindo o caso comum ANTES do split (preserva "D/ST" como rótulo
+    único). Pertencimento NÃO é afrouxamento: "QB" segue não casando "DB,WR".
+    Puro."""
+    lbl = (row_label or "").upper()
+    want = (sheet_position or "").upper()
+    if not lbl or not want:
+        return False
+    if lbl == want:
+        return True
+    return want in [p for p in lbl.replace("/", ",").split(",") if p]
+
+
 def select_candidate_rows(parsed_rows, position):
-    """FIX5 — índices das linhas cuja POSIÇÃO casa exatamente. O critério segue
+    """FIX5 — índices das linhas cuja POSIÇÃO casa a da sheet. O critério segue
     estrito: 0 candidatos = não achou; 2+ = homônimo real → quem chama aborta.
     A sigla NÃO entra no critério (a sheet não a carrega) — é logada para
-    conferência humana."""
-    want = (position or "").upper()
-    return [i for i, (pos, _sigla) in enumerate(parsed_rows) if pos == want]
+    conferência humana. FIX11: "casa" é PERTENCIMENTO (`position_matches`) —
+    rótulo multi-posição "DB,WR" casa sheet "WR"; a regra 0/2+ não mudou."""
+    return [i for i, (pos, _sigla) in enumerate(parsed_rows)
+            if position_matches(pos, position)]
 
 
 def _name_tokens(text):
