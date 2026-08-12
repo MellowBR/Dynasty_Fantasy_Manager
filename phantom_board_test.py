@@ -20,7 +20,8 @@ from tools.phantom_board.core import (
     build_slot_map, campaign_summary, choose_menu_item, flatten_sheet,
     idempotency_decision, is_budget_block, league_guard, match_picks_to_sheet,
     modal_header_check, parse_pick, parse_result_row, resolve_slot_map,
-    search_filter_check, select_candidate_rows, settlement_decision,
+    row_matches_name, search_filter_check, select_candidate_rows,
+    select_candidate_rows_named, settlement_decision,
     slot_map_from_picks, slot_map_from_rosters, team_pending_keepers,
     team_totals, url_guard,
 )
@@ -482,6 +483,100 @@ class TestSelectCandidateRows(unittest.TestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 4d. FIX9 — a busca do Sleeper é FUZZY: candidato REAL exige o NOME
+# ══════════════════════════════════════════════════════════════════════════════
+
+# A fixture LITERAL do abort da campanha de 12/08 (run populate_20260812T131804Z):
+# busca "Malik Willis" no modal do Team 3 devolveu 4 linhas REAIS — o alvo (QB·MIA)
+# e três OUTROS jogadores (FAs, sigla vazia): Malik Williams WR, Malik Williams RB
+# e Hajj-Malik Williams QB. O parse estava CERTO (screenshot abort_slot3.png);
+# o que faltava era o NOME no critério de candidato.
+MALIK_PARSED = [("QB", "MIA"), ("WR", ""), ("RB", ""), ("QB", "")]
+MALIK_TEXTS = [
+    "141 Malik Willis QB MIA $1 6 270.1 15.0 125 712 5 0 0 0 419 2848 17",
+    "401 Malik Williams WR $1 - 0.0 0.0 0 0 0 0 0 0 0 0 0",
+    "1501 Malik Williams RB $1 - 0.0 0.0 0 0 0 0 0 0 0 0 0",
+    "2655 Hajj-Malik Williams QB $1 - 0.0 0.0 0 0 0 0 0 0 0 0 0",
+]
+
+
+class TestRowMatchesName(unittest.TestCase):
+    """FIX9 — o nome buscado tem de aparecer como SEQUÊNCIA de tokens na linha."""
+
+    def test_nome_exato_casa_no_meio_das_stats(self):
+        self.assertTrue(row_matches_name(MALIK_TEXTS[0], "Malik Willis"))
+
+    def test_williams_nao_e_willis(self):
+        """A busca fuzzy devolveu Malik Williams ×2 — nenhum casa Malik Willis."""
+        self.assertFalse(row_matches_name(MALIK_TEXTS[1], "Malik Willis"))
+        self.assertFalse(row_matches_name(MALIK_TEXTS[2], "Malik Willis"))
+
+    def test_hifen_preserva_identidade(self):
+        """'Hajj-Malik' é UM token: não casa 'Malik' — nem 'Malik Williams'."""
+        self.assertFalse(row_matches_name(MALIK_TEXTS[3], "Malik Willis"))
+        self.assertFalse(row_matches_name(MALIK_TEXTS[3], "Malik Williams"))
+        self.assertTrue(row_matches_name(MALIK_TEXTS[3], "Hajj-Malik Williams"))
+
+    def test_normalizacao_acentos_caixa_pontuacao(self):
+        self.assertTrue(row_matches_name("7 Amon-Ra St. Brown WR DET",
+                                         "Amon-Ra St. Brown"))
+        self.assertTrue(row_matches_name("12 JA'MARR CHASE WR CIN",
+                                         "Ja'Marr Chase"))
+        self.assertTrue(row_matches_name("3 Andre Lopes QB", "André Lopes"))
+
+    def test_newlines_do_dom_toleradas(self):
+        self.assertTrue(row_matches_name("141" + NL + "Malik Willis" + NL +
+                                         "QB" + NL + "MIA", "Malik Willis"))
+
+    def test_vazio_nao_casa(self):
+        self.assertFalse(row_matches_name("", "Malik Willis"))
+        self.assertFalse(row_matches_name("Malik Willis QB", ""))
+
+
+class TestSelectCandidateRowsNamed(unittest.TestCase):
+    """FIX9 — o que mudou é O QUE CONTA como candidato (posição exata + nome);
+    a REGRA do anti-homônimo (0 ou 2+ candidatos reais → abort) está intacta."""
+
+    def test_fixture_do_abort_da_exatamente_um_candidato(self):
+        """As 4 linhas literais de 12/08 → 1 candidato QB real (o índice 0) —
+        a designação do Malik Willis prossegue."""
+        self.assertEqual(select_candidate_rows_named(
+            MALIK_PARSED, "QB", MALIK_TEXTS, "Malik Willis"), [0])
+
+    def test_sigla_vazia_nao_desqualifica(self):
+        """FA real (sem time NFL) é candidato legítimo — o discriminador é o
+        NOME, nunca a sigla (filtrar por sigla excluiria keeper cortado)."""
+        self.assertEqual(select_candidate_rows_named(
+            MALIK_PARSED, "QB", MALIK_TEXTS, "Hajj-Malik Williams"), [3])
+
+    def test_posicao_segue_exata(self):
+        self.assertEqual(select_candidate_rows_named(
+            MALIK_PARSED, "WR", MALIK_TEXTS, "Malik Williams"), [1])
+        self.assertEqual(select_candidate_rows_named(
+            MALIK_PARSED, "RB", MALIK_TEXTS, "Malik Williams"), [2])
+
+    def test_homonimos_reais_seguem_dando_dois(self):
+        """⛔ Critério intacto: MESMO nome + MESMA posição em 2 linhas → 2
+        candidatos → quem chama aborta."""
+        parsed = [("QB", "MIA"), ("QB", "")]
+        texts = ["141 Malik Willis QB MIA", "999 Malik Willis QB"]
+        self.assertEqual(len(select_candidate_rows_named(
+            parsed, "QB", texts, "Malik Willis")), 2)
+
+    def test_zero_candidatos_quando_nome_nao_esta(self):
+        self.assertEqual(select_candidate_rows_named(
+            MALIK_PARSED, "QB", MALIK_TEXTS, "Cam Ward"), [])
+
+    def test_textos_ausentes_nao_viram_candidato(self):
+        """Sem texto de linha não há como provar o nome — não conta (nunca
+        degradar para posição-só em silêncio)."""
+        self.assertEqual(select_candidate_rows_named(
+            MALIK_PARSED, "QB", [], "Malik Willis"), [])
+        self.assertEqual(select_candidate_rows_named(
+            MALIK_PARSED, "QB", None, "Malik Willis"), [])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 5. Decisão de assentamento (o toast nunca é veredito)
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -720,6 +815,57 @@ class TestGuardasEstaticas(unittest.TestCase):
     def test_designate_clica_o_plus_nunca_o_nome(self):
         self.assertIn("SEL_PLUS_BUTTON", self.board)
         self.assertIn("NUNCA o nome", self.board)
+
+    # ── FIX9 (12/08): higiene de modal em TODO abort + nada de traceback cru ────
+
+    def test_fix9_abort_de_comando_limpa_o_modal(self):
+        """FIX9: QUALQUER exceção dentro do command_pick fecha menu/modal antes
+        de propagar — o abort do anti-homônimo de 12/08 deixou o SET PLAYER
+        aberto e o clique do time seguinte foi interceptado até TimeoutError."""
+        corpo = self.board.split("def command_pick")[1].split("\ndef ")[0]
+        self.assertIn("except Exception", corpo)
+        self.assertIn("_dismiss_modal(page)", corpo)
+        self.assertIn("raise", corpo)
+
+    def test_fix9_estado_sujo_detectado_antes_do_clique(self):
+        """FIX9: verificação defensiva ANTES do primeiro clique de cada abertura
+        de menu — modal residual → limpar; não limpou → abort barulhento, nunca
+        clicar através."""
+        corpo = self.board.split("def _open_set_player_menu")[1].split("\ndef ")[0]
+        self.assertIn("_is_modal_open(page)", corpo)
+        self.assertIn("_dismiss_modal(page)", corpo)
+        self.assertIn("estado SUJO", corpo)
+        self.assertLess(corpo.index("_is_modal_open"), corpo.index(".click()"))
+
+    def test_fix9_candidato_exige_nome_alem_da_posicao(self):
+        """FIX9: a eleição passa por select_candidate_rows_named (posição exata
+        + nome buscado) — a busca fuzzy do Sleeper devolve OUTROS nomes (Malik
+        Willis → Malik Williams ×2 + Hajj-Malik Williams, 12/08)."""
+        corpo = self.board.split("def _pick_search_result")[1].split("def _set_price")[0]
+        self.assertIn("select_candidate_rows_named", corpo)
+        self.assertIn("player_name", corpo)
+        # e o texto integral da linha vai ao relatório como evidência
+        self.assertIn("inner_text()", corpo)
+
+    def test_fix9_populate_nunca_vaza_traceback_cru(self):
+        """FIX9: exceção crua num keeper → abort padrão do TIME (screenshot +
+        evento) e a campanha segue; crua fora do loop → abort padrão da CAMPANHA
+        (abort_campanha no relatório); falha do open_board → mensagem limpa."""
+        corpo = self.cli.split("def cmd_populate")[1].split("def main")[0]
+        self.assertGreaterEqual(corpo.count("except Exception"), 3)
+        self.assertIn("abort_campanha", corpo)
+        self.assertIn("abort_slot", corpo)
+        self.assertIn("ERRO ao abrir o board", corpo)
+        # o time entra no relatório ANTES de processar — falha não o apaga
+        self.assertLess(corpo.index("team_results.append(res)"),
+                        corpo.index("classify_team_keepers"))
+
+    def test_fix9_settle_nao_deixa_cru_derrubar_o_time(self):
+        """FIX9: no settle_pendentes, exceção CRUA no re-comando tem o mesmo
+        destino do BoardAbort — falha DO KEEPER, preservando o resto."""
+        sett = self.board.split("def settle_pendentes")[1].split("def designate")[0]
+        self.assertIn("except Exception as e", sett)
+        self.assertIn("falhas", sett)
 
 
 if __name__ == "__main__":

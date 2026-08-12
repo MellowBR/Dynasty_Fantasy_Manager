@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 11/08/2026-pt10 (MAN-OFF26-24-FIX8: **assíncrono** — lag real >5min (Josh Allen; ensaio ~3s: variância é o fato) matou o poll bloqueante. `command_pick` sem poll; `reconcile_team` por time (300s, reload no meio — hipótese do cache por visita; telemetria decide); `post_teto_decision` puro (board local → `assentado_local_api_atrasada`, nunca re-comando · 1 re-comando · falha do KEEPER preservando o time); lote de idempotência; busca vazia cruza run→API→board. Testes 86→87. Re-teste morno do owner: slot 10.)
+> Última atualização: 12/08/2026 (MAN-OFF26-24-FIX9: **campanha real de 12/08 — dois defeitos encadeados.** (1) Anti-homônimo "2 QBs p/ Malik Willis" NÃO era artefato de DOM: a busca do Sleeper é **FUZZY** — devolveu Malik Williams ×2 + Hajj-Malik Williams QB, FAs reais de sigla vazia; candidato REAL passa a exigir **NOME** (`select_candidate_rows_named`/`row_matches_name` puros; posição exata + 0/2+ intactos; ⛔ sigla vazia não desqualifica). (2) O abort saiu com o **MODAL aberto** → clique do time seguinte interceptado 30s → TimeoutError **cru** (loop só pegava BoardAbort). Higiene: `command_pick` fecha modal em QUALQUER exceção; estado sujo detectado ANTES do 1º clique; populate com abort padrão de TIME e de CAMPANHA (`abort_campanha` no relatório) — nada escapa cru. Réplica conferida: contagem só em core.py. Testes 87→104.)
+> Anterior: 11/08/2026-pt10 (MAN-OFF26-24-FIX8: **assíncrono** — lag real >5min (Josh Allen; ensaio ~3s: variância é o fato) matou o poll bloqueante. `command_pick` sem poll; `reconcile_team` por time (300s, reload no meio — hipótese do cache por visita; telemetria decide); `post_teto_decision` puro (board local → `assentado_local_api_atrasada`, nunca re-comando · 1 re-comando · falha do KEEPER preservando o time); lote de idempotência; busca vazia cruza run→API→board. Testes 86→87. Re-teste morno do owner: slot 10.)
 > Anterior: 11/08/2026-pt9 (MAN-OFF26-24-F2b: **F2a fechada** (Cam Ward assentado via API; validate 19/19) + lição: **idempotência PRIMEIRO** (pick gravou em run morta; busca vazia misteriosa). **F2b:** `idempotency_decision` (4 casos) + recheck em busca vazia; `populate --team-slot`/`--all` retomável; conferência por time vs sheet; `bloqueado_teto` = resultado (§B.3.2); falha aborta o time preservando o feito; **juiz = auditoria OFF26-4**. Critério 19/08 no README (RESET → --all 12/12 → auditoria → RESET). Testes 66→86. Ensaio do owner.)
 > Anterior: 11/08/2026-pt8 (MAN-OFF26-24-F2a-FIX7: **âncora no #modal real** — o screenshot provou o manual pick dentro de `#modal[role=alertdialog]` (header “Make Manual Pick for Team 10”) e o fundo duplicando a interface; a heurística do FIX6 pegou o trio do fundo. Agora: #modal quando presente (fallback logado), espera de ESTADO pós-Set Player, header como identidade (`modal_header_check` puro; wrong_team/unexpected → Esc+abort). Caso do abort impossível por construção. Testes 65→66. Re-execução do owner.)
 > Anterior: 11/08/2026-pt7 (MAN-OFF26-24-F2a-FIX6: **a lista de FUNDO vazava no matching** (57 linhas do ranking; abort “5 candidatos QB” correto). Fix: `_modal` ancorado por estrutura (ancestral do botão Assign/SET PLAYER com o input de busca) e TUDO escopado nele (busca/linhas/+/preço; locator global proibido por guarda estática) + `search_filter_check` puro ANTES do matching (57 = fixture). Anti-homônimo intacto. Testes 60→65. Re-execução do owner.)
@@ -5447,3 +5448,40 @@ abort falso do time. No ensaio o lag fora ~3s: **a variância é o fato central*
 `ja_assentados` (Ward + Allen), 19 comandos em sequência, reconciliação fechando o time — e a
 telemetria respondendo à hipótese do cache. Guardas intactas; máx 1 re-comando; falha barulhenta
 preservada — mudou o QUANDO conferir, não o rigor.
+
+### MAN-OFF26-24-FIX9 — a busca do Sleeper é fuzzy; e nenhum abort sai com o modal aberto (12/08/2026, Fable)
+
+A campanha real (`populate --all`, run `populate_20260812T131804Z`) validou o desenho do FIX8
+(53 `ja_assentados` em lote, zero cliques; board íntegro no validate: 74/74 casados) e expôs
+dois defeitos encadeados no slot 3.
+
+- **Diagnose do "2 candidatos QB p/ Malik Willis"** — o screenshot `abort_slot3.png` descartou
+  a hipótese de artefato de DOM (família FIX5): as 4 linhas parseadas
+  `[('QB','MIA'), ('WR',''), ('RB',''), ('QB','')]` são 4 jogadores REAIS — o alvo (Malik
+  Willis, QB·MIA) e três FAs de sigla vazia que a **busca FUZZY do Sleeper** devolveu junto:
+  Malik Williams (WR), Malik Williams (RB) e **Hajj-Malik Williams (QB)** — o "segundo QB". O
+  parse estava certo; o matcher nunca comparou o NOME. Fix no núcleo puro:
+  `select_candidate_rows_named` (candidato REAL = posição exata **E** nome buscado como
+  sequência de tokens da linha, via `row_matches_name` — normaliza acentos/caixa/pontuação,
+  hífen preservado: "Hajj-Malik" não casa "Malik"). ⛔ **Critério do anti-homônimo INTACTO**
+  (0/2+ candidatos reais abortam; mesmo nome + mesma posição segue dando 2) e ⛔ **sigla vazia
+  não desqualifica** (FA real é linha legítima — filtrar por sigla excluiria keeper cortado).
+- **O crash: abort de time saiu com o SET PLAYER aberto.** O `BoardAbort` do anti-homônimo não
+  fechava o modal; o clique na célula do time seguinte foi interceptado por
+  `#modal[role=alertdialog]` por 30s e o TimeoutError escapou **cru** (o loop de keepers só
+  capturava BoardAbort/EmptySearchResult) — violando a garantia do FIX4. Higiene em camadas:
+  `command_pick` fecha menu/modal em **QUALQUER** exceção (`_dismiss_modal`, melhor esforço);
+  `_open_set_player_menu` detecta **estado sujo antes do 1º clique** (Escape até limpar; não
+  limpou → abort barulhento, nunca clicar através).
+- **Cobertura total do handler no populate:** cru num keeper → abort padrão do TIME
+  (screenshot + `falha_do_time` no relatório, campanha segue); cru fora do loop → abort padrão
+  da CAMPANHA (`abort_campanha` + screenshot); `open_board` falhou → mensagem limpa. O time
+  entra no relatório ANTES de processar (falha não o apaga); exit code trata fatal como 1.
+  `settle_pendentes` idem (cru = falha do KEEPER).
+- **Réplica (pergunta obrigatória):** parsing/contagem de candidatos existe SÓ em `core.py` —
+  `board.py` único consumidor, testes usam as funções reais. Zero reimplementação.
+- **Testes 87 → 104:** fixture LITERAL do abort (4 linhas → exatamente 1 candidato; a
+  designação prossegue), homônimos reais seguem abortando, sigla vazia conta com nome certo,
+  textos ausentes não degradam para posição-só; guardas estáticas: todo abort limpa o modal,
+  estado sujo pré-clique, eleição por nome, populate sem traceback cru, settle preserva o time.
+  Suítes completas verdes; diffstat conferido antes do push.

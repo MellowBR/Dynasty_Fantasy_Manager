@@ -127,7 +127,11 @@ def cmd_designate(args):
     log = []
     slot_source = "manual(--team-slot)"
     ok = False          # FIX4: definido ANTES do try — o finally sempre o encontra
-    pw, ctx, page, draft_id = open_board(headless=False)
+    try:
+        pw, ctx, page, draft_id = open_board(headless=False)
+    except Exception as e:
+        # FIX9: falha ao abrir o board → mensagem limpa, nunca traceback cru
+        sys.exit(f"⛔ ERRO ao abrir o board ({type(e).__name__}): {e}")
     try:
         # FIX3: o slot do time-alvo sai da CADEIA (a)→(b)→(c); a confirmação final
         # segue sendo o menu do DOM ("for Team {N}") dentro do designate.
@@ -200,9 +204,14 @@ def cmd_populate(args):
     na API antes de qualquer clique. Falha num keeper → aborta O TIME (o que
     assentou permanece) e, em --all, segue para o próximo. `bloqueado_teto` é
     resultado esperado pré-late-drop, não erro. Retomável por construção: rodar
-    de novo pula o que já assentou. O VEREDITO final é da auditoria OFF26-4."""
-    from .board import BoardAbort, designate, open_board
-    from .core import ALREADY, SETTLED
+    de novo pula o que já assentou. O VEREDITO final é da auditoria OFF26-4.
+
+    FIX9 (campanha de 12/08): NENHUMA exceção escapa como traceback cru — cru
+    num keeper aborta O TIME (abort padrão: screenshot + evento no relatório) e
+    segue; cru fora do loop aborta a CAMPANHA, ainda com relatório coerente."""
+    import time as _time
+    from .board import (BoardAbort, EmptySearchResult, board_shows_designated,
+                        command_pick, open_board, settle_pendentes)
 
     if not args.all and not args.team_slot:
         sys.exit("⛔ informe --team-slot N ou --all")
@@ -211,7 +220,12 @@ def cmd_populate(args):
 
     team_results = []
     slot_source = None
-    pw, ctx, page, draft_id = open_board(headless=False)
+    fatal = None        # FIX9: definido ANTES do try — o finally/exit o encontram
+    try:
+        pw, ctx, page, draft_id = open_board(headless=False)
+    except Exception as e:
+        # FIX9: falha ao abrir o board → mensagem limpa, nunca traceback cru
+        sys.exit(f"⛔ ERRO ao abrir o board ({type(e).__name__}): {e}")
     try:
         slot_map, slot_source = resolve_slot_map(
             fetch_draft(draft_id), fetch_users(config.LEAGUE_ID),
@@ -230,117 +244,150 @@ def cmd_populate(args):
                    "team_name": team_rows[0]["team_name"] if team_rows else "?",
                    "designados": 0, "ja_assentados": 0, "conflitos": 0,
                    "status": "ok", "eventos": []}
+            team_results.append(res)   # FIX9: no relatório JÁ — falha não o apaga
             if not team_rows:
                 res["status"] = "sem_keepers_na_sheet"
-                team_results.append(res)
                 print(f"[slot {slot} {handle}] sem keepers na sheet — pulando")
                 continue
             print(f"[slot {slot} {handle}] {len(team_rows)} keepers na sheet")
 
-            # FIX8 (tarefa 4): idempotência EM LOTE — 1 chamada antes do 1º clique
-            # (pendência de run anterior já entra como ja_assentado aqui).
-            import time as _time
-            from .board import command_pick, settle_pendentes, EmptySearchResult
-            from .board import board_shows_designated
-            picks = fetch_picks(draft_id)
-            lote = classify_team_keepers(team_rows, picks, slot_map)
-            pendentes = []
-            for r in team_rows:
-                dec, det = lote.get(r["sid"], (None, None))
-                if dec == JA_ASSENTADO:
-                    res["ja_assentados"] += 1
-                    continue
-                if dec == CONFLITO:
-                    res["conflitos"] += 1
-                    res["status"] = "conflito"
-                    res["eventos"].append({"keeper": r["name"], "conflito": det})
-                    print(f"  ⛔ CONFLITO em {r['name']}: {det} — abortando o time")
-                    break
-                # FIX8: comando ASSÍNCRONO — registra pendente e SEGUE (o board
-                # local preenchendo a célula é o feedback; a API pode atrasar 5min)
-                try:
-                    verdict = command_pick(page, slot, r["name"], r["position"],
-                                           "", r["salary"], r["sid"],
-                                           res["eventos"])
-                except EmptySearchResult:
-                    # tarefa 5: comandado NESTA run? sinal de sucesso local.
-                    if any(pd["sid"] == r["sid"] for pd in pendentes):
-                        res["eventos"].append({"sid": r["sid"],
-                                               "event": "sumiu_da_busca_pos_comando"})
-                        continue
-                    now = {str(x.get("player_id"))
-                           for x in fetch_picks(draft_id)}
-                    if r["sid"] in now:
+            try:
+                # FIX8 (tarefa 4): idempotência EM LOTE — 1 chamada antes do 1º
+                # clique (pendência de run anterior já entra como ja_assentado).
+                picks = fetch_picks(draft_id)
+                lote = classify_team_keepers(team_rows, picks, slot_map)
+                pendentes = []
+                for r in team_rows:
+                    dec, det = lote.get(r["sid"], (None, None))
+                    if dec == JA_ASSENTADO:
                         res["ja_assentados"] += 1
                         continue
-                    if board_shows_designated(page, slot, r["name"]):
-                        res["eventos"].append({"sid": r["sid"],
-                                               "event": ASSENTADO_LOCAL})
-                        res["designados"] += 1
-                        continue
-                    res["status"] = "falha"
-                    res["eventos"].append({"keeper": r["name"],
-                                           "falha": "busca vazia sem rastro na "
-                                                    "API nem no board local"})
-                    print(f"  ⛔ FALHA em {r['name']} (busca vazia sem rastro) — "
-                          f"abortando o time (o que assentou permanece)")
-                    break
-                except BoardAbort as e:
-                    res["status"] = "falha"
-                    res["eventos"].append({"keeper": r["name"],
-                                           "falha": str(e)[:300]})
-                    print(f"  ⛔ FALHA em {r['name']}: {e} — abortando o time "
-                          f"(o que assentou permanece)")
+                    if dec == CONFLITO:
+                        res["conflitos"] += 1
+                        res["status"] = "conflito"
+                        res["eventos"].append({"keeper": r["name"],
+                                               "conflito": det})
+                        print(f"  ⛔ CONFLITO em {r['name']}: {det} — "
+                              f"abortando o time")
+                        break
+                    # FIX8: comando ASSÍNCRONO — registra pendente e SEGUE (o
+                    # board local preenchendo a célula é o feedback; a API pode
+                    # atrasar 5min)
                     try:
-                        page.screenshot(path=str(
-                            Path(__file__).parent / config.RUNS_DIR_NAME /
-                            f"abort_slot{slot}.png"))
-                    except Exception:
-                        pass
-                    break
-                if verdict == BLOQUEADO_TETO:
-                    res["status"] = BLOQUEADO_TETO
-                    res["eventos"].append({"keeper": r["name"],
-                                           "resultado": BLOQUEADO_TETO})
-                    print(f"  🧱 teto de lance em {r['name']} — esperado "
-                          f"pré-late-drop; seguindo para o próximo time")
-                    break
-                pendentes.append({"sid": r["sid"], "name": r["name"],
-                                  "slot": slot, "price": r["salary"],
-                                  "position": r["position"],
-                                  "cmd_at": _time.monotonic()})
-                print(f"  📤 {r['name']} (${r['salary']}) comandado — "
-                      f"pendente de confirmação")
+                        verdict = command_pick(page, slot, r["name"],
+                                               r["position"], "", r["salary"],
+                                               r["sid"], res["eventos"])
+                    except EmptySearchResult:
+                        # tarefa 5: comandado NESTA run? sinal de sucesso local.
+                        if any(pd["sid"] == r["sid"] for pd in pendentes):
+                            res["eventos"].append(
+                                {"sid": r["sid"],
+                                 "event": "sumiu_da_busca_pos_comando"})
+                            continue
+                        now = {str(x.get("player_id"))
+                               for x in fetch_picks(draft_id)}
+                        if r["sid"] in now:
+                            res["ja_assentados"] += 1
+                            continue
+                        if board_shows_designated(page, slot, r["name"]):
+                            res["eventos"].append({"sid": r["sid"],
+                                                   "event": ASSENTADO_LOCAL})
+                            res["designados"] += 1
+                            continue
+                        res["status"] = "falha"
+                        res["eventos"].append({"keeper": r["name"],
+                                               "falha": "busca vazia sem rastro "
+                                                        "na API nem no board "
+                                                        "local"})
+                        print(f"  ⛔ FALHA em {r['name']} (busca vazia sem "
+                              f"rastro) — abortando o time (o que assentou "
+                              f"permanece)")
+                        break
+                    except BoardAbort as e:
+                        res["status"] = "falha"
+                        res["eventos"].append({"keeper": r["name"],
+                                               "falha": str(e)[:300]})
+                        print(f"  ⛔ FALHA em {r['name']}: {e} — abortando o "
+                              f"time (o que assentou permanece)")
+                        try:
+                            page.screenshot(path=str(
+                                Path(__file__).parent / config.RUNS_DIR_NAME /
+                                f"abort_slot{slot}.png"))
+                        except Exception:
+                            pass
+                        break
+                    if verdict == BLOQUEADO_TETO:
+                        res["status"] = BLOQUEADO_TETO
+                        res["eventos"].append({"keeper": r["name"],
+                                               "resultado": BLOQUEADO_TETO})
+                        print(f"  🧱 teto de lance em {r['name']} — esperado "
+                              f"pré-late-drop; seguindo para o próximo time")
+                        break
+                    pendentes.append({"sid": r["sid"], "name": r["name"],
+                                      "slot": slot, "price": r["salary"],
+                                      "position": r["position"],
+                                      "cmd_at": _time.monotonic()})
+                    print(f"  📤 {r['name']} (${r['salary']}) comandado — "
+                          f"pendente de confirmação")
 
-            # FIX8 (tarefas 2/3/7): reconciliação paciente do TIME inteiro —
-            # teto generoso, reload no meio (hipótese do cache por visita),
-            # decisão pós-teto por pendente. Telemetria no relatório.
-            if pendentes:
-                print(f"  ⏳ reconciliando {len(pendentes)} pendentes "
-                      f"(teto {config.RECONCILE_TETO_SECONDS}s)...")
-                placar = settle_pendentes(page, draft_id, pendentes,
-                                          res["eventos"])
-                res["designados"] += placar["assentados"] + placar["locais"]
-                if placar["locais"]:
-                    print(f"  ⚠️ {placar['locais']} assentado(s) SÓ no board "
-                          f"local (API atrasada) — conferir na auditoria")
-                if placar["falhas"]:
-                    res["status"] = "falha_parcial"
-                    res["eventos"].append({"falhas_de_keeper": placar["falhas"]})
-                    print(f"  ⛔ {len(placar['falhas'])} keeper(s) falharam — "
-                          f"o resto do time permanece")
+                # FIX8 (tarefas 2/3/7): reconciliação paciente do TIME inteiro —
+                # teto generoso, reload no meio (hipótese do cache por visita),
+                # decisão pós-teto por pendente. Telemetria no relatório.
+                if pendentes:
+                    print(f"  ⏳ reconciliando {len(pendentes)} pendentes "
+                          f"(teto {config.RECONCILE_TETO_SECONDS}s)...")
+                    placar = settle_pendentes(page, draft_id, pendentes,
+                                              res["eventos"])
+                    res["designados"] += placar["assentados"] + placar["locais"]
+                    if placar["locais"]:
+                        print(f"  ⚠️ {placar['locais']} assentado(s) SÓ no board "
+                              f"local (API atrasada) — conferir na auditoria")
+                    if placar["falhas"]:
+                        res["status"] = "falha_parcial"
+                        res["eventos"].append(
+                            {"falhas_de_keeper": placar["falhas"]})
+                        print(f"  ⛔ {len(placar['falhas'])} keeper(s) falharam "
+                              f"— o resto do time permanece")
 
-            if res["status"] == "ok":
-                res["conferencia"] = _team_conference(fetch_picks(draft_id),
-                                                      team_rows)
-                c = res["conferencia"]
-                if (c["picks_no_board"] != c["keepers_na_sheet"]
-                        or c["total_no_board"] != c["total_na_sheet"]):
-                    res["status"] = "divergencia_na_conferencia"
-                print(f"  conferência: {c['picks_no_board']}/"
-                      f"{c['keepers_na_sheet']} picks, "
-                      f"${c['total_no_board']}/${c['total_na_sheet']}")
-            team_results.append(res)
+                if res["status"] == "ok":
+                    res["conferencia"] = _team_conference(fetch_picks(draft_id),
+                                                          team_rows)
+                    c = res["conferencia"]
+                    if (c["picks_no_board"] != c["keepers_na_sheet"]
+                            or c["total_no_board"] != c["total_na_sheet"]):
+                        res["status"] = "divergencia_na_conferencia"
+                    print(f"  conferência: {c['picks_no_board']}/"
+                          f"{c['keepers_na_sheet']} picks, "
+                          f"${c['total_no_board']}/${c['total_na_sheet']}")
+            except Exception as e:
+                # FIX9 — abort padrão do TIME para exceção CRUA (Timeout etc.):
+                # screenshot + evento no relatório, status falha, e a campanha
+                # segue ao próximo time (o crash real de 12/08 escapou daqui
+                # como traceback, sem screenshot e sem registro).
+                res["status"] = "falha"
+                res["eventos"].append(
+                    {"falha_do_time":
+                     f"ERRO ({type(e).__name__}): {str(e)[:300]}"})
+                print(f"  ⛔ ERRO CRU ({type(e).__name__}) no slot {slot}: {e} "
+                      f"— abortando o time (o que assentou permanece)")
+                try:
+                    page.screenshot(path=str(
+                        Path(__file__).parent / config.RUNS_DIR_NAME /
+                        f"abort_slot{slot}.png"))
+                except Exception:
+                    pass
+    except Exception as e:
+        # FIX9 — NADA escapa como traceback cru: abort padrão da CAMPANHA
+        # (screenshot + registro no relatório) e o processo encerra com o
+        # relatório coerente no finally.
+        fatal = f"{type(e).__name__}: {str(e)[:300]}"
+        print(f"\n⛔ CAMPANHA ABORTADA ({type(e).__name__}): {e}")
+        try:
+            page.screenshot(path=str(Path(__file__).parent /
+                                     config.RUNS_DIR_NAME /
+                                     "abort_campanha.png"))
+        except Exception:
+            pass
     finally:
         try:
             ctx.tracing.stop(path=str(Path(__file__).parent /
@@ -356,16 +403,19 @@ def cmd_populate(args):
         print("⚖️ O VEREDITO é da auditoria OFF26-4 — abra /admin/keeper_audit "
               "no Manager e confira o board populado contra a sheet (o juiz "
               "independente; a contagem acima não substitui).")
-        _write_report("populate", {
+        payload = {
             "mode": "populate", "all": bool(args.all),
             "slot_map_source": slot_source,
             "resumo": resumo, "times": team_results,
             "proximo_passo": "auditoria OFF26-4 em /admin/keeper_audit",
-        })
+        }
+        if fatal:
+            payload["abort_campanha"] = fatal
+        _write_report("populate", payload)
     ruim = [t for t in team_results
             if t["status"] not in ("ok", BLOQUEADO_TETO, "sem_keepers_na_sheet")]
     # (falha, falha_parcial, conflito e divergencia_na_conferencia caem aqui)
-    sys.exit(1 if ruim else 0)
+    sys.exit(1 if (ruim or fatal) else 0)
 
 
 def main(argv=None):

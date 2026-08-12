@@ -270,6 +270,49 @@ def select_candidate_rows(parsed_rows, position):
     return [i for i, (pos, _sigla) in enumerate(parsed_rows) if pos == want]
 
 
+def _name_tokens(text):
+    """FIX9 — tokens normalizados p/ casar nome: sem acentos, casefold, pontuação
+    removida ('St.' → 'st', "Ja'Marr" → 'jamarr'); HÍFEN preservado de propósito —
+    'Hajj-Malik' é UM token e não casa 'Malik'. Puro."""
+    import unicodedata
+    t = unicodedata.normalize("NFKD", text or "")
+    t = "".join(c for c in t if not unicodedata.combining(c)).casefold()
+    out = []
+    for tok in t.split():
+        tok = "".join(c for c in tok if c.isalnum() or c == "-")
+        if tok:
+            out.append(tok)
+    return out
+
+
+def row_matches_name(row_text, player_name):
+    """FIX9 — o nome buscado aparece como SEQUÊNCIA de tokens no texto da linha?
+
+    O abort da campanha de 12/08 provou que a busca do Sleeper é FUZZY: 'Malik
+    Willis' devolveu também Malik Williams (WR e RB) e Hajj-Malik Williams (QB) —
+    linhas REAIS de outros jogadores (FAs, sigla vazia), não artefato de DOM. O
+    innerText da linha carrega rank/stats além do nome; casar por sequência de
+    tokens ('malik'+'willis' consecutivos) elimina os não-candidatos sem depender
+    de seletor novo. Puro."""
+    name = _name_tokens(player_name)
+    row = _name_tokens(row_text)
+    if not name or not row:
+        return False
+    n = len(name)
+    return any(row[i:i + n] == name for i in range(len(row) - n + 1))
+
+
+def select_candidate_rows_named(parsed_rows, position, row_texts, player_name):
+    """FIX9 — candidato REAL = posição exata (critério do FIX5, INTACTO) E o nome
+    buscado presente na linha (a busca do Sleeper é fuzzy — devolve outros nomes).
+    ⛔ Sigla vazia NÃO desqualifica: FA real é linha legítima (keeper cortado da
+    NFL continuaria elegível). 0 ou 2+ candidatos REAIS seguem abortando no
+    chamador — a regra do anti-homônimo não mudou, só o que conta como candidato."""
+    texts = row_texts or []
+    return [i for i in select_candidate_rows(parsed_rows, position)
+            if i < len(texts) and row_matches_name(texts[i], player_name)]
+
+
 # ── F2b: idempotência, plano por time, teto e agregação (núcleo puro) ──────────
 
 DESIGNAR = "designar"

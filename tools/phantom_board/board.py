@@ -26,8 +26,8 @@ from . import config
 from .core import (ALREADY, ASSENTADO_LOCAL, BLOQUEADO_TETO, SETTLED,
                    choose_menu_item, is_budget_block, league_guard,
                    modal_header_check, parse_result_row, post_teto_decision,
-                   search_filter_check, select_candidate_rows, split_settled,
-                   url_guard)
+                   search_filter_check, select_candidate_rows_named,
+                   split_settled, url_guard)
 from .sleeper_api import fetch_draft, fetch_draft_id, fetch_picks
 
 
@@ -156,6 +156,14 @@ def _open_set_player_menu(page, team_slot: int):
     quem decide é o menu: "Manually set a player for Team {N}" com o N esperado,
     julgado pelo núcleo puro (`choose_menu_item`). Qualquer outra coisa → Escape e
     aborto barulhento. Nada de varrer células tentando."""
+    # FIX9 — verificação defensiva: um #modal residual de abort anterior intercepta
+    # QUALQUER clique (o crash real de 12/08: a célula do time seguinte ficou 30s
+    # inatingível sob o SET PLAYER aberto do abort do Malik Willis). Estado sujo
+    # detectado → Escape até limpar; não limpou → abort barulhento, NUNCA clicar
+    # através.
+    if _is_modal_open(page) and not _dismiss_modal(page):
+        raise BoardAbort(f"Slot {team_slot}: estado SUJO — #modal residual aberto "
+                         f"e o Escape não o fechou. Nada clicado.")
     cols = page.locator(config.SEL_TEAM_COLUMN)
     ncols = cols.count()
     if ncols == 0:
@@ -259,6 +267,32 @@ def _modal(page, team_slot=None, wait_open=False, log=None):
     return anc.first
 
 
+def _is_modal_open(page) -> bool:
+    """FIX9 — checagem instantânea (sem espera) de #modal/alertdialog visível."""
+    try:
+        m = page.locator(config.SEL_MODAL).first
+        return m.count() > 0 and m.is_visible()
+    except Exception:
+        return False
+
+
+def _dismiss_modal(page) -> bool:
+    """FIX9 — higiene de estado: fecha menu/modal residual via Escape (melhor
+    esforço, nunca levanta). Retorna True se a página ficou limpa. O abort do
+    anti-homônimo de 12/08 deixou o SET PLAYER aberto e o clique do time seguinte
+    foi interceptado até TimeoutError — nenhum caminho de abort pode mais sair
+    daqui com dialog aberto."""
+    for _ in range(3):
+        if not _is_modal_open(page):
+            return True
+        try:
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(300)
+        except Exception:
+            break
+    return not _is_modal_open(page)
+
+
 def _pick_search_result(page, team_slot: int, player_name: str, position: str,
                         nfl_team: str, log: list = None):
     """Digita a busca NO MODAL e elege a linha pelo DOM do MODAL (FIX6 — nenhum
@@ -284,21 +318,29 @@ def _pick_search_result(page, team_slot: int, player_name: str, position: str,
     if err:
         raise BoardAbort(f"'{player_name}': {err} (escopo: modal; se persistir, o "
                          f"wrapper do modal mudou — probe/README).")
-    parsed = []
+    parsed, textos = [], []
     for i in range(n):
         row = rows.nth(i)
         pos_text = row.locator(config.SEL_ROW_POSITION).first.inner_text()
         team_text = row.locator(config.SEL_ROW_TEAM).first.inner_text()
         parsed.append(parse_result_row(pos_text, team_text))
-    chosen = select_candidate_rows(parsed, position)
+        textos.append((row.inner_text() or "").replace("\n", " "))
+    # FIX9 — a busca do Sleeper é FUZZY ("Malik Willis" devolveu também Malik
+    # Williams ×2 e Hajj-Malik Williams, screenshot de 12/08): candidato REAL
+    # exige o NOME buscado na linha, além da posição exata. Sigla vazia não
+    # desqualifica (FA real é linha legítima). Critério 0/2+ → abort intacto.
+    chosen = select_candidate_rows_named(parsed, position, textos, player_name)
+    resumo = [t[:60] for t in textos]
     if len(chosen) == 0:
         page.keyboard.press("Escape")
-        raise EmptySearchResult(f"'{player_name}': 0 candidatos {position} "
-                                f"(parseadas: {parsed}) — designado some do pool?")
+        raise EmptySearchResult(f"'{player_name}': 0 candidatos {position} com o "
+                                f"nome buscado (parseadas: {parsed}; linhas: "
+                                f"{resumo}) — designado some do pool?")
     if len(chosen) > 1:
         raise BoardAbort(
-            f"Anti-homônimo: {len(chosen)} candidato(s) {position} para "
-            f"'{player_name}' (linhas parseadas: {parsed}). Nada designado.")
+            f"Anti-homônimo: {len(chosen)} candidato(s) {position} homônimos de "
+            f"'{player_name}' (linhas parseadas: {parsed}; linhas: {resumo}). "
+            f"Nada designado.")
     idx = chosen[0]
     pos, sigla = parsed[idx]
     if log is not None:
@@ -354,12 +396,20 @@ def command_pick(page, team_slot: int, player_name: str, position: str,
     TETO é a exceção síncrona: o aviso aparece na hora → `bloqueado_teto`.
     Retorna "comandado" ou BLOQUEADO_TETO. EmptySearchResult propaga — o
     chamador decide (recheck da API / board local / estado da própria run)."""
-    _open_set_player_menu(page, team_slot)
-    warn = _pick_search_result(page, team_slot, player_name, position,
-                               nfl_team, log)
-    if warn:
-        log.append({"sid": sid, "warning": warn})
-    _set_price_and_confirm(page, price)
+    try:
+        _open_set_player_menu(page, team_slot)
+        warn = _pick_search_result(page, team_slot, player_name, position,
+                                   nfl_team, log)
+        if warn:
+            log.append({"sid": sid, "warning": warn})
+        _set_price_and_confirm(page, price)
+    except Exception:
+        # FIX9 — NENHUM caminho de erro sai do comando com menu/modal aberto:
+        # o abort do anti-homônimo (12/08) deixou o SET PLAYER aberto e o time
+        # seguinte clicou através dele (TimeoutError cru de 30s). Melhor esforço;
+        # o próximo _open_set_player_menu re-confere de qualquer jeito.
+        _dismiss_modal(page)
+        raise
     page.wait_for_timeout(1_500)          # a recusa de teto é imediata, se houver
     try:
         teto = page.get_by_text(config.BUDGET_BLOCK_TEXT,
@@ -459,9 +509,13 @@ def settle_pendentes(page, draft_id: str, pendentes: list, log: list) -> dict:
                     log.append({"sid": item["sid"],
                                 "event": "sumiu_da_busca_pos_comando"})
                     r = "comandado"
-                except BoardAbort as e:
-                    placar["falhas"].append({"keeper": item["name"],
-                                             "falha": str(e)[:200]})
+                except Exception as e:
+                    # FIX9: exceção CRUA (Timeout etc.) tem o mesmo destino do
+                    # BoardAbort — falha DO KEEPER, preservando o resto do time
+                    # (o command_pick já saiu com a página limpa).
+                    placar["falhas"].append(
+                        {"keeper": item["name"],
+                         "falha": f"{type(e).__name__}: {str(e)[:200]}"})
                     break
                 if r == BLOQUEADO_TETO:
                     placar["falhas"].append({"keeper": item["name"],
