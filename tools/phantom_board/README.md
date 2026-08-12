@@ -69,16 +69,28 @@ divergente ou ausentes do board.
 no Manager: ela compara o board vivo com a sheet, classe a classe. A contagem do script
 não substitui o juiz.
 
-## O ensaio de validação (critério de 19/08 — go/no-go do owner)
+## O critério de 19/08 — ✅ CUMPRIDO em 12/08/2026 (MAN-OFF26-24-GO)
 
-1. **RESET DRAFT** (você, na UI do Sleeper — o script nunca o faz).
-2. `populate --all` com a **sheet provisória** — meta: **12/12 times processados**
-   (populados ou `bloqueado_teto` legítimo), **zero intervenção manual** no meio.
-3. **Auditoria OFF26-4** sobre o board populado — divergências coerentes com a sheet
-   (zero de salário/time/ausência nos times populados).
-4. **RESET DRAFT final** (rollback provado, não presumido).
+Ciclo limpo executado com 7 dias de antecedência: RESET → `populate --all`
+(`populate_20260812T185453Z`: **12/12 times, 235 designados + 2 `bloqueado_teto` declarados**
+— AlexTheDawg, sheet $203 > budget —, 0 falhas, **zero intervenção manual**, Travis Hunter
+designado) → **auditoria OFF26-4** (2 divergências = exatamente os 2 bloqueados; zero salário
+divergente; 12/12 populados) → **RESET final** (validate pós-reset: 0 picks vivos, 237 na
+sheet, draft_id novo derivado). **Decisão do owner: este script é o PLANO A da população real
+de 22/08**; o `runbook_cowork_liga_fantasma.md` é a contingência.
 
-Sem os 4 passos até **19/08**, 2026 roda via Cowork (plano A) e o script fica para 2027.
+## Uso em 22/08 (a população real) — nesta ordem
+
+1. **Conferir a ALOCAÇÃO DE OWNERS** — Draft Settings → DRAFT ORDER na liga fantasma (12
+   owners nos slots 1-12). A alocação é **permanente e sobrevive ao RESET DRAFT** (verificado
+   em 12/08) — conferir mesmo assim: o `validate` deve reportar o mapa **`via draft_order`**
+   (se cair para `slot_to_roster_id×rosters`, a alocação não está feita).
+2. Baixar a **sheet DEFINITIVA** (pós-revelação da urna + sync) e rodar
+   `python -m tools.phantom_board.cli populate --sheet sheet.json --all`.
+3. **Auditoria OFF26-4** em `/admin/keeper_audit` — o juiz independente do board populado.
+4. ⛔ **Não tocar, em hipótese alguma:** **RANDOMIZE** e **RESET BUDGETS** (tela de Draft
+   Settings — RANDOMIZE embaralharia os owners sob board populado) e **START DRAFT**. O script
+   não abre essa tela; a proibição é para o HUMANO na janela.
 
 ## Roteiro de validação da F2a (nesta ordem)
 

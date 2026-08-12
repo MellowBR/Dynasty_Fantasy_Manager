@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 12/08/2026-pt3 (MAN-OFF26-24-FIX11: **pendência HUNTER fechada pelo micro-probe do owner** — o Travis Hunter ESTÁ no pool da sala (rank 167, tabs All e WR, "+" habilitado), rótulo de posição **"DB,WR"**; o abort real foi a ELEIÇÃO exigindo igualdade ("WR" ≠ "DB,WR" → 0 candidatos → "busca vazia sem rastro" mascarou o descarte). Fix no núcleo puro, board/CLI intocados: `position_matches` = **pertencimento** ao conjunto do rótulo (separadores `,` `/`; igualdade pré-split preserva "D/ST"), fonte única usada por `select_candidate_rows`; parse devolve o rótulo multi-posição ÍNTEGRO com a sigla ao lado. Pertencimento ≠ afrouxamento ("QB" não casa "DB,WR"); anti-homônimo 0/2+ intacto. Réplica: comparação de posição só existia no `pos == want` do core. Testes 121→134.)
+> Última atualização: 12/08/2026-pt4 (MAN-OFF26-24-GO: **critério de 19/08 CUMPRIDO em 12/08, 7 dias antes — script promovido a PLANO A da população real de 22/08; Cowork/runbook = plano B.** Ciclo limpo oficial: RESET → `populate_20260812T185453Z` (**12/12, 235 designados + 2 bloqueado_teto declarados** — AlexTheDawg $203>$200; Croskey a $4 DE SHEET pelo grão do FIX10 —, 0 falhas, zero intervenção, **Hunter designado**) → auditoria OFF26-4 (**2 divergências = exatamente os 2 bloqueados; zero salário divergente; 12/12 populados**) → **alocação de owners** (descoberta: Draft Settings→DRAFT ORDER; PERMANENTE, sobrevive ao RESET; mapa do script passou a `via draft_order`; ⛔ RANDOMIZE e RESET BUDGETS entram nas proibições) → RESET final provado (validate: 0 picks, 237 na sheet, 3º draft_id derivado sem persistência). Telemetria consolidada tarefa 7: **382 assentamentos em 2 campanhas, ZERO reload = lag puro** (cache por visita desfavorecida). Docs-only: improvements + runbook rebaixado + README com a ordem de 22/08.)
+> Anterior: 12/08/2026-pt3 (MAN-OFF26-24-FIX11: **pendência HUNTER fechada pelo micro-probe do owner** — o Travis Hunter ESTÁ no pool da sala (rank 167, tabs All e WR, "+" habilitado), rótulo de posição **"DB,WR"**; o abort real foi a ELEIÇÃO exigindo igualdade ("WR" ≠ "DB,WR" → 0 candidatos → "busca vazia sem rastro" mascarou o descarte). Fix no núcleo puro, board/CLI intocados: `position_matches` = **pertencimento** ao conjunto do rótulo (separadores `,` `/`; igualdade pré-split preserva "D/ST"), fonte única usada por `select_candidate_rows`; parse devolve o rótulo multi-posição ÍNTEGRO com a sigla ao lado. Pertencimento ≠ afrouxamento ("QB" não casa "DB,WR"); anti-homônimo 0/2+ intacto. Réplica: comparação de posição só existia no `pos == want` do core. Testes 121→134.)
 > Anterior: 12/08/2026-pt2 (MAN-OFF26-24-FIX10: **campanha 12/12 — as DUAS caras do teto + caso Hunter.** O input de preço CLAMPA silenciosamente ao max bid (digitou $6/$4/$3/$2, gravou $5/$1/$1/$1 = $196 sem aviso — preço errado que PARECE certo, severidade alta na doutrina OFF26-4); modelo verificado ao dólar: `max_bid = budget − gasto − $1×(vagas restantes do board de 22)`. Fix: **READ-BACK do input antes do SET PLAYER** (verdade operacional; modelo = anotação) → clampou = `bloqueado_teto` DO KEEPER (pula o keeper, não o time; nada gravado — a sheet é canônica); ilegível/maior = abort. Conferência agora APONTA divergentes/faltantes por nome (`conference_report` no core — a soma inline do CLI morreu). Telemetria tarefa 7: 147 assentamentos, zero reload, lag 8–121s em fila contínua = **lag puro**, contra a hipótese do cache. **Travis Hunter**: único two-way (`fantasy_positions ["DB","WR"]`) dos 237 da sheet; API prova classificação, não o pool da sala → pendência OFF26-24-HUNTER + micro-probe manual, sem tratamento cego. Testes 104→121.)
 > Anterior: 12/08/2026 (MAN-OFF26-24-FIX9: **campanha real de 12/08 — dois defeitos encadeados.** (1) Anti-homônimo "2 QBs p/ Malik Willis" NÃO era artefato de DOM: a busca do Sleeper é **FUZZY** — devolveu Malik Williams ×2 + Hajj-Malik Williams QB, FAs reais de sigla vazia; candidato REAL passa a exigir **NOME** (`select_candidate_rows_named`/`row_matches_name` puros; posição exata + 0/2+ intactos; ⛔ sigla vazia não desqualifica). (2) O abort saiu com o **MODAL aberto** → clique do time seguinte interceptado 30s → TimeoutError **cru** (loop só pegava BoardAbort). Higiene: `command_pick` fecha modal em QUALQUER exceção; estado sujo detectado ANTES do 1º clique; populate com abort padrão de TIME e de CAMPANHA (`abort_campanha` no relatório) — nada escapa cru. Réplica conferida: contagem só em core.py. Testes 87→104.)
 > Anterior: 11/08/2026-pt10 (MAN-OFF26-24-FIX8: **assíncrono** — lag real >5min (Josh Allen; ensaio ~3s: variância é o fato) matou o poll bloqueante. `command_pick` sem poll; `reconcile_team` por time (300s, reload no meio — hipótese do cache por visita; telemetria decide); `post_teto_decision` puro (board local → `assentado_local_api_atrasada`, nunca re-comando · 1 re-comando · falha do KEEPER preservando o time); lote de idempotência; busca vazia cruza run→API→board. Testes 86→87. Re-teste morno do owner: slot 10.)
@@ -5572,3 +5573,36 @@ API; único caso entre os 237 keepers da sheet).
   → 0; "hunter" multi-linha → só ele; homônimos → 2), rótulo íntegro no parse, compound sem
   membro do vocabulário não vira rótulo; FIX5/FIX9 sem alteração de expectativa. Suítes
   completas verdes; diffstat conferido antes do push.
+
+### MAN-OFF26-24-GO — critério de 19/08 cumprido em 12/08; script promovido a plano A (12/08/2026, Fable) · docs-only
+
+**A sessão de 12/08 fechou o arco inteiro do OFF26-24 com 7 dias de antecedência.** Sequência
+do dia: campanha noturna interrompida por suspensão da máquina → diagnose via validate (**74
+picks íntegros** — a interrupção não corrompeu nada) → **FIX9 → FIX10 → FIX11**, cada um
+nascido de uma falha REAL de campanha (commits `82f31bb` · `01c8e0b` · `c06b0c5`) → RESET →
+campanha oficial → auditoria → alocação de owners → RESET final.
+
+- **Campanha oficial (`populate_20260812T185453Z`): 12/12 times, 235 designados + 2
+  `bloqueado_teto`, 0 falhas, zero intervenção manual.** Os 2 bloqueados = os declarados do
+  AlexTheDawg (Keenan Allen $6, Kaleb Johnson $3; sheet $203 > budget $200); o grão por keeper
+  do FIX10 fez o **Croskey-Merritt entrar a $4 de sheet** (pular o Keenan liberou teto — o
+  modelo previu). **Travis Hunter designado** — FIX11 provado em produção no mesmo dia do fix.
+- **Auditoria OFF26-4: 2 divergências, exatamente os 2 bloqueados declarados; zero salário
+  divergente; 12/12 populados**; banner do estágio provisório correto (OFF26-22).
+- **RESET final exercido:** validate pós-reset com **0 picks vivos, 237 na sheet, draft_id
+  novo** — o **3º derivado na sessão, sem persistência** (doutrina D1 provada 3× no dia).
+- **Descoberta — alocação de owners:** feita em **Draft Settings → DRAFT ORDER** (12 owners nos
+  slots 1-12, conferida na tela e no validate). (a) o mapa do script passou a derivar de
+  **`draft_order`**, a fonte (a)/autoritativa da cadeia FIX3; (b) a alocação é **PERMANENTE —
+  sobrevive ao RESET DRAFT** (não é passo anual); (c) ⛔ **RANDOMIZE** (embaralharia owners sob
+  board populado) e **RESET BUDGETS** entram na lista de proibições junto do START DRAFT —
+  proibição HUMANA (a tela não é aberta pelo script), registrada no runbook.
+- **Telemetria consolidada (tarefa 7): 382 assentamentos em duas campanhas, ZERO reload,
+  perfil de fila contínua (lag puro)** — hipótese do cache por visita desfavorecida; a espera
+  de 22/08 confia na reconciliação assíncrona do FIX8 como está.
+- **Decisão do owner — planos invertidos:** `tools/phantom_board/` é o **PLANO A** de 22/08;
+  `runbook_cowork_liga_fantasma.md` rebaixado a **contingência** (cabeçalho com o rebaixamento,
+  a conferência de alocação pré-população e as 3 proibições). README do script com o critério
+  marcado cumprido e a ordem de 22/08: **conferir alocação → `populate --all` → auditoria
+  OFF26-4 → não tocar RANDOMIZE/RESET BUDGETS/START DRAFT**. O item OFF26-24 fecha ✅ (e migra
+  ao archive) após a população real de 22/08 — o uso, não o critério. Docs-only, zero código.

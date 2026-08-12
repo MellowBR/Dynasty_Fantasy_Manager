@@ -148,7 +148,7 @@
 | UX14 | **Time NFL de dropado com fallback no pool** — perfil do Waller exibe `—` porque `Player.nfl_team` está vazio (sync só atualiza rosterados). Hipótese registrada, NÃO arbitrada: fallback de LEITURA no pool ([[O2]] como precedente), sem persistir; pool sem time → `—` correto (FA real). F1 responde a réplica: entra na fonte única da Q1 da UX12-F1 ou vira 2ª fonte por tela? — MAN-ARC-BUSCA-DONE | Baixa/Média | 🔲 |
 | UX15 | **Jogador pré-selecionado na página de trade** — o botão do perfil ([[M14]]) já leva os dois times; falta o jogador chegar marcado. Refinamento do campo 3 do [[UX12]] (archive); provável F2 direta, a confirmar réplica (quantos caminhos de entrada têm pré-seleção?) — MAN-ARC-BUSCA-DONE | Baixa | 🔲 |
 | OFF26-23 | **Ano de contrato do rookie 2026 × rollover × passo 5** — pergunta do owner a 7 dias do draft: o rookie entra e PERMANECE Ano 1? **F1 10/08 (MAN-OFF26-23-REG-F1):** a ordem segura existe mas **não é imposta por código** — o `draft_import` não tem gate de `rollover_done`; importar o draft ANTES do rollover incrementaria todo rookie p/ Ano 2 (varredura cega, `offseason.py:686`). **Roteiro seguro da semana entregue na seção** (rollover 18/08 ANTES do import do draft; passo 5 só pós-24/08 — validado: nada o lê além da UI, e o clear precoce zeraria os salários do próprio import). Gainwell = mesma manifestação, raiz distinta (canal, não ordem) — MAN-OFF26-23-REG-F1/-F2/**-FIX** (SyntaxError no JS da /offseason pego pelo smoke do owner — string quebrada na edição gerada; fix de 1 linha + `template_js_test.py` como guarda permanente) | Alta (semana 17→24/08) | ⚠️ 10/08/2026 (**gates + fix no ar — smoke prod pendente**, gate [[PROC1]]) |
-| OFF26-24 | **Script de população do board da liga fantasma** — decisão do owner 10/08 (reverte o adiamento p/ 2027): Playwright headed na máquina do owner, perfil dedicado logado, ⛔ guarda de nascença `league_id 1389725099556372481` + ⛔ API interna vetada (a descoberta do `draft_id` usa a API PÚBLICA da liga, a mesma do OFF26-4). **Cowork segue plano A** até o critério: 12/12 em ensaio + auditoria OFF26-4 zerada + zero intervenção + RESET exercido, **até 19/08** — sem isso, 2026 roda Cowork e o script vai a 2027. F1 10/08 (sheet JSON sem sid → export do `build_sheet`); **ensaio 11/08** (spec de seletores; achado: o cliente MENTE — comando via DOM, **verdade via API**); **F2a 11/08 (MAN-OFF26-24-F2a):** `tools/phantom_board/` — núcleo puro + guardas de nascença + `validate` read-only + `designate` ponta a ponta + endpoint `keeper_sheet_export`; 30→35 testes; **-F2a-FIX 11/08**: guarda de identidade refeita POR CONSTRUÇÃO (URL×draft_id derivado — a página do draft não exibe o nome da liga) + espera de login na 1ª vida do perfil (JOIN DRAFT proibido); `validate` já VERDE em execução real (18/18, $176) — MAN-OFF26-24-REG-F1/**-F2a (FECHADA: Cam Ward assentado via API; validate 19/19)/-F2b** (populate por time + --all retomável; idempotência PRIMEIRO — a lição da F2a; bloqueado_teto = resultado; auditoria OFF26-4 como juiz; **FIX8: assentamento ASSÍNCRONO** — lag real da API >5min (Josh Allen) matou o poll bloqueante; reconciliação por time c/ teto 300s + reload no meio (hipótese do cache por visita, telemetria decide) + `assentado_local_api_atrasada`; 87 testes) (**FIX9 12/08:** campanha real — abort de time deixava o MODAL aberto → TimeoutError cru no time seguinte; higiene de estado em TODO abort + verificação defensiva pré-clique + populate sem traceback cru (abort padrão de time E de campanha); anti-homônimo passou a exigir NOME — a busca do Sleeper é fuzzy: "Malik Willis" devolvia Malik Williams ×2 + Hajj-Malik Williams QB, FAs de sigla vazia = linhas REAIS, não artefato; critério 0/2+ intacto; 104 testes) (**FIX10 12/08:** campanha 12/12 — as DUAS caras do teto: além da recusa síncrona §B.3.2, o input CLAMPA silenciosamente ao max bid (digitou 6/4/3/2, gravou 5/1/1/1 = $196 sem aviso); modelo verificado ao dólar `max_bid = 200 − gasto − $1×vagas restantes`; fix = READ-BACK do input pré-SET → clampou = bloqueado_teto DO KEEPER, nada gravado, sheet canônica; conferência aponta divergentes por nome; telemetria: lag puro 8–121s, zero reload — contra a hipótese do cache; **Travis Hunter = único two-way (DB+WR) dos 237 da sheet** → pendência OFF26-24-HUNTER c/ micro-probe manual; 121 testes) (**FIX11 12/08:** probe do owner FECHOU a HUNTER — ele está no pool (rank 167, tabs All+WR, "+" habilitado), rótulo "DB,WR"; o abort real foi a eleição exigindo igualdade de posição; fix = pertencimento (`position_matches`, fonte única): "WR" ∈ "DB,WR", "QB" segue não casando; parse devolve o rótulo íntegro; anti-homônimo intacto; 134 testes) (âncora no #modal[role=alertdialog] real; header “Make Manual Pick for Team N” como identidade; fallback logado) (busca/linhas/preço escopados ao MODAL — a lista de fundo vazava; filtro conferido antes do matching) (parser do anti-homônimo lê o DOM real — newlines/sigla duplicada/injury; critério intacto) (célula por COLUNA do slot, nunca nth global; “Change Player” proibido; handler sem crash) (mapa slot↔owner: cadeia draft_order → slot_to_roster_id×rosters → picks; validate passou a conferir owner de verdade) (hCaptcha recusa o Chromium de teste → launch pelo Chrome real via channel; captcha é resolvido pelo HUMANO, nunca burlado) | Alta (validação até 19/08) | 🔲 (**F2a ✅ · F2b entregue — ensaio 12/12 do owner pendente**; critério de 19/08 no README) |
+| OFF26-24 | **Script de população do board da liga fantasma** — decisão do owner 10/08 (reverte o adiamento p/ 2027): Playwright headed na máquina do owner, perfil dedicado logado, ⛔ guarda de nascença `league_id 1389725099556372481` + ⛔ API interna vetada (a descoberta do `draft_id` usa a API PÚBLICA da liga, a mesma do OFF26-4). **Cowork segue plano A** até o critério: 12/12 em ensaio + auditoria OFF26-4 zerada + zero intervenção + RESET exercido, **até 19/08** — sem isso, 2026 roda Cowork e o script vai a 2027. F1 10/08 (sheet JSON sem sid → export do `build_sheet`); **ensaio 11/08** (spec de seletores; achado: o cliente MENTE — comando via DOM, **verdade via API**); **F2a 11/08 (MAN-OFF26-24-F2a):** `tools/phantom_board/` — núcleo puro + guardas de nascença + `validate` read-only + `designate` ponta a ponta + endpoint `keeper_sheet_export`; 30→35 testes; **-F2a-FIX 11/08**: guarda de identidade refeita POR CONSTRUÇÃO (URL×draft_id derivado — a página do draft não exibe o nome da liga) + espera de login na 1ª vida do perfil (JOIN DRAFT proibido); `validate` já VERDE em execução real (18/18, $176) — MAN-OFF26-24-REG-F1/**-F2a (FECHADA: Cam Ward assentado via API; validate 19/19)/-F2b** (populate por time + --all retomável; idempotência PRIMEIRO — a lição da F2a; bloqueado_teto = resultado; auditoria OFF26-4 como juiz; **FIX8: assentamento ASSÍNCRONO** — lag real da API >5min (Josh Allen) matou o poll bloqueante; reconciliação por time c/ teto 300s + reload no meio (hipótese do cache por visita, telemetria decide) + `assentado_local_api_atrasada`; 87 testes) (**FIX9 12/08:** campanha real — abort de time deixava o MODAL aberto → TimeoutError cru no time seguinte; higiene de estado em TODO abort + verificação defensiva pré-clique + populate sem traceback cru (abort padrão de time E de campanha); anti-homônimo passou a exigir NOME — a busca do Sleeper é fuzzy: "Malik Willis" devolvia Malik Williams ×2 + Hajj-Malik Williams QB, FAs de sigla vazia = linhas REAIS, não artefato; critério 0/2+ intacto; 104 testes) (**FIX10 12/08:** campanha 12/12 — as DUAS caras do teto: além da recusa síncrona §B.3.2, o input CLAMPA silenciosamente ao max bid (digitou 6/4/3/2, gravou 5/1/1/1 = $196 sem aviso); modelo verificado ao dólar `max_bid = 200 − gasto − $1×vagas restantes`; fix = READ-BACK do input pré-SET → clampou = bloqueado_teto DO KEEPER, nada gravado, sheet canônica; conferência aponta divergentes por nome; telemetria: lag puro 8–121s, zero reload — contra a hipótese do cache; **Travis Hunter = único two-way (DB+WR) dos 237 da sheet** → pendência OFF26-24-HUNTER c/ micro-probe manual; 121 testes) (**FIX11 12/08:** probe do owner FECHOU a HUNTER — ele está no pool (rank 167, tabs All+WR, "+" habilitado), rótulo "DB,WR"; o abort real foi a eleição exigindo igualdade de posição; fix = pertencimento (`position_matches`, fonte única): "WR" ∈ "DB,WR", "QB" segue não casando; parse devolve o rótulo íntegro; anti-homônimo intacto; 134 testes) (**GO 12/08:** **critério de 19/08 CUMPRIDO com 7 dias de antecedência** — ciclo limpo: RESET → campanha oficial `185453Z` 12/12, 235 designados + 2 bloqueados declarados (AlexTheDawg; Croskey entrou a $4 de sheet pelo grão do FIX10), 0 falhas, zero intervenção, Hunter designado → auditoria = SÓ os 2 bloqueados, zero salário divergente → RESET final provado, validate 0 picks/237 sheet/3º draft_id derivado; **alocação de owners em Draft Settings→DRAFT ORDER é PERMANENTE** (sobrevive ao RESET; mapa via `draft_order`); ⛔ RANDOMIZE e RESET BUDGETS proibidos junto do START DRAFT; telemetria: 382 assentamentos, zero reload = lag puro; **script = PLANO A de 22/08, Cowork = plano B**) (âncora no #modal[role=alertdialog] real; header “Make Manual Pick for Team N” como identidade; fallback logado) (busca/linhas/preço escopados ao MODAL — a lista de fundo vazava; filtro conferido antes do matching) (parser do anti-homônimo lê o DOM real — newlines/sigla duplicada/injury; critério intacto) (célula por COLUNA do slot, nunca nth global; “Change Player” proibido; handler sem crash) (mapa slot↔owner: cadeia draft_order → slot_to_roster_id×rosters → picks; validate passou a conferir owner de verdade) (hCaptcha recusa o Chromium de teste → launch pelo Chrome real via channel; captcha é resolvido pelo HUMANO, nunca burlado) | Alta (uso real 22/08) | 🔲 (**critério de 19/08 ✅ CUMPRIDO 12/08 — script = PLANO A de 22/08, Cowork = plano B**; fecha ✅ e migra ao archive após a população real de 22/08) |
 | M21 | **Busca cobre o universo Sleeper** — duas fatias: **A — FAs da liga** (**✅ 10/08/2026**, MAN-M21-A + smoke prod MAN-ARC-BUSCA-DONE: badge FA, ordenação rosterado-antes-de-FA, perfil de FA corrigido; âncora **Kamara**, 41 dropados medidos) e **B — universo não-Player** (Média, pós-intertemporada, 🔲; ⚠️ arbitragem importar×federar em aberto p/ F1b; **caso Helm migrado p/ cá** — nunca foi Player, medição Shell 10/08) — MAN-M21-REG/F1a/A/ARC-BUSCA-DONE | A: Alta · B: Média | 🔲 (fatia A ✅ 10/08/2026 · fatia B pendente) |
 
 ---
@@ -4174,19 +4174,23 @@ store; (3) o clear não tem undo (reverter o passo 5 não repopula).
 ---
 
 ### OFF26-24 — Script de população do board da liga fantasma
-🔲 **F2a ENTREGUE 11/08/2026 (MAN-OFF26-24-F2a) — validação da fatia é do owner (roteiro no
-README); critério final segue o de 19/08** — Registrado + F1 em 10/08 (MAN-OFF26-24-REG-F1) —
-Prioridade **Alta (validação até 19/08)** — decisão do owner (10/08) **revertendo o adiamento
-para 2027**: (a) rollback é
+🔲 **CRITÉRIO DE 19/08 ✅ CUMPRIDO EM 12/08/2026 (MAN-OFF26-24-GO) — ciclo limpo 12/12 +
+auditoria + RESET exercido, zero intervenção, 7 dias antes do prazo. Decisão do owner: o
+script É O PLANO A da população real de 22/08; Cowork/runbook rebaixado a plano B
+(contingência). O item fecha ✅ (e migra ao archive) após a população real de 22/08 — que é o
+USO, não o critério.** — F2a/F2b 11/08 + FIX9/10/11 + GO 12/08 — Registrado + F1 em 10/08
+(MAN-OFF26-24-REG-F1) — Prioridade **Alta (uso real 22/08)** — decisão do owner (10/08)
+**revertendo o adiamento para 2027**: (a) rollback é
 trivial e do próprio owner (RESET DRAFT / remoção manual; pior caso = recomeçar, sem dano
 possível à liga real); (b) a variância do Cowork (~2h a ~5h; 2ª execução: **58min para 3 times**
 por timeouts) ameaça a janela de 48h entre late drop (22/08) e auction (24/08)
 
-**Condições de contorno (do prompt, integrais):** o **Cowork permanece plano A** até o script
-ser validado; prazo de validação **19/08** — sem validação até lá, 2026 roda via Cowork e o
-script fica para 2027. ⛔ **API interna não documentada do Sleeper segue VETADA** (sem contrato,
-risco de ToS, expõe a conta do comissário). ⛔ **Nada roda contra a liga real em hipótese
-alguma** — a guarda de `league_id` é requisito de nascença.
+**Condições de contorno (do prompt de 10/08 — RESOLVIDAS em 12/08, planos INVERTIDOS pelo GO):**
+o Cowork permaneceu plano A até a validação do script, cumprida em 12/08 (antes do prazo de
+19/08) — **agora o script é o plano A e o Cowork é a contingência**. As duas proibições seguem
+PERMANENTES: ⛔ **API interna não documentada do Sleeper VETADA** (sem contrato, risco de ToS,
+expõe a conta do comissário). ⛔ **Nada roda contra a liga real em hipótese alguma** — a guarda
+de `league_id` é requisito de nascença.
 
 #### Ensaio de 11/08 (Cowork) — a spec que faltava, e o achado que define a arquitetura
 
@@ -4531,6 +4535,46 @@ multi-posição "DB,WR" casa a posição da sheet.** Fix inteiro no núcleo puro
   candidato; sheet QB → 0; busca "hunter" multi-linha → só ele; homônimos verdadeiros → 2;
   parse do rótulo íntegro com sigla/injury; compound sem membro do vocabulário não vira rótulo;
   FIX5/FIX9 sem alteração de expectativa). Suítes verdes.
+
+#### GO — critério de 19/08 CUMPRIDO (MAN-OFF26-24-GO, 12/08/2026): script promovido a PLANO A
+
+**O ciclo limpo oficial rodou em 12/08 e cumpriu o critério integralmente, 7 dias antes do
+prazo.** Arco do dia: campanha noturna interrompida por suspensão da máquina → diagnose via
+validate (74 picks íntegros — a interrupção não corrompeu nada) → **FIX9 → FIX10 → FIX11**,
+cada um nascido de falha REAL de campanha (commits `82f31bb` · `01c8e0b` · `c06b0c5`) → RESET →
+**campanha oficial** (`populate_20260812T185453Z`) → auditoria OFF26-4 → alocação de owners →
+RESET final.
+
+- **Campanha oficial: 12/12 times processados, 235 designados + 2 `bloqueado_teto`, 0 falhas,
+  zero intervenção manual.** Os 2 bloqueados são exatamente os declarados do AlexTheDawg
+  (Keenan Allen $6 e Kaleb Johnson $3; sheet $203 > budget $200) — e o grão por keeper do FIX10
+  fez o **Croskey-Merritt entrar a $4 DE SHEET** (pular o Keenan liberou teto, como o modelo
+  previa). **Travis Hunter designado** (FIX11 em produção).
+- **Auditoria OFF26-4 (o juiz independente): 2 divergências — exatamente os 2 bloqueados
+  declarados; ZERO salário divergente; 12/12 populados**; banner de conferência antecipada
+  correto (sheet provisória — OFF26-22).
+- **RESET final exercido** (rollback provado, não presumido): validate pós-reset com **0 picks
+  vivos, 237 keepers na sheet e draft_id NOVO derivado** — o **3º da sessão**, sem persistência
+  em lugar nenhum (a doutrina D1 do OFF26-4 provada três vezes no mesmo dia).
+- **Descoberta operacional — ALOCAÇÃO DE OWNERS (owner, 12/08):** feita em **Draft Settings →
+  DRAFT ORDER** da liga fantasma (12 owners nos slots 1-12: MellowBR, rafadgil, TropadoJarra,
+  icarocosta1, rafaelferreirap, fernandoxmf, murilofborges, LeoFBorges1, fertorquato,
+  michelzela, gabrieldiinis, freddupont — conferida na tela E no validate). Efeitos
+  verificados empiricamente: (a) o mapa slot↔owner do script passou a derivar de
+  **`draft_order`** (a fonte (a) da cadeia FIX3, autoritativa) em vez de
+  `slot_to_roster_id×rosters`; (b) a alocação **SOBREVIVE ao RESET DRAFT** — é configuração
+  PERMANENTE da liga, não passo anual; (c) a tela contém **RANDOMIZE** (⛔ embaralharia os
+  owners — sob board populado corromperia todas as colunas) e **RESET BUDGETS** — **ambos
+  entram na lista de ações proibidas junto do START DRAFT** (registrados no runbook; a tela
+  não é aberta pelo script — proibição HUMANA).
+- **Telemetria consolidada (tarefa 7): 382 assentamentos em duas campanhas, ZERO reload,
+  perfil de fila contínua (lag puro)** — a hipótese do cache por visita fica desfavorecida; a
+  espera de 22/08 confia na reconciliação assíncrona do FIX8 como está.
+- **Planos invertidos (decisão do owner):** `tools/phantom_board/` = **PLANO A** da população
+  real de 22/08 — ordem no README: **conferir alocação → `populate --all` → auditoria OFF26-4
+  → não tocar RANDOMIZE/RESET BUDGETS/START DRAFT**; `runbook_cowork_liga_fantasma.md` =
+  **plano B/contingência** (cabeçalho atualizado com rebaixamento + conferência de alocação +
+  proibições).
 
 #### F1 — diagnose read-only (10/08/2026)
 

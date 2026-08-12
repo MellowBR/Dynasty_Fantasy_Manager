@@ -1,5 +1,24 @@
 # Runbook — Procedimento Cowork da liga fantasma (FA auction no Sleeper)
 
+> ⛔ **REBAIXADO A PLANO B (CONTINGÊNCIA) — 12/08/2026 (MAN-OFF26-24-GO).** O critério de
+> validação do script **[[OFF26-24]]** (`tools/phantom_board/`) foi **cumprido em 12/08**
+> (campanha oficial 12/12 + auditoria OFF26-4 coerente + RESET exercido, zero intervenção):
+> **a população real de 22/08 roda pelo SCRIPT (plano A)** — este runbook passa a ser a
+> **contingência** (script indisponível ou falhando no dia). O conteúdo operacional abaixo
+> permanece válido para esse caso.
+>
+> **Passo novo PRÉ-POPULAÇÃO (vale para o script E para a contingência): conferir a ALOCAÇÃO
+> DE OWNERS.** A alocação dos 12 owners aos slots 1-12 é feita em **Draft Settings → DRAFT
+> ORDER** da liga fantasma e é **configuração PERMANENTE da liga — SOBREVIVE ao RESET DRAFT**
+> (verificado empiricamente em 12/08; não é passo anual). Conferência dupla: a tela de Draft
+> Settings mostra a ordem, e o `validate` do script deve reportar o mapa slot↔owner **`via
+> draft_order`** (a fonte autoritativa) — se cair para `slot_to_roster_id×rosters`, a alocação
+> não está feita.
+>
+> ⛔ **AÇÕES PROIBIDAS na tela de Draft Settings (juntam-se ao START DRAFT):** **RANDOMIZE**
+> (embaralharia os owners — sob board populado, corromperia TODAS as colunas) e **RESET
+> BUDGETS**. Nenhuma das duas é clicada — por humano ou por agente — em hipótese alguma.
+
 > **OFF26-5.** Runbook operacional do procedimento **Cowork + Claude in Chrome**: como dirigir
 > a UI do Sleeper para **montar e popular** a liga fantasma usada na FA auction. A API do
 > Sleeper é **read-only** — a montagem/população só é possível **dirigindo a UI pelo navegador**.
