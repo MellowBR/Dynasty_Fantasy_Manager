@@ -25,7 +25,8 @@ from pathlib import Path
 from . import config
 from .core import (ALREADY, ASSENTADO_LOCAL, BLOQUEADO_TETO, SETTLED,
                    choose_menu_item, is_budget_block, league_guard,
-                   modal_header_check, parse_result_row, post_teto_decision,
+                   modal_header_check, parse_price_value, parse_result_row,
+                   post_teto_decision, price_readback_decision,
                    search_filter_check, select_candidate_rows_named,
                    split_settled, url_guard)
 from .sleeper_api import fetch_draft, fetch_draft_id, fetch_picks
@@ -361,10 +362,19 @@ def _pick_search_result(page, team_slot: int, player_name: str, position: str,
     return warn
 
 
-def _set_price_and_confirm(page, price: int):
+def _set_price_and_confirm(page, price: int, sid=None, log=None,
+                           expected_max=None):
     """Preço nasce $1 SEMPRE (mesmo com $PROJ maior). >$1 → Ctrl+A + digitar.
     FIX6: o input de preço também é escopado ao MODAL (o único input do modal que
-    não é o de busca)."""
+    não é o de busca).
+
+    FIX10 — a SEGUNDA cara do teto: o input CLAMPA silenciosamente ao max bid
+    (run de 12/08: digitou 6/4/3/2, gravou 5/1/1/1 sem aviso). Depois de digitar,
+    o valor EFETIVO do input é lido de volta — a VERDADE OPERACIONAL
+    (`expected_max` do modelo é só anotação de motivo). Clampou → NÃO aciona o
+    SET PLAYER, fecha limpo e retorna bloqueado_teto (⛔ a sheet é canônica — o
+    script nunca grava preço diferente dela). Read-back ilegível ou MAIOR que o
+    comandado → abort barulhento, nada gravado. Retorna "ok" ou BLOQUEADO_TETO."""
     modal = _modal(page)
     confirm = modal.locator(config.SEL_CONFIRM_BUTTON,
                             has_text=config.CONFIRM_READY_TEXT).first
@@ -375,8 +385,25 @@ def _set_price_and_confirm(page, price: int):
         price_input.click()
         price_input.press("Control+a")
         price_input.press_sequentially(str(price), delay=40)
+        page.wait_for_timeout(200)        # deixa o clamp do board assentar
+        efetivo = parse_price_value(price_input.input_value())
+        decisao = price_readback_decision(price, efetivo)
+        if decisao == BLOQUEADO_TETO:
+            if log is not None:
+                log.append({"sid": sid, "event": BLOQUEADO_TETO,
+                            "motivo": "clamp_do_input",
+                            "preco_sheet": price, "preco_efetivo": efetivo,
+                            "max_bid_modelo": expected_max})
+            _dismiss_modal(page)          # NADA gravado — fecha e devolve o teto
+            return BLOQUEADO_TETO
+        if decisao == "abortar":
+            raise BoardAbort(
+                f"Read-back do preço indeterminado (comandado ${price}, input "
+                f"{efetivo!r}) — digitação não aplicada/estado estranho. NADA "
+                f"gravado (a sheet é canônica).")
     assert_allowed_click(config.CONFIRM_READY_TEXT)
     confirm.click()
+    return "ok"
 
 
 def _visible_toast_text(page) -> str:
@@ -389,20 +416,24 @@ def _visible_toast_text(page) -> str:
 
 
 def command_pick(page, team_slot: int, player_name: str, position: str,
-                 nfl_team: str, price: int, sid: str, log: list) -> str:
+                 nfl_team: str, price: int, sid: str, log: list,
+                 expected_max: int = None) -> str:
     """FIX8 — envia UM comando (menu→busca→+→preço→SET PLAYER) e retorna SEM
     poll: o assentamento é ASSÍNCRONO (lag real medido: 3s a >5min — o board
-    local preenchendo a célula é feedback suficiente para seguir). A recusa de
-    TETO é a exceção síncrona: o aviso aparece na hora → `bloqueado_teto`.
-    Retorna "comandado" ou BLOQUEADO_TETO. EmptySearchResult propaga — o
-    chamador decide (recheck da API / board local / estado da própria run)."""
+    local preenchendo a célula é feedback suficiente para seguir). O TETO tem
+    DUAS caras (FIX10): o clamp silencioso do input, detectado por read-back
+    ANTES do SET PLAYER (nada gravado), e a recusa síncrona (§B.3.2), cujo aviso
+    aparece na hora. Ambas → `bloqueado_teto`. Retorna "comandado" ou
+    BLOQUEADO_TETO. EmptySearchResult propaga — o chamador decide (recheck da
+    API / board local / estado da própria run)."""
     try:
         _open_set_player_menu(page, team_slot)
         warn = _pick_search_result(page, team_slot, player_name, position,
                                    nfl_team, log)
         if warn:
             log.append({"sid": sid, "warning": warn})
-        _set_price_and_confirm(page, price)
+        r = _set_price_and_confirm(page, price, sid=sid, log=log,
+                                   expected_max=expected_max)
     except Exception:
         # FIX9 — NENHUM caminho de erro sai do comando com menu/modal aberto:
         # o abort do anti-homônimo (12/08) deixou o SET PLAYER aberto e o time
@@ -410,6 +441,8 @@ def command_pick(page, team_slot: int, player_name: str, position: str,
         # o próximo _open_set_player_menu re-confere de qualquer jeito.
         _dismiss_modal(page)
         raise
+    if r == BLOQUEADO_TETO:               # FIX10: clamp detectado — nada gravado
+        return BLOQUEADO_TETO
     page.wait_for_timeout(1_500)          # a recusa de teto é imediata, se houver
     try:
         teto = page.get_by_text(config.BUDGET_BLOCK_TEXT,
@@ -417,8 +450,9 @@ def command_pick(page, team_slot: int, player_name: str, position: str,
     except Exception:
         teto = False
     if teto or is_budget_block(_visible_toast_text(page)):
-        page.keyboard.press("Escape")
-        log.append({"sid": sid, "event": BLOQUEADO_TETO})
+        _dismiss_modal(page)
+        log.append({"sid": sid, "event": BLOQUEADO_TETO,
+                    "motivo": "recusa_sincrona"})
         return BLOQUEADO_TETO
     log.append({"sid": sid, "event": "comandado"})
     return "comandado"

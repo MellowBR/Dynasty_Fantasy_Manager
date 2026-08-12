@@ -19,9 +19,10 @@ from pathlib import Path
 
 from . import config
 from .core import (ASSENTADO_LOCAL, BLOQUEADO_TETO, CONFLITO, JA_ASSENTADO,
-                   campaign_summary, classify_team_keepers, flatten_sheet,
-                   idempotency_decision, league_guard, match_picks_to_sheet,
-                   parse_pick, resolve_slot_map, team_totals)
+                   campaign_summary, classify_team_keepers, conference_report,
+                   draft_budget_slots, flatten_sheet, idempotency_decision,
+                   league_guard, match_picks_to_sheet, max_bid,
+                   resolve_slot_map, team_totals)
 from .sleeper_api import (fetch_draft, fetch_draft_id, fetch_picks,
                           fetch_rosters, fetch_users)
 
@@ -185,18 +186,6 @@ def cmd_designate(args):
     sys.exit(0 if ok else 1)
 
 
-def _team_conference(picks, team_rows):
-    """Conferência do time contra a sheet (contagem + soma), pela API."""
-    sids = {r["sid"] for r in team_rows}
-    got = [parse_pick(p) for p in picks if str(p.get("player_id")) in sids]
-    return {
-        "picks_no_board": len(got),
-        "keepers_na_sheet": len(team_rows),
-        "total_no_board": sum(g["amount"] or 0 for g in got),
-        "total_na_sheet": sum(r["salary"] for r in team_rows),
-    }
-
-
 def cmd_populate(args):
     """F2b — o loop por time (a unidade do runbook) e a campanha completa.
 
@@ -227,8 +216,12 @@ def cmd_populate(args):
         # FIX9: falha ao abrir o board → mensagem limpa, nunca traceback cru
         sys.exit(f"⛔ ERRO ao abrir o board ({type(e).__name__}): {e}")
     try:
+        draft = fetch_draft(draft_id)
+        # FIX10: budget e board saem do próprio draft (fallback $200/22) — insumo
+        # da ANOTAÇÃO de max bid; a verdade operacional é o read-back do input.
+        budget, total_slots = draft_budget_slots(draft)
         slot_map, slot_source = resolve_slot_map(
-            fetch_draft(draft_id), fetch_users(config.LEAGUE_ID),
+            draft, fetch_users(config.LEAGUE_ID),
             fetch_rosters(config.LEAGUE_ID), fetch_picks(draft_id))
         if not slot_map:
             raise BoardAbort("Mapa slot↔owner vazio — nenhuma fonte da cadeia "
@@ -242,8 +235,8 @@ def cmd_populate(args):
             team_rows = [r for r in rows if r["owner_id"] == owner]
             res = {"slot": slot, "handle": handle,
                    "team_name": team_rows[0]["team_name"] if team_rows else "?",
-                   "designados": 0, "ja_assentados": 0, "conflitos": 0,
-                   "status": "ok", "eventos": []}
+                   "designados": 0, "ja_assentados": 0, "bloqueados_teto": 0,
+                   "conflitos": 0, "status": "ok", "eventos": []}
             team_results.append(res)   # FIX9: no relatório JÁ — falha não o apaga
             if not team_rows:
                 res["status"] = "sem_keepers_na_sheet"
@@ -257,10 +250,16 @@ def cmd_populate(args):
                 picks = fetch_picks(draft_id)
                 lote = classify_team_keepers(team_rows, picks, slot_map)
                 pendentes = []
+                # FIX10: estado p/ a anotação de max bid (gasto corrente + picks
+                # feitos no board de `total_slots`) e p/ excluir os pulados por
+                # teto da conferência.
+                gasto, picks_feitos, bloqueados = 0, 0, []
                 for r in team_rows:
                     dec, det = lote.get(r["sid"], (None, None))
                     if dec == JA_ASSENTADO:
                         res["ja_assentados"] += 1
+                        gasto += (det or {}).get("amount") or 0
+                        picks_feitos += 1
                         continue
                     if dec == CONFLITO:
                         res["conflitos"] += 1
@@ -276,7 +275,10 @@ def cmd_populate(args):
                     try:
                         verdict = command_pick(page, slot, r["name"],
                                                r["position"], "", r["salary"],
-                                               r["sid"], res["eventos"])
+                                               r["sid"], res["eventos"],
+                                               expected_max=max_bid(
+                                                   budget, gasto, picks_feitos,
+                                                   total_slots))
                     except EmptySearchResult:
                         # tarefa 5: comandado NESTA run? sinal de sucesso local.
                         if any(pd["sid"] == r["sid"] for pd in pendentes):
@@ -288,11 +290,15 @@ def cmd_populate(args):
                                for x in fetch_picks(draft_id)}
                         if r["sid"] in now:
                             res["ja_assentados"] += 1
+                            gasto += r["salary"]
+                            picks_feitos += 1
                             continue
                         if board_shows_designated(page, slot, r["name"]):
                             res["eventos"].append({"sid": r["sid"],
                                                    "event": ASSENTADO_LOCAL})
                             res["designados"] += 1
+                            gasto += r["salary"]
+                            picks_feitos += 1
                             continue
                         res["status"] = "falha"
                         res["eventos"].append({"keeper": r["name"],
@@ -317,16 +323,23 @@ def cmd_populate(args):
                             pass
                         break
                     if verdict == BLOQUEADO_TETO:
-                        res["status"] = BLOQUEADO_TETO
+                        # FIX10: o teto (clamp OU recusa síncrona) pula O KEEPER
+                        # — nada foi gravado, o resto do time é alcançável ($1
+                        # sempre cabe na reserva). Resultado, não falha.
+                        res["bloqueados_teto"] += 1
+                        bloqueados.append(r["sid"])
                         res["eventos"].append({"keeper": r["name"],
                                                "resultado": BLOQUEADO_TETO})
-                        print(f"  🧱 teto de lance em {r['name']} — esperado "
-                              f"pré-late-drop; seguindo para o próximo time")
-                        break
+                        print(f"  🧱 teto em {r['name']} — pulando o keeper "
+                              f"(esperado pré-late-drop; nada gravado); o "
+                              f"time segue")
+                        continue
                     pendentes.append({"sid": r["sid"], "name": r["name"],
                                       "slot": slot, "price": r["salary"],
                                       "position": r["position"],
                                       "cmd_at": _time.monotonic()})
+                    gasto += r["salary"]
+                    picks_feitos += 1
                     print(f"  📤 {r['name']} (${r['salary']}) comandado — "
                           f"pendente de confirmação")
 
@@ -350,15 +363,29 @@ def cmd_populate(args):
                               f"— o resto do time permanece")
 
                 if res["status"] == "ok":
-                    res["conferencia"] = _team_conference(fetch_picks(draft_id),
-                                                          team_rows)
+                    # FIX10: a conferência APONTA os picks — divergente vira
+                    # nome + esperado + gravado (no relatório E no stdout); os
+                    # pulados por teto saem da expectativa (campo próprio).
+                    res["conferencia"] = conference_report(
+                        fetch_picks(draft_id), team_rows, excluidos=bloqueados)
                     c = res["conferencia"]
+                    for d in c["divergentes"]:
+                        print(f"  ⚠️ preço divergente: {d['name']} — sheet "
+                              f"${d['sheet']} × board ${d['board']}")
+                    for m in c["faltantes"]:
+                        print(f"  ⚠️ esperado e AUSENTE do board: {m['name']}")
                     if (c["picks_no_board"] != c["keepers_na_sheet"]
-                            or c["total_no_board"] != c["total_na_sheet"]):
+                            or c["total_no_board"] != c["total_na_sheet"]
+                            or c["divergentes"]):
                         res["status"] = "divergencia_na_conferencia"
+                    elif res["bloqueados_teto"]:
+                        res["status"] = BLOQUEADO_TETO
                     print(f"  conferência: {c['picks_no_board']}/"
                           f"{c['keepers_na_sheet']} picks, "
-                          f"${c['total_no_board']}/${c['total_na_sheet']}")
+                          f"${c['total_no_board']}/${c['total_na_sheet']}"
+                          + (f" (+{res['bloqueados_teto']} bloqueado(s) por "
+                             f"teto, fora da conta)"
+                             if res["bloqueados_teto"] else ""))
             except Exception as e:
                 # FIX9 — abort padrão do TIME para exceção CRUA (Timeout etc.):
                 # screenshot + evento no relatório, status falha, e a campanha

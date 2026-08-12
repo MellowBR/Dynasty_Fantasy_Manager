@@ -148,7 +148,7 @@
 | UX14 | **Time NFL de dropado com fallback no pool** — perfil do Waller exibe `—` porque `Player.nfl_team` está vazio (sync só atualiza rosterados). Hipótese registrada, NÃO arbitrada: fallback de LEITURA no pool ([[O2]] como precedente), sem persistir; pool sem time → `—` correto (FA real). F1 responde a réplica: entra na fonte única da Q1 da UX12-F1 ou vira 2ª fonte por tela? — MAN-ARC-BUSCA-DONE | Baixa/Média | 🔲 |
 | UX15 | **Jogador pré-selecionado na página de trade** — o botão do perfil ([[M14]]) já leva os dois times; falta o jogador chegar marcado. Refinamento do campo 3 do [[UX12]] (archive); provável F2 direta, a confirmar réplica (quantos caminhos de entrada têm pré-seleção?) — MAN-ARC-BUSCA-DONE | Baixa | 🔲 |
 | OFF26-23 | **Ano de contrato do rookie 2026 × rollover × passo 5** — pergunta do owner a 7 dias do draft: o rookie entra e PERMANECE Ano 1? **F1 10/08 (MAN-OFF26-23-REG-F1):** a ordem segura existe mas **não é imposta por código** — o `draft_import` não tem gate de `rollover_done`; importar o draft ANTES do rollover incrementaria todo rookie p/ Ano 2 (varredura cega, `offseason.py:686`). **Roteiro seguro da semana entregue na seção** (rollover 18/08 ANTES do import do draft; passo 5 só pós-24/08 — validado: nada o lê além da UI, e o clear precoce zeraria os salários do próprio import). Gainwell = mesma manifestação, raiz distinta (canal, não ordem) — MAN-OFF26-23-REG-F1/-F2/**-FIX** (SyntaxError no JS da /offseason pego pelo smoke do owner — string quebrada na edição gerada; fix de 1 linha + `template_js_test.py` como guarda permanente) | Alta (semana 17→24/08) | ⚠️ 10/08/2026 (**gates + fix no ar — smoke prod pendente**, gate [[PROC1]]) |
-| OFF26-24 | **Script de população do board da liga fantasma** — decisão do owner 10/08 (reverte o adiamento p/ 2027): Playwright headed na máquina do owner, perfil dedicado logado, ⛔ guarda de nascença `league_id 1389725099556372481` + ⛔ API interna vetada (a descoberta do `draft_id` usa a API PÚBLICA da liga, a mesma do OFF26-4). **Cowork segue plano A** até o critério: 12/12 em ensaio + auditoria OFF26-4 zerada + zero intervenção + RESET exercido, **até 19/08** — sem isso, 2026 roda Cowork e o script vai a 2027. F1 10/08 (sheet JSON sem sid → export do `build_sheet`); **ensaio 11/08** (spec de seletores; achado: o cliente MENTE — comando via DOM, **verdade via API**); **F2a 11/08 (MAN-OFF26-24-F2a):** `tools/phantom_board/` — núcleo puro + guardas de nascença + `validate` read-only + `designate` ponta a ponta + endpoint `keeper_sheet_export`; 30→35 testes; **-F2a-FIX 11/08**: guarda de identidade refeita POR CONSTRUÇÃO (URL×draft_id derivado — a página do draft não exibe o nome da liga) + espera de login na 1ª vida do perfil (JOIN DRAFT proibido); `validate` já VERDE em execução real (18/18, $176) — MAN-OFF26-24-REG-F1/**-F2a (FECHADA: Cam Ward assentado via API; validate 19/19)/-F2b** (populate por time + --all retomável; idempotência PRIMEIRO — a lição da F2a; bloqueado_teto = resultado; auditoria OFF26-4 como juiz; **FIX8: assentamento ASSÍNCRONO** — lag real da API >5min (Josh Allen) matou o poll bloqueante; reconciliação por time c/ teto 300s + reload no meio (hipótese do cache por visita, telemetria decide) + `assentado_local_api_atrasada`; 87 testes) (**FIX9 12/08:** campanha real — abort de time deixava o MODAL aberto → TimeoutError cru no time seguinte; higiene de estado em TODO abort + verificação defensiva pré-clique + populate sem traceback cru (abort padrão de time E de campanha); anti-homônimo passou a exigir NOME — a busca do Sleeper é fuzzy: "Malik Willis" devolvia Malik Williams ×2 + Hajj-Malik Williams QB, FAs de sigla vazia = linhas REAIS, não artefato; critério 0/2+ intacto; 104 testes) (âncora no #modal[role=alertdialog] real; header “Make Manual Pick for Team N” como identidade; fallback logado) (busca/linhas/preço escopados ao MODAL — a lista de fundo vazava; filtro conferido antes do matching) (parser do anti-homônimo lê o DOM real — newlines/sigla duplicada/injury; critério intacto) (célula por COLUNA do slot, nunca nth global; “Change Player” proibido; handler sem crash) (mapa slot↔owner: cadeia draft_order → slot_to_roster_id×rosters → picks; validate passou a conferir owner de verdade) (hCaptcha recusa o Chromium de teste → launch pelo Chrome real via channel; captcha é resolvido pelo HUMANO, nunca burlado) | Alta (validação até 19/08) | 🔲 (**F2a ✅ · F2b entregue — ensaio 12/12 do owner pendente**; critério de 19/08 no README) |
+| OFF26-24 | **Script de população do board da liga fantasma** — decisão do owner 10/08 (reverte o adiamento p/ 2027): Playwright headed na máquina do owner, perfil dedicado logado, ⛔ guarda de nascença `league_id 1389725099556372481` + ⛔ API interna vetada (a descoberta do `draft_id` usa a API PÚBLICA da liga, a mesma do OFF26-4). **Cowork segue plano A** até o critério: 12/12 em ensaio + auditoria OFF26-4 zerada + zero intervenção + RESET exercido, **até 19/08** — sem isso, 2026 roda Cowork e o script vai a 2027. F1 10/08 (sheet JSON sem sid → export do `build_sheet`); **ensaio 11/08** (spec de seletores; achado: o cliente MENTE — comando via DOM, **verdade via API**); **F2a 11/08 (MAN-OFF26-24-F2a):** `tools/phantom_board/` — núcleo puro + guardas de nascença + `validate` read-only + `designate` ponta a ponta + endpoint `keeper_sheet_export`; 30→35 testes; **-F2a-FIX 11/08**: guarda de identidade refeita POR CONSTRUÇÃO (URL×draft_id derivado — a página do draft não exibe o nome da liga) + espera de login na 1ª vida do perfil (JOIN DRAFT proibido); `validate` já VERDE em execução real (18/18, $176) — MAN-OFF26-24-REG-F1/**-F2a (FECHADA: Cam Ward assentado via API; validate 19/19)/-F2b** (populate por time + --all retomável; idempotência PRIMEIRO — a lição da F2a; bloqueado_teto = resultado; auditoria OFF26-4 como juiz; **FIX8: assentamento ASSÍNCRONO** — lag real da API >5min (Josh Allen) matou o poll bloqueante; reconciliação por time c/ teto 300s + reload no meio (hipótese do cache por visita, telemetria decide) + `assentado_local_api_atrasada`; 87 testes) (**FIX9 12/08:** campanha real — abort de time deixava o MODAL aberto → TimeoutError cru no time seguinte; higiene de estado em TODO abort + verificação defensiva pré-clique + populate sem traceback cru (abort padrão de time E de campanha); anti-homônimo passou a exigir NOME — a busca do Sleeper é fuzzy: "Malik Willis" devolvia Malik Williams ×2 + Hajj-Malik Williams QB, FAs de sigla vazia = linhas REAIS, não artefato; critério 0/2+ intacto; 104 testes) (**FIX10 12/08:** campanha 12/12 — as DUAS caras do teto: além da recusa síncrona §B.3.2, o input CLAMPA silenciosamente ao max bid (digitou 6/4/3/2, gravou 5/1/1/1 = $196 sem aviso); modelo verificado ao dólar `max_bid = 200 − gasto − $1×vagas restantes`; fix = READ-BACK do input pré-SET → clampou = bloqueado_teto DO KEEPER, nada gravado, sheet canônica; conferência aponta divergentes por nome; telemetria: lag puro 8–121s, zero reload — contra a hipótese do cache; **Travis Hunter = único two-way (DB+WR) dos 237 da sheet** → pendência OFF26-24-HUNTER c/ micro-probe manual; 121 testes) (âncora no #modal[role=alertdialog] real; header “Make Manual Pick for Team N” como identidade; fallback logado) (busca/linhas/preço escopados ao MODAL — a lista de fundo vazava; filtro conferido antes do matching) (parser do anti-homônimo lê o DOM real — newlines/sigla duplicada/injury; critério intacto) (célula por COLUNA do slot, nunca nth global; “Change Player” proibido; handler sem crash) (mapa slot↔owner: cadeia draft_order → slot_to_roster_id×rosters → picks; validate passou a conferir owner de verdade) (hCaptcha recusa o Chromium de teste → launch pelo Chrome real via channel; captcha é resolvido pelo HUMANO, nunca burlado) | Alta (validação até 19/08) | 🔲 (**F2a ✅ · F2b entregue — ensaio 12/12 do owner pendente**; critério de 19/08 no README) |
 | M21 | **Busca cobre o universo Sleeper** — duas fatias: **A — FAs da liga** (**✅ 10/08/2026**, MAN-M21-A + smoke prod MAN-ARC-BUSCA-DONE: badge FA, ordenação rosterado-antes-de-FA, perfil de FA corrigido; âncora **Kamara**, 41 dropados medidos) e **B — universo não-Player** (Média, pós-intertemporada, 🔲; ⚠️ arbitragem importar×federar em aberto p/ F1b; **caso Helm migrado p/ cá** — nunca foi Player, medição Shell 10/08) — MAN-M21-REG/F1a/A/ARC-BUSCA-DONE | A: Alta · B: Média | 🔲 (fatia A ✅ 10/08/2026 · fatia B pendente) |
 
 ---
@@ -4452,6 +4452,63 @@ derrubou o processo com traceback cru.
   textos ausentes não degradam para posição-só; + guardas estáticas: command_pick limpa em todo
   abort, estado sujo detectado pré-clique, eleição por nome, populate sem traceback cru, settle
   não derruba o time). Suítes verdes.
+
+**FIX10 (MAN-OFF26-24-FIX10, 12/08): as DUAS caras do teto — o clamp silencioso do input,
+detectado por read-back ANTES do SET PLAYER; conferência que aponta os picks; caso Travis
+Hunter diagnosticado (two-way).** Run `populate_20260812T142940Z`: **12/12 times processados**,
+147 designados + 74 já assentados; FIX9 validado em produção (Malik Willis designado entre 4
+linhas; o abort do slot 11 não contaminou o slot 12 — higiene provada). Dois defeitos restantes:
+
+- **Teto silencioso (slot 12, AlexTheDawg, sheet $203 > budget $200).** O Sleeper **CLAMPA o
+  input de preço ao max bid sem aviso**: o script digitou $6/$4/$3/$2 e o board gravou
+  $5/$1/$1/$1 ($196 no total) — detectado só na conferência de totais, tarde e sem apontar
+  quais. Preço errado no board é divergência de severidade ALTA na doutrina OFF26-4 — pior que
+  ausência, porque parece certo. **Modelo verificado ao dólar** contra os 4 clamps e o total:
+  `max_bid = budget − gasto − $1 × (vagas vazias restantes do board de 22)` (`core.max_bid`;
+  budget/slots derivados do próprio draft via `draft_budget_slots`, fallback $200/22).
+- **Fix: read-back do input** (`parse_price_value` + `price_readback_decision`, puros) — após
+  digitar, o valor EFETIVO é lido de volta (a **verdade operacional**; o max_bid do modelo é
+  anotação de motivo no relatório): clampou → **SET PLAYER NÃO acionado**, modal fechado,
+  keeper vira `bloqueado_teto` com os números (`clamp_do_input`: preco_sheet × preco_efetivo ×
+  max_bid_modelo); read-back ilegível/maior → abort barulhento. ⛔ **A sheet é canônica — o
+  script nunca grava preço diferente dela.** A recusa síncrona (§B.3.2) segue coberta, logada
+  como `recusa_sincrona` — mesma classe, sem semântica paralela.
+- **Grão do teto corrigido: pula O KEEPER, não o time** ($1 sempre cabe na reserva — o resto do
+  time é alcançável). `bloqueados_teto` contado por keeper no resumo; os pulados saem da
+  expectativa da conferência (campo `bloqueados_excluidos`).
+- **Conferência aponta os picks** (`core.conference_report`, substitui a soma inline do CLI):
+  divergente vira **nome + esperado + gravado** no relatório E no stdout; faltante nomeado.
+- **Telemetria da run (tarefa 7):** 147 assentamentos, **todos `apos_reload: false`**, lag
+  8–121s decrescendo linearmente dentro de cada time — **perfil de fila contínua (lag puro)**;
+  evidência contra a hipótese do cache por visita (nenhum reload foi necessário).
+- **Caso Travis Hunter (parecer read-only, slot 11):** o **único two-way entre os 237 keepers
+  da sheet** — API viva e cache F13 concordam: `position: "WR"`, `fantasy_positions:
+  ["DB","WR"]` (DB PRIMEIRO no array), Active/JAX. O modal devolveu 0 linhas (cross-check
+  triplo run→API→board confirmou ausência real; os 6 comandados anteriores do mesmo time
+  assentaram, lag 8–38s). A API prova a **classificação**, não o **mecanismo do pool da sala**
+  → ⛔ sem tratamento cego: **pendência nomeada OFF26-24-HUNTER** com micro-probe manual (ver
+  abaixo). Enquanto não tratado, a campanha volta a parar o time do achane nele (11 keepers
+  depois dele ficam sem tentar).
+- **Réplica conferida (pergunta obrigatória):** leitura/validação de preço só existe em
+  `_set_price_and_confirm` (o read-back nasceu lá); interpretação de busca só em
+  `_pick_search_result` → núcleo; a comparação sheet×board tinha DUAS implementações
+  (`match_picks_to_sheet` no validate + soma inline do CLI) → a do CLI virou
+  `conference_report` no core, e guarda estática recusa `def _team_conference` de volta.
+- **Testes 104 → 121** (fixture aritmética REAL do AlexTheDawg: 4 clamps nos keepers certos e
+  total $196; com detecção → 16 designados a preço de sheet + 2 bloqueados (Keenan $6, Kaleb
+  $3) e ZERO preço errado no board; read-back decision; conference_report nomeando divergentes/
+  faltantes/excluídos; bloqueados por keeper no resumo; guardas estáticas: read-back antes do
+  confirm.click, teto pula o keeper, conferência exclui bloqueados). Suítes verdes.
+
+**Pendência OFF26-24-HUNTER (micro-probe do owner, antes da próxima campanha):** no board da
+fantasma, célula vazia do achane → Set Player → digitar **"Travis Hunter"** e depois só
+**"Hunter"** (filtro "All"); relatar: (a) aparece linha? (b) com que rótulo de posição — WR ou
+DB? (c) o "+" está habilitado? (d) o tab de posição WR ou o toggle SHOW DRAFTED mudam algo? O
+resultado decide o tratamento: linha WR acessível por caminho reproduzível → fix de busca;
+linha rotulada DB → decisão de doutrina (o anti-homônimo exige a posição exata da sheet);
+nenhuma linha → keeper **fora do pool da sala** (classe `fora_do_pool_da_sala` a implementar —
+não-falha que instrui designação manual/exceção; ⚠️ a auditoria OFF26-4 o acusará como classe 1,
+bloqueante, e a exceção é decisão do owner).
 
 #### F1 — diagnose read-only (10/08/2026)
 

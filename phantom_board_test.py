@@ -17,9 +17,11 @@ from tools.phantom_board import config
 from tools.phantom_board.core import (
     ALREADY, PENDING, SETTLED, TIMEOUT,
     BLOQUEADO_TETO, CONFLITO, DESIGNAR, JA_ASSENTADO,
-    build_slot_map, campaign_summary, choose_menu_item, flatten_sheet,
+    build_slot_map, campaign_summary, choose_menu_item, conference_report,
+    draft_budget_slots, flatten_sheet,
     idempotency_decision, is_budget_block, league_guard, match_picks_to_sheet,
-    modal_header_check, parse_pick, parse_result_row, resolve_slot_map,
+    max_bid, modal_header_check, parse_pick, parse_price_value,
+    parse_result_row, price_readback_decision, resolve_slot_map,
     row_matches_name, search_filter_check, select_candidate_rows,
     select_candidate_rows_named, settlement_decision,
     slot_map_from_picks, slot_map_from_rosters, team_pending_keepers,
@@ -577,6 +579,166 @@ class TestSelectCandidateRowsNamed(unittest.TestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 4e. FIX10 — as duas caras do teto: clamp silencioso do input + max bid
+# ══════════════════════════════════════════════════════════════════════════════
+
+# A sheet REAL do AlexTheDawg (run de 12/08, validate 144919Z): 18 keepers, $203,
+# em ordem de comando. Os 6 primeiros somam $180; o board tem 22 slots.
+ALEX_SHEET = [61, 59, 21, 19, 10, 10, 6, 4, 3, 2, 1, 1, 1, 1, 1, 1, 1, 1]
+
+
+class TestParsePriceValue(unittest.TestCase):
+
+    def test_formatos_do_input(self):
+        self.assertEqual(parse_price_value("6"), 6)
+        self.assertEqual(parse_price_value("$6"), 6)
+        self.assertEqual(parse_price_value(" 12 "), 12)
+
+    def test_ilegivel_da_none(self):
+        self.assertIsNone(parse_price_value(""))
+        self.assertIsNone(parse_price_value("abc"))
+        self.assertIsNone(parse_price_value(None))
+
+
+class TestPriceReadbackDecision(unittest.TestCase):
+    """FIX10 — o read-back do input é a VERDADE OPERACIONAL: clampou → teto
+    (nunca gravar preço ≠ sheet); ilegível/maior → abortar, nunca às cegas."""
+
+    def test_igual_libera_o_set(self):
+        self.assertEqual(price_readback_decision(6, 6), "ok")
+        self.assertEqual(price_readback_decision(1, 1), "ok")
+
+    def test_clamp_vira_bloqueado_teto(self):
+        """Os 4 clamps reais da run: 6→5, 4→1, 3→1, 2→1."""
+        self.assertEqual(price_readback_decision(6, 5), BLOQUEADO_TETO)
+        self.assertEqual(price_readback_decision(4, 1), BLOQUEADO_TETO)
+        self.assertEqual(price_readback_decision(3, 1), BLOQUEADO_TETO)
+        self.assertEqual(price_readback_decision(2, 1), BLOQUEADO_TETO)
+
+    def test_ilegivel_ou_maior_aborta(self):
+        """Read-back None (input ilegível) ou MAIOR que o comandado = estado
+        indeterminado — abort barulhento, o SET PLAYER não é acionado."""
+        self.assertEqual(price_readback_decision(6, None), "abortar")
+        self.assertEqual(price_readback_decision(6, 7), "abortar")
+
+
+class TestMaxBid(unittest.TestCase):
+    """FIX10 — modelo verificado contra a run: max_bid = budget − gasto −
+    $1 × (vagas vazias RESTANTES do board além da atual)."""
+
+    def test_os_quatro_clamps_da_run(self):
+        self.assertEqual(max_bid(200, 180, 6, 22), 5)    # Keenan Allen 6→5
+        self.assertEqual(max_bid(200, 185, 7, 22), 1)    # Croskey-Merritt 4→1
+        self.assertEqual(max_bid(200, 186, 8, 22), 1)    # Kaleb Johnson 3→1
+        self.assertEqual(max_bid(200, 187, 9, 22), 1)    # Baltimore Ravens 2→1
+
+    def test_fixture_aritmetica_do_alexthedawg(self):
+        """A sheet real ($203) simulada SEM detecção (o que a run fez): os 4
+        clamps caem nos keepers certos com os valores certos e o total fecha em
+        $196 — exatamente o gravado no board em 12/08."""
+        gasto, picks, clamps = 0, 0, []
+        for i, preco in enumerate(ALEX_SHEET):
+            efetivo = min(preco, max_bid(200, gasto, picks, 22))
+            if efetivo < preco:
+                clamps.append((i, preco, efetivo))
+            gasto += efetivo
+            picks += 1
+        self.assertEqual(clamps, [(6, 6, 5), (7, 4, 1), (8, 3, 1), (9, 2, 1)])
+        self.assertEqual(gasto, 196)
+
+    def test_com_deteccao_os_clampados_sao_pulados(self):
+        """COM o FIX10 (clamp → keeper pulado, nada gravado) a dinâmica muda:
+        pular o Keenan ($6) libera teto p/ o Croskey ($4 ≤ $5). O modelo prevê
+        16 designados a preço de SHEET ($194) + 2 bloqueados (Keenan $6 e Kaleb
+        $3) — zero preço errado no board."""
+        gasto, picks, bloqueados, designados = 0, 0, [], 0
+        for i, preco in enumerate(ALEX_SHEET):
+            if preco > 1 and preco > max_bid(200, gasto, picks, 22):
+                bloqueados.append((i, preco))
+                continue
+            designados += 1
+            gasto += preco
+            picks += 1
+        self.assertEqual(bloqueados, [(6, 6), (8, 3)])
+        self.assertEqual((designados, gasto), (16, 194))
+
+
+class TestDraftBudgetSlots(unittest.TestCase):
+
+    def test_settings_do_draft(self):
+        d = {"settings": {"budget": 300, "rounds": 25}}
+        self.assertEqual(draft_budget_slots(d), (300, 25))
+
+    def test_defaults_da_fantasma(self):
+        self.assertEqual(draft_budget_slots({}), (200, 22))
+        self.assertEqual(draft_budget_slots(None), (200, 22))
+        self.assertEqual(draft_budget_slots({"settings": {"budget": "x"}}),
+                         (200, 22))
+
+
+class TestConferenceReport(unittest.TestCase):
+    """FIX10 — a conferência APONTA os picks: o $196/$203 do AlexTheDawg
+    denunciou QUE divergia, não QUAIS (os 4 só apareceram no validate)."""
+
+    def _rows(self):
+        return [{"sid": "1479", "name": "Keenan Allen", "salary": 6},
+                {"sid": "12533", "name": "Jacory Croskey-Merritt", "salary": 4},
+                {"sid": "4144", "name": "Jonnu Smith", "salary": 1}]
+
+    def test_divergentes_nomeados_com_esperado_e_gravado(self):
+        """Contagem bate (3/3), soma diverge — o caso exato da run: o relatório
+        nomeia QUEM divergiu, com sheet × board."""
+        picks = [pick("1479", 12, "5"), pick("12533", 12, "1"),
+                 pick("4144", 12, "1")]
+        c = conference_report(picks, self._rows())
+        self.assertEqual((c["picks_no_board"], c["keepers_na_sheet"]), (3, 3))
+        self.assertEqual((c["total_no_board"], c["total_na_sheet"]), (7, 11))
+        self.assertEqual(c["divergentes"], [
+            {"sid": "1479", "name": "Keenan Allen", "sheet": 6, "board": 5},
+            {"sid": "12533", "name": "Jacory Croskey-Merritt",
+             "sheet": 4, "board": 1}])
+        self.assertEqual(c["faltantes"], [])
+
+    def test_bloqueado_por_teto_sai_da_expectativa(self):
+        """Keeper pulado por teto não é divergência nem faltante — vai em campo
+        próprio e a conta fecha sem ele."""
+        picks = [pick("12533", 12, "4"), pick("4144", 12, "1")]
+        c = conference_report(picks, self._rows(), excluidos=["1479"])
+        self.assertEqual((c["picks_no_board"], c["keepers_na_sheet"]), (2, 2))
+        self.assertEqual((c["total_no_board"], c["total_na_sheet"]), (5, 5))
+        self.assertEqual(c["divergentes"], [])
+        self.assertEqual(c["bloqueados_excluidos"], ["1479"])
+
+    def test_faltante_e_nomeado(self):
+        picks = [pick("1479", 12, "6")]
+        c = conference_report(picks, self._rows())
+        self.assertEqual(c["picks_no_board"], 1)
+        self.assertEqual([m["name"] for m in c["faltantes"]],
+                         ["Jacory Croskey-Merritt", "Jonnu Smith"])
+
+    def test_pick_sem_amount_nao_e_divergencia(self):
+        """amount None = não conferível (mesma regra da idempotência)."""
+        picks = [{"player_id": "4144", "draft_slot": 12}]
+        c = conference_report(picks, [self._rows()[2]])
+        self.assertEqual(c["divergentes"], [])
+        self.assertEqual(c["picks_no_board"], 1)
+
+
+class TestCampaignSummaryBloqueados(unittest.TestCase):
+
+    def test_bloqueados_contados_por_keeper(self):
+        """FIX10: o resumo soma os contadores por time (teto pula o keeper);
+        times_bloqueados segue vindo do status."""
+        times = [{"status": BLOQUEADO_TETO, "designados": 16,
+                  "bloqueados_teto": 2},
+                 {"status": "ok", "designados": 20, "bloqueados_teto": 0}]
+        r = campaign_summary(times)
+        self.assertEqual(r["bloqueados_teto"], 2)
+        self.assertEqual(r["times_bloqueados"], 1)
+        self.assertEqual(r["times_ok"], 1)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 5. Decisão de assentamento (o toast nunca é veredito)
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -727,9 +889,13 @@ class TestGuardasEstaticas(unittest.TestCase):
         self.assertIn("settle_pendentes", corpo)
 
     def test_f2b_teto_e_resultado_nao_erro(self):
+        """FIX10 mudou o grão de propósito: o teto pula O KEEPER (nada gravado;
+        o resto do time é alcançável — $1 sempre cabe na reserva), não aborta
+        mais o time inteiro."""
         corpo = self.cli.split("def cmd_populate")[1].split("def main")[0]
         self.assertIn("BLOQUEADO_TETO", corpo)
-        self.assertIn("seguindo para o próximo time", corpo)
+        self.assertIn("pulando o keeper", corpo)
+        self.assertIn('res["bloqueados_teto"] += 1', corpo)
         # e o exit code trata bloqueado_teto como não-falha
         self.assertIn('("ok", BLOQUEADO_TETO, "sem_keepers_na_sheet")', corpo)
 
@@ -866,6 +1032,41 @@ class TestGuardasEstaticas(unittest.TestCase):
         sett = self.board.split("def settle_pendentes")[1].split("def designate")[0]
         self.assertIn("except Exception as e", sett)
         self.assertIn("falhas", sett)
+
+    # ── FIX10 (12/08): read-back do preço ANTES do SET + conferência que aponta ─
+
+    def test_fix10_readback_antes_do_set_player(self):
+        """FIX10: depois de digitar, o valor EFETIVO do input é lido de volta e
+        julgado no núcleo puro ANTES do confirm.click(); clamp → _dismiss_modal
+        + bloqueado_teto com os números no relatório, NADA gravado."""
+        corpo = self.board.split("def _set_price_and_confirm")[1].split("\ndef ")[0]
+        self.assertIn("input_value", corpo)
+        self.assertIn("price_readback_decision", corpo)
+        self.assertIn("clamp_do_input", corpo)
+        self.assertIn("preco_efetivo", corpo)
+        self.assertIn("_dismiss_modal(page)", corpo)
+        self.assertIn("return BLOQUEADO_TETO", corpo)
+        self.assertLess(corpo.index("input_value"), corpo.index("confirm.click()"))
+        # e a recusa síncrona segue coberta no command_pick (as DUAS caras)
+        cmd = self.board.split("def command_pick")[1].split("\ndef ")[0]
+        self.assertIn("recusa_sincrona", cmd)
+        self.assertIn("is_budget_block", cmd)
+
+    def test_fix10_teto_pula_o_keeper_e_conferencia_exclui(self):
+        """FIX10: teto no populate → keeper pulado (continue), contador por
+        time, sid excluído da conferência; a conferência nomeia divergentes e
+        faltantes no stdout e no relatório."""
+        corpo = self.cli.split("def cmd_populate")[1].split("def main")[0]
+        self.assertIn("bloqueados.append(r[\"sid\"])", corpo)
+        self.assertIn("conference_report", corpo)
+        self.assertIn("excluidos=bloqueados", corpo)
+        self.assertIn("preço divergente", corpo)
+        self.assertIn("AUSENTE do board", corpo)
+        self.assertIn("divergentes", corpo)
+        # o max bid do modelo entra como ANOTAÇÃO no comando
+        self.assertIn("expected_max=max_bid(", corpo)
+        # e não existe segunda definição de conferência no CLI
+        self.assertNotIn("def _team_conference", self.cli)
 
 
 if __name__ == "__main__":

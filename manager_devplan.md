@@ -1,7 +1,8 @@
 # devplan.md — Fantasy Manager
 
 > Plano vivo + Log de Decisões  
-> Última atualização: 12/08/2026 (MAN-OFF26-24-FIX9: **campanha real de 12/08 — dois defeitos encadeados.** (1) Anti-homônimo "2 QBs p/ Malik Willis" NÃO era artefato de DOM: a busca do Sleeper é **FUZZY** — devolveu Malik Williams ×2 + Hajj-Malik Williams QB, FAs reais de sigla vazia; candidato REAL passa a exigir **NOME** (`select_candidate_rows_named`/`row_matches_name` puros; posição exata + 0/2+ intactos; ⛔ sigla vazia não desqualifica). (2) O abort saiu com o **MODAL aberto** → clique do time seguinte interceptado 30s → TimeoutError **cru** (loop só pegava BoardAbort). Higiene: `command_pick` fecha modal em QUALQUER exceção; estado sujo detectado ANTES do 1º clique; populate com abort padrão de TIME e de CAMPANHA (`abort_campanha` no relatório) — nada escapa cru. Réplica conferida: contagem só em core.py. Testes 87→104.)
+> Última atualização: 12/08/2026-pt2 (MAN-OFF26-24-FIX10: **campanha 12/12 — as DUAS caras do teto + caso Hunter.** O input de preço CLAMPA silenciosamente ao max bid (digitou $6/$4/$3/$2, gravou $5/$1/$1/$1 = $196 sem aviso — preço errado que PARECE certo, severidade alta na doutrina OFF26-4); modelo verificado ao dólar: `max_bid = budget − gasto − $1×(vagas restantes do board de 22)`. Fix: **READ-BACK do input antes do SET PLAYER** (verdade operacional; modelo = anotação) → clampou = `bloqueado_teto` DO KEEPER (pula o keeper, não o time; nada gravado — a sheet é canônica); ilegível/maior = abort. Conferência agora APONTA divergentes/faltantes por nome (`conference_report` no core — a soma inline do CLI morreu). Telemetria tarefa 7: 147 assentamentos, zero reload, lag 8–121s em fila contínua = **lag puro**, contra a hipótese do cache. **Travis Hunter**: único two-way (`fantasy_positions ["DB","WR"]`) dos 237 da sheet; API prova classificação, não o pool da sala → pendência OFF26-24-HUNTER + micro-probe manual, sem tratamento cego. Testes 104→121.)
+> Anterior: 12/08/2026 (MAN-OFF26-24-FIX9: **campanha real de 12/08 — dois defeitos encadeados.** (1) Anti-homônimo "2 QBs p/ Malik Willis" NÃO era artefato de DOM: a busca do Sleeper é **FUZZY** — devolveu Malik Williams ×2 + Hajj-Malik Williams QB, FAs reais de sigla vazia; candidato REAL passa a exigir **NOME** (`select_candidate_rows_named`/`row_matches_name` puros; posição exata + 0/2+ intactos; ⛔ sigla vazia não desqualifica). (2) O abort saiu com o **MODAL aberto** → clique do time seguinte interceptado 30s → TimeoutError **cru** (loop só pegava BoardAbort). Higiene: `command_pick` fecha modal em QUALQUER exceção; estado sujo detectado ANTES do 1º clique; populate com abort padrão de TIME e de CAMPANHA (`abort_campanha` no relatório) — nada escapa cru. Réplica conferida: contagem só em core.py. Testes 87→104.)
 > Anterior: 11/08/2026-pt10 (MAN-OFF26-24-FIX8: **assíncrono** — lag real >5min (Josh Allen; ensaio ~3s: variância é o fato) matou o poll bloqueante. `command_pick` sem poll; `reconcile_team` por time (300s, reload no meio — hipótese do cache por visita; telemetria decide); `post_teto_decision` puro (board local → `assentado_local_api_atrasada`, nunca re-comando · 1 re-comando · falha do KEEPER preservando o time); lote de idempotência; busca vazia cruza run→API→board. Testes 86→87. Re-teste morno do owner: slot 10.)
 > Anterior: 11/08/2026-pt9 (MAN-OFF26-24-F2b: **F2a fechada** (Cam Ward assentado via API; validate 19/19) + lição: **idempotência PRIMEIRO** (pick gravou em run morta; busca vazia misteriosa). **F2b:** `idempotency_decision` (4 casos) + recheck em busca vazia; `populate --team-slot`/`--all` retomável; conferência por time vs sheet; `bloqueado_teto` = resultado (§B.3.2); falha aborta o time preservando o feito; **juiz = auditoria OFF26-4**. Critério 19/08 no README (RESET → --all 12/12 → auditoria → RESET). Testes 66→86. Ensaio do owner.)
 > Anterior: 11/08/2026-pt8 (MAN-OFF26-24-F2a-FIX7: **âncora no #modal real** — o screenshot provou o manual pick dentro de `#modal[role=alertdialog]` (header “Make Manual Pick for Team 10”) e o fundo duplicando a interface; a heurística do FIX6 pegou o trio do fundo. Agora: #modal quando presente (fallback logado), espera de ESTADO pós-Set Player, header como identidade (`modal_header_check` puro; wrong_team/unexpected → Esc+abort). Caso do abort impossível por construção. Testes 65→66. Re-execução do owner.)
@@ -5485,3 +5486,57 @@ dois defeitos encadeados no slot 3.
   textos ausentes não degradam para posição-só; guardas estáticas: todo abort limpa o modal,
   estado sujo pré-clique, eleição por nome, populate sem traceback cru, settle preserva o time.
   Suítes completas verdes; diffstat conferido antes do push.
+
+### MAN-OFF26-24-FIX10 — as duas caras do teto; a conferência aponta; o caso Hunter (12/08/2026, Fable)
+
+A campanha `populate_20260812T142940Z` fechou **12/12 times** (147 designados + 74 já
+assentados, zero cliques nos completos) e validou o FIX9 em produção — Malik Willis designado
+entre 4 linhas fuzzy, Keenan Allen (FA de sigla vazia) eleito pelo nome, e o abort do slot 11
+**não contaminou** o slot 12. Restaram dois defeitos, ambos diagnosticados com evidência:
+
+- **O teto tem DUAS caras (slot 12, AlexTheDawg, sheet $203 > budget $200).** Além da recusa
+  síncrona conhecida (§B.3.2), o Sleeper **CLAMPA silenciosamente o input de preço ao max
+  bid**: o script digitou $6/$4/$3/$2 (Keenan Allen, Croskey-Merritt, Kaleb Johnson, Ravens) e
+  o board gravou $5/$1/$1/$1 — $196 no total, sem aviso nenhum; a conferência de totais pegou
+  tarde e sem apontar quais. **Preço errado no board é pior que ausência — parece certo**
+  (severidade alta na doutrina OFF26-4). Modelo do clamp **verificado ao dólar** contra os 4
+  picks e o total: `max_bid = budget − gasto − $1 × (vagas vazias restantes do board de 22)`
+  (`core.max_bid`; budget/slots do próprio draft via `draft_budget_slots`, fallback $200/22 —
+  os 6 primeiros keepers somavam $180 → Keenan max $5; depois $1/$1/$1).
+- **Fix: read-back do input, a verdade operacional.** Após digitar, o valor EFETIVO é lido de
+  volta e julgado no núcleo (`parse_price_value` + `price_readback_decision`): clampou → **o
+  SET PLAYER não é acionado**, o modal fecha limpo e o keeper vira `bloqueado_teto` com os
+  números no relatório (`clamp_do_input`: preco_sheet × preco_efetivo × max_bid_modelo — o
+  modelo entra como ANOTAÇÃO de motivo, nunca como gate); ilegível ou MAIOR que o comandado →
+  abort barulhento. ⛔ A sheet é canônica — o script **nunca** grava preço diferente dela. A
+  recusa síncrona segue coberta (`recusa_sincrona`) — mesma classe, sem semântica paralela.
+- **Grão corrigido: o teto pula O KEEPER, não o time** — $1 sempre cabe na reserva, o resto do
+  time é alcançável (na sheet real, pular o Keenan libera teto para o Croskey: o modelo prevê
+  16 a preço de sheet + 2 bloqueados, zero preço errado). `bloqueados_teto` por keeper no
+  resumo; pulados saem da expectativa da conferência (`bloqueados_excluidos`).
+- **Conferência que aponta** (`core.conference_report` — a soma inline do CLI morreu, guarda
+  estática recusa a volta): divergente = **nome + esperado + gravado** no relatório e no
+  stdout; faltante nomeado.
+- **Telemetria (tarefa 7):** 147 assentamentos, **todos sem reload** (`apos_reload: false`),
+  lag 8–121s decrescendo linearmente dentro de cada time — **fila contínua, perfil de lag
+  puro**; evidência contra a hipótese do cache por visita.
+- **Caso Travis Hunter (slot 11, read-only):** busca vazia para jogador real com sid na sheet;
+  cross-check triplo confirmou ausência e os 6 comandados anteriores assentaram (8–38s). API
+  viva e cache F13 concordam: `position "WR"`, **`fantasy_positions ["DB","WR"]`** (DB primeiro),
+  Active/JAX — o **único two-way entre os 237 keepers da sheet**. A API prova a classificação;
+  o mecanismo do pool da sala não é observável por ela → **sem tratamento cego**: pendência
+  **OFF26-24-HUNTER** com micro-probe manual do owner (digitar "Travis Hunter"/"Hunter" no
+  modal, relatar linha/rótulo de posição/estado do "+", testar tab WR e SHOW DRAFTED). O
+  resultado decide: linha WR acessível → fix de busca; linha DB → decisão de doutrina (o
+  anti-homônimo exige a posição exata da sheet); nenhuma linha → classe `fora_do_pool_da_sala`
+  (não-falha que instrui exceção manual; ⚠️ a auditoria OFF26-4 o acusará como classe 1 —
+  bloqueante — e a exceção é decisão do owner). Enquanto não tratado, a campanha para o time do
+  achane nele.
+- **Réplica (pergunta obrigatória):** leitura de preço só em `_set_price_and_confirm`;
+  interpretação de busca só em `_pick_search_result` → núcleo; comparação sheet×board tinha
+  duas cópias (validate + soma do CLI) — a do CLI foi consolidada no core.
+- **Testes 104 → 121:** fixture aritmética REAL do AlexTheDawg (4 clamps nos keepers certos,
+  total $196; com detecção → 16+2 e zero preço errado), read-back decision, conference_report,
+  bloqueados por keeper, guardas estáticas (read-back antes do confirm.click; teto pula o
+  keeper; conferência exclui bloqueados; sem 2ª conferência). Suítes completas verdes; diffstat
+  conferido antes do push.

@@ -366,6 +366,98 @@ def is_budget_block(text: str) -> bool:
     return "does not have enough budget" in (text or "").lower()
 
 
+# ── FIX10: a SEGUNDA cara do teto — o clamp silencioso do input de preço ───────
+#
+# A campanha de 12/08 (AlexTheDawg, sheet $203 > budget $200) provou que o teto
+# tem DUAS manifestações: a recusa síncrona acima (§B.3.2) e um CLAMP silencioso
+# do input ao max bid — o script digitou $6/$4/$3/$2, o input clampou para
+# $5/$1/$1/$1 e o SET PLAYER gravou errado sem aviso (total $196, detectado só
+# na conferência, tarde e sem apontar quais). Preço errado no board é divergência
+# de severidade ALTA na doutrina OFF26-4 — pior que ausência, porque parece certo.
+
+
+def parse_price_value(text):
+    """FIX10 — valor efetivo do input de preço ('6', '$6', ' 6 ') → int; sem
+    dígitos → None (read-back ilegível; quem chama aborta, nunca grava às cegas)."""
+    digits = "".join(c for c in str(text or "") if c.isdigit())
+    return int(digits) if digits else None
+
+
+def price_readback_decision(commanded, effective):
+    """FIX10 — decisão sobre o READ-BACK do input após digitar o preço:
+    - igual ao comandado → "ok" (SET PLAYER liberado);
+    - MENOR → bloqueado_teto (clamp = a 2ª cara do teto; ⛔ a sheet é canônica —
+      o script NUNCA grava preço diferente dela; mesma classe do §B.3.2, sem
+      semântica paralela);
+    - None ou MAIOR → "abortar" (ilegível/digitação não aplicada — estado
+      indeterminado, nunca gravar às cegas). Puro."""
+    if effective is None or effective > commanded:
+        return "abortar"
+    if effective < commanded:
+        return BLOQUEADO_TETO
+    return "ok"
+
+
+def max_bid(budget, gasto, picks_feitos, total_slots, min_bid=1):
+    """FIX10 — modelo do teto VERIFICADO contra a run de 12/08 (fecha ao dólar
+    nos 4 clamps do AlexTheDawg e no total $196): o Sleeper reserva min_bid por
+    vaga vazia RESTANTE do board além da atual. Serve de ANOTAÇÃO de motivo no
+    relatório — a verdade operacional é o read-back do input, não este cálculo.
+    Puro."""
+    return budget - gasto - (total_slots - picks_feitos - 1) * min_bid
+
+
+def draft_budget_slots(draft_obj, default_budget=200, default_slots=22):
+    """FIX10 — budget e slots do board saem do PRÓPRIO draft derivado
+    (`settings.budget` / `settings.rounds` — a mesma fonte de rodadas do
+    OFF26-4); ausentes/ilegíveis → defaults da fantasma ($200, board de 22).
+    Puro."""
+    s = (draft_obj or {}).get("settings") or {}
+
+    def _int(v):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return 0
+
+    return (_int(s.get("budget")) or default_budget,
+            _int(s.get("rounds")) or default_slots)
+
+
+def conference_report(picks, team_rows, excluidos=None):
+    """FIX10 — conferência por time que APONTA os picks (a antiga só somava: o
+    $196/$203 do AlexTheDawg denunciou QUE divergia, não QUAIS — os 4 clamps só
+    apareceram no validate). Compara sheet × board POR SID: cada divergente vira
+    {sid, name, sheet, board}; keeper esperado sem pick vira `faltantes`; keepers
+    pulados por teto (`excluidos`) saem da expectativa e vão em campo próprio.
+    Substitui a soma inline do CLI — ⛔ nenhuma segunda conferência fora daqui.
+    Puro."""
+    exc = {str(s) for s in (excluidos or [])}
+    esperados = [r for r in team_rows if r["sid"] and r["sid"] not in exc]
+    by_sid = {}
+    for raw in picks or []:
+        p = parse_pick(raw)
+        by_sid[p["sid"]] = p
+    achados, total_board = 0, 0
+    divergentes, faltantes = [], []
+    for r in esperados:
+        p = by_sid.get(r["sid"])
+        if p is None:
+            faltantes.append({"sid": r["sid"], "name": r["name"]})
+            continue
+        achados += 1
+        total_board += p["amount"] or 0
+        if p["amount"] is not None and p["amount"] != r["salary"]:
+            divergentes.append({"sid": r["sid"], "name": r["name"],
+                                "sheet": r["salary"], "board": p["amount"]})
+    return {"picks_no_board": achados,
+            "keepers_na_sheet": len(esperados),
+            "total_no_board": total_board,
+            "total_na_sheet": sum(r["salary"] for r in esperados),
+            "divergentes": divergentes, "faltantes": faltantes,
+            "bloqueados_excluidos": sorted(exc)}
+
+
 def campaign_summary(team_results: list) -> dict:
     """F2b — resumo da campanha por status; o VEREDITO é da auditoria OFF26-4
     sobre o board (o juiz independente), nunca desta contagem."""
@@ -377,12 +469,13 @@ def campaign_summary(team_results: list) -> dict:
         tally["designados"] += t.get("designados", 0)
         tally["ja_assentados"] += t.get("ja_assentados", 0)
         tally["conflitos"] += t.get("conflitos", 0)
+        # FIX10: bloqueados contados POR KEEPER (o teto pula o keeper, não o time)
+        tally["bloqueados_teto"] += t.get("bloqueados_teto", 0)
         st = t.get("status")
         if st == "ok":
             tally["times_ok"] += 1
         elif st == BLOQUEADO_TETO:
             tally["times_bloqueados"] += 1
-            tally["bloqueados_teto"] += 1
         else:
             tally["times_com_falha"] += 1
             tally["falhas"] += 1

@@ -56,10 +56,14 @@ python -m tools.phantom_board.cli populate --sheet sheet.json --all
 **Idempotência primeiro** (a lição da F2a): cada keeper é conferido na API **antes** de
 qualquer clique — já assentado no time/preço certo = sucesso com zero cliques; divergente
 = conflito (aborta o time, decisão humana); ausente = designa. **Retomável por
-construção**: rodar de novo continua de onde parou. `bloqueado_teto` ("does not have
-enough budget" — AlexTheDawg $203, Miller Time! $200) é **resultado esperado**
-pré-late-drop, não erro: registra e segue ao próximo time. Falha real → aborta O TIME
-(o que assentou permanece), segue aos demais, relatório JSON com o placar.
+construção**: rodar de novo continua de onde parou. `bloqueado_teto` é **resultado
+esperado** pré-late-drop (AlexTheDawg $203 > budget $200), não erro — e o teto tem
+**DUAS caras** (FIX10): a recusa síncrona ("does not have enough budget") e o **clamp
+silencioso do input de preço** ao max bid, detectado por **read-back antes do SET
+PLAYER**. Ambas pulam **o keeper** (⛔ nada é gravado com preço fora da sheet) e o time
+segue. Falha real → aborta O TIME (o que assentou permanece), segue aos demais,
+relatório JSON com o placar — a conferência de cada time **nomeia** keepers com preço
+divergente ou ausentes do board.
 
 **⚖️ O veredito é da auditoria OFF26-4** — ao fim da campanha, abra `/admin/keeper_audit`
 no Manager: ela compara o board vivo com a sheet, classe a classe. A contagem do script
