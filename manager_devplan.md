@@ -5641,3 +5641,32 @@ campanha oficial → auditoria → alocação de owners → RESET final.
   → 602.783 (+4.743 = seção O5 + separadores); archive é append puro; zero seções perdidas.
   Backups pré-sessão: `improvements*_backup_pre_O5_2026-08-13.md`. Docs + script standalone —
   zero código da aplicação.
+
+### MAN-O6-REG + MAN-O6-F1 — split do backlog por campanha: registrado + parecer read-only (13/08/2026, Fable) · docs-only
+
+- **O6 registrado** (row + seção 🔲) e **F1 concluída na mesma sessão; parecer completo vive na
+  seção O6 do `improvements.md`** (resumo aqui). Rota candidata: `improvements_off26.md` com as
+  seções OFF26-* verbatim, Status Rápido único no ativo, auditor validando a união. **Nada
+  implementado — o parecer recomenda, o owner decide.**
+- **Medição (pós-`fa13270`):** ativo 485.076 B (473,7 KB / 5.967 linhas); família OFF26 =
+  **13 seções, 236,3 KB = 49,9% do ativo** (8🔲/5⚠️, zero ✅ — o peso é todo de item aberto),
+  incluindo os 50,5 KB da narrativa reancorada sob OFF26-20 pelo O5; + 9,1 KB do bloco de
+  contexto `## Offseason 2026` fora de seção. Split moveria 245,5 KB; restariam 228,2 KB.
+- **Baseline externa reconciliada:** "~metade do ativo" CONFIRMADA (49,9%); "12 seções/186 KB
+  pré-O5" CONFIRMADA (12/185,3 na fixture); "~45 KB de narrativa" imprecisa (50,4); "prefixo
+  particiona sem caso a caso" FALSA — 3 classes de resíduo: bloco de contexto sem ID; **5 seções
+  não-OFF26 encravadas fisicamente no bloco da campanha** (F9/M21/O2/L2/C1, 56,6 KB); OFF26
+  evergreen (12/19/21) × não-OFF26 de campanha (DP1, E5, fatia B do M21).
+- **Cross-refs/consumidores:** 66 links `[[...]]` virariam cross-file (45 de fora → OFF26, 21 de
+  dentro → fora); consumidor mecânico é só o auditor; ponteiro documental stale JÁ existe sob o
+  O3 puro (runbook_cowork:377 → seção OFF26-10 "em improvements.md", que migrou ao archive);
+  split adiciona 4º arquivo ao ciclo de re-upload do Project Knowledge.
+- **Timing e sunset:** 18–24/08 é a janela crítica (rollover/cortes/urna/board/leilão) e as
+  sessões dela são justamente as que leem OFF26; **~229,3 dos 236,3 KB (97%) têm fechamento
+  amarrado às datas da campanha** — resíduo projetado sem data ≈ 7 KB de seções + 9,1 KB de
+  contexto. Auditor: retrofit dimensionado em ~30–50 linhas + invariante novo V7 (seção
+  duplicada entre arquivos).
+- **Recomendação: NÃO executar agora; re-medir pós-26/08 e decidir com números** (alternativas
+  avaliadas: sunset natural · instrução de leitura seletiva no CLAUDE.md · split completo ·
+  padrão só para OFF27). 5 questões abertas para o owner listadas na seção. Auditor exit 0 após
+  o registro (138 rows / 51 seções). Diff da sessão: improvements.md + devplan, docs-only.

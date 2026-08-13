@@ -153,6 +153,7 @@
 | MAN-METH-REG | Candidato a baseline do DEV_METHODOLOGY: F1 refuta premissas do prompt contra o código (**registro apenas** — candidato, não regra vigente; destino: consolidação em sessão de revisão de metodologia dedicada, transversal manager/optimizer/predictor) — row criada pelo [[O5]] (a seção detalhada existia sem entrada no namespace) | A definir | 🔲 |
 | MAN-ESPN12 | Diagnose read-only: onde o fator ×1.2 do ESPN é aplicado — veredito da suspeita central (réplica ×1.2 no client) **negativo**; débito real (a/b/c) registrado na seção como F2 opcional (helper único `adjust_espn` + reponteirar 5 sítios), decisão aguarda o owner — row criada pelo [[O5]] (a seção detalhada existia sem entrada no namespace) | A definir | 🔲 |
 | O5 | Quitação da dívida O3 + auditor poka-yoke do backlog: reancorar sub-seções `###` órfãs, migrar seções ✅ ao archive, `tools/backlog_audit.py` (stdlib, read-only, exit ≠ 0) como **gate do checklist de fim de sessão** — MAN-O5-REG/MAN-O5 | Média | ✅ 13/08/2026 (mesma sessão, precedente O3 de self-aplicação: reorg íntegra por asserts de máquina + auditor demonstrado nos dois sentidos — ativo pós-limpeza exit 0, backup pré-limpeza exit 1 com 83 violações; **zero seções ✅ de item existiam para migrar** — a baseline externa leu marcos ✅ internos de itens abertos; 42 headings reancorados sob o [[OFF26-20]]; detalhe no archive) |
+| O6 | Split do backlog por campanha: `improvements_off26.md` receberia as seções OFF26-* verbatim (pertencimento por prefixo), Status Rápido segue ÚNICO no ativo, auditor valida a união — **rota CANDIDATA, não decidida**. F1 read-only 13/08: família OFF26 = **49,9% do ativo** (236,3 KB / 13 seções, 8🔲/5⚠️, zero ✅); partição por prefixo tem 3 classes de resíduo; ~97% da família tem fechamento previsto 18–24/08 → **recomendação: NÃO executar agora; re-medir pós-26/08** (sunset natural) e decidir com números; 5 questões abertas para o owner na seção — MAN-O6-REG/MAN-O6-F1 | Média | 🔲 (aguarda decisão do owner pós-campanha) |
 
 ---
 
@@ -1534,6 +1535,126 @@ guarda a não-regressão).
 (13/08/2026)*. O detalhe vive no `improvements_archive.md` (seção IR-CLEANUP, movida com o arco
 do IR de 04/08 — anomalia histórica à regra "⚠️ nunca migra" do [[O3]]; mantida lá para não
 duplicar). O Sleeper é autoridade sobre `is_on_ir`; não há toggle na UI (ver CLAUDE.md).
+
+---
+
+### O6 — Split do backlog por campanha (arquivo próprio para OFF26-*)
+🔲 **Registrado 13/08/2026 — F1 read-only CONCLUÍDA na mesma sessão (parecer abaixo); a execução
+aguarda decisão do owner** — MAN-O6-REG/MAN-O6-F1 — Prioridade **Média** — **escopo Manager-only**
+
+**Rota candidata (do prompt do owner — NÃO decidida; esta F1 existe para avaliá-la):** novo
+`improvements_off26.md` recebe as seções OFF26-* verbatim, pertencimento pelo prefixo do ID sem
+julgamento caso a caso; Status Rápido permanece ÚNICO e completo no ativo (namespace + dedupe),
+com ponteiro para o arquivo de campanha; `tools/backlog_audit.py` passa a validar a união dos
+dois arquivos; regra de migração ao archive inalterada (✅ migra do arquivo onde vive; ⚠️ nunca
+migra); sunset natural: campanha encerrada → arquivo esvazia e é aposentado; OFF27 nasceria em
+arquivo próprio (promoção transversal fora deste escopo).
+
+#### F1 (MAN-O6-F1, 13/08/2026) — parecer read-only sobre o estado pós-`fa13270`
+
+**1. Medição autoritativa** (working tree; comandos reproduzíveis via script da sessão):
+- Ativo: **485.076 bytes (473,7 KB) / 5.967 linhas**.
+- Família OFF26-*: **13 seções `###`, 236,3 KB = 49,9% do ativo** — 8🔲 / 5⚠️ / **zero ✅**
+  (não há dívida de migração; o peso é todo de item aberto). Por seção: OFF26-4 67,4 ·
+  OFF26-20 **61,6** (11,1 do item + **50,5 da narrativa F1B..CLOSE reancorada pelo [[O5]]**) ·
+  OFF26-24 40,9 · OFF26-11 17,3 · OFF26-23 17,0 · OFF26-13 11,5 · OFF26-22 8,3 · OFF26-7 3,0 ·
+  OFF26-19 2,4 · OFF26-12 2,3 · OFF26-8 2,3 · OFF26-21 1,7 · OFF26-14 (stub) 0,5.
+- Fora de seção: bloco de contexto **`## Offseason 2026`** (registro + emenda de premissa) =
+  **9,1 KB** que o split por prefixo de `###` **não captura**.
+- Status Rápido: 24 rows OFF26 (11 ✅ já com detalhe no archive · 5 ⚠️ · 8 🔲).
+- Projeção do split (seções + bloco de contexto): sairiam **245,5 KB**; restariam **228,2 KB**
+  no ativo evergreen. Maiores seções remanescentes: M21 30,2 · O2 14,5 · DP1 12,3 · E4-d 11,3 ·
+  F9 10,6 KB.
+
+**2. Refutação de premissas (regra candidata [[MAN-METH-REG]] — baseline externa é hipótese):**
+| Premissa (prompt/baseline) | Parecer | Medido |
+|---|---|---|
+| Ativo "~474 KB" | **Confirmada** | 473,7 KB |
+| "Sem dívida O3 a quitar" | **Confirmada** | auditor exit 0 em `fa13270`; zero seções ✅ |
+| "~12 seções OFF26, ~186 KB pré-O5" | **Confirmada** | fixture pré-O5: 12 seções, 185,3 KB |
+| "mais ~45 KB de narrativa reancorada" | **Imprecisa** | 50,4–50,5 KB medidos |
+| "Família ≈ metade do ativo" | **Confirmada** | 49,9% |
+| "Prefixo particiona sem julgamento caso a caso" | **Falsa como partição limpa** | 3 classes de resíduo (item 3) |
+| (implícita) "o Code lê o arquivo inteiro e a campanha polui essa leitura" | **Imprecisa** | a leitura do Code já é seletiva (Status Rápido como índice + Grep por seção — foi assim no O5); o custo real é de leitura HUMANA e de Project Knowledge |
+| (implícita) "sem split a campanha continua pesando" | **Falsa no médio prazo** | ~**229,3 dos 236,3 KB (97%)** estão em seções com fechamento amarrado às datas 18–24/08 → sunset natural via regra O3 |
+
+**3. Partição limpa? NÃO — casos-limite (listados, ZERO arbitrados):**
+- **(a)** Bloco de contexto `## Offseason 2026` (9,1 KB): é da campanha mas não é seção `###`
+  com ID — o critério "prefixo do ID" não o alcança; destino exigiria regra própria.
+- **(b)** **5 seções não-OFF26 fisicamente DENTRO do bloco da campanha** (F9 10,6 · M21 30,2 ·
+  O2 14,5 · L2 0,6 · C1 0,7 = 56,6 KB, linhas 3262–3972): mover as OFF26 verbatim as deixaria
+  órfãs sob um header de campanha esvaziado — o split "sem julgamento" ainda exige reorganização
+  física do que fica.
+- **(c)** OFF26 de conteúdo evergreen (não expiram com a campanha): [[OFF26-12]] (interpretação
+  de regulamento), [[OFF26-19]] (bug de renovação com IR), [[OFF26-21]] (limpeza de motor
+  legado) — iriam para um arquivo com sunset previsto sendo itens sem data.
+- **(d)** Não-OFF26 de conteúdo de campanha/anual: [[DP1]]/[[F14]] (board do rookie draft),
+  [[E5]]/[[E4]] (import ESPN = passo 3 do offseason), fatia B do [[M21]] ("pós-intertemporada");
+  e o stub [[OFF26-14]]/[[IR-CLEANUP]] divide o mesmo arco IR entre prefixos distintos.
+- **(e)** O stub OFF26-14 (0,5 KB, aponta ao archive): prefixo manda para a campanha, conteúdo
+  é ponteiro estrutural do [[O5]].
+
+**4. Referências cruzadas e consumidores:**
+- **303 links `[[...]]`** no ativo; **45** apontam a itens OFF26 a partir de FORA dos blocos da
+  família e **21** saem de dentro dela para itens de fora → **66 refs virariam cross-file**. Os
+  links são convenção de texto (nada quebra mecanicamente), mas Grep/navegação local degradam.
+- **Consumidor mecânico: só o auditor** (`tools/backlog_audit.py`, default `improvements.md` —
+  nenhum outro script lê o arquivo). Docstrings de `nfl_context.py` e `salary_engine_test.py`
+  citam seções como ponteiro de spec (ambas de itens não-OFF26).
+- **Ponteiro vivo já stale HOJE:** `runbook_cowork_liga_fantasma.md:377` remete à "seção do
+  [[OFF26-10]] em improvements.md" — que migrou ao archive quando o item fechou ✅. A classe
+  "ponteiro documental stale" já existe sob o O3 puro; o split a amplia, não a cria.
+- **Project Knowledge:** hoje o ciclo de re-upload é `improvements.md` + archive + CLAUDE.md;
+  o split adiciona um 4º arquivo recorrente (e handoffs/prompts padrão citam `improvements.md`
+  como endereço das seções).
+
+**5. Impacto no auditor (dimensionado, não implementado):** aceitar conjunto de arquivos
+(descoberta automática de `improvements_off26.md` se existir); parse de seções sobre a união;
+V3/V4 resolvem contra a união; **invariante novo necessário: V7 — mesmo ID com seção em mais de
+um arquivo**; opcional (decisão de produto): V8 — pertencimento por prefixo (seção OFF26-* fora
+do arquivo de campanha e vice-versa). Rows continuam só no ativo. Ordem de ~30–50 linhas, zero
+dependências novas — é o 2º retrofit do contrato do auditor em uma semana de vida.
+
+**6. Timing:** executar AGORA colide com a semana mais crítica do ano (rollover 18/08 · cortes
+20/08 · urna + população do board 22/08 · leilão 24/08): as sessões dessas datas são justamente
+as que leem as seções OFF26, e o split muda o endereço do insumo delas + o Project Knowledge no
+meio da janela — benefício imediato nulo (fora da campanha não há sessão prevista antes de
+24/08). **Após 24–26/08** o sunset natural terá levado a maior parte da família ao archive pela
+regra O3 vigente, e o split (se ainda fizer sentido) moveria uma fração dos bytes, fora de
+qualquer janela crítica.
+
+**7. Alternativas à rota proposta:**
+- **A. Não fazer nada + sunset natural (custo zero):** ~229,3 KB dos 236,3 têm fechamento
+  previsto na própria campanha; resíduo projetado sem data = **~7 KB** de seções (OFF26-12/19/21
+  + stub) + 9,1 KB do bloco de contexto. Mesmo fechamento PARCIAL (só OFF26-4 + OFF26-24 +
+  OFF26-20) já remove 169,9 KB (72% da família). Ressalva honesta: previsto ≠ garantido — ⚠️
+  pendente de smoke pode se arrastar; por isso a re-medição pós-26/08, não a fé.
+- **B. Instrução de leitura seletiva no CLAUDE.md** (1 parágrafo: "Status Rápido é o índice;
+  fora da campanha, não ler seções OFF26"): ataca o incômodo de leitura do Code sem mover um
+  byte — mas só resolve se o incômodo for do Code, não da leitura humana (questão Q5).
+- **C. O split proposto:** mecânica provada (O3/O5, moves verbatim com verificação por máquina),
+  porém com os resíduos do item 3, 66 refs cross-file, 4º arquivo no Project Knowledge e
+  retrofit do auditor — partes móveis pagas para aliviar um peso que o calendário já está
+  prestes a aliviar de graça.
+- **D. Padrão só para o FUTURO:** OFF27 nasce em arquivo de campanha próprio (auditor ganha o
+  suporte a união quando o arquivo nascer), e OFF26 termina a vida onde está — dá o benefício
+  permanente sem retrofit na semana crítica.
+
+**Recomendação (o parecer recomenda; NÃO decide): não executar o split agora.** Re-medir a
+família pós-26/08 (fechamento + sync final da campanha) com o mesmo script; se o resíduo OFF26
+ainda incomodar, executar aí — com uma fração dos bytes e fora da janela. Se o objetivo
+dominante for o padrão de campanhas futuras, a alternativa D entrega isso sem mover OFF26.
+
+**8. Questões em aberto para o owner (o parecer não arbitra):**
+1. **Sequência:** aguardar o sunset e re-medir pós-26/08 antes de decidir (recomendado), ou
+   valorar a leitura limpa JÁ na semana da campanha a ponto de pagar o risco de timing?
+2. **Se split: destino dos casos-limite** — bloco de contexto `## Offseason 2026`, as 5 seções
+   não-OFF26 encravadas, os OFF26 evergreen (12/19/21) e o stub OFF26-14: prefixo cego ou
+   arbitragem caso a caso (contradizendo a premissa da rota)?
+3. **Project Knowledge:** um 4º arquivo recorrente no ciclo de re-upload é aceitável?
+4. **OFF27:** nasce em arquivo próprio independentemente do retrofit de OFF26 (alternativa D)?
+5. **Natureza do incômodo:** leitura humana do arquivo ou leitura do Code? (Se for só o Code, a
+   alternativa B — instrução de leitura seletiva — basta e custa um parágrafo.)
 
 ---
 
