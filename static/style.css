@@ -1974,6 +1974,9 @@ a.player-name:hover {
   border-width: 2px;
   padding: calc(1rem - 1px);
 }
+/* L3: time com folha PROJETADA acima do cap. Faixa interna (não `border-color`) para
+   não disputar com o destaque do próprio time — um card pode ser os dois. */
+.league-card-proj-over { box-shadow: inset 3px 0 0 var(--red); }
 .league-card-header {
   display: flex;
   align-items: center;

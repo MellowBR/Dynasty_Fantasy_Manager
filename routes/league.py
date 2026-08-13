@@ -7,16 +7,33 @@ from sqlalchemy import func
 
 from models import (
     db, Team, Player, Pick, SeasonStandings, ESPNImportLog,
-    SALARY_CAP, get_current_season, sort_players_by_pos,
+    SALARY_CAP, get_config, get_current_season, sort_players_by_pos,
 )
 from salary_engine import roster_salary, draft_budget  # OFF26-16 + Bid Máximo (L1-BID)
+from routes.salary import compose_budget               # L3: cap projetado (fonte única)
 from dynasty_values import get_dynasty_values, resolve_asset_value
 from routes.roster import _build_players_by_pos as build_players_by_pos, _ACQ_LABELS
 
 league_bp = Blueprint("league", __name__)
 
 
-def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=None):
+def _projection_open() -> bool:
+    """L3 — o cap PROJETADO só faz sentido ANTES do rollover.
+
+    `project_next_salary` projeta sobre o salário ARMAZENADO: pré-rollover isso é a
+    season seguinte (a pergunta útil); pós-rollover o armazenado já É o da season nova
+    e projetar de novo mostraria season+2 — um número que contradiria o cap corrente
+    exibido ao lado. Mesma arbitragem que o D9 do [[OFF26-1]] fez no `/budget`
+    (`projected:false` pós-rollover, "re-projetar duplicaria").
+
+    `rollover_done` é flag do ciclo de offseason corrente: some no rollover e volta
+    sozinha na intertemporada seguinte, quando o reset da season a zera.
+    """
+    return get_config("rollover_done", "false") != "true"
+
+
+def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=None,
+                     show_projection=False):
     """Monta dict do card de um time. Sem queries — tudo já carregado.
     M17: `is_my_team` deriva do usuário logado (my_team_id = current_user.team_rel.id),
     não mais da flag legada Team.is_my_team."""
@@ -32,6 +49,13 @@ def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=Non
     # `draft_budget`, com base salarial CORRENTE (equivale ao `projected:false` da porta
     # e é a mesma régua da keeper sheet). Nenhuma aritmética de cap nova aqui.
     bid_max = int(draft_budget(players)["usable_draft_budget"])
+    # L3: cap PROJETADO da season seguinte — MESMA composição do cap projector
+    # (`compose_budget`, base `project_next_salary`). Zero query: opera sobre os
+    # `players` que o render já carregou numa consulta só.
+    # ⛔ O `bid_max` acima NÃO muda de base: é corrente de propósito (é o número que a
+    # keeper sheet publica como Bid Máximo — trocá-lo por projeção quebraria a
+    # coerência tela × sheet).
+    proj = compose_budget(players) if show_projection else None
     return {
         "id": team.id,
         "name": team.name,
@@ -40,6 +64,9 @@ def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=Non
         "is_my_team": team.id == my_team_id,
         "cap_used": cap_used,
         "cap_space": SALARY_CAP - cap_used,
+        "proj_used": proj["keeper_salaries"] if proj else None,
+        "proj_space": (SALARY_CAP - proj["keeper_salaries"]) if proj else None,
+        "proj_over_cap": bool(proj["over_cap"]) if proj else False,
         "bid_max": bid_max,
         "pick_count": pick_count,
         "dynasty_total": dynasty_total,
@@ -70,10 +97,11 @@ def league_hub():
     dv_map = get_dynasty_values().get("values", {})
 
     my_team_id = current_user.team_rel.id if current_user.team_rel else None
+    show_projection = _projection_open()
     cards = [
         _build_team_card(
             t, standings.get(t.id), pick_counts.get(t.id, 0),
-            players_by_team.get(t.id, []), dv_map, my_team_id,
+            players_by_team.get(t.id, []), dv_map, my_team_id, show_projection,
         )
         for t in teams
     ]
@@ -82,10 +110,15 @@ def league_hub():
     # L1-BID: selo PROV no Bid Máximo enquanto a tabela ESPN DEFINITIVA não entrar
     # (mesmo padrão do Cap Projector, mas em régua de LIGA: o gate é o import marcado
     # `final` para a season-alvo, não o `is_final` de cada jogador). Sai em 18/08.
+    # L3: o mesmo selo cobre o cap projetado — projeção e Bid Máximo dependem da
+    # MESMA tabela ESPN, e com a provisória (valores ≈1.0) a projeção colapsa para
+    # perto do salário corrente. Um único gate, nenhuma segunda definição de "PROV".
     espn_final = ESPNImportLog.query.filter_by(
         season=season + 1, status="final").first() is not None
 
     return render_template("league.html", cards=cards, season=season,
+                           cap=SALARY_CAP, show_projection=show_projection,
+                           proj_season=season + 1,
                            bid_provisional=not espn_final)
 
 
@@ -122,6 +155,12 @@ def team_detail(team_id):
     for p in players:
         cap_by_pos[p.position or "OTHER"] += p.salary
 
+    # L3: cap projetado no breakdown — mesma fonte e mesmo gate da /league.
+    show_projection = _projection_open()
+    proj = compose_budget(players) if show_projection else None
+    espn_final = ESPNImportLog.query.filter_by(
+        season=season + 1, status="final").first() is not None
+
     is_my_team = bool(
         current_user.is_authenticated
         and current_user.team_rel
@@ -138,6 +177,12 @@ def team_detail(team_id):
         "picks_by_season": dict(sorted(picks_by_season.items())),
         "cap_used": cap_used,
         "cap_remaining": SALARY_CAP - cap_used,
+        "show_projection": show_projection,
+        "proj_season": season + 1,
+        "proj_cap_used": proj["keeper_salaries"] if proj else None,
+        "proj_cap_remaining": (SALARY_CAP - proj["keeper_salaries"]) if proj else None,
+        "proj_over_cap": bool(proj["over_cap"]) if proj else False,
+        "bid_provisional": not espn_final,
         "ir_count": len(ir),
         "ir_names": [p.name for p in ir],   # OFF26-16: informativo de escalação
         "active_count": len(active),

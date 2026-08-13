@@ -45,6 +45,20 @@
         <span class="status-label">Resto</span>
         <span class="status-value {% if cap_remaining < 0 %}cap-negative{% endif %}">${{ cap_remaining|int }}</span>
       </span>
+      {# L3: cap projetado da season seguinte — mesma fonte do Cap Projector
+         (composição valorização × ESPN → draft_budget). Só pré-rollover. #}
+      {% if show_projection %}
+      <span class="status-item" title="Folha projetada para {{ proj_season }} pela regra de valorização × tabela ESPN — mesma conta do Cap Projector">
+        <span class="status-label">Cap proj. {{ proj_season }}
+          {% if bid_provisional %}<span class="tag tag-prov" title="Provisório: a tabela ESPN definitiva ainda não entrou">PROV</span>{% endif %}
+        </span>
+        <span class="status-value {% if proj_over_cap %}cap-negative{% endif %}">${{ proj_cap_used|int }}/${{ cap|int }}</span>
+      </span>
+      <span class="status-item">
+        <span class="status-label">Resto proj.</span>
+        <span class="status-value {% if proj_cap_remaining < 0 %}cap-negative{% endif %}">${{ proj_cap_remaining|int }}</span>
+      </span>
+      {% endif %}
       <span class="status-item">
         <span class="status-label">Dynasty</span>
         <span class="status-value">{% if dynasty_total %}🪙 {{ dynasty_total }}{% else %}—{% endif %}</span>
@@ -102,7 +116,7 @@
         <th class="col-contract">Contrato</th>
         <th class="col-dynasty">🪙 Dynasty</th>
         <th class="col-espn">ESPN</th>
-        <th class="col-proj">Proj 2026</th>
+        <th class="col-proj">Proj {{ g_current_season + 1 }}</th>
         <th class="col-acq">Aquisição</th>
       </tr>
     </thead>

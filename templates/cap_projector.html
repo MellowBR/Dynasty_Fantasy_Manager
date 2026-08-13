@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Cap Projector 2026{% endblock %}
+{% block title %}Cap Projector {{ g_current_season + 1 }}{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1 class="page-title">📊 Cap Projector 2026</h1>
+  <h1 class="page-title">📊 Cap Projector {{ g_current_season + 1 }}</h1>
   <p class="page-subtitle">Simule keeper vs. corte e veja o draft budget disponível.</p>
 </div>
 
@@ -21,7 +21,7 @@
 <div id="proj-cap-bar" class="cap-summary-card cap-summary-sticky" style="display:none">
   <div class="cap-summary-grid">
     <div class="cap-summary-item">
-      <span class="cap-label">Cap Projetado 2026</span>
+      <span class="cap-label">Cap Projetado {{ g_current_season + 1 }}</span>
       <span class="cap-value" id="proj-total">—</span>
     </div>
     <div class="cap-summary-item">
@@ -83,6 +83,10 @@
 
 {% block scripts %}
 <script>
+// L3: anos derivados da season corrente (AppConfig), nunca literais — sobrevivem ao
+// rollover. Contraparte server-side: `g_current_season` (context processor).
+const SEASON_ATUAL = {{ g_current_season }};
+const SEASON_PROJ = {{ g_current_season + 1 }};
 let teamData = null;
 let keepState = {};
 
@@ -117,7 +121,7 @@ function render() {
     <thead><tr>
       <th style="width:44px">Keep</th>
       <th>Pos</th><th>Jogador</th><th>Equipe NFL</th>
-      <th>Contrato</th><th>Sal 2025</th><th>ESPN Ref</th><th>Sal 2026</th><th>Δ</th><th>Tipo</th>
+      <th>Contrato</th><th>Sal ${SEASON_ATUAL}</th><th>ESPN Ref</th><th>Sal ${SEASON_PROJ}</th><th>Δ</th><th>Tipo</th>
     </tr></thead><tbody>`;
 
   sorted.forEach(p => {
@@ -221,7 +225,7 @@ function renderEspnBanner(status) {
   } else if (status.status === 'final') {
     el.innerHTML = `<div class="alert alert-ok" style="margin-bottom:1rem">✅ Valores ESPN finais de ${formatLocalDT(status.date, 'datetime')}</div>`;
   } else {
-    el.innerHTML = `<div class="alert alert-warn" style="margin-bottom:1rem">⚠️ Valores ESPN provisorios — salarios 2026 sao estimativas</div>`;
+    el.innerHTML = `<div class="alert alert-warn" style="margin-bottom:1rem">⚠️ Valores ESPN provisorios — salarios ${SEASON_PROJ} sao estimativas</div>`;
   }
 }
 

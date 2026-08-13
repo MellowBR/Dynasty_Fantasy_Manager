@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from timeutil import utc_iso
@@ -8,6 +10,35 @@ from salary_engine import (
 from routes.auth import admin_required
 
 salary_bp = Blueprint("salary", __name__)
+
+
+# ── L3: composição ÚNICA "salário-base → roster sintético → draft_budget" ─────
+def compose_budget(players, projected=True, extra_salaries=()):
+    """Budget de um elenco sobre a BASE SALARIAL escolhida — fonte única (L3).
+
+    Era a composição inline do POST `/budget` do cap projector: montar um roster
+    sintético com o salário-base de cada jogador e entregá-lo ao `draft_budget`.
+    Virou helper nomeado quando a `/league` e o `/team/<id>` passaram a exibir o cap
+    PROJETADO (L3, 13/08/2026) — sem isso a mesma composição existiria em dois
+    lugares, que é exatamente a réplica que o [[F10]] eliminou do JS.
+
+    - `projected=True` (default): salário-base = `project_next_salary` — a projeção
+      da próxima season (mesma fonte da coluna PROJ do roster, T4 do [[OFF26-20]],
+      e do rollover real).
+    - `projected=False`: salário-base = `p.salary` CORRENTE. É o modo D9 do
+      [[OFF26-1]] (pós-rollover o salário armazenado já está valorizado; re-projetar
+      duplicaria) e a régua do **Bid Máximo** da `/league` e da keeper sheet.
+    - `extra_salaries`: salários que ocupam spot sem ser Player do roster — hoje só
+      os rookies do cenário do board DP2.
+
+    ⛔ Nenhuma aritmética de cap aqui: quem soma, conta vagas e reserva o $1 por vaga
+    segue sendo `salary_engine.draft_budget` (fonte única, [[OFF26-18]]).
+    """
+    base = project_next_salary if projected else (lambda p: p.salary)
+    roster = [SimpleNamespace(salary=base(p), is_dropped=False)
+              for p in players if not getattr(p, "is_dropped", False)]
+    roster += [SimpleNamespace(salary=s, is_dropped=False) for s in extra_salaries]
+    return draft_budget(roster)
 
 
 @salary_bp.route("/salary")
@@ -136,8 +167,11 @@ def cap_projector_budget(team_name):
     janela de cortes selada, que roda PÓS-rollover (salário já valorizado); re-projetar
     duplicaria. A FONTE DE CÁLCULO segue única (`draft_budget`); muda só qual salário
     alimenta o helper — não há aritmética nova nem 2ª rota (invariante F10 preservada).
+
+    L3 (13/08/2026): a composição (base salarial → roster sintético → `draft_budget`)
+    saiu daqui para o helper `compose_budget`, consumido também pela `/league` e pelo
+    `/team/<id>`. Refactor puro — o payload deste endpoint não mudou.
     """
-    from types import SimpleNamespace
     from models import get_current_season, rookie_espn_adjusted
     from salary_engine import year1_salary
     team = Team.query.filter_by(name=team_name).first()
@@ -147,7 +181,6 @@ def cap_projector_budget(team_name):
     data = request.get_json() or {}
     # D9: modo de base salarial — projetado (default) vs. corrente (já rollado)
     projected = data.get("projected", True)
-    base_salary = (lambda p: project_next_salary(p)) if projected else (lambda p: p.salary)
     kept_ids = set()
     for i in (data.get("kept_ids") or []):
         try:
@@ -156,8 +189,7 @@ def cap_projector_budget(team_name):
             continue
 
     players = Player.query.filter_by(team_id=team.id, is_dropped=False).all()
-    roster = [SimpleNamespace(salary=base_salary(p), is_dropped=False)
-              for p in players if p.id in kept_ids]
+    kept = [p for p in players if p.id in kept_ids]
 
     # DP2: rookies do cenário entram na MESMA base (ocupam spot + custam year1_salary).
     # Dedup defensivo; sid fora do store da season é ignorado. Mesma régua de cálculo
@@ -174,10 +206,10 @@ def cap_projector_budget(team_name):
         if adj is None:
             continue
         sal = year1_salary("rookie_draft", 0, adj)
-        roster.append(SimpleNamespace(salary=sal, is_dropped=False))
         scenario.append({"sleeper_player_id": sid, "projected_salary": sal})
 
-    budget = draft_budget(roster)
+    budget = compose_budget(kept, projected=projected,
+                            extra_salaries=[r["projected_salary"] for r in scenario])
 
     return jsonify({
         "team": team.name,

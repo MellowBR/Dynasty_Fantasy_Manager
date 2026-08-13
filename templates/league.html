@@ -9,7 +9,8 @@
 
 <div class="league-grid">
   {% for c in cards %}
-  <a class="league-card {% if c.is_my_team %}league-card-mine{% endif %}"
+  <a class="league-card {% if c.is_my_team %}league-card-mine{% endif %}
+            {%- if show_projection and c.proj_over_cap %} league-card-proj-over{% endif %}"
      href="{{ url_for('league.team_detail', team_id=c.id) }}"
      title="Abrir detalhe do time">
     <div class="league-card-header">
@@ -43,6 +44,20 @@
           ${{ c.cap_space|int }}
         </span>
       </div>
+      {# L3: cap PROJETADO da season seguinte, ao lado do corrente. Só pré-rollover —
+         depois dele o salário armazenado já é o da season nova e projetar mostraria
+         season+2, contradizendo o número ao lado. #}
+      {% if show_projection %}
+      <div class="league-stat">
+        <span class="league-stat-label">Cap proj. {{ proj_season }}
+          {% if bid_provisional %}<span class="tag tag-prov" title="Provisório: a tabela ESPN definitiva ainda não entrou — a projeção muda quando ela entrar">PROV</span>{% endif %}
+        </span>
+        <span class="league-stat-value {% if c.proj_over_cap %}cap-negative{% endif %}"
+              title="Folha projetada para {{ proj_season }}: ${{ c.proj_used|int }} de ${{ cap|int }} (valorização × ESPN)">
+          {% if c.proj_over_cap %}⚠️ {% endif %}${{ c.proj_space|int }}
+        </span>
+      </div>
+      {% endif %}
       <div class="league-stat">
         <span class="league-stat-label">Bid Máximo
           {% if bid_provisional %}<span class="tag tag-prov" title="Provisório: a tabela ESPN definitiva ainda não entrou">PROV</span>{% endif %}
