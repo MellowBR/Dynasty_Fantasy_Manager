@@ -2056,10 +2056,17 @@ a.player-name:hover {
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
 }
+/* ⚠️ L3-FIX-UX2 (13/08/2026): era `flex-wrap: wrap` numa fila horizontal. Resolvia a
+   sobreposição, mas a quebra ficava CONDICIONAL à largura do conteúdo: o card com
+   over-cap projetado (⚠️ + valor = rótulo mais largo) empurrava "Slots livres" para a
+   2ª linha enquanto o vizinho sem over-cap cabia em uma — cards lado a lado com
+   anatomias diferentes. Empilhamento FIXO: uma grandeza por linha, sempre, em qualquer
+   largura e com qualquer dado. */
 .league-plan-side {
   display: flex;
-  flex-wrap: wrap;
-  gap: .25rem .85rem;
+  flex-direction: column;
+  gap: .25rem;
+  align-items: flex-start;
 }
 .league-plan-item {
   display: flex;
