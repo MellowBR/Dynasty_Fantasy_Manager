@@ -5696,3 +5696,8 @@ campanha oficial → auditoria → alocação de owners → RESET final.
   do prompt, calibrada antes da execução.
 - Diff da sessão: improvements.md + CLAUDE.md + runbook_cowork + devplan — docs-only, zero
   código, zero split executado.
+- **Adendo (mesmo dia, pedido do owner):** o instrumento de medição da F1 persistido em
+  **`tools/off26_measure.py`** (stdlib, read-only; âncoras opcionais degradam com aviso após o
+  sunset) — o gate do O6 cita "mesmo script da F1" e comparabilidade exige o mesmo instrumento.
+  Smoke: reproduziu a família 236,3 KB / 13 seções contra o ativo pós-REFINE (486,2 KB; 6⚠️/7🔲
+  refletindo as arbitragens). Gate na seção O6 atualizado com o caminho do script.

@@ -1667,9 +1667,10 @@ dominante for o padrão de campanhas futuras, a alternativa D entrega isso sem m
 
 #### Decisões do owner (13/08/2026 — MAN-O6-REFINE; respondem as 5 questões do parecer)
 
-- **(a) Split NÃO será executado agora.** A **re-medição da família OFF26 pós-26/08** (mesmo
-  script da F1) decide se ele ainda se justifica — expectativa: sunset de ~229 KB via os
-  fechamentos de 18–24/08. **Este é o gate do item; O6 segue 🔲 até lá.**
+- **(a) Split NÃO será executado agora.** A **re-medição da família OFF26 pós-26/08** decide se
+  ele ainda se justifica — **mesmo instrumento da F1, persistido em `tools/off26_measure.py`**
+  (comparabilidade exige o mesmo script, não uma reimplementação) — expectativa: sunset de
+  ~229 KB via os fechamentos de 18–24/08. **Este é o gate do item; O6 segue 🔲 até lá.**
 - **(b) Alternativa B aceita e implementada na mesma sessão:** orientação de leitura seletiva do
   backlog no `CLAUDE.md` (Status Rápido como índice; seções OFF26-* não se carregam fora da
   campanha; verificação estrutural é do `backlog_audit.py`, custo zero de contexto).
