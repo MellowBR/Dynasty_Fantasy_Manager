@@ -117,20 +117,17 @@ PAGES = [
 # tapete para varrer defeito novo.
 
 KNOWN_DEFECTS = [
-    {
-        "id": "UX16",
-        "tipo": "overflow_documento",
-        "paginas": "*",          # a navbar vive no base.html → qualquer página
-        "larguras": [860],
-        # Conjunto MEDIDO pela própria sonda (a F1 do O7 tinha registrado 4 — faltava
-        # `nav-user-avatar`; a divergência apareceu porque o achado NÃO casou, que é o
-        # mecanismo funcionando).
-        "culpados": {"nav-right", "btn-sync", "nav-user-menu", "nav-user-button",
-                     "nav-user-avatar"},
-        "nota": "Transbordo da navbar a ~860px, em TODA página (vive no base.html). "
-                "PRÉ-EXISTENTE ao L3 — medido idêntico no controle. Faixa: ok em 390 · "
-                "transborda em 860 · ok em 1024+.",
-    },
+    # ✅ VAZIO — e este é o estado saudável.
+    #
+    # Nasceu com uma entrada: `UX16` (transbordo da navbar a ~860px, em toda página).
+    # Ela saiu daqui em 13/08/2026, no MAN-UX16, **por indicação da própria sonda**: com
+    # o defeito corrigido, o relatório passou a dizer
+    #     "ℹ️ conhecido(s) que NÃO reproduziram: ['UX16'] — remover de KNOWN_DEFECTS"
+    # — o mecanismo fechando o ciclo no sentido inverso ao da estreia (quando bloqueou
+    # por não casar 4 culpados registrados contra 5 medidos).
+    #
+    # Para acrescentar uma entrada: **exige item no backlog**. Isto é registro de dívida
+    # rastreada, não tapete para varrer defeito novo — ver README.
 ]
 
 

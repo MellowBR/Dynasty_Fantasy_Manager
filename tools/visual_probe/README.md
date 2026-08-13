@@ -84,7 +84,13 @@ registrados: se um elemento novo entra na conta, deixou de ser o defeito conheci
 volta a bloquear. ⛔ Entrada aqui **exige item no backlog** — é registro de dívida, não
 tapete.
 
-Hoje há **um**: `UX16` (transbordo da navbar a ~860px, em toda página).
+**Hoje o registro está VAZIO — e esse é o estado saudável.** Nasceu com uma entrada
+(`UX16`, transbordo da navbar a ~860px) e ela saiu em 13/08/2026 **por indicação da
+própria sonda**: com o defeito corrigido, o relatório passou a dizer
+`ℹ️ conhecido(s) que NÃO reproduziram: ['UX16'] — remover de KNOWN_DEFECTS`.
+
+O ciclo fechou nos dois sentidos em menos de um dia: na estreia a entrada **bloqueou**
+(4 culpados registrados × 5 medidos), e no fix ela **avisou que era hora de sair**.
 
 ## Perfil de execução
 

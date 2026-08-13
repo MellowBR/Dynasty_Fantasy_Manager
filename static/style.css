@@ -2467,14 +2467,30 @@ a.player-name:hover {
 /* Mostrar overlay quando checkbox marcado */
 .nav-mobile-state:checked ~ .nav-mobile-overlay { display: block; }
 
-/* Mobile: esconde links centrais, mostra hamburger */
-@media (max-width: 768px) {
+/* ⚠️ UX16 (13/08/2026) — o hamburger entrava tarde demais.
+   Medição (sonda do O7): a barra DESKTOP precisa de **916px** — brand 123 + nav-links
+   507 + nav-right 214 + cromo ~72 — e o colapso só acontecia em ≤768px. Resultado: a
+   faixa **769–944px transbordava a viewport em TODA página** (a navbar vive no
+   `base.html`). Nada ali podia ceder: `.nav-links` não encolhe (filhos `nowrap` ⇒
+   `min-width: auto`) e `.nav-right` é `flex-shrink: 0`; só a busca cedia — de 178px a
+   0 — e os 916px restantes não cabiam.
+   O colapso passa a **1023px**: a barra desktop passa a existir só onde foi MEDIDA
+   cabendo, e **1024px+ fica intocado**. Não se perde função: o painel do hamburger tem
+   busca, navegação, times, admin e logout. */
+@media (max-width: 1023px) {
   .nav-links { display: none; }
   .nav-mobile-toggle { display: inline-flex; }
-  .nav-user-menu { display: none; }
   .nav-dropdown-teams { max-height: none; }
   /* M10: a barra inline sai da navbar; a busca vive no topo do overlay (padrão N1) */
   .nav-search { display: none; }
+}
+
+/* O menu do usuário sai só no mobile de verdade. Entre 769 e 1023 a barra colapsada
+   precisa de ~380px e sobra espaço: manter o avatar (e o logout do dropdown) visível
+   ali é ganho, não risco. Abaixo de 768 segue escondido, como sempre — o logout vive
+   no painel. */
+@media (max-width: 768px) {
+  .nav-user-menu { display: none; }
 }
 
 /* ── M10: busca de jogador (navbar desktop + overlay mobile + calculadora) ── */

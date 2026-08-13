@@ -332,8 +332,10 @@ qualquer diff que o toque afeta **todas** as páginas — e a suíte inteira cus
 que manter (e errar) o mapa. Roda tudo.
 
 - **Defeito conhecido não bloqueia:** `core.KNOWN_DEFECTS` registra dívida **já rastreada no
-  backlog** (hoje: `UX16`, transbordo da navbar a ~860px). Achado que não casa uma entrada é
-  regressão nova e derruba o gate. ⛔ Entrada nova ali **exige item no backlog**.
+  backlog**. Achado que não casa uma entrada é regressão nova e derruba o gate; entrada que
+  deixa de reproduzir é anunciada para sair do registro. **Hoje está vazio** — a única entrada
+  (`UX16`) saiu com o fix da navbar, por indicação da própria sonda. ⛔ Entrada nova ali **exige
+  item no backlog**.
 - ⭐ **`--css` é o controle positivo** (mesma página, folha trocada): é o que prova que o
   instrumento enxerga o defeito antes de o verde valer. **Um detector que só sabe dizer "não"
   precisa de controle positivo** — no L3, um poller sem controle deu falso TIMEOUT de 10 min
