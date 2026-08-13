@@ -5606,3 +5606,38 @@ campanha oficial → auditoria → alocação de owners → RESET final.
   marcado cumprido e a ordem de 22/08: **conferir alocação → `populate --all` → auditoria
   OFF26-4 → não tocar RANDOMIZE/RESET BUDGETS/START DRAFT**. O item OFF26-24 fecha ✅ (e migra
   ao archive) após a população real de 22/08 — o uso, não o critério. Docs-only, zero código.
+
+### MAN-O5-REG + MAN-O5 — quitação da dívida O3 + auditor poka-yoke do backlog (13/08/2026, Fable) · docs + script standalone
+
+- **A baseline do owner (13/08, heurística externa via Claude.ai: ~14 seções ✅ ≈ 107 KB por
+  migrar) foi refutada pela classificação por máquina: ZERO seções ✅ de item existiam no
+  ativo.** As grandes apontadas (OFF26-24, M21, DP1, OFF26-20) são itens ABERTOS — 🔲/⚠️ como
+  primeiro emoji da seção e da row — com marcos ✅ **dentro** da linha de status (OFF26-24
+  "critério ✅ cumprido, fecha após a população real de 22/08"; M21 "fatia A ✅, segue 🔲 pela
+  B"; DP1/OFF26-20 ⚠️ smoke pendente). A dívida real era ESTRUTURAL, não de migração: a
+  narrativa F1B/F1C/VERIF/CANAL/FIX/CLOSE do OFF26-20 vivia como **6 headings `##` + 36
+  sub-blocos `###`** — promoções indevidas a nível de item que poluíam a classificação por
+  máquina (IDs `T1`–`T5` colidindo com o namespace, seções "sem status", 3 falsos ✅).
+- **Reancoragem:** os 42 headings rebaixados a `####`/`#####` sob o item pai OFF26-20, texto
+  verbatim (transformação puramente mecânica de prefixo; reconstrução conferida byte a byte
+  contra o backup). Divisor `## Itens UX` criado para os itens UX não herdarem o aninhamento.
+- **Namespace fechado nos dois sentidos:** rows novas no Status Rápido para MAN-METH-REG e
+  MAN-ESPN12 (seções sem entrada); stubs estruturais para M1-FOLLOWUP, F8, OFF26-14 e
+  IR-CLEANUP (rows 🔲/⚠️ sem seção — os 3 últimos com detalhe no archive, anomalia histórica à
+  regra "⚠️ nunca migra" registrada nos próprios stubs).
+- **`tools/backlog_audit.py` (stdlib, read-only, exit ≠ 0):** V1 nenhuma seção `###` ✅ no
+  ativo · V2 toda seção com emoji · V3/V4 seção ↔ Status Rápido (bidirecional p/ 🔲/⚠️) · V5
+  row com emoji · V6 IDs únicos; divergência de emoji seção × row é AVISO (arbitragem humana).
+  **Demonstrado nos dois sentidos:** ativo pós-limpeza exit 0 (4 avisos legítimos: DP1,
+  OFF26-4, F9, OFF26-20); backup pré-limpeza exit 1 com **83 violações** (V1×3, V2×30, V3×27,
+  V4×4, V6×19). Parser da tabela trata `\|` escapado (o parse ingênuo inventava uma violação
+  fantasma na row UX13).
+- **Gate ancorado no CLAUDE.md:** o auditor deve retornar sucesso ANTES do commit de qualquer
+  sessão que toque `improvements.md` (poka-yoke sobre disciplina — a lição da 2ª recorrência).
+  Promoção transversal ao DEV_METHODOLOGY fica para a sessão de revisão de metodologia.
+- **O5 fechado ✅ na mesma sessão** (critério: reorg íntegra + auditor funcionando; precedente
+  O3 de self-aplicação) e a própria seção migrada ao archive. Conservação de bytes provada:
+  ativo 481.563 → 485.076 (+84 rebaixamento, +13 divisor, +3.416 rows/stubs), archive 598.040
+  → 602.783 (+4.743 = seção O5 + separadores); archive é append puro; zero seções perdidas.
+  Backups pré-sessão: `improvements*_backup_pre_O5_2026-08-13.md`. Docs + script standalone —
+  zero código da aplicação.

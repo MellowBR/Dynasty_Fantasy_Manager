@@ -39,6 +39,9 @@ python template_js_test.py
 # Run núcleo do script de população do board da fantasma (OFF26-24 — 30 testes; sem browser)
 python phantom_board_test.py
 
+# Run auditor poka-yoke do backlog ativo (O5 — gate do checklist de fim de sessão; read-only)
+python tools/backlog_audit.py
+
 # Run janela selada / runner do ensaio (OFF26-1 — 22 testes)
 python janela_ensaio_test.py
 
@@ -331,6 +334,8 @@ fantasy_manager/
   phantom_board_test.py             # OFF26-24: núcleo do script de população do board (30)
   tools/phantom_board/              # OFF26-24: script standalone (Playwright; comando via DOM,
                                     #   verdade via API; guardas de nascença; ver README local)
+  tools/backlog_audit.py            # O5: auditor poka-yoke do backlog ativo (stdlib, read-only;
+                                    #   gate do checklist de fim de sessão — exit ≠ 0 aponta violações)
   janela_ensaio_test.py             # OFF26-1: runner do ensaio/reset da janela e da urna (22)
   ensaio_janela_selada.py           # OFF26-1/10: status · banner · reset (janela E urna)
   keeper_audit_fixtures.py          # material de TESTE congelado (NÃO é a keeper sheet real)
@@ -365,7 +370,11 @@ inclusive ✅; é o namespace e a baseline de dedupe) + seções detalhadas **s�
 de evidência para diagnoses futuras: incidente Brown, post-mortem T2-FIX, decisões M15…). **Diagnose
 que precise do histórico de um item fechado deve ler o archive.** **Regra de migração (entra no
 checklist de fim de sessão):** ao marcar um item ✅ (validado em prod), mover sua seção detalhada para
-o archive no fechamento da sessão; **⚠️ nunca migra** (fica no ativo até ✅).
+o archive no fechamento da sessão; **⚠️ nunca migra** (fica no ativo até ✅). **Gate O5 (13/08/2026 —
+poka-yoke sobre disciplina):** `python tools/backlog_audit.py` valida o invariante estrutural do
+ativo (nenhuma seção `###` ✅, toda seção com emoji de status, namespace seção × Status Rápido
+fechado) e **deve retornar sucesso antes do commit de qualquer sessão que toque `improvements.md`**.
+O auditor é read-only — aponta, não corrige.
 
 `improvements_sessions.md` (08/08/2026) guarda as entradas `> Atualizado em:` antigas do cabeçalho.
 **O ativo mantém só as 5 mais recentes** — o bloco havia chegado a **66 entradas / 114 KB = 22% do

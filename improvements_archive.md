@@ -7821,3 +7821,66 @@ pendência real é a ressalva de **staleness**, que a F2 deve exibir ciente: o s
 28/04) e o sync não roda em todo boot (DOC1) — frescor = último sync.
 
 ---
+
+### O5 — Quitação da dívida O3 + auditor poka-yoke do backlog
+✅ **Concluído 13/08/2026 (mesma sessão — MAN-O5-REG/MAN-O5; critério de done: reorg íntegra +
+auditor funcionando, sem smoke de prod, precedente O3 de self-aplicação)** — Prioridade **Média**
+— **escopo Manager-only** (docs + script standalone; nenhum código da aplicação)
+
+**Problema (dívida recorrente).** A regra de migração do [[O3]] (seção ✅ → archive no fechamento
+da sessão) foi descumprida pela SEGUNDA vez: auditoria do owner (13/08/2026, via Claude.ai) mediu
+o ativo em 481 KB / 5.927 linhas, estimando ~14 seções ✅ (~107 KB) não migradas e ~17 seções
+`###` sem emoji de status próprio (~22 KB) — sub-blocos de achados de sessão promovidos
+indevidamente a heading de item, que quebram a convenção estrutural "1 seção `###` = 1 item com
+emoji" usada pela classificação por máquina do O3. A primeira recorrência (08/08/2026) já havia
+encontrado 3 seções não migradas. A migração depende hoje de disciplina no checklist de fim de
+sessão; a lição da casa é poka-yoke sobre disciplina.
+
+**Desenho (quitação + auditor).**
+1. **Reancorar** as sub-seções `###` órfãs ao item pai (rebaixamento de heading, texto verbatim).
+2. **Quitar** a dívida: classificar todas as seções `###` cruzando emoji-da-seção × Status Rápido
+   (regra "primeiro emoji da célula vence", precedente O3) e migrar as ✅ verbatim ao archive.
+   ⚠️ nunca migra.
+3. **Auditor poka-yoke** (`tools/backlog_audit.py`): script standalone, stdlib-only, read-only,
+   que valida o invariante estrutural do ativo e falha com exit code ≠ 0 apontando as violações.
+   Invariantes: (1) nenhuma seção `###` com status ✅ no ativo; (2) toda seção `###` tem emoji de
+   status reconhecível; (3) todo ID de seção detalhada existe no Status Rápido e vice-versa para
+   🔲/⚠️; (+) IDs únicos e toda row do Status Rápido com emoji.
+4. **Ancorar no processo**: o auditor entra no checklist de fim de sessão do `CLAUDE.md` como
+   gate. (Promoção transversal ao DEV_METHODOLOGY fica para sessão de revisão de metodologia —
+   fora deste escopo.)
+
+**Regra permanente.** Ao fechar QUALQUER sessão que toque `improvements.md`:
+`python tools/backlog_audit.py` deve retornar sucesso ANTES do commit. Violações não se
+contornam — se um item fechou ✅, a seção migra na mesma sessão; se nasceu seção nova, nasce com
+emoji e com row no Status Rápido.
+
+**Critério de done:** reorg íntegra (verificação por máquina, precedente O3 de self-aplicação) +
+auditor funcionando (falha no estado pré-limpeza, sucesso no pós). Sem smoke de prod — docs +
+script standalone.
+
+**Resultado (MAN-O5, 13/08/2026).** Quitação executada com divergência material contra a baseline
+do owner — e a classificação por máquina é a autoritativa:
+- **Zero seções ✅ de item para migrar.** As ~14 seções ✅ (~107 KB) da baseline eram itens
+  ABERTOS (🔲/⚠️ como primeiro emoji da seção E da row) com marcos ✅ **dentro** da linha de
+  status — OFF26-24 ("critério de 19/08 ✅ cumprido; fecha ✅ e migra após a população real de
+  22/08", confirmado no log do devplan), M21 ("fatia A ✅; o item segue 🔲 pela fatia B"),
+  DP1/OFF26-20/O2 (⚠️ com smoke pendente). A heurística externa (emoji nas primeiras linhas) leu
+  o ✅ interno como status do item.
+- **42 headings reancorados** (baseline estimava ~17 seções): a narrativa
+  F1B/F1C/VERIF/CANAL/FIX/CLOSE do [[OFF26-20]] — 6 blocos de sessão promovidos indevidamente a
+  `##` e 36 sub-blocos a `###` — rebaixada a `####`/`#####` sob o item pai, texto verbatim (só o
+  prefixo de heading mudou; +2 bytes por heading). Divisor `## Itens UX` criado para os itens UX
+  não herdarem o aninhamento.
+- **Namespace fechado nos dois sentidos:** rows criadas para MAN-METH-REG e MAN-ESPN12 (seções
+  detalhadas que nunca tiveram entrada no Status Rápido); stubs estruturais criados para
+  M1-FOLLOWUP, F8, OFF26-14 e IR-CLEANUP (rows 🔲/⚠️ sem seção no ativo — os 3 últimos com
+  detalhe no archive, anomalia histórica à regra "⚠️ nunca migra" registrada nos próprios stubs).
+- **Auditor demonstrado nos dois sentidos:** ativo pós-limpeza OK (exit 0; 4 avisos legítimos de
+  divergência emoji seção × row — DP1, OFF26-4, F9, OFF26-20 — deixados para arbitragem humana);
+  backup pré-limpeza (`improvements_backup_pre_O5_2026-08-13.md`) FALHOU com exit 1 e 83
+  violações listadas (V1 ✅ no ativo ×3, V2 sem emoji ×30, V3 fora do namespace ×27, V4 row sem
+  seção ×4, V6 IDs duplicados ×19).
+- **Self-aplicação:** esta seção migrou ao archive na mesma sessão em que o item fechou ✅.
+
+---

@@ -150,6 +150,9 @@
 | OFF26-23 | **Ano de contrato do rookie 2026 × rollover × passo 5** — pergunta do owner a 7 dias do draft: o rookie entra e PERMANECE Ano 1? **F1 10/08 (MAN-OFF26-23-REG-F1):** a ordem segura existe mas **não é imposta por código** — o `draft_import` não tem gate de `rollover_done`; importar o draft ANTES do rollover incrementaria todo rookie p/ Ano 2 (varredura cega, `offseason.py:686`). **Roteiro seguro da semana entregue na seção** (rollover 18/08 ANTES do import do draft; passo 5 só pós-24/08 — validado: nada o lê além da UI, e o clear precoce zeraria os salários do próprio import). Gainwell = mesma manifestação, raiz distinta (canal, não ordem) — MAN-OFF26-23-REG-F1/-F2/**-FIX** (SyntaxError no JS da /offseason pego pelo smoke do owner — string quebrada na edição gerada; fix de 1 linha + `template_js_test.py` como guarda permanente) | Alta (semana 17→24/08) | ⚠️ 10/08/2026 (**gates + fix no ar — smoke prod pendente**, gate [[PROC1]]) |
 | OFF26-24 | **Script de população do board da liga fantasma** — decisão do owner 10/08 (reverte o adiamento p/ 2027): Playwright headed na máquina do owner, perfil dedicado logado, ⛔ guarda de nascença `league_id 1389725099556372481` + ⛔ API interna vetada (a descoberta do `draft_id` usa a API PÚBLICA da liga, a mesma do OFF26-4). **Cowork segue plano A** até o critério: 12/12 em ensaio + auditoria OFF26-4 zerada + zero intervenção + RESET exercido, **até 19/08** — sem isso, 2026 roda Cowork e o script vai a 2027. F1 10/08 (sheet JSON sem sid → export do `build_sheet`); **ensaio 11/08** (spec de seletores; achado: o cliente MENTE — comando via DOM, **verdade via API**); **F2a 11/08 (MAN-OFF26-24-F2a):** `tools/phantom_board/` — núcleo puro + guardas de nascença + `validate` read-only + `designate` ponta a ponta + endpoint `keeper_sheet_export`; 30→35 testes; **-F2a-FIX 11/08**: guarda de identidade refeita POR CONSTRUÇÃO (URL×draft_id derivado — a página do draft não exibe o nome da liga) + espera de login na 1ª vida do perfil (JOIN DRAFT proibido); `validate` já VERDE em execução real (18/18, $176) — MAN-OFF26-24-REG-F1/**-F2a (FECHADA: Cam Ward assentado via API; validate 19/19)/-F2b** (populate por time + --all retomável; idempotência PRIMEIRO — a lição da F2a; bloqueado_teto = resultado; auditoria OFF26-4 como juiz; **FIX8: assentamento ASSÍNCRONO** — lag real da API >5min (Josh Allen) matou o poll bloqueante; reconciliação por time c/ teto 300s + reload no meio (hipótese do cache por visita, telemetria decide) + `assentado_local_api_atrasada`; 87 testes) (**FIX9 12/08:** campanha real — abort de time deixava o MODAL aberto → TimeoutError cru no time seguinte; higiene de estado em TODO abort + verificação defensiva pré-clique + populate sem traceback cru (abort padrão de time E de campanha); anti-homônimo passou a exigir NOME — a busca do Sleeper é fuzzy: "Malik Willis" devolvia Malik Williams ×2 + Hajj-Malik Williams QB, FAs de sigla vazia = linhas REAIS, não artefato; critério 0/2+ intacto; 104 testes) (**FIX10 12/08:** campanha 12/12 — as DUAS caras do teto: além da recusa síncrona §B.3.2, o input CLAMPA silenciosamente ao max bid (digitou 6/4/3/2, gravou 5/1/1/1 = $196 sem aviso); modelo verificado ao dólar `max_bid = 200 − gasto − $1×vagas restantes`; fix = READ-BACK do input pré-SET → clampou = bloqueado_teto DO KEEPER, nada gravado, sheet canônica; conferência aponta divergentes por nome; telemetria: lag puro 8–121s, zero reload — contra a hipótese do cache; **Travis Hunter = único two-way (DB+WR) dos 237 da sheet** → pendência OFF26-24-HUNTER c/ micro-probe manual; 121 testes) (**FIX11 12/08:** probe do owner FECHOU a HUNTER — ele está no pool (rank 167, tabs All+WR, "+" habilitado), rótulo "DB,WR"; o abort real foi a eleição exigindo igualdade de posição; fix = pertencimento (`position_matches`, fonte única): "WR" ∈ "DB,WR", "QB" segue não casando; parse devolve o rótulo íntegro; anti-homônimo intacto; 134 testes) (**GO 12/08:** **critério de 19/08 CUMPRIDO com 7 dias de antecedência** — ciclo limpo: RESET → campanha oficial `185453Z` 12/12, 235 designados + 2 bloqueados declarados (AlexTheDawg; Croskey entrou a $4 de sheet pelo grão do FIX10), 0 falhas, zero intervenção, Hunter designado → auditoria = SÓ os 2 bloqueados, zero salário divergente → RESET final provado, validate 0 picks/237 sheet/3º draft_id derivado; **alocação de owners em Draft Settings→DRAFT ORDER é PERMANENTE** (sobrevive ao RESET; mapa via `draft_order`); ⛔ RANDOMIZE e RESET BUDGETS proibidos junto do START DRAFT; telemetria: 382 assentamentos, zero reload = lag puro; **script = PLANO A de 22/08, Cowork = plano B**) (âncora no #modal[role=alertdialog] real; header “Make Manual Pick for Team N” como identidade; fallback logado) (busca/linhas/preço escopados ao MODAL — a lista de fundo vazava; filtro conferido antes do matching) (parser do anti-homônimo lê o DOM real — newlines/sigla duplicada/injury; critério intacto) (célula por COLUNA do slot, nunca nth global; “Change Player” proibido; handler sem crash) (mapa slot↔owner: cadeia draft_order → slot_to_roster_id×rosters → picks; validate passou a conferir owner de verdade) (hCaptcha recusa o Chromium de teste → launch pelo Chrome real via channel; captcha é resolvido pelo HUMANO, nunca burlado) | Alta (uso real 22/08) | 🔲 (**critério de 19/08 ✅ CUMPRIDO 12/08 — script = PLANO A de 22/08, Cowork = plano B**; fecha ✅ e migra ao archive após a população real de 22/08) |
 | M21 | **Busca cobre o universo Sleeper** — duas fatias: **A — FAs da liga** (**✅ 10/08/2026**, MAN-M21-A + smoke prod MAN-ARC-BUSCA-DONE: badge FA, ordenação rosterado-antes-de-FA, perfil de FA corrigido; âncora **Kamara**, 41 dropados medidos) e **B — universo não-Player** (Média, pós-intertemporada, 🔲; ⚠️ arbitragem importar×federar em aberto p/ F1b; **caso Helm migrado p/ cá** — nunca foi Player, medição Shell 10/08) — MAN-M21-REG/F1a/A/ARC-BUSCA-DONE | A: Alta · B: Média | 🔲 (fatia A ✅ 10/08/2026 · fatia B pendente) |
+| MAN-METH-REG | Candidato a baseline do DEV_METHODOLOGY: F1 refuta premissas do prompt contra o código (**registro apenas** — candidato, não regra vigente; destino: consolidação em sessão de revisão de metodologia dedicada, transversal manager/optimizer/predictor) — row criada pelo [[O5]] (a seção detalhada existia sem entrada no namespace) | A definir | 🔲 |
+| MAN-ESPN12 | Diagnose read-only: onde o fator ×1.2 do ESPN é aplicado — veredito da suspeita central (réplica ×1.2 no client) **negativo**; débito real (a/b/c) registrado na seção como F2 opcional (helper único `adjust_espn` + reponteirar 5 sítios), decisão aguarda o owner — row criada pelo [[O5]] (a seção detalhada existia sem entrada no namespace) | A definir | 🔲 |
+| O5 | Quitação da dívida O3 + auditor poka-yoke do backlog: reancorar sub-seções `###` órfãs, migrar seções ✅ ao archive, `tools/backlog_audit.py` (stdlib, read-only, exit ≠ 0) como **gate do checklist de fim de sessão** — MAN-O5-REG/MAN-O5 | Média | ✅ 13/08/2026 (mesma sessão, precedente O3 de self-aplicação: reorg íntegra por asserts de máquina + auditor demonstrado nos dois sentidos — ativo pós-limpeza exit 0, backup pré-limpeza exit 1 com 83 violações; **zero seções ✅ de item existiam para migrar** — a baseline externa leu marcos ✅ internos de itens abertos; 42 headings reancorados sob o [[OFF26-20]]; detalhe no archive) |
 
 ---
 
@@ -1496,6 +1499,41 @@ urgente de invariante. Há **débito real** (a/b/c) que pode virar F2 **opcional
   com decisão explícita floor× não-floor, fechando (a)+(b)) e **reponteirar os 5 sítios** para ele.
 - Escopo opcional: **uniformizar o rótulo "ESPN"** (raw vs adjusted) nas telas (c) — decisão de UX.
 Decisão aguarda o owner; **nada implementado nesta fase**.
+
+---
+
+### M1-FOLLOWUP — Auto-desativação do offseason mode pós-FA auction
+🔲 **Pendente** — Prioridade **Baixa** — *stub estrutural criado pelo [[O5]] (13/08/2026): o item
+sempre viveu só como row do Status Rápido; a seção existe para fechar o invariante "todo 🔲/⚠️ tem
+seção detalhada" do auditor.*
+
+**Problema:** com o FA auction concluído, o `offseason_mode` segue ligado até o admin desligar
+manualmente — e o banner de cap estourado do [[M1]] (gated por offseason) persiste como ruído.
+Avaliar auto-desativação ao concluir o passo 7 (ou lembrete na tela do admin).
+
+---
+
+### F8 — Reconstruir PlayerHistory a partir da Sleeper API
+⚠️ **F8a concluído 22/04/2026; item segue ⚠️** — *stub estrutural criado pelo [[O5]] (13/08/2026)*.
+O detalhe (F8a/F8-NOTES/F8-GAP, rollback via `F8PlayerBackup`) vive no `improvements_archive.md`
+(seção F8) — anomalia histórica à regra "⚠️ nunca migra" do [[O3]]; mantido lá para não duplicar.
+
+---
+
+### OFF26-14 — Duas contagens de cap convivem (telas de roster excluíam salário de IR)
+⚠️ **Ver estado na row do Status Rápido** — *stub estrutural criado pelo [[O5]] (13/08/2026)*.
+O detalhe vive no `improvements_archive.md` (seção OFF26-14, movida em 04/08/2026 com o arco do
+IR no cap — anomalia histórica à regra "⚠️ nunca migra" do [[O3]]; mantida lá para não duplicar).
+A régua única do [[OFF26-16]] absorveu o grosso do item (`cap_regua_test.TestSemReplicaDeFolha`
+guarda a não-regressão).
+
+---
+
+### IR-CLEANUP — Remover seletor manual de IR no roster
+⚠️ **Executado 04/08/2026 — resta o fechamento formal** — *stub estrutural criado pelo [[O5]]
+(13/08/2026)*. O detalhe vive no `improvements_archive.md` (seção IR-CLEANUP, movida com o arco
+do IR de 04/08 — anomalia histórica à regra "⚠️ nunca migra" do [[O3]]; mantida lá para não
+duplicar). O Sleeper é autoridade sobre `is_on_ir`; não há toggle na UI (ver CLAUDE.md).
 
 ---
 
@@ -4928,7 +4966,7 @@ em contrato).
 
 ---
 
-## F1B (MAN-OFF26-20-F1B, 05/08/2026) — a arbitragem pelo regulamento INVERTE a conclusão
+#### F1B (MAN-OFF26-20-F1B, 05/08/2026) — a arbitragem pelo regulamento INVERTE a conclusão
 
 ⚠️ **A conclusão da F1 — *"o rollover está certo e a tela está errada"* — estava PARCIALMENTE
 ERRADA, e o owner tinha razão ao recusá-la.** Ela foi inferida da arquitetura (uma função respeita o
@@ -4940,7 +4978,7 @@ está errado**, a função que o respeita **propaga o erro com convicção**, e 
 **O achado central é maior que tudo que a F1 reportou:** **73 jogadores** vão receber a **regra
 errada** no rollover de 18/08 — não 5.
 
-### T1 — Regulamento à mão, caso a caso
+##### T1 — Regulamento à mão, caso a caso
 
 Árbitro implementado **sem chamar o `salary_engine`**: 6.2/6.3 (valorização), 6.6 (waiver/FA ano 2),
 6.9 (renovação), 6.10 (floor, mín $1). ⚠️ Todos os números usam **ESPN provisória** — o veredito é
@@ -4984,7 +5022,7 @@ sobre a **regra aplicada**, não sobre o valor final, que só se fecha em 18/08.
 
 ⇒ **Corrigir as três coisas: a tela, o dado e o enum.** Nenhuma das duas funções é "a certa".
 
-### T2 — Censo semântico: o vocabulário de EVENTO vazou para o campo de AQUISIÇÃO
+##### T2 — Censo semântico: o vocabulário de EVENTO vazou para o campo de AQUISIÇÃO
 
 | tipo | n | de onde vem | regra que o código aplica | regra devida | diverge? |
 |---|---|---|---|---|---|
@@ -5017,7 +5055,7 @@ last event is >= 2025 (protege year-1 rules do salary_engine para contratos vige
 **sabia** que o campo alimenta regra salarial e pôs um guard **de season**. O buraco é de
 **vocabulário**, e está justamente no ramo que o guard considerou seguro.
 
-### T3 — Os 85: semântica apurada, e ela INVERTE a leitura anterior
+##### T3 — Os 85: semântica apurada, e ela INVERTE a leitura anterior
 
 **Os dois campos têm escritores e semânticas diferentes:**
 
@@ -5074,7 +5112,7 @@ ponto do owner: *concordância prova consistência, não correção*.
 [[S4]] registra como **chave instável**. Os 73 são um piso confiável para o argumento (a maioria
 larga), mas a contagem exata merece conferência por `roster_id` antes de qualquer correção.
 
-### T4 — Alcance da função da tela
+##### T4 — Alcance da função da tela
 
 | função | consumidores |
 |---|---|
@@ -5085,7 +5123,7 @@ larga), mas a contagem exata merece conferência por `roster_id` antes de qualqu
 **O Cap Projector usa a conta do backend** — a mesma do rollover. ⇒ **Cap Projector e coluna PROJ
 mostram números diferentes para o mesmo jogador**, e nenhuma tela avisa disso.
 
-### Refutação de premissas (MAN-METH-REG)
+##### Refutação de premissas (MAN-METH-REG)
 
 **(a) Contraditas pelo observado:**
 1. ⛔ **"a tela diverge sempre para cima, +$62"** (premissa do prompt, herdada da F1). **Falso:**
@@ -5110,7 +5148,7 @@ mostram números diferentes para o mesmo jogador**, e nenhuma tela avisa disso.
 6. `salary_history` está **vazia** e o `EspnValueStore` só tem **2026** ⇒ não é possível verificar se
    a 6.6 foi aplicada nos anos anteriores. A trilha de auditoria do salário **não existe**.
 
-### O que esta diagnose NÃO faz
+##### O que esta diagnose NÃO faz
 
 Não corrige salário, tipo, campo nem função. Correção de salário passa por `correct_player_salary` —
 **nunca patch**.
@@ -5128,7 +5166,7 @@ Não corrige salário, tipo, campo nem função. Correção de salário passa po
 
 ---
 
-## F1C (MAN-OFF26-20-F1C, 05/08/2026) — o discriminador é o CANAL, e o problema encolhe de 73 para 29
+#### F1C (MAN-OFF26-20-F1C, 05/08/2026) — o discriminador é o CANAL, e o problema encolhe de 73 para 29
 
 ⚠️ **A F1B usou o critério errado.** O corte *"readquirido pelo próprio owner × por time diferente"*
 saiu de uma leitura da 6.8 que **não corresponde à regra real da liga**, esclarecida pelo owner em
@@ -5142,7 +5180,7 @@ saiu de uma leitura da 6.8 que **não corresponde à regra real da liga**, escla
 
 ⇒ **A identidade do time é irrelevante. O que decide é o CANAL.**
 
-### T1 — A distinção nunca se perdeu: ela está no sync
+##### T1 — A distinção nunca se perdeu: ela está no sync
 
 Está em [sync_sleeper.py:911-915](sync_sleeper.py#L911-L915), em `_collect_transaction_events`:
 
@@ -5164,7 +5202,7 @@ são considerados na folha salarial"*. Nada relevante foi descartado.
 
 ⇒ **Não era preciso refazer a identificação: ela já existe, é canônica e vem da API.**
 
-### T2 — Censo pelo canal (alta confiança)
+##### T2 — Censo pelo canal (alta confiança)
 
 Para cada um dos 85, o **último evento de aquisição** (trocas resolvidas para a aquisição anterior,
 pela **6.7** — *"jogador trocado carrega o contrato"*):
@@ -5179,7 +5217,7 @@ pela **6.7** — *"jogador trocado carrega o contrato"*):
 `acquisition_type` do `Player` **bate com o último evento em 100% dos casos** (32/32, 29/29, 24/24).
 **Nenhum indeterminado** nesta população.
 
-### T3 — Os três grupos, e o impacto real de 18/08
+##### T3 — Os três grupos, e o impacto real de 18/08
 
 **(a) 32 via waiver — CERTOS.** Carregam contrato legitimamente, mesmo tendo trocado de time. O
 rollover aplicará valorização, que é o que a regra manda. **Nada a corrigir.**
@@ -5202,7 +5240,7 @@ na **renovação (ano 5)** — em 2029.
 ⇒ **o rollover vai SUBCOBRAR** esses 29. Hoje são $6; com a ESPN definitiva de 18/08 o número é
 desconhecido e cresce linearmente com o valor dos jogadores.
 
-### T4 — O fator 1,2: ambiguidade eliminada
+##### T4 — O fator 1,2: ambiguidade eliminada
 
 O ×1,2 é aplicado **na fronteira de escrita**, nunca no cálculo:
 
@@ -5221,7 +5259,7 @@ year1_salary(rookie)    = floor(espn_ref_value)          = 1,2 × raw           
 ⇒ **O código já implementa `0,8 × 1,2 × ESPN`.** Não há fator faltando em regra nenhuma. Confirma a
 diagnose [[MAN-ESPN12]], que já havia varrido o tema e descartado réplica no client.
 
-### T5 — Revisão item a item da F1B
+##### T5 — Revisão item a item da F1B
 
 | conclusão da F1B | veredito |
 |---|---|
@@ -5248,7 +5286,7 @@ quando o jogador **tem** contrato (carrega), mas **não diz** qual é o ano 2 de
 80%") mandaria 0,8; a regra do owner, lida como "waiver ≠ FA", mandaria valorização. **Não infiro:
 é decisão do owner.** Hoje as duas dão $1 (ESPN provisória 1.0); em 18/08 podem divergir.
 
-### Refutação de premissas
+##### Refutação de premissas
 
 **(a) Contraditas:**
 1. ⛔ *"a identificação waiver × FA já foi feita — encontrar onde ela vive"* — **certo, e melhor do
@@ -5268,7 +5306,7 @@ quando o jogador **tem** contrato (carrega), mas **não diz** qual é o ano 2 de
 3. O **bid FAAB não é capturado** pelo sync — inócuo hoje (7.1.8), mas é a única perda real.
 4. O enum `waiver` está no conjunto errado — **espelho invertido** do que a F1 acusou.
 
-### O que muda para o owner
+##### O que muda para o owner
 
 **Prioridade rebaixada de CRÍTICA para ALTA:** o grupo com erro de salário é **29**, não 73, e o
 delta com a ESPN de hoje é **$6**. O prazo, porém, é o mesmo — e o número cresce com a ESPN
@@ -5285,12 +5323,12 @@ definitiva.
 
 ---
 
-## VERIF (MAN-OFF26-20-VERIF, 05/08/2026) — os 34 verificados nominalmente contra a API
+#### VERIF (MAN-OFF26-20-VERIF, 05/08/2026) — os 34 verificados nominalmente contra a API
 
 **Read-only absoluto.** Banco aberto em `mode=ro`; API do Sleeper só com `GET`. Nenhuma escrita,
 nenhuma correção. Draft 2026 conferido em `pre_draft` — **board intacto**.
 
-### A premissa da data: CONFIRMADA, não falsificada
+##### A premissa da data: CONFIRMADA, não falsificada
 
 O owner condicionou a correção a uma pergunta: **algum dos 34 foi adquirido em 2024?** Se sim,
 já passou pela valorização de 2025 e "corrigi-lo" quebraria um contrato certo.
@@ -5303,7 +5341,7 @@ já passou pela valorização de 2025 e "corrigi-lo" quebraria um contrato certo
 ⚠️ **Mas há uma ressalva que o corte automático não pega, e ela é o achado do dia** (ver "as duas
 aberturas de 2024 candidatas", abaixo).
 
-### O eixo do erro não é um só — e a F1C errou ao tratá-lo como um só
+##### O eixo do erro não é um só — e a F1C errou ao tratá-lo como um só
 
 A F1C separou "29 errados" × "5 indeterminados". A verificação mostra que o eixo é outro:
 
@@ -5321,7 +5359,7 @@ por causas OPOSTAS.** Nos 29 o dado está errado; nos 5 o dado está certo e que
 `contract_year = 2` ⇒ `next_yr = 3` ⇒ o ramo do 0,8 **nunca** os alcança. A régua da F1C ("estar
 fora está certo") é **verdadeira para os 32 e falsa para os 5** — e o enum consegue servir aos dois.
 
-### ⛔ O delta de "+$6" é ilusão do ESPN provisório
+##### ⛔ O delta de "+$6" é ilusão do ESPN provisório
 
 **134 dos 248** jogadores do elenco estão com `espn_ref_value ≤ 1.0` — provisório. A tabela
 definitiva entra **18/08, o mesmo dia do rollover**. Com o ESPN de hoje só **5 dos 34** divergem;
@@ -5338,7 +5376,7 @@ com valor real, **32 dos 34**:
 O rollover **subcobra** em todos os cenários. **Não usar o "+$6" para dimensionar a urgência** — ele
 mede o ESPN provisório, não o erro.
 
-### Tabela nominal dos 34
+##### Tabela nominal dos 34
 
 `A` = o que o rollover fará com o dado como está · `B` = o que a regra do owner manda ·
 ESPN REF = valor já ajustado (× 1,2), como armazenado.
@@ -5382,7 +5420,7 @@ ESPN REF = valor já ajustado (× 1,2), como armazenado.
 
 **21 CORRIGIR · 3 CORRETO (dado) · 10 AMBÍGUO.**
 
-### Transações de 2025 que fundamentam cada CORRIGIR
+##### Transações de 2025 que fundamentam cada CORRIGIR
 
 Todas na liga `1224848075609100288` (season 2025), `type = free_agent`, `status = complete`:
 
@@ -5413,7 +5451,7 @@ Todas na liga `1224848075609100288` (season 2025), `type = free_agent`, `status 
 Os 3 CORRETO, por waiver com bid FAAB real: Dike `tx:1296727996714975232` (19/11, $8),
 Gadsden `tx:1276420291110653952` (24/09, $16), Shough `tx:1289076463496101888` (29/10, $18).
 
-### ⚠️ As duas aberturas de 2024 candidatas — a falsificação parcial que o owner pediu para destacar
+##### ⚠️ As duas aberturas de 2024 candidatas — a falsificação parcial que o owner pediu para destacar
 
 Nenhum dos 34 tem **transação de aquisição** de 2024 como último evento. Mas **dois** têm uma
 aquisição de 2024 **pelo mesmo owner que os readquiriu em 2025** — e, se a **6.8** valer, é ela que
@@ -5431,7 +5469,7 @@ abre o contrato vigente, **não** a de 2025:
 Os outros 8 ambíguos têm **abertura inequivocamente em 2025** — o flag é sobre *qual* evento de
 2025 abre, não sobre o ano. Para eles a resposta de 2026 (ano 2) é a mesma nas duas leituras.
 
-### Premissas refutadas
+##### Premissas refutadas
 
 1. ⛔ **"os 5 `fa_waiver` entraram por waiver SEM contrato prévio"** (premissa do prompt) — **falso
    para Jaylin Noel**: ele foi **draftado no leilão de 2025** (r2p17, $1) pelo próprio
@@ -5453,7 +5491,7 @@ Os outros 8 ambíguos têm **abertura inequivocamente em 2025** — o flag é so
    de 28-30/07/2026** (Robinson→rafaelferreirap, Bigsby→mongoloides), o que indica que está fresco
    — mas **a lista nominal deve ser reconferida contra o banco vivo antes da correção**.
 
-### O que o owner precisa decidir
+##### O que o owner precisa decidir
 
 1. ⛔ **Aprovar (ou não) os 21 CORRIGIR** — todos com transação de 2025 citada acima. A correção é
    `contract_year: 2 → 1`, e passa por `correct_player_salary`, **nunca patch**.
@@ -5468,12 +5506,12 @@ Os outros 8 ambíguos têm **abertura inequivocamente em 2025** — o flag é so
 
 ---
 
-## CANAL (MAN-OFF26-20-CANAL, 05/08/2026) — Gainwell resolvido pelo canal, e o grupo fecha em 22
+#### CANAL (MAN-OFF26-20-CANAL, 05/08/2026) — Gainwell resolvido pelo canal, e o grupo fecha em 22
 
 **Read-only absoluto.** O owner recusou aprovar sem resolver o Gainwell pelo **canal** — o
 discriminador que ele próprio fixou — em vez do padrão (mesmo owner + 6 dias). Tinha razão.
 
-### T1 — Gainwell: o canal é `free_agent`. Ele ENTRA no grupo.
+##### T1 — Gainwell: o canal é `free_agent`. Ele ENTRA no grupo.
 
 A reaquisição de 2025-09-01 é **`tx:1268069831555424256`** (liga 2025, leg 1, `created`
 2025-09-01): **`type: "free_agent"`, `status: "complete"`, `settings: null`, `waiver_bid: null`**.
@@ -5489,7 +5527,7 @@ antes (`tx:1266160615966134272`, 2025-08-26).
 ⛔ **A leitura "6.8 literal" da VERIF cai.** A leitura do owner (6 dias atravessam o waiver period)
 está **confirmada pelo dado**. **O grupo de correção fecha em 22.**
 
-### T2 — Auditoria de canal dos 21 + Bates: `free_agent` em 23 de 23
+##### T2 — Auditoria de canal dos 21 + Bates: `free_agent` em 23 de 23
 
 Os 21 CORRIGIR: **21/21 com `type: "free_agent"`, `status: "complete"`, sem bid** (refs e datas na
 tabela da VERIF — tipos reconferidos um a um contra a transação da API). **Nenhum waiver
@@ -5502,7 +5540,7 @@ ESPN REF 1.0).
 **225/225** waivers completos têm `settings.waiver_bid`; **661/661** `free_agent` completos não
 têm. O canal não é convenção de rótulo — é estrutura da API.
 
-### T3 — A conta da correção, e o que ela toca
+##### T3 — A conta da correção, e o que ela toca
 
 Os 22 são **homogêneos**: `contract_year = 2` · `contract_start_season = 2025` ·
 `acquisition_type = free_agent` · `salary = $1` · `needs_review = 0`.
@@ -5538,7 +5576,7 @@ sensibilidade da VERIF). Os 16 com ESPN REF 1.0 têm delta $0 **hoje** — a cor
   (old→new nas notes) na mesma transação. **Trilha resultante:** 1 linha de `PlayerHistory` por
   jogador; `SalaryHistory` intocada (não há mudança de salário — e ela está vazia, F1B).
 
-### T4 — Reconferência contra o vivo: BLOQUEADA desta máquina, comando pronto
+##### T4 — Reconferência contra o vivo: BLOQUEADA desta máquina, comando pronto
 
 `/data/dynasty.db` só é alcançável via Render Dashboard → Shell (sem CLI/API key local; rotas de
 prod atrás de OAuth). A VERIF leu o **seed local** (git, 01/08), que reflete as trades de
@@ -5552,7 +5590,7 @@ Esperado: 22 linhas, todas `contract_year=2, contract_start_season=2025,
 acquisition_type=free_agent, salary=1, needs_review=0, is_dropped=0`. Qualquer divergência
 suspende a linha correspondente.
 
-### Premissas refutadas / confirmadas
+##### Premissas refutadas / confirmadas
 
 1. ✅ **A leitura do owner confirmada pelo dado:** 6 dias bastaram para atravessar o waiver period
    — o add voltou como `free_agent`.
@@ -5566,13 +5604,13 @@ suspende a linha correspondente.
 4. ✅ **`fa_auction` não contamina o grupo:** nenhum dos 22 tem evento de leilão FA em 2025 como
    opener — os 24 do `fa_auction` são população disjunta (F1C).
 
-## FIX (MAN-OFF26-20-FIX, 06/08/2026) — porta canônica criada + ensaio 22/22; prod aguarda o owner
+#### FIX (MAN-OFF26-20-FIX, 06/08/2026) — porta canônica criada + ensaio 22/22; prod aguarda o owner
 
 **Aprovação nominal do owner (05/08/2026)** sobre o estado conferido no T4 (prod ≡ seed, 22/22).
 O vão canônico declarado no CANAL foi preenchido e a correção foi ensaiada de ponta a ponta em
 cópia do seed. **A escrita em produção é do owner, no Render Shell** (passo a passo abaixo).
 
-### O que nasceu
+##### O que nasceu
 
 - **`contract_year_correction.py` — a porta canônica** (molde M2/`correct_player_salary`):
   núcleo **puro** (`guard_mismatches`/`plan_correction` — sem Flask/DB) + camada ORM
@@ -5592,14 +5630,14 @@ cópia do seed. **A escrita em produção é do owner, no Render Shell** (passo 
   runner): guarda campo a campo, normalização SQL↔ORM, atomicidade via rollback, idempotência
   (2ª passada pula tudo), DEF por sigla, fora-da-lista intocado, casos vivos pelo motor real.
 
-### Ensaio (06/08, cópia do seed — o seed do git NÃO foi tocado)
+##### Ensaio (06/08, cópia do seed — o seed do git NÃO foi tocado)
 
 `--check`: 22/22 elegíveis. `--apply`: 22 corrigidos, **22 linhas alteradas na tabela inteira**
 (só `contract_year`+`updated_at`), 22 linhas de trilha, dry-run com os 4 casos vivos conferindo
 (**Pierce $5, Watson $4, P. Washington $4, Wilson $2**), exit 0. Segunda `--apply`: 22 pulados
 pela guarda (`contract_year=1`), zero escrita, exit 1. Suítes: **54 + 34 + 14 + 20 verdes**.
 
-### Execução em produção (owner, Render Shell) — nesta ordem
+##### Execução em produção (owner, Render Shell) — nesta ordem
 
 ```
 sqlite3 /data/dynasty.db ".backup '/data/pre_off26_20_fix.db'"
@@ -5613,7 +5651,7 @@ Esperado: `--check` termina em "OK — 22/22 elegíveis, casos vivos conferem"; 
 = linha fora do estado aprovado, deixada intacta de propósito. (`DYNASTY_DB=/data/dynasty.db` já
 está no ambiente do serviço; o deploy que leva o runner precisa estar no ar antes.)
 
-### ✅ EXECUTADO EM PRODUÇÃO (owner, Render Shell, 06/08/2026 ~12:55 UTC)
+##### ✅ EXECUTADO EM PRODUÇÃO (owner, Render Shell, 06/08/2026 ~12:55 UTC)
 
 Sequência integral rodada pelo owner em `/data/dynasty.db` (transcript conferido nesta sessão):
 
@@ -5630,7 +5668,7 @@ Sequência integral rodada pelo owner em `/data/dynasty.db` (transcript conferid
 - **O seed do git segue PRÉ-correção nos 22** (inofensivo: `init_data.py` nunca sobrescreve o
   vivo; corrigir o seed é opcional e só faria diferença num redeploy do zero).
 
-### Pendências (após a execução)
+##### Pendências (após a execução)
 
 1. ~~Enum dos 5 `fa_waiver`~~ → **✅ resolvido no CLOSE** (decisão do owner 06/08, ver abaixo).
 2. ~~Coluna PROJ~~ → **✅ resolvido no CLOSE** (fonte única, ver abaixo).
@@ -5639,9 +5677,9 @@ Sequência integral rodada pelo owner em `/data/dynasty.db` (transcript conferid
 4. (Opcional) Alinhar o seed do git ao pós-correção — rodar o runner no seed local, ou
    substituir o seed por um backup de prod, quando o owner quiser.
 
-## CLOSE (MAN-OFF26-20-CLOSE, 06/08/2026) — enum `fa_waiver` + PROJ na fonte única + Bryant/censo
+#### CLOSE (MAN-OFF26-20-CLOSE, 06/08/2026) — enum `fa_waiver` + PROJ na fonte única + Bryant/censo
 
-### T2 — `fa_waiver ∈ _WAIVER_TYPES` (decisão do owner, 06/08)
+##### T2 — `fa_waiver ∈ _WAIVER_TYPES` (decisão do owner, 06/08)
 
 **Regra do owner:** quem entra por waiver **sem contrato prévio a carregar** segue a trilha de FA
 (ano 1 = $1, ano 2 = 0,8 × ESPN REF) — a regra de carregar contrato existe para impedir
@@ -5662,7 +5700,7 @@ alinha o motor ao vocabulário do sync.
   `trilha_fa_proj_test.py` fixam: ano 1 = $1, 1→2 = 0,8, contrato carregado inalterado,
   alcance do 0,8 restrito à transição 1→2, projeção ≡ rollover.
 
-### T3 — Pat Bryant: CORRETO fora dos 22; censo: zero casos novos
+##### T3 — Pat Bryant: CORRETO fora dos 22; censo: zero casos novos
 
 **Bryant (12492) resolvido pela API, mesmo método do arco:** rookie draft 2025 (liga
 1224848075609100288, round 3 pick 28) → **drop 01/10/2025** (`tx:1279129013574451200`) →
@@ -5683,7 +5721,7 @@ em ano 2; Bryant sempre esteve em ano 1. **Nada a corrigir.**
 (b) *"FA de 2025 sem passagem anterior pela liga"* — ⛔ Bryant TEVE passagem (draftado e dropado
 em 2025); e o censo mostra que **não há** o caso hipotético em estado errado.
 
-### T4 — Coluna PROJ na fonte única
+##### T4 — Coluna PROJ na fonte única
 
 `Player.projected_next_salary()` ([models.py](models.py#L176)) agora **delega** a
 `salary_engine.project_next_salary` — a mesma fonte do Cap Projector, da porta `/budget` e do
@@ -5700,9 +5738,9 @@ $45 — o caso que SOBE), **Egbuka $13** (não $26), **McMillan $15** (não $30)
 (não $4 — o caso que abriu a F1). Os 22 corrigidos passam a exibir o valor do dry-run (Pierce $5)
 — **em prod**; no seed local seguem pré-correção.
 
-### Suítes (06/08): 54 + 34 + 14 + 20 + **17 novas** (`trilha_fa_proj_test.py`) — todas verdes
+##### Suítes (06/08): 54 + 34 + 14 + 20 + **17 novas** (`trilha_fa_proj_test.py`) — todas verdes
 
-### Pendências de smoke (prod, pós-deploy)
+##### Pendências de smoke (prod, pós-deploy)
 
 1. **PROJ nas telas:** `/` e `/team/<id>` — conferir Hampton $26, Jeanty $57, Egbuka $13 e um dos
    22 (Pierce $5).
@@ -5712,6 +5750,8 @@ $45 — o caso que SOBE), **Egbuka $13** (não $26), **McMillan $15** (não $30)
    `sqlite3 /data/dynasty.db "select contract_year, count(*) from players where acquisition_type='fa_waiver' and is_dropped=0 group by 1;"`
 
 ---
+
+## Itens UX
 
 ### UX2 — Acquisition Types PT-BR em Todas as Telas
 🔲 **Pendente** — Prioridade **Baixa**
