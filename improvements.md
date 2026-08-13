@@ -1,12 +1,12 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 13/08/2026 (sessão MAN-L3-F1, **docs-only**: registro do **[[L3]] 🔲 — projeção de cap por time na `/league`** + parecer F1 read-only completo na seção. Achados centrais: a fonte canônica do agregado projetado é a **COMPOSIÇÃO** `project_next_salary` → `draft_budget`, que vive **inline e num único sítio** — o POST `/budget` do cap_projector (`routes/salary.py:150-180`); **zero réplica de agregação hoje** (⚠️ a premissa do prompt sobre "débito de agregação em JS" está DESATUALIZADA — era o F10, fechado 12/06, e o JS atual só posta estado); a coluna PROJ de `/` e `/team/<id>` já projeta POR JOGADOR pela mesma fonte (T4). **Caminho F2 sem réplica e sem N+1:** agregar server-side no render do `league_hub` sobre o `players_by_team` JÁ carregado — **0 queries novas** (as 5 da tela mantidas; ~250 chamadas puras + 12 `draft_budget` em memória) — extraindo a composição do `/budget` p/ helper único fora do `salary_engine`, com 2 consumidores. Fase: pós-rollover a projeção "next" passa a significar season+2 — o precedente D9 (`projected:false`) é a arbitragem do próprio código; gate de exibição = `rollover_done`, PROV herda `bid_provisional`. ⛔ **NÃO trocar a base do Bid Máximo** (corrente = o mesmo número da keeper sheet). Premissa "L3 já registrado" era **FALSA** — registrado nesta sessão. Auditor verde. Zero código.)
 > Atualizado em: 11/08/2026-pt10 (sessão MAN-OFF26-24-FIX8: **o assentamento vira ASSÍNCRONO** — o teste morno provou a impaciência: o pick do Josh Allen ($30, preço editado certo — caminho >$1 provado de brinde) **gravou na hora** e a API pública levou **>5min** para refleti-lo; o poll de 15s desistiu de um sucesso lento → retry → busca vazia (o board local, CERTO, escondia o designado) → abort falso. No ensaio o lag fora ~3s — **a variância é o fato central**; hipótese do owner em teste: propagação dependente de VISITA (cache preguiçoso). **Desenho novo:** `command_pick` comanda e SEGUE (`pendente_confirmacao`; teto continua síncrono); `reconcile_team` POR TIME (teto 300s, poll 5s, **reload no meio do teto** — a visita do próprio script como gatilho possível; **telemetria por keeper** distingue fila contínua = lag puro de rajada pós-reload = cache por visita — o achado redefine a espera de 22/08); `post_teto_decision` puro (board local designado → `assentado_local_api_atrasada`, ⛔ nunca re-comandar · disponível → 1 re-comando + mini-reconciliação · esgotou → falha DO KEEPER, resto do time preservado); **idempotência em LOTE** antes do 1º clique; busca vazia cruza run própria → API → board local (tarefa 5). Testes 86→87 (simulador puro com lags 3s/40s/6min); suítes verdes; diffstat conferido. **Re-teste morno do owner: populate --team-slot 10** — 2 ja_assentados no lote + comandos + reconciliação, telemetria respondendo a hipótese.)
 > Atualizado em: 11/08/2026-pt9 (sessão MAN-OFF26-24-F2b: **F2a FECHADA** (Cam Ward $1 → TTP assentado e confirmado pela API; validate 19/19 zero divergências) **com a lição descoberta na própria pele** — o pick gravou numa run que morreu antes do poll e a seguinte gastou um ciclo com “busca vazia misteriosa” (designado some do pool) → **idempotência é a PRIMEIRA verificação, não a última**. **F2b entregue:** `idempotency_decision` no núcleo (já-assentado = sucesso com zero cliques · divergente = conflito nomeado · ausente = designa) + re-checagem da API em busca vazia (`EmptySearchResult` — o desync corre); `populate --team-slot N` (loop por time com conferência contagem+soma vs sheet; falha aborta O TIME preservando o que assentou) e `populate --all` (12 em ordem de slot, **retomável por construção**; `bloqueado_teto` = resultado esperado §B.3.2 — AlexTheDawg/Miller Time! — registra e segue, exit code não-falha); **o juiz é a auditoria OFF26-4** (instrução no relatório; a contagem do script não substitui). Critério de 19/08 no README: RESET (owner) → --all provisória 12/12 zero intervenção → auditoria coerente → RESET final. Testes 66→**86** (+ os 3 do header do FIX7 que um gerador falho tinha deixado de fora — pego na conferência); suítes verdes; diffstat conferido. **O ensaio 12/12 é do owner.**)
 > Atualizado em: 11/08/2026-pt8 (sessão MAN-OFF26-24-F2a-FIX7: a heurística do FIX6 ancorou no trio do FUNDO — o screenshot do abort provou que o manual pick vive num `#modal[role=alertdialog]` com o header “Make Manual Pick for Team 10” dentro, e a página de fundo DUPLICA input/lista/botão; o input eleito ficou fora do dialog e o underlay interceptou 30s. Fix: **âncora no `#modal` quando presente** (heurística vira FALLBACK logado no relatório), **espera de ESTADO** pós-Set Player (não abre → abort nomeado) e **o header como identidade** (`modal_header_check` puro: time errado → abort com fronteira Team 1≠10; dialog sem header → Esc + abort nomeando o conteúdo — o tratamento de dialog residual da tarefa 4). O caso do abort é impossível por construção: o escopo NASCE do #modal. Guardas intactas (anti-homônimo, filtro, proibições). Testes 65→66; suítes verdes; diffstat conferido. Re-execução do mesmo comando é do owner.)
 > Atualizado em: 11/08/2026-pt7 (sessão MAN-OFF26-24-F2a-FIX6: o parser do FIX5 funcionou — sobre a lista ERRADA: as 57 linhas eram o **ranking de FUNDO da página** (5 QBs, todas as posições), não o resultado do modal; o abort “5 candidatos QB” foi correto (recusou QB aleatório) e denunciou o vazamento de escopo. Fix: **container do modal ancorado por estrutura** (`_modal` = menor ancestral do botão Assign/SET PLAYER que contém o input de busca) e **tudo escopado nele** — busca, linhas, “+”, preço; ⛔ nenhum locator global sobrevive (guarda estática). **Efeito da digitação conferido ANTES do matching** (`search_filter_check` puro: dezenas de linhas = fundo → abort “busca não filtrou”; as 57 do caso real são fixture). Anti-homônimo INTACTO (0/2+ abortam). Testes 60→65; suítes verdes; README com instrução do probe p/ o wrapper. Re-execução do mesmo comando é do owner.)
-> Atualizado em: 11/08/2026-pt6 (sessão MAN-OFF26-24-F2a-FIX5: a run avançou por TODO o caminho e abortou no anti-homônimo com **“0 candidatos QB” — com o Cam Ward na própria lista do abort** (`'QB\nTEN TEN'`). Bug de **parsing**: o innerText real vem empilhado por newlines, com sigla duplicada e status de injury (`'RB\nDET\nQUES DET'`) — o matcher esperava o formato limpo do ensaio; **o abort em 0 candidatos estava CERTO como comportamento** — o critério de reconhecimento é que não lia o DOM real. Fix no núcleo puro: `parse_result_row` (tokenização; posição = vocabulário; sigla = 2-3 maiúsculas fora dele — QUES/OUT caem por tamanho) + `select_candidate_rows` (posição EXATA; 0 ou 2+ abortam — **nada relaxou**; sigla logada p/ conferência humana) e o “+” clicado é o da **linha ELEITA** (`rows.nth(idx)`). Testes 50→60 — as linhas LITERAIS do abort viraram fixture. Suítes verdes; diffstat conferido. Re-execução do mesmo comando é do owner.)
-> 📁 Entradas anteriores em **`improvements_sessions.md`** (89 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
+> 📁 Entradas anteriores em **`improvements_sessions.md`** (90 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
@@ -102,6 +102,7 @@
 | O2 | Enriquecer página do jogador: contexto NFL (time + **link do time da liga** + **idade** + depth chart — 7 dimensões pós-roteamento (b) do [[UX12]]) + stats históricas + ECR/ADP + schedule — MAN-O2-F1/MAN-UX12-REFINE/MAN-O2-F2-B1/**MAN-O2-B1-DONE** | Média | ⚠️ **Batch 1 VALIDADO EM PROD 08/08/2026** (PROC1: hash `2ed0b4a` live; DJ Moore completo, link cruzado Gainwell → franquia dele, validação do Michel; `nfl_context.py` núcleo puro + 19 testes, página nunca faz rede, idade derivada. Ressalva: degradação fora-do-pool **não exercida em prod** — pool de prod mais fresco que o local; coberta por unit test) — **Batch 2 (stats + schedule) pendente** |
 | L1 | League Hub: visão geral da liga + detalhe por time | Alta | ✅ 23/04/2026 |
 | L2 | League Hub season mode: matchups, schedule, standings | Baixa | 🔲 |
+| L3 | Projeção de cap por time na `/league` (agregado da season seguinte via regra de valorização × ESPN, hoje só no cap_projector time a time). **F1 13/08/2026:** fonte = composição `project_next_salary`→`draft_budget` (sítio único, POST `/budget`); **zero réplica hoje** (débito JS = F10, já fechado); caminho F2 = agregação server-side no render sobre players já carregados (**0 queries novas**) via helper de composição único; fase gated por `rollover_done` (precedente D9); ⛔ base do Bid Máximo intocada — MAN-L3-F1 | A definir | 🔲 (F1 concluída — parecer na seção; decisões de produto com o owner) |
 | N1 | Redesign navbar: estrutura com dropdowns + acesso rápido aos times | Média | ✅ 23/04/2026 |
 | C1 | Cap projector: modo "drop programado" para simular liberações de cap | Média | 🔲 |
 | M8-PERM | Lottery: simulação aberta a owners + bloqueio server-side pós-oficial | Média | ✅ 23/04/2026 |
@@ -4105,6 +4106,91 @@ Q2 da UX12-F1 (08/08) as re-conferiu no cache local e elas **batem** (depth char
 - Na vista `/league`: adicionar coluna de record e pontos totais.
 - Na vista `/team/<id>`: adicionar aba "Temporada" com schedule semanal e pontuações.
 - **Pré-requisito:** L1 concluído. Implementar quando a temporada 2026 começar.
+
+---
+
+### L3 — Projeção de cap por time na `/league`
+🔲 **Pendente — F1 concluída 13/08/2026 (MAN-L3-F1, parecer read-only); F2 aguarda decisões de
+produto do owner** — Prioridade **A definir**
+
+**Problema:** a `/league` exibe o cap da season corrente (`cap_used`/`cap_space`, computados no
+render); a projeção da season seguinte (valorização × tabela ESPN) só existe agregada no Cap
+Projector, **time a time**. Não há tela com o agregado projetado dos 12 — a divergência entre as
+duas grandezas motivou o item.
+
+**F1 — as 5 respostas (evidência por âncora):**
+
+**1. Fonte canônica.** Por jogador: `salary_engine.project_next_salary`
+([salary_engine.py:176](salary_engine.py#L176)) — pura (projeta `contract_year+1`; sem ESPN →
+salário atual; renovação → floor(ESPN); waiver ano 2 → 0,8; senão VALORIZAÇÃO). Agregação:
+`salary_engine.draft_budget` (pura). O agregado PROJETADO que o projector exibe nasce da
+**composição** dos dois — inline, num único sítio: o POST `/api/cap_projector/<team>/budget`
+([routes/salary.py:150-180](routes/salary.py#L150-L180)) monta roster sintético de
+`SimpleNamespace(salary=project_next_salary(p))` p/ os mantidos (+ rookies do cenário a
+`year1_salary`) e passa ao `draft_budget`. ⚠️ O GET `/api/cap_projector/<team>` devolve
+`next_salary` por jogador, mas o `budget` dele é sobre salário **CORRENTE**
+([routes/salary.py:92](routes/salary.py#L92)) — o número projetado da barra sticky vem do POST.
+**Não existe helper nomeado "budget projetado"**; a composição não tem nome nem segundo consumidor.
+
+**2. Inventário de réplicas — veredicto: ZERO réplicas de cálculo hoje.**
+(a) `project_next_salary` = canônica; (b) `Player.projected_next_salary()`
+([models.py:178](models.py#L178)) **DELEGA** (T4 do [[OFF26-20]]) — wrapper, não réplica;
+consumidor: coluna PROJ de `/` e `/team/<id>` (`_macros.html:73`); (c) `Player.to_dict()` idem
+([models.py:239](models.py#L239)); (d) `apply_season_rollover` implementa as mesmas regras
+**dentro** do engine, com teste de concordância (`trilha_fa_proj_test.py:89`); (e) **JS: nenhuma
+agregação** — o débito era o [[F10]], **eliminado em 12/06/2026**; o JS atual do projector só
+posta estado e exibe payload (`cap_projector.html:167-170`, "Nenhuma agregação de cap em JS").
+**Como a F2 não cria réplica:** o risco real é a composição inline do `/budget` ganhar uma 2ª
+cópia em `league.py`. Caminho: extrair a composição p/ **helper único fora do `salary_engine`**
+(p.ex. em `routes/salary.py`, importado pela `/league` — precedente de import cross-blueprint já
+existe: [routes/league.py:14](routes/league.py#L14) importa de `routes.roster`), ficando o POST
+`/budget` e o render da `/league` como os 2 consumidores. Nenhuma aritmética nova em lugar nenhum.
+
+**3. Custo: 0 queries novas, sem N+1.** O `league_hub` faz 5 queries (Team, SeasonStandings,
+contagem de Pick, **todos** os Players numa query, ESPNImportLog —
+[routes/league.py:59-86](routes/league.py#L59-L86)) e já computa `cap_used`/`bid_max` no render
+sobre `players_by_team`. `project_next_salary` lê só colunas já carregadas (salary,
+contract_year, acquisition_type, espn_ref_value) — **nenhuma query por chamada**. Projetar os 12
+= ~250 chamadas puras + 12 `draft_budget` sobre listas de ~22, O(n) em memória. Caminhos
+rejeitados: 12 fetches JS ao GET por time (12 requests + 1 query `EspnValueStore` **cada** — o
+único N+1 real do mapa; a `/league` não precisa dela — o PROV por jogador é do projector, e o
+flag de liga `bid_provisional` já sai do ESPNImportLog em
+[routes/league.py:85](routes/league.py#L85)); endpoint batch novo (complexidade de cliente sem
+ganho — o render server-side preserva o perfil da tela).
+
+**4. Fase.** `project_next_salary` projeta sobre o estado **armazenado** ⇒ o significado muda no
+rollover: **pré**-rollover projeta a season seguinte (janela útil máxima entre a ESPN definitiva
+de 18/08 e o rollover); **pós**-rollover o salário armazenado JÁ É o da season nova e re-projetar
+mostraria season+2 — exibi-lo ao lado do cap corrente contradiria as grandezas. O código já
+arbitrou isso: **D9 do [[OFF26-1]]** usa `projected:false` pós-rollover porque "re-projetar
+duplicaria" ([routes/salary.py:133-138](routes/salary.py#L133-L138)). Flags disponíveis:
+`rollover_done` (AppConfig por ciclo, setada em
+[routes/offseason.py:707](routes/offseason.py#L707)) decide exibição/rótulo; `bid_provisional`
+marca PROV (mesma flag do Bid Máximo). Qualidade pré-definitiva: com ESPN provisória (~1.0 em
+134/248, cf. [[OFF26-20]]) a projeção colapsa p/ ≈ salário atual (subestimada) — mesmo caveat do
+banner do projector. O que o código permite exibir sem contradição: rotular pelo **ano**
+(`season`/`season+1` — ⛔ não hardcodar "2026" como fazem hoje o título do projector e a coluna
+PROJ) e ocultar/rebaixar o projetado quando `rollover_done`.
+
+**5. Premissas × código / comportamentos em risco.**
+(a) "L3 registrado no improvements.md" — **FALSA**: não existia (Status Rápido ia de L1 a L2);
+registrado nesta sessão. (b) "cap ATUAL pré-computado" — **imprecisa**: nada é persistido; é
+computado a cada render (`roster_salary`, [routes/league.py:26](routes/league.py#L26)) —
+inofensiva, e reforça o caminho (projeção no MESMO render). (c) "disponível apenas no
+cap_projector" — **imprecisa**: por JOGADOR a projeção já está em `/` e `/team/<id>` (coluna
+"Proj 2026"); o que só existe no projector é o **agregado**. (d) "débito conhecido de agregação
+em JS" — **FALSA/desatualizada** ([[F10]] ✅ 12/06/2026). Comportamentos: ⛔ **não trocar a base
+do Bid Máximo** — o `bid_max` do card é base CORRENTE (L1-BID,
+[routes/league.py:31-34](routes/league.py#L31-L34)), o **mesmo número** da keeper sheet
+(`fa_budget`, D4); um "bid projetado" no lugar quebraria a coerência tela × sheet (perda
+não-intencional). "Cap restante" corrente: se a F2 **substituir** em vez de somar, some a única
+leitura corrente da liga em tela (remoção só se intencional do owner).
+
+**Questões de produto (owner decide; a F1 só informa o que o código permite):** atual+projetado ×
+só projetado (ambos custam o mesmo: $0 de query); levar o agregado projetado também ao
+`/team/<id>` (mesma composição, mesmo custo); destaque de over-cap projetado (`draft_budget` já
+devolve `over_cap`/`insufficient_budget` — flags prontas); comportamento pós-rollover (ocultar ×
+rebaixar com rótulo de ano).
 
 ---
 
