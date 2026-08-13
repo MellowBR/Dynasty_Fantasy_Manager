@@ -6219,6 +6219,13 @@ dá **exit 0 sem defeito conhecido mascarando nada** (16 medições, 0 achados, 
 usuário a 390px, onde ele está escondido **de propósito** — 30s de timeout até eu ver que o
 comportamento certo era o do app. Corrigi o script para só clicar alvo visível.
 
+**PUSH + DEPLOY ([[PROC1]]):** commit `b750ce6`; o `style.css` **servido em produção** é
+**byte-idêntico** ao do commit (**85.800 B**, `diff` limpo), a regra `@media (max-width: 1023px)`
+está **no ar** (linha 2480 do arquivo servido) e o app responde `GET /league → 302`. Transição
+observada: 84.765 B → 502 (restart) → 85.800 B, com o detector 100% em ferramenta do bash (a
+lição do falso TIMEOUT segue aplicada).
+⚠️ Falta **só** o smoke visual do owner nas 3 faixas (~1280 · ~860 · celular).
+
 **Cross-refs:** [[N1]] (redesign da navbar que criou a estrutura atual), [[UX6]] (largura máxima
 do container), [[O7]] (o instrumento), [[L3]] (de onde o achado caiu).
 
