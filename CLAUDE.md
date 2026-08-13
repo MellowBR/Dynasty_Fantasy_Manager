@@ -45,6 +45,13 @@ python phantom_board_test.py
 # Run auditor poka-yoke do backlog ativo (O5 — gate do checklist de fim de sessão; read-only)
 python tools/backlog_audit.py
 
+# Run núcleo puro da sonda de validação visual (O7 — 28 testes; sem browser)
+python visual_probe_test.py
+
+# Run sonda de validação visual (O7 — GATE de sessão que toca CSS/template; ~20s)
+python tools/visual_probe/cli.py           # exit ≠ 0 em achado NOVO
+python tools/visual_probe/cli.py --list    # cobertura, larguras e motivos
+
 # Run janela selada / runner do ensaio (OFF26-1 — 22 testes)
 python janela_ensaio_test.py
 
@@ -308,6 +315,32 @@ para o MESMO time do pick é keeper** — não ingerido, não gera contrato, nã
 
 Every action is logged: SalaryHistory (with `rule_applied` explanation), PlayerHistory (trades, corrections), SyncLog, Trade records, AuctionLog, ESPNImportLog.
 
+## Gate visual (O7, 13/08/2026) — disparo MECÂNICO, não disciplina
+
+**Se o diff da sessão tocar `static/*.css` ou `templates/*.html`, `python
+tools/visual_probe/cli.py` roda ANTES do push e precisa sair com `exit 0`.** Achado novo
+**bloqueia o fechamento** — mesmo peso do `backlog_audit.py`.
+
+O disparo se decide pelo `git diff --name-only`, sem julgamento:
+
+```bash
+git diff --name-only | grep -qE '^(static/.*\.css|templates/.*\.html)$' && python tools/visual_probe/cli.py
+```
+
+⛔ **Não há mapa template→rota, de propósito:** o app tem **um único arquivo de CSS**, então
+qualquer diff que o toque afeta **todas** as páginas — e a suíte inteira custa **~20s**, menos do
+que manter (e errar) o mapa. Roda tudo.
+
+- **Defeito conhecido não bloqueia:** `core.KNOWN_DEFECTS` registra dívida **já rastreada no
+  backlog** (hoje: `UX16`, transbordo da navbar a ~860px). Achado que não casa uma entrada é
+  regressão nova e derruba o gate. ⛔ Entrada nova ali **exige item no backlog**.
+- ⭐ **`--css` é o controle positivo** (mesma página, folha trocada): é o que prova que o
+  instrumento enxerga o defeito antes de o verde valer. **Um detector que só sabe dizer "não"
+  precisa de controle positivo** — no L3, um poller sem controle deu falso TIMEOUT de 10 min
+  sobre deploy que já estava no ar.
+- Não roda sem Playwright/Chromium: **aborta com `exit 2`, nunca "passa"**.
+- Detalhe de cobertura, larguras e limites: `tools/visual_probe/README.md`.
+
 ## Conventions
 
 - UI and comments in Portuguese (PT-BR), code identifiers in English
@@ -339,6 +372,10 @@ fantasy_manager/
                                     #   verdade via API; guardas de nascença; ver README local)
   tools/backlog_audit.py            # O5: auditor poka-yoke do backlog ativo (stdlib, read-only;
                                     #   gate do checklist de fim de sessão — exit ≠ 0 aponta violações)
+  tools/visual_probe/               # O7: sonda de validação visual (núcleo puro + driver Playwright;
+                                    #   geometria + assinatura de anatomia; ⭐ `--css` = controle
+                                    #   positivo; gate de CSS/template — ver README local)
+  visual_probe_test.py              # O7: núcleo puro da sonda (28 testes, sem browser)
   janela_ensaio_test.py             # OFF26-1: runner do ensaio/reset da janela e da urna (22)
   ensaio_janela_selada.py           # OFF26-1/10: status · banner · reset (janela E urna)
   keeper_audit_fixtures.py          # material de TESTE congelado (NÃO é a keeper sheet real)

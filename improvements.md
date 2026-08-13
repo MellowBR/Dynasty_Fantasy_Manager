@@ -1,12 +1,12 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 13/08/2026-pt9 (sessão MAN-O7: **sonda de validação visual promovida a ferramenta permanente** — `tools/visual_probe/` (núcleo puro + driver Playwright + README) e **gate MECÂNICO no CLAUDE.md**: diff que casa `static/*.css` ou `templates/*.html` roda a suíte antes do push. ⛔ **Sem mapa template→rota de propósito** — o app tem **um único CSS**, logo qualquer diff nele afeta tudo, e ~20s de suíte custam menos que manter (e errar) o mapa. **Demonstração bidirecional (critério do [[O5]]): verde `exit 0`** (16 medições, UX16 reportado como conhecido em 4 páginas) **× controle `--css` pré-FIX-UX `exit 1` com 37 colisões @1280px e 26 @1024px**, incluindo o sintoma literal do screenshot do owner (`"PROV" x "PROV"`). ⚠️ Contagens **maiores** que as do L3 (24/13) porque a ferramenta olha o `.league-card` inteiro e a sonda ad-hoc olhava só o `.league-plan` — **mais sensível, mesmo defeito**. ⭐ **O mecanismo defeito-conhecido × regressão-nova se provou na estreia:** a F1 registrara **4** culpados do [[UX16]], a medição trouxe **5** (faltava `nav-user-avatar`), o achado **não casou e bloqueou** — o registro foi corrigido **pela medição**. ⚠️ **Defeito do próprio instrumento achado e corrigido no 1º run:** acusava 2 colisões no `/picks` @390px com o `.pick-edit-btn`, que tem `opacity: 0` até o hover — **invisível não colide**; filtro adicionado com o **limite declarado** (mede-se o estado PADRÃO; `:hover` fica fora). Cobertura por critério: `/league` (geometria + **anatomia**), `/team/<id>`, `/` e `/picks` (geometria); ⛔ `/cap_projector` e `/trades` **fora com razão medida** (conteúdo por `fetch`, invisível ao `file://`); ⛔ matriz do `/picks` só geometria (células divergem legitimamente). **28 testes** do núcleo puro. [[O7]] ✅ e migrado ao archive na mesma sessão (self-aplicação [[O3]]/[[O5]]); [[UX16]] segue 🔲 — aparecer no relatório é validação, não pendência. ⛔ Zero código da aplicação tocado.)
 > Atualizado em: 13/08/2026-pt8 (sessão MAN-O7-F1 + MAN-UX17-F1, **docs-only read-only**: duas diagnoses absorvidas. **[[O7]]** — inventário da sonda (6 verificações, 4 larguras, serve por `file://` sobre HTML do test client, **sem app rodando, sem login real, sem rede, sobre CÓPIA do banco**; **custo medido: 21 s**); ⭐ a feature a preservar na promoção é o **`--css` = controle positivo**, que troca só a folha e roda o MESMO HTML — é o que prova que o instrumento vê o defeito antes do verde valer. **Critério de cobertura** (anatomia só onde há N irmãos do mesmo loop em layout LIVRE — ⛔ tabela não entra, `<table>` já alinha; geometria para superfície densa de instância única). **Larguras justificadas**, com o achado contra-intuitivo: `auto-fill minmax(280px,1fr)` faz o viewport **mais largo** dar o card **mais estreito** (1280px → 300px), e foi lá que os 2 defeitos do L3 apareceram. **Gate sem depender de disciplina:** o app tem **UM único CSS** ⇒ qualquer diff nele afeta todas as páginas; com 21 s de suíte, rodar tudo sai mais barato que manter mapa template→rota. ✅ [[UX16]] confirmado como 1º cliente. **[[UX17]]** — ⛔ **veredicto medido: a barra rica é MARKUP PRÓPRIO** (`team-status-bar` só existe em `team_detail.html`; `_macros.html` tem 8 macros e nenhuma de barra) ⇒ a paridade **exige criar** o compartilhamento, no molde do [[UX4]]. **Custo quantificado: `/` vai de 15 → 18 queries** (+3 O(1)); **todas** as grandezas da barra rica saem com **0 query** dos dados já carregados (dynasty inclusive, `roster.py:82-86`) — o que custa é gate (+2) e PROV (+1). ⚠️ **Achado estrutural:** `compose_budget` (em `routes/salary.py`) é import de topo seguro, mas `_projection_open` vive em `routes/league.py`, que **importa `routes.roster`** ⇒ importá-lo no topo do roster **fecha ciclo**; 3 saídas listadas, decisão do owner. ⚠️ Premissa do enunciado **refutada**: `/` **não é** "a tela do próprio roster" — é visualizador de qualquer time via `?team=`. Perdas mapeadas na paridade: **% explícito** e o **3º nível de alerta (< $20)**, ambos *não-intencionais* ⇒ preservar. Auditor verde. Zero código.)
 > Atualizado em: 13/08/2026-pt7 (sessão MAN-L3-CLOSE-REG, **docs-only**: **[[L3]] FECHADO ✅** — smoke visual do owner aprovado na `/league` e no `/team/<id>`, prod no hash `7883cd9` com [[PROC1]] confirmado **por artefato servido**. Seção migrada **verbatim** ao `improvements_archive.md` (regra [[O3]]), com o arco das **6 sessões do dia** e — o que importa para o futuro — **as 3 gerações do instrumento de validação, cada uma nascida de um defeito que a anterior APROVOU**: regex sobre HTML (cega a layout — passou 12 cards com texto sobreposto) → geometria (cega a uniformidade — passou anatomias diferentes entre vizinhos) → assinatura de anatomia. ⚠️ **Colisão de IDs pega na conferência: `UX14` e `UX15` do prompt já existiam** (Waller/time NFL de dropado e jogador pré-selecionado na trade) — os itens novos entraram como **[[UX16]]** (navbar transborda a ~860px; ⚠️ **pré-existente**, idêntico no controle ⇒ não é regressão do L3) e **[[UX17]]** (paridade da barra de status entre `/` e `/team/<id>`, com as 3 perguntas que a F1 tem de **medir** — a família já derrubou uma premissa de macro compartilhada). **[[O7]] 🔲 Média** registrado: promover a sonda visual a `tools/` no molde do [[O5]], com as 5 lições de método preservadas (largura real de produção · layout não se valida por regex · colisão ≠ uniformidade · assinatura mede estrutura, não dado · ⛔ todo detector precisa de **controle positivo**) e [[UX16]] como 1º cliente. Auditor verde (143 rows, 55 seções). Zero código.)
 > Atualizado em: 13/08/2026-pt6 (sessão MAN-L3-FIX-UX2, **CSS-only, 9 linhas**: o FIX-UX matou a sobreposição mas com **quebra CONDICIONAL** — o card com over-cap projetado (⚠️ + valor = rótulo mais largo) empurrava *"Slots livres"* para a 2ª linha e ficava com **anatomia diferente do vizinho**. Decisão do owner: **padrão único**. `.league-plan-side` deixa de ser fila com `flex-wrap` e passa a **empilhar sempre** — bid (herói) · cap · slots, uma grandeza por linha, em qualquer largura e com qualquer dado. **A sonda geométrica ganhou medida de ANATOMIA** (assinatura `classe@topo` por bloco, comparada entre os 12), porque **ausência de colisão não prova uniformidade** — o FIX-UX passou verde e o defeito estava lá. Controle contra o CSS de produção: no card de **300px**, **2 anatomias** (11 cards com os dois itens na MESMA linha, o over-cap com o 2º em `top=93`), `linhas/bloco=[3,4]`, alturas **100 e 123**, 11 dos 12 com linhas fora da mesma coluna — e ⚠️ **nas larguras maiores a divergência não aparecia**, era exclusiva do card mais estreito, que é justamente o de produção. Com o fix: **1 anatomia**, `linhas/bloco=[4]`, altura **123**, `fora da coluna: []`, 0 colisões / 0 transbordos / 0 overflow nas **4** larguras. ⚠️ Tropeço registrado: a 1ª versão da assinatura incluía o `left` e acusava "3 anatomias" por **1px** de largura de texto (`$5/$200` × `$180/$200`) — dado, não anatomia; o `left` virou verificação separada de alinhamento. 499 verdes. Push + PROC1 na mesma sessão.)
 > Atualizado em: 13/08/2026-pt5 (sessão MAN-L3-FIX-UX, **CSS-only**: o smoke visual do owner pegou o que a minha validação **não tinha como pegar** — "BID MÁXIMO 2026" **sobreposto** a "Cap 2026 [PROV] $X/$200" e as duas tags PROV empilhadas, em todos os cards na largura real; dados/over-cap/linha Atual/rodapé corretos. **Causa raiz medida:** `.league-plan` era **uma linha flex com duas colunas, ambas `white-space: nowrap`** — o card de produção dá **~258px úteis** contra **~310px de largura mínima** do conteúdo; o `min-width:0` deixava o herói encolher, mas **texto nowrap sem overflow não encolhe: TRANSBORDA**, pintando por cima do vizinho. **Fix:** o bloco **empilha** e a fila secundária **quebra sozinha**; cada item segue nowrap por dentro (valor nunca se separa do rótulo) e a quebra é **entre** itens. **34 linhas de CSS, zero backend/template/JS.** **A validação mudou de natureza: virou GEOMÉTRICA** (Playwright medindo `getBoundingClientRect`), e rodou **primeiro contra o CSS de produção como CONTROLE, para provar que o instrumento enxerga o defeito: 24 colisões a 1280px, 13 a 1024px, 1 a 390px** — com o fix, **0 colisões / 0 transbordo / 0 overflow** nas 4 larguras, com e sem over-cap. A sonda anterior lia HTML por regex e por isso aprovou 12 cards com o texto sobreposto — **lição: layout não se valida por texto**. ⚠️ **Premissa do prompt corrigida:** a macro `bloco_destaque` **não** é compartilhada com o `/team/<id>` (seus 2 usos são os 2 ramos do gate, ambos em `league.html`); a `.team-status-bar` sempre teve `flex-wrap: wrap` e **nunca** sofreu do defeito — conferido, 0 colisões. Achado de carona **pré-existente**: a **navbar** transborda a ~860px, idêntico no controle e no fix ⇒ não é regressão. 499 verdes. Push + PROC1 na mesma sessão.)
-> Atualizado em: 13/08/2026-pt4 (sessão MAN-L3-FIX: **card da /league reorientado a PLANEJAMENTO + o push que faltava.** Feedback da liga: o card responde primeiro *"quanto posso gastar na auction"* ⇒ **3 zonas** — bloco de destaque com **bid máximo projetado** como maior número + cap projetado + **slots livres**; linha discreta **"Atual: cap · bid"**; rodapé com picks/record/dynasty. Pós-rollover o gate fecha e **as correntes assumem o mesmo bloco** — **macro Jinja única, dois usos, nenhuma condicional além do gate existente**. PROV agora nas **duas** grandezas projetadas: é o microcopy que explica os pares coincidentes da ESPN provisória (achado (a) da FIX-F1). `slots` = `empty_spots` do **mesmo** `draft_budget` já chamado para o bid — zero conta nova. `/team/<id>`: **"Cap atual"/"Resto atual"** × **"Cap proj. <ano>"/"Resto proj."**, ambos com PROV. **Docstring do gate corrigida** (achado (b)): a promessa de reabertura automática de `rollover_done` era raciocínio, não medição — **nenhum sítio grava `"false"`** ⇒ item **[[L4]] 🔲 Baixa** registrado para o owner decidir o evento de reabertura (toca `app_config`, contrato do Optimizer). ⚠️ **A 1ª versão da guarda desse achado proibia a palavra "automátic" e derrubava a própria NEGAÇÃO** — refeita para mirar a afirmação. ⛔ **Bid Máximo atual intocado** (campo separado, teste dedicado). **499 verdes**; 12 cards validados com slots conferidos contra o banco e linha "Atual" idêntica à de antes; Trust The Process separa ($76→$59), Miller Time! coincide com PROV. ⚠️ Achado de carona: o achane (24 = 22+2 IR) exibe **"Slots livres 0"** pelo clamp do `draft_budget` — verdadeiro, mas silencia o excedente; é o [[OFF26-13]], não regressão. **Push feito: os 4 commits retidos foram para `origin/main`.**)
-> 📁 Entradas anteriores em **`improvements_sessions.md`** (97 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
+> 📁 Entradas anteriores em **`improvements_sessions.md`** (98 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
@@ -150,7 +150,7 @@
 | UX14 | **Time NFL de dropado com fallback no pool** — perfil do Waller exibe `—` porque `Player.nfl_team` está vazio (sync só atualiza rosterados). Hipótese registrada, NÃO arbitrada: fallback de LEITURA no pool ([[O2]] como precedente), sem persistir; pool sem time → `—` correto (FA real). F1 responde a réplica: entra na fonte única da Q1 da UX12-F1 ou vira 2ª fonte por tela? — MAN-ARC-BUSCA-DONE | Baixa/Média | 🔲 |
 | UX16 | **Navbar transborda a viewport a ~860px** (`nav-right` / `btn-sync` / `nav-user-menu` / `nav-user-button`) — achado de carona da [[L3]]-FIX-UX, **pré-existente ao L3 e confirmado idêntico no controle** (mesmo transbordo com o CSS anterior ⇒ não é regressão). Só nessa faixa: a 390px e a partir de 1024px não ocorre. Corrigir **com validação pela sonda geométrica** — é o primeiro cliente natural do [[O7]] — MAN-L3-FIX-UX → **MAN-L3-CLOSE-REG** | Baixa | 🔲 |
 | UX17 | **Paridade da barra de status: roster próprio × detalhe de time** — `/` mostra só salário usado/restante/% enquanto `/team/<id>` mostra cap atual, resto atual, **cap projetado + PROV**, resto projetado, dynasty, ativos, IR e quebra por posição. A tela que o owner mais abre é a mais pobre. Objetivo: mesma riqueza no roster próprio. **F1 mede antes de assumir** (a [[L3]]-FIX-UX já derrubou uma premissa dessa família — a macro do card **não** era compartilhada): (a) a barra do detalhe é macro compartilhável ou markup próprio? (b) o render de `/` já tem os dados ou precisa do `compose_budget` — e a que custo de query, já que hoje ele não consulta `ESPNImportLog` nem `rollover_done`? (c) gate de fase e tags PROV valem idênticos? Parente do [[UX4]] (tabela já convergida entre as duas telas) — **MAN-L3-CLOSE-REG** | Média | 🔲 |
-| O7 | **Sonda de validação visual como ferramenta permanente** (`tools/`, molde do [[O5]]): Playwright medindo **colisão / transbordo / overflow** + **assinatura de anatomia** para estruturas repetidas. Nasceu descartável na [[L3]] e pegou **dois** defeitos que suíte de unidade e leitura de HTML não pegam. **F1 decide:** cobertura inicial de páginas, larguras canônicas (incl. a **real de produção** e mobile), como servir as páginas (hoje é `file://` com HTML salvo do test client) e a ancoragem do gate (sessão que toca CSS/template roda a sonda antes do push — precedente do `backlog_audit.py`). Primeiro cliente: [[UX16]] — **MAN-L3-CLOSE-REG** | Média | 🔲 |
+| O7 | **Sonda de validação visual como ferramenta permanente** (`tools/`, molde do [[O5]]): Playwright medindo **colisão / transbordo / overflow** + **assinatura de anatomia** para estruturas repetidas. Nasceu descartável na [[L3]] e pegou **dois** defeitos que suíte de unidade e leitura de HTML não pegam. **F1 decide:** cobertura inicial de páginas, larguras canônicas (incl. a **real de produção** e mobile), como servir as páginas (hoje é `file://` com HTML salvo do test client) e a ancoragem do gate (sessão que toca CSS/template roda a sonda antes do push — precedente do `backlog_audit.py`). Primeiro cliente: [[UX16]] — **MAN-L3-CLOSE-REG** | Média | ✅ 13/08/2026 (`tools/visual_probe/` + gate mecânico no CLAUDE.md; **demonstração bidirecional**: suíte verde `exit 0` em ~20s × controle `--css` pré-FIX-UX `exit 1` com **37 colisões @1280px**. 28 testes do núcleo puro. Mecanismo defeito conhecido × regressão nova se provou na estreia — corrigiu a lista de culpados do [[UX16]] de 4 p/ 5 **pela medição**. **Detalhe no archive**) |
 | UX15 | **Jogador pré-selecionado na página de trade** — o botão do perfil ([[M14]]) já leva os dois times; falta o jogador chegar marcado. Refinamento do campo 3 do [[UX12]] (archive); provável F2 direta, a confirmar réplica (quantos caminhos de entrada têm pré-seleção?) — MAN-ARC-BUSCA-DONE | Baixa | 🔲 |
 | OFF26-23 | **Ano de contrato do rookie 2026 × rollover × passo 5** — pergunta do owner a 7 dias do draft: o rookie entra e PERMANECE Ano 1? **F1 10/08 (MAN-OFF26-23-REG-F1):** a ordem segura existe mas **não é imposta por código** — o `draft_import` não tem gate de `rollover_done`; importar o draft ANTES do rollover incrementaria todo rookie p/ Ano 2 (varredura cega, `offseason.py:686`). **Roteiro seguro da semana entregue na seção** (rollover 18/08 ANTES do import do draft; passo 5 só pós-24/08 — validado: nada o lê além da UI, e o clear precoce zeraria os salários do próprio import). Gainwell = mesma manifestação, raiz distinta (canal, não ordem) — MAN-OFF26-23-REG-F1/-F2/**-FIX** (SyntaxError no JS da /offseason pego pelo smoke do owner — string quebrada na edição gerada; fix de 1 linha + `template_js_test.py` como guarda permanente) | Alta (semana 17→24/08) | ⚠️ 10/08/2026 (**gates + fix no ar — smoke prod pendente**, gate [[PROC1]]) |
 | OFF26-24 | **Script de população do board da liga fantasma** — decisão do owner 10/08 (reverte o adiamento p/ 2027): Playwright headed na máquina do owner, perfil dedicado logado, ⛔ guarda de nascença `league_id 1389725099556372481` + ⛔ API interna vetada (a descoberta do `draft_id` usa a API PÚBLICA da liga, a mesma do OFF26-4). **Cowork segue plano A** até o critério: 12/12 em ensaio + auditoria OFF26-4 zerada + zero intervenção + RESET exercido, **até 19/08** — sem isso, 2026 roda Cowork e o script vai a 2027. F1 10/08 (sheet JSON sem sid → export do `build_sheet`); **ensaio 11/08** (spec de seletores; achado: o cliente MENTE — comando via DOM, **verdade via API**); **F2a 11/08 (MAN-OFF26-24-F2a):** `tools/phantom_board/` — núcleo puro + guardas de nascença + `validate` read-only + `designate` ponta a ponta + endpoint `keeper_sheet_export`; 30→35 testes; **-F2a-FIX 11/08**: guarda de identidade refeita POR CONSTRUÇÃO (URL×draft_id derivado — a página do draft não exibe o nome da liga) + espera de login na 1ª vida do perfil (JOIN DRAFT proibido); `validate` já VERDE em execução real (18/18, $176) — MAN-OFF26-24-REG-F1/**-F2a (FECHADA: Cam Ward assentado via API; validate 19/19)/-F2b** (populate por time + --all retomável; idempotência PRIMEIRO — a lição da F2a; bloqueado_teto = resultado; auditoria OFF26-4 como juiz; **FIX8: assentamento ASSÍNCRONO** — lag real da API >5min (Josh Allen) matou o poll bloqueante; reconciliação por time c/ teto 300s + reload no meio (hipótese do cache por visita, telemetria decide) + `assentado_local_api_atrasada`; 87 testes) (**FIX9 12/08:** campanha real — abort de time deixava o MODAL aberto → TimeoutError cru no time seguinte; higiene de estado em TODO abort + verificação defensiva pré-clique + populate sem traceback cru (abort padrão de time E de campanha); anti-homônimo passou a exigir NOME — a busca do Sleeper é fuzzy: "Malik Willis" devolvia Malik Williams ×2 + Hajj-Malik Williams QB, FAs de sigla vazia = linhas REAIS, não artefato; critério 0/2+ intacto; 104 testes) (**FIX10 12/08:** campanha 12/12 — as DUAS caras do teto: além da recusa síncrona §B.3.2, o input CLAMPA silenciosamente ao max bid (digitou 6/4/3/2, gravou 5/1/1/1 = $196 sem aviso); modelo verificado ao dólar `max_bid = 200 − gasto − $1×vagas restantes`; fix = READ-BACK do input pré-SET → clampou = bloqueado_teto DO KEEPER, nada gravado, sheet canônica; conferência aponta divergentes por nome; telemetria: lag puro 8–121s, zero reload — contra a hipótese do cache; **Travis Hunter = único two-way (DB+WR) dos 237 da sheet** → pendência OFF26-24-HUNTER c/ micro-probe manual; 121 testes) (**FIX11 12/08:** probe do owner FECHOU a HUNTER — ele está no pool (rank 167, tabs All+WR, "+" habilitado), rótulo "DB,WR"; o abort real foi a eleição exigindo igualdade de posição; fix = pertencimento (`position_matches`, fonte única): "WR" ∈ "DB,WR", "QB" segue não casando; parse devolve o rótulo íntegro; anti-homônimo intacto; 134 testes) (**GO 12/08:** **critério de 19/08 CUMPRIDO com 7 dias de antecedência** — ciclo limpo: RESET → campanha oficial `185453Z` 12/12, 235 designados + 2 bloqueados declarados (AlexTheDawg; Croskey entrou a $4 de sheet pelo grão do FIX10), 0 falhas, zero intervenção, Hunter designado → auditoria = SÓ os 2 bloqueados, zero salário divergente → RESET final provado, validate 0 picks/237 sheet/3º draft_id derivado; **alocação de owners em Draft Settings→DRAFT ORDER é PERMANENTE** (sobrevive ao RESET; mapa via `draft_order`); ⛔ RANDOMIZE e RESET BUDGETS proibidos junto do START DRAFT; telemetria: 382 assentamentos, zero reload = lag puro; **script = PLANO A de 22/08, Cowork = plano B**) (âncora no #modal[role=alertdialog] real; header “Make Manual Pick for Team N” como identidade; fallback logado) (busca/linhas/preço escopados ao MODAL — a lista de fundo vazava; filtro conferido antes do matching) (parser do anti-homônimo lê o DOM real — newlines/sigla duplicada/injury; critério intacto) (célula por COLUNA do slot, nunca nth global; “Change Player” proibido; handler sem crash) (mapa slot↔owner: cadeia draft_order → slot_to_roster_id×rosters → picks; validate passou a conferir owner de verdade) (hCaptcha recusa o Chromium de teste → launch pelo Chrome real via channel; captcha é resolvido pelo HUMANO, nunca burlado) | Alta (uso real 22/08) | 🔲 (**critério de 19/08 ✅ CUMPRIDO 12/08 — script = PLANO A de 22/08, Cowork = plano B**; fecha ✅ e migra ao archive após a população real de 22/08) |
@@ -6270,114 +6270,5 @@ helper de composição"* → **confirmada, e é a parte barata** (0 query); o qu
 **Cross-refs:** [[UX4]] (a **tabela** de roster já convergiu entre as duas telas — este item é o
 mesmo movimento para a **barra**), [[L3]] (helper canônico, gate, PROV), [[OFF26-16]] (a régua
 única de folha que ambas as telas consomem), [[M17]] (o `/` deriva do usuário logado).
-
----
-
-### O7 — Sonda de validação visual como ferramenta permanente
-🔲 **Pendente** — Prioridade **Média** — registrado 13/08/2026 (MAN-L3-CLOSE-REG)
-
-**De onde veio:** a saga do [[L3]] queimou **três gerações** de instrumento de validação em um dia,
-cada uma nascida de um defeito que a anterior **aprovou** (detalhe na seção L3 do
-`improvements_archive.md`):
-
-| Geração | Mediu | Deixou passar |
-|---|---|---|
-| Regex sobre HTML | valores, payloads, queries | **layout** — aprovou 12 cards com texto sobreposto |
-| Geometria (`getBoundingClientRect`) | colisão, transbordo, overflow | **uniformidade** — anatomias diferentes entre cards vizinhos |
-| Assinatura de anatomia (`classe@topo`) | estrutura repetida entre N elementos | — |
-
-**Proposta:** promover a sonda a `tools/`, no **molde do [[O5]]** (ferramenta read-only em
-`tools/` + gate ancorado no `CLAUDE.md`). Hoje ela vive no scratchpad e morre com a sessão —
-enquanto o defeito que ela pega é recorrente por natureza (todo CSS de grade/flex).
-
-**A F1 decide:**
-- **cobertura inicial** de páginas (candidatas: `/league`, `/team/<id>`, `/` e `/cap_projector` —
-  as de maior densidade);
-- **larguras canônicas**, obrigatoriamente incluindo a **largura real de produção** e **mobile**
-  — no [[L3]] a divergência de anatomia **só existia no card mais estreito** e sumia em telas
-  largas;
-- **como servir as páginas**: hoje é `file://` sobre HTML salvo do test client (avatares remotos
-  não carregam — aceitável, mas é desenho a confirmar) × subir um servidor efêmero;
-- **ancoragem do gate**: sessão que toca CSS/template roda a sonda nas páginas afetadas **antes do
-  push**, como o `backlog_audit.py` é gate do fechamento.
-
-**Lições de método a preservar na ferramenta** (todas pagas com defeito real):
-- **validar na largura REAL de produção** — aprovação em tela larga não vale;
-- **layout não se valida por texto/regex**;
-- **ausência de colisão ≠ uniformidade** — são duas medidas;
-- **assinatura mede ESTRUTURA, não dado** — incluir o `left` fazia 1px de largura de texto parecer
-  anatomia diferente;
-- ⛔ **todo detector precisa de controle positivo**: rodar contra o defeito conhecido **antes** de
-  aceitar o verde. Sem isso, um poller deu **falso TIMEOUT de 10 min** sobre deploy que já estava
-  no ar.
-
-**Primeiro cliente:** [[UX16]] (transbordo da navbar) — defeito já medido pela sonda, com culpado
-nomeado, esperando correção com validação pelo mesmo instrumento.
-
----
-
-**F1 (13/08/2026, MAN-O7-F1 — read-only; a sonda NÃO foi tocada):**
-
-**1. Inventário do que existe hoje.** Script único no scratchpad (~180 linhas, Playwright):
-- **6 verificações:** colisão par-a-par entre caixas de texto **não-aninhadas** · transbordo para
-  fora do bloco · overflow horizontal do card (`scrollWidth > clientWidth`) · **assinatura de
-  anatomia** (`classe@topo`) comparada entre irmãos · alinhamento de coluna (conjunto de `left`) ·
-  no `/team/<id>`, colisão entre `status-item` + overflow do documento **com o elemento culpado
-  nomeado**.
-- **Como serve as páginas:** copia `dynasty.db` → scratchpad e aponta `DYNASTY_DB` (⇒ **nunca toca
-  o banco real**) · monkeypatch em `run_sync` (⇒ **zero rede**) · test client com cookie de sessão
-  injetado (⇒ **sem login real, sem OAuth**) · salva o HTML, reescreve o `href` do CSS e abre por
-  `file://` no Chromium headless.
-- ⭐ **`--css <caminho>`: o controle positivo.** Troca **só** a folha de estilo e roda o **mesmo**
-  HTML — é o que provou que o instrumento enxerga o defeito antes de o verde valer alguma coisa
-  (24 colisões no CSS de produção → 0; 2 anatomias → 1). **Esta é a feature mais importante a
-  preservar na promoção.**
-- Já tem: `exit code` 1 em falha e screenshot por largura.
-- **Custo medido: 21 s** a execução inteira (boot + 4 larguras × 2 páginas).
-- **Falta para virar ferramenta:** páginas/larguras estão **hardcoded**; caminhos absolutos do
-  scratchpad; relatório é `print` solto; sem degradação quando o browser não existe (o
-  `tools/phantom_board` já tem o molde: import **lazy** + abort nomeado); e decidir `file://`
-  (atual) × servidor efêmero.
-
-**2. Cobertura — critério, não lista.**
-- **Assinatura de anatomia** quando houver **N irmãos gerados pelo MESMO loop de template em
-  layout LIVRE (flex/grid) que devem parecer idênticos**. ⛔ **Tabela não entra** — `<table>` já
-  garante alinhamento por construção. Casam o critério: `.league-grid` (12 cards, o cliente que
-  originou), `.picks-matrix`, `.admin-grid`, `.preview-grid` (trades), cards de passo do
-  `/offseason`.
-- **Só geometria** quando for **superfície densa de instância única**: a **navbar** (vive em
-  `base.html` ⇒ **está em toda página**, e é o [[UX16]]), a status bar do `/team/<id>`, a barra
-  sticky do `/cap_projector`, as colunas do `/trades`.
-- **Cobertura inicial sugerida (4 telas):** `/league` · `/team/<id>` · `/` · `/cap_projector` —
-  as mais densas; a navbar entra de brinde em todas.
-
-**3. Larguras canônicas.**
-| Largura | Por quê |
-|---|---|
-| **1280px** | ⚠️ **o achado contra-intuitivo:** `repeat(auto-fill, minmax(280px, 1fr))` faz o viewport **mais largo** produzir o card **mais estreito** (4 colunas × **300px**). **Os dois defeitos do L3 apareceram aqui** — "testar largo" não é testar fácil |
-| **1024px** | 3 colunas × 320px — a largura do **screenshot de produção** do owner |
-| **860px** | 2 colunas; é onde a **navbar transborda** ([[UX16]]) |
-| **390px** | mobile |
-
-**4. Ancoragem do gate — e "páginas afetadas" sem depender de disciplina.**
-Molde do [[O5]]: ferramenta em `tools/`, `exit ≠ 0`, gate citado no `CLAUDE.md`. ⭐ **O app tem UM
-único arquivo de CSS** (`static/style.css` — conferido: é o único em `static/`) ⇒ **qualquer diff
-que o toque afeta TODAS as páginas**; não há inferência a fazer. Para `templates/*.html` caberia um
-mapa template→rota, mas **a suíte inteira custa 21 s**: sai mais barato **rodar tudo** quando o
-`git diff --name-only` casar `static/*.css` ou `templates/*.html` do que manter o mapa.
-
-**5. Custo e primeiro cliente.** 21 s, **sem app rodando**, **sem login real**, **sem rede** e
-sobre **cópia** do banco. Dependência real: **Playwright + Chromium** (já instalados; precedente de
-uso e de import lazy no `tools/phantom_board`). ✅ **[[UX16]] serve como primeiro cliente** — o
-defeito já está medido por este instrumento, com culpados nomeados
-(`nav-right`/`btn-sync`/`nav-user-menu`/`nav-user-button`) e faixa isolada (**390 ok · 860
-transborda · 1024+ ok**); falta só a sonda saber olhar a navbar em qualquer página, o que ela já
-faz no `/team/<id>`.
-
-**Achado de carona (não é escopo):** `.team-detail-cap-layout` tem **4 regras no CSS e 0 usos** nos
-templates — resíduo da substituição feita pelo UX4-c. Higiene, não defeito.
-
-**Cross-refs:** [[O5]] (precedente de ferramenta em `tools/` + gate), [[UX16]] (1º cliente),
-[[L3]] (origem, archive).
 
 ---

@@ -8264,3 +8264,171 @@ só projetado (ambos custam o mesmo: $0 de query); levar o agregado projetado ta
 `/team/<id>` (mesma composição, mesmo custo); destaque de over-cap projetado (`draft_budget` já
 devolve `over_cap`/`insufficient_budget` — flags prontas); comportamento pós-rollover (ocultar ×
 rebaixar com rótulo de ano).
+
+---
+
+### O7 — Sonda de validação visual como ferramenta permanente
+✅ **CONCLUÍDO 13/08/2026 (MAN-O7)** — ferramenta em `tools/visual_probe/`, gate ancorado no
+`CLAUDE.md`, **demonstração bidirecional passou** — Prioridade **Média** — self-aplicação no
+molde do [[O5]]/[[O3]] (fecha e migra na mesma sessão)
+
+**O que entrou:**
+- `tools/visual_probe/core.py` — **núcleo puro** (config, JS injetado, decisão). Sem Playwright,
+  Flask, banco ou rede: é o que os testes exercem.
+- `tools/visual_probe/cli.py` — driver. **Sem app de pé** (test client) · **sem login real**
+  (cookie de sessão injetado) · **sem rede** (`run_sync` neutralizado) · **sem estado** (o banco é
+  **copiado** para diretório temporário e é a cópia que o app abre — o `dynasty.db` real nunca é
+  aberto para escrita). `--page` / `--width` / `--list` / `--keep`.
+- `visual_probe_test.py` — **28 testes** do núcleo puro, sem browser.
+- `tools/visual_probe/README.md` — cobertura, larguras, limites declarados e o controle positivo.
+
+**Cobertura inicial (o critério decidiu a lista, não o gosto):** `/league` (geometria +
+**anatomia** — 12 irmãos do mesmo loop em grade livre) · `/team/<id>`, `/` e `/picks` (geometria).
+⛔ `/cap_projector` e `/trades` **ficaram fora, com razão medida**: montam o conteúdo principal
+por `fetch` (3 e 9 chamadas) e são invisíveis ao serviço `file://` — cobri-las exige servidor
+efêmero, registrado como próximo passo em vez de silenciado. ⛔ A matriz do `/picks` ficou **só na
+geometria**: as células divergem **legitimamente** (vazia × preenchida × trocada), e anatomia ali
+seria falso positivo.
+
+**Demonstração bidirecional (o critério do [[O5]]):**
+| Sentido | Comando | Resultado |
+|---|---|---|
+| **Verde** | `cli.py` (suíte completa) | **exit 0** · 16 medições · UX16 reportado como **conhecido** em 4 páginas @860px · **~20s** |
+| **Controle** | `cli.py --css <478b915> --page league` | **exit 1** · **37 colisões @1280px**, **26 @1024px**, incl. o sintoma literal do screenshot: `"PROV" x "PROV"` |
+
+⚠️ **Contagens maiores que as do L3 (24/13) — e o motivo importa:** a sonda ad-hoc olhava dentro
+de `.league-plan`; a ferramenta olha o `.league-card` inteiro, então compara mais pares (pega
+também o wrapper `div.league-plan-side`). **Mais sensível, mesmo defeito, mesmas larguras.**
+
+**Mecanismo defeito conhecido × regressão nova** (a peça que impede o gate de nascer vermelho e
+ser desligado na primeira semana): achado que **casa** uma entrada de `KNOWN_DEFECTS` reporta e
+**não bloqueia**; o que **não casa** bloqueia; entrada que **não reproduz** é anunciada (defeito
+corrigido → remover). O casamento exige tipo + página + largura **e culpados ⊆ registrados** — se
+um elemento novo entra na conta, volta a bloquear. ⛔ Entrada ali **exige item no backlog**.
+
+⭐ **Achado da própria estreia — o mecanismo se provou sozinho:** a F1 registrara **4** culpados do
+[[UX16]]; a medição real trouxe **5** (faltava `nav-user-avatar`), e o achado **não casou** e
+bloqueou — exatamente o desenho. O registro foi corrigido **pela medição**, não pela memória.
+
+⚠️ **Defeito do próprio instrumento, achado e corrigido no 1º run:** a sonda acusava 2 "colisões"
+no `/picks` @390px envolvendo o `.pick-edit-btn`, que tem **`opacity: 0`** até o hover — elemento
+**invisível não colide visualmente**. Filtro de `opacity: 0` / `visibility: hidden` adicionado,
+com o **limite declarado** no README: a medição é do **estado padrão** da página; estados
+revelados por `:hover` ficam fora.
+
+**Gate ancorado no `CLAUDE.md`** com disparo mecânico: `git diff --name-only` casando
+`static/*.css` ou `templates/*.html` ⇒ suíte completa antes do push. ⛔ **Sem mapa template→rota
+de propósito** — o app tem **um único CSS**, logo qualquer diff nele afeta todas as páginas, e
+20s de suíte custam menos que manter (e errar) o mapa.
+
+**[[UX16]] segue 🔲 e é o primeiro cliente** — aparecer no relatório é **validação da cobertura**,
+não pendência desta sessão.
+
+---
+
+**Registro original (13/08/2026, MAN-L3-CLOSE-REG):**
+🔲 Prioridade **Média**
+
+**De onde veio:** a saga do [[L3]] queimou **três gerações** de instrumento de validação em um dia,
+cada uma nascida de um defeito que a anterior **aprovou** (detalhe na seção L3 do
+`improvements_archive.md`):
+
+| Geração | Mediu | Deixou passar |
+|---|---|---|
+| Regex sobre HTML | valores, payloads, queries | **layout** — aprovou 12 cards com texto sobreposto |
+| Geometria (`getBoundingClientRect`) | colisão, transbordo, overflow | **uniformidade** — anatomias diferentes entre cards vizinhos |
+| Assinatura de anatomia (`classe@topo`) | estrutura repetida entre N elementos | — |
+
+**Proposta:** promover a sonda a `tools/`, no **molde do [[O5]]** (ferramenta read-only em
+`tools/` + gate ancorado no `CLAUDE.md`). Hoje ela vive no scratchpad e morre com a sessão —
+enquanto o defeito que ela pega é recorrente por natureza (todo CSS de grade/flex).
+
+**A F1 decide:**
+- **cobertura inicial** de páginas (candidatas: `/league`, `/team/<id>`, `/` e `/cap_projector` —
+  as de maior densidade);
+- **larguras canônicas**, obrigatoriamente incluindo a **largura real de produção** e **mobile**
+  — no [[L3]] a divergência de anatomia **só existia no card mais estreito** e sumia em telas
+  largas;
+- **como servir as páginas**: hoje é `file://` sobre HTML salvo do test client (avatares remotos
+  não carregam — aceitável, mas é desenho a confirmar) × subir um servidor efêmero;
+- **ancoragem do gate**: sessão que toca CSS/template roda a sonda nas páginas afetadas **antes do
+  push**, como o `backlog_audit.py` é gate do fechamento.
+
+**Lições de método a preservar na ferramenta** (todas pagas com defeito real):
+- **validar na largura REAL de produção** — aprovação em tela larga não vale;
+- **layout não se valida por texto/regex**;
+- **ausência de colisão ≠ uniformidade** — são duas medidas;
+- **assinatura mede ESTRUTURA, não dado** — incluir o `left` fazia 1px de largura de texto parecer
+  anatomia diferente;
+- ⛔ **todo detector precisa de controle positivo**: rodar contra o defeito conhecido **antes** de
+  aceitar o verde. Sem isso, um poller deu **falso TIMEOUT de 10 min** sobre deploy que já estava
+  no ar.
+
+**Primeiro cliente:** [[UX16]] (transbordo da navbar) — defeito já medido pela sonda, com culpado
+nomeado, esperando correção com validação pelo mesmo instrumento.
+
+---
+
+**F1 (13/08/2026, MAN-O7-F1 — read-only; a sonda NÃO foi tocada):**
+
+**1. Inventário do que existe hoje.** Script único no scratchpad (~180 linhas, Playwright):
+- **6 verificações:** colisão par-a-par entre caixas de texto **não-aninhadas** · transbordo para
+  fora do bloco · overflow horizontal do card (`scrollWidth > clientWidth`) · **assinatura de
+  anatomia** (`classe@topo`) comparada entre irmãos · alinhamento de coluna (conjunto de `left`) ·
+  no `/team/<id>`, colisão entre `status-item` + overflow do documento **com o elemento culpado
+  nomeado**.
+- **Como serve as páginas:** copia `dynasty.db` → scratchpad e aponta `DYNASTY_DB` (⇒ **nunca toca
+  o banco real**) · monkeypatch em `run_sync` (⇒ **zero rede**) · test client com cookie de sessão
+  injetado (⇒ **sem login real, sem OAuth**) · salva o HTML, reescreve o `href` do CSS e abre por
+  `file://` no Chromium headless.
+- ⭐ **`--css <caminho>`: o controle positivo.** Troca **só** a folha de estilo e roda o **mesmo**
+  HTML — é o que provou que o instrumento enxerga o defeito antes de o verde valer alguma coisa
+  (24 colisões no CSS de produção → 0; 2 anatomias → 1). **Esta é a feature mais importante a
+  preservar na promoção.**
+- Já tem: `exit code` 1 em falha e screenshot por largura.
+- **Custo medido: 21 s** a execução inteira (boot + 4 larguras × 2 páginas).
+- **Falta para virar ferramenta:** páginas/larguras estão **hardcoded**; caminhos absolutos do
+  scratchpad; relatório é `print` solto; sem degradação quando o browser não existe (o
+  `tools/phantom_board` já tem o molde: import **lazy** + abort nomeado); e decidir `file://`
+  (atual) × servidor efêmero.
+
+**2. Cobertura — critério, não lista.**
+- **Assinatura de anatomia** quando houver **N irmãos gerados pelo MESMO loop de template em
+  layout LIVRE (flex/grid) que devem parecer idênticos**. ⛔ **Tabela não entra** — `<table>` já
+  garante alinhamento por construção. Casam o critério: `.league-grid` (12 cards, o cliente que
+  originou), `.picks-matrix`, `.admin-grid`, `.preview-grid` (trades), cards de passo do
+  `/offseason`.
+- **Só geometria** quando for **superfície densa de instância única**: a **navbar** (vive em
+  `base.html` ⇒ **está em toda página**, e é o [[UX16]]), a status bar do `/team/<id>`, a barra
+  sticky do `/cap_projector`, as colunas do `/trades`.
+- **Cobertura inicial sugerida (4 telas):** `/league` · `/team/<id>` · `/` · `/cap_projector` —
+  as mais densas; a navbar entra de brinde em todas.
+
+**3. Larguras canônicas.**
+| Largura | Por quê |
+|---|---|
+| **1280px** | ⚠️ **o achado contra-intuitivo:** `repeat(auto-fill, minmax(280px, 1fr))` faz o viewport **mais largo** produzir o card **mais estreito** (4 colunas × **300px**). **Os dois defeitos do L3 apareceram aqui** — "testar largo" não é testar fácil |
+| **1024px** | 3 colunas × 320px — a largura do **screenshot de produção** do owner |
+| **860px** | 2 colunas; é onde a **navbar transborda** ([[UX16]]) |
+| **390px** | mobile |
+
+**4. Ancoragem do gate — e "páginas afetadas" sem depender de disciplina.**
+Molde do [[O5]]: ferramenta em `tools/`, `exit ≠ 0`, gate citado no `CLAUDE.md`. ⭐ **O app tem UM
+único arquivo de CSS** (`static/style.css` — conferido: é o único em `static/`) ⇒ **qualquer diff
+que o toque afeta TODAS as páginas**; não há inferência a fazer. Para `templates/*.html` caberia um
+mapa template→rota, mas **a suíte inteira custa 21 s**: sai mais barato **rodar tudo** quando o
+`git diff --name-only` casar `static/*.css` ou `templates/*.html` do que manter o mapa.
+
+**5. Custo e primeiro cliente.** 21 s, **sem app rodando**, **sem login real**, **sem rede** e
+sobre **cópia** do banco. Dependência real: **Playwright + Chromium** (já instalados; precedente de
+uso e de import lazy no `tools/phantom_board`). ✅ **[[UX16]] serve como primeiro cliente** — o
+defeito já está medido por este instrumento, com culpados nomeados
+(`nav-right`/`btn-sync`/`nav-user-menu`/`nav-user-button`) e faixa isolada (**390 ok · 860
+transborda · 1024+ ok**); falta só a sonda saber olhar a navbar em qualquer página, o que ela já
+faz no `/team/<id>`.
+
+**Achado de carona (não é escopo):** `.team-detail-cap-layout` tem **4 regras no CSS e 0 usos** nos
+templates — resíduo da substituição feita pelo UX4-c. Higiene, não defeito.
+
+**Cross-refs:** [[O5]] (precedente de ferramenta em `tools/` + gate), [[UX16]] (1º cliente),
+[[L3]] (origem, archive).
