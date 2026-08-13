@@ -1,12 +1,12 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 13/08/2026-pt7 (sessão MAN-L3-CLOSE-REG, **docs-only**: **[[L3]] FECHADO ✅** — smoke visual do owner aprovado na `/league` e no `/team/<id>`, prod no hash `7883cd9` com [[PROC1]] confirmado **por artefato servido**. Seção migrada **verbatim** ao `improvements_archive.md` (regra [[O3]]), com o arco das **6 sessões do dia** e — o que importa para o futuro — **as 3 gerações do instrumento de validação, cada uma nascida de um defeito que a anterior APROVOU**: regex sobre HTML (cega a layout — passou 12 cards com texto sobreposto) → geometria (cega a uniformidade — passou anatomias diferentes entre vizinhos) → assinatura de anatomia. ⚠️ **Colisão de IDs pega na conferência: `UX14` e `UX15` do prompt já existiam** (Waller/time NFL de dropado e jogador pré-selecionado na trade) — os itens novos entraram como **[[UX16]]** (navbar transborda a ~860px; ⚠️ **pré-existente**, idêntico no controle ⇒ não é regressão do L3) e **[[UX17]]** (paridade da barra de status entre `/` e `/team/<id>`, com as 3 perguntas que a F1 tem de **medir** — a família já derrubou uma premissa de macro compartilhada). **[[O7]] 🔲 Média** registrado: promover a sonda visual a `tools/` no molde do [[O5]], com as 5 lições de método preservadas (largura real de produção · layout não se valida por regex · colisão ≠ uniformidade · assinatura mede estrutura, não dado · ⛔ todo detector precisa de **controle positivo**) e [[UX16]] como 1º cliente. Auditor verde (143 rows, 55 seções). Zero código.)
 > Atualizado em: 13/08/2026-pt6 (sessão MAN-L3-FIX-UX2, **CSS-only, 9 linhas**: o FIX-UX matou a sobreposição mas com **quebra CONDICIONAL** — o card com over-cap projetado (⚠️ + valor = rótulo mais largo) empurrava *"Slots livres"* para a 2ª linha e ficava com **anatomia diferente do vizinho**. Decisão do owner: **padrão único**. `.league-plan-side` deixa de ser fila com `flex-wrap` e passa a **empilhar sempre** — bid (herói) · cap · slots, uma grandeza por linha, em qualquer largura e com qualquer dado. **A sonda geométrica ganhou medida de ANATOMIA** (assinatura `classe@topo` por bloco, comparada entre os 12), porque **ausência de colisão não prova uniformidade** — o FIX-UX passou verde e o defeito estava lá. Controle contra o CSS de produção: no card de **300px**, **2 anatomias** (11 cards com os dois itens na MESMA linha, o over-cap com o 2º em `top=93`), `linhas/bloco=[3,4]`, alturas **100 e 123**, 11 dos 12 com linhas fora da mesma coluna — e ⚠️ **nas larguras maiores a divergência não aparecia**, era exclusiva do card mais estreito, que é justamente o de produção. Com o fix: **1 anatomia**, `linhas/bloco=[4]`, altura **123**, `fora da coluna: []`, 0 colisões / 0 transbordos / 0 overflow nas **4** larguras. ⚠️ Tropeço registrado: a 1ª versão da assinatura incluía o `left` e acusava "3 anatomias" por **1px** de largura de texto (`$5/$200` × `$180/$200`) — dado, não anatomia; o `left` virou verificação separada de alinhamento. 499 verdes. Push + PROC1 na mesma sessão.)
 > Atualizado em: 13/08/2026-pt5 (sessão MAN-L3-FIX-UX, **CSS-only**: o smoke visual do owner pegou o que a minha validação **não tinha como pegar** — "BID MÁXIMO 2026" **sobreposto** a "Cap 2026 [PROV] $X/$200" e as duas tags PROV empilhadas, em todos os cards na largura real; dados/over-cap/linha Atual/rodapé corretos. **Causa raiz medida:** `.league-plan` era **uma linha flex com duas colunas, ambas `white-space: nowrap`** — o card de produção dá **~258px úteis** contra **~310px de largura mínima** do conteúdo; o `min-width:0` deixava o herói encolher, mas **texto nowrap sem overflow não encolhe: TRANSBORDA**, pintando por cima do vizinho. **Fix:** o bloco **empilha** e a fila secundária **quebra sozinha**; cada item segue nowrap por dentro (valor nunca se separa do rótulo) e a quebra é **entre** itens. **34 linhas de CSS, zero backend/template/JS.** **A validação mudou de natureza: virou GEOMÉTRICA** (Playwright medindo `getBoundingClientRect`), e rodou **primeiro contra o CSS de produção como CONTROLE, para provar que o instrumento enxerga o defeito: 24 colisões a 1280px, 13 a 1024px, 1 a 390px** — com o fix, **0 colisões / 0 transbordo / 0 overflow** nas 4 larguras, com e sem over-cap. A sonda anterior lia HTML por regex e por isso aprovou 12 cards com o texto sobreposto — **lição: layout não se valida por texto**. ⚠️ **Premissa do prompt corrigida:** a macro `bloco_destaque` **não** é compartilhada com o `/team/<id>` (seus 2 usos são os 2 ramos do gate, ambos em `league.html`); a `.team-status-bar` sempre teve `flex-wrap: wrap` e **nunca** sofreu do defeito — conferido, 0 colisões. Achado de carona **pré-existente**: a **navbar** transborda a ~860px, idêntico no controle e no fix ⇒ não é regressão. 499 verdes. Push + PROC1 na mesma sessão.)
 > Atualizado em: 13/08/2026-pt4 (sessão MAN-L3-FIX: **card da /league reorientado a PLANEJAMENTO + o push que faltava.** Feedback da liga: o card responde primeiro *"quanto posso gastar na auction"* ⇒ **3 zonas** — bloco de destaque com **bid máximo projetado** como maior número + cap projetado + **slots livres**; linha discreta **"Atual: cap · bid"**; rodapé com picks/record/dynasty. Pós-rollover o gate fecha e **as correntes assumem o mesmo bloco** — **macro Jinja única, dois usos, nenhuma condicional além do gate existente**. PROV agora nas **duas** grandezas projetadas: é o microcopy que explica os pares coincidentes da ESPN provisória (achado (a) da FIX-F1). `slots` = `empty_spots` do **mesmo** `draft_budget` já chamado para o bid — zero conta nova. `/team/<id>`: **"Cap atual"/"Resto atual"** × **"Cap proj. <ano>"/"Resto proj."**, ambos com PROV. **Docstring do gate corrigida** (achado (b)): a promessa de reabertura automática de `rollover_done` era raciocínio, não medição — **nenhum sítio grava `"false"`** ⇒ item **[[L4]] 🔲 Baixa** registrado para o owner decidir o evento de reabertura (toca `app_config`, contrato do Optimizer). ⚠️ **A 1ª versão da guarda desse achado proibia a palavra "automátic" e derrubava a própria NEGAÇÃO** — refeita para mirar a afirmação. ⛔ **Bid Máximo atual intocado** (campo separado, teste dedicado). **499 verdes**; 12 cards validados com slots conferidos contra o banco e linha "Atual" idêntica à de antes; Trust The Process separa ($76→$59), Miller Time! coincide com PROV. ⚠️ Achado de carona: o achane (24 = 22+2 IR) exibe **"Slots livres 0"** pelo clamp do `draft_budget` — verdadeiro, mas silencia o excedente; é o [[OFF26-13]], não regressão. **Push feito: os 4 commits retidos foram para `origin/main`.**)
 > Atualizado em: 13/08/2026-pt3 (sessão MAN-L3-FIX-F1, **docs-only**: diagnose read-only do sintoma "projeção ausente nos cards da /league" em prod. **CAUSA RAIZ, verificável e não-hipótese: o commit do L3 nunca foi empurrado** — `main` **ahead 2**, `origin/main` parado em `ac1a2cf`, e o Render faz deploy do GitHub ⇒ **produção roda o código pré-L3**. Prova: `git show origin/main:templates/league.html` renderiza **exatamente os 5 rótulos do screenshot** (Record · Cap restante · Bid Máximo · Picks · Dynasty) e `compose_budget`/`_projection_open` têm **0 ocorrências** lá. **Três hipóteses refutadas com evidência:** gate invertido/default errado (o gate abre com `rollover_done != "true"`, e o smoke da urna de 07/08 **exercitou o escape do banner** — escape que só existe quando a flag é falsa ⇒ gate ABERTO em prod), helper não invocado (é invocado no código novo; ele é que não existe em prod) e divergência liga × detalhe (as duas telas chamam o MESMO gate e o MESMO helper). **Achado que sobrevive ao push:** sob ESPN provisória **10 dos 12** cards mostram projetado IDÊNTICO ao atual (só Cangaceiros −$1 e Trust The Process $76→$59 separam) — dois números iguais lado a lado leem como bug, e é o que sustenta o ajuste de rótulo do owner. **Achado colateral sobre o próprio L3:** a docstring de `_projection_open` promete que `rollover_done` "volta sozinha" no ciclo seguinte — **falso**: `_seed_app_config` só insere chave ausente, o `--reset` do ensaio não toca a flag e **nenhum sítio grava "false"**. Lição registrada: **commitar ≠ estar em produção**, e validação local não enxerga a diferença. Menor caminho de fix = push + deploy + hash (PROC1), **zero linha de código**. Auditor verde.)
-> Atualizado em: 13/08/2026-pt2 (sessão MAN-L3: **F2 do [[L3]] entregue** — o cap PROJETADO da season seguinte passa a conviver com o corrente na `/league` (12 cards) e no `/team/<id>`. **A extração veio antes da feature:** a composição *salário-base → roster sintético → `draft_budget`*, que vivia **inline** no POST `/budget`, virou `routes.salary.compose_budget` com 3 consumidores — sem isso a `/league` teria criado a 2ª cópia, que é exatamente o que o [[F10]] matou no JS. **Refactor puro PROVADO por medição**, não por leitura: payload do `/budget` idêntico antes × depois nos 12 times + cenário com corte + modo `projected:false`. Over-cap projetado com ⚠️ + vermelho + faixa no card (exercido em **dado real**: 3 peat… of pain, $201); PROV **herdado** do gate do Bid Máximo (nenhuma 2ª definição de "provisório"); gate `rollover_done` nos dois sentidos (pós-rollover a projeção seria season+2 — a arbitragem do D9); **8 rótulos** passam a derivar o ano de `g_current_season` (conferido virando a season: "Cap Projector 2027"). ⛔ **Bid Máximo intocado** — é o mesmo número da keeper sheet, e há teste dedicado para a tentação de trocá-lo. **22 testes novos** (`cap_projetado_test.py`), **494 verdes**. ⚠️ **Desvio reportado:** queries do render 17→19 na liga (a projeção custa **zero**; os +2 são o gate — `get_config` custa 2 queries nesta base). Diffstat conferido. **Smoke de prod é do owner** (gate [[PROC1]]).)
-> 📁 Entradas anteriores em **`improvements_sessions.md`** (95 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
+> 📁 Entradas anteriores em **`improvements_sessions.md`** (96 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
@@ -103,7 +103,7 @@
 | L1 | League Hub: visão geral da liga + detalhe por time | Alta | ✅ 23/04/2026 |
 | L2 | League Hub season mode: matchups, schedule, standings | Baixa | 🔲 |
 | L4 | **Qual evento reabre a exibição de projeção no ciclo seguinte?** O gate do [[L3]] fecha quando `rollover_done` vira `"true"` — e **nenhum sítio grava `"false"` de volta** (medido na MAN-L3-FIX-F1): `_seed_app_config` só insere chave ausente, o `--reset` do ensaio não toca a flag. Hoje a projeção some no rollover e **não volta sozinha** na intertemporada seguinte. Design pequeno, mas toca `app_config` — **contrato externo consumido pelo Optimizer** — então a decisão (que evento zera: fechar a season? abrir o passo 1? flag própria de exibição?) é do owner — MAN-L3-FIX | Baixa | 🔲 |
-| L3 | Projeção de cap por time na `/league` **e no `/team/<id>`** (agregado da season seguinte via valorização × ESPN, antes só no cap_projector time a time) — MAN-L3-F1/**MAN-L3** | A definir | ⚠️ **F2 13/08/2026: implementada, aguardando smoke prod.** Composição extraída para o helper único `compose_budget` (3 consumidores; payload do `/budget` **idêntico** = refactor puro), cap projetado nos 12 cards + status bar do time, over-cap destacado, PROV herdado, gate `rollover_done`, 8 rótulos com ano derivado. ⛔ **Bid Máximo intocado** (byte a byte nos 12). Projeção = **0 query**; gate = +2 constantes (`get_config` custa 2 nesta base). 22 testes novos, **494 verdes**. ⛔ **FIX-F1 13/08: a projeção não aparecia em prod porque o COMMIT NUNCA FOI EMPURRADO** — `main` ahead 2, `origin/main` em `ac1a2cf`, prod rodando código pré-L3 (`compose_budget`/`_projection_open` = 0 ocorrências lá; os 5 rótulos do screenshot são exatamente os do template deployado). Gate, helper e divergência liga×detalhe **refutados**. Fix = push + deploy, zero linha de código. **MAN-L3-FIX 13/08:** card reorientado a **planejamento** (3 zonas — bid projetado em destaque + cap projetado + slots · linha "Atual" discreta · rodapé), PROV nas duas grandezas projetadas, docstring do gate corrigida (⇒ [[L4]]), ⛔ bid atual intocado; **499 verdes**. **Push + deploy confirmados** (`ac1a2cf..19d9398`; CSS servido byte-idêntico ao do commit, `/league`→302). **FIX-UX 13/08:** o smoke visual pegou **sobreposição** dos rótulos do bloco (linha flex de 2 colunas `nowrap` em card de ~258px úteis) — corrigido **só em CSS** (empilhamento + wrap controlado), validado por **geometria** (Playwright): controle contra o CSS de prod acusa **24 colisões**, com o fix **0** em 4 larguras. **FIX-UX2:** a quebra era **condicional** (card over-cap com anatomia diferente do vizinho) → `.league-plan-side` **empilha sempre**; a sonda ganhou medida de **anatomia** e vai de **2 assinaturas** (alturas 100/123) para **1** nas 4 larguras. **Falta o smoke visual do owner na largura real** |
+| L3 | Projeção de cap por time na `/league` **e no `/team/<id>`** (agregado da season seguinte via valorização × ESPN, antes só no cap_projector time a time) — MAN-L3-F1/MAN-L3/MAN-L3-FIX-F1/MAN-L3-FIX/MAN-L3-FIX-UX/**MAN-L3-FIX-UX2** | A definir | ✅ 13/08/2026 (**smoke visual do owner aprovado** na `/league` e no `/team/<id>`; prod no hash `7883cd9`, [[PROC1]] por artefato servido. Arco de 6 sessões num dia: composição extraída p/ helper único (`compose_budget`, refactor puro provado por medição) → card reorientado a planejamento (3 zonas) → 2 fixes de layout. **Detalhe no archive**, incl. as **3 gerações do instrumento de validação** e as lições que originaram o [[O7]]. Resíduos: [[L4]] · [[UX16]] · [[UX17]]) |
 | N1 | Redesign navbar: estrutura com dropdowns + acesso rápido aos times | Média | ✅ 23/04/2026 |
 | C1 | Cap projector: modo "drop programado" para simular liberações de cap | Média | 🔲 |
 | M8-PERM | Lottery: simulação aberta a owners + bloqueio server-side pós-oficial | Média | ✅ 23/04/2026 |
@@ -148,6 +148,9 @@
 | UX12 | **Busca de jogador + página de perfil enriquecida** (pedido do co-admin **Michel**) — registrado 08/08 (MAN-UX12-REG) com questão 0 explícita de sobreposição; **F1 08/08 (MAN-UX12-F1, read-only):** 3 dos 7 campos já existiam na página atual, spec do [[M10]] conferida viva, réplica de fonte refutada, F1 do [[UX11]] respondida de carona, [[UX10]] estreitado, depth chart/idade viáveis via pool — recomendação (b) **despachar**, confirmada pelo owner — MAN-UX12-REG/F1/REFINE | Média | ✅ 08/08/2026 (**ROTEADO — despachado em [[M10]] (busca) e [[O2]] (perfil, refinado in-place absorvendo campos 2+5 + F1 do MAN-O2-F1); sem escopo próprio remanescente. Registro + diagnose no archive**) |
 | UX13 | **Timeline exibe `event_type` cru `contract_year_correction`** — os demais eventos têm label PT-BR + badge; este cai no fallback (`EVENT_LABELS[e.event_type] \|\| e.event_type`). Causa evidente, sem diagnose: a chave (escrita por `contract_year_correction.py`, OFF26-20-FIX) falta nos **dois** dicionários `EVENT_LABELS` copiados (`player_detail.html` + `salary_history.html` — réplica declarada no próprio comentário do template; o fix toca os dois). Display de 1 linha, **candidato a carona** — MAN-O2-B1-DONE | Baixa | 🔲 |
 | UX14 | **Time NFL de dropado com fallback no pool** — perfil do Waller exibe `—` porque `Player.nfl_team` está vazio (sync só atualiza rosterados). Hipótese registrada, NÃO arbitrada: fallback de LEITURA no pool ([[O2]] como precedente), sem persistir; pool sem time → `—` correto (FA real). F1 responde a réplica: entra na fonte única da Q1 da UX12-F1 ou vira 2ª fonte por tela? — MAN-ARC-BUSCA-DONE | Baixa/Média | 🔲 |
+| UX16 | **Navbar transborda a viewport a ~860px** (`nav-right` / `btn-sync` / `nav-user-menu` / `nav-user-button`) — achado de carona da [[L3]]-FIX-UX, **pré-existente ao L3 e confirmado idêntico no controle** (mesmo transbordo com o CSS anterior ⇒ não é regressão). Só nessa faixa: a 390px e a partir de 1024px não ocorre. Corrigir **com validação pela sonda geométrica** — é o primeiro cliente natural do [[O7]] — MAN-L3-FIX-UX → **MAN-L3-CLOSE-REG** | Baixa | 🔲 |
+| UX17 | **Paridade da barra de status: roster próprio × detalhe de time** — `/` mostra só salário usado/restante/% enquanto `/team/<id>` mostra cap atual, resto atual, **cap projetado + PROV**, resto projetado, dynasty, ativos, IR e quebra por posição. A tela que o owner mais abre é a mais pobre. Objetivo: mesma riqueza no roster próprio. **F1 mede antes de assumir** (a [[L3]]-FIX-UX já derrubou uma premissa dessa família — a macro do card **não** era compartilhada): (a) a barra do detalhe é macro compartilhável ou markup próprio? (b) o render de `/` já tem os dados ou precisa do `compose_budget` — e a que custo de query, já que hoje ele não consulta `ESPNImportLog` nem `rollover_done`? (c) gate de fase e tags PROV valem idênticos? Parente do [[UX4]] (tabela já convergida entre as duas telas) — **MAN-L3-CLOSE-REG** | Média | 🔲 |
+| O7 | **Sonda de validação visual como ferramenta permanente** (`tools/`, molde do [[O5]]): Playwright medindo **colisão / transbordo / overflow** + **assinatura de anatomia** para estruturas repetidas. Nasceu descartável na [[L3]] e pegou **dois** defeitos que suíte de unidade e leitura de HTML não pegam. **F1 decide:** cobertura inicial de páginas, larguras canônicas (incl. a **real de produção** e mobile), como servir as páginas (hoje é `file://` com HTML salvo do test client) e a ancoragem do gate (sessão que toca CSS/template roda a sonda antes do push — precedente do `backlog_audit.py`). Primeiro cliente: [[UX16]] — **MAN-L3-CLOSE-REG** | Média | 🔲 |
 | UX15 | **Jogador pré-selecionado na página de trade** — o botão do perfil ([[M14]]) já leva os dois times; falta o jogador chegar marcado. Refinamento do campo 3 do [[UX12]] (archive); provável F2 direta, a confirmar réplica (quantos caminhos de entrada têm pré-seleção?) — MAN-ARC-BUSCA-DONE | Baixa | 🔲 |
 | OFF26-23 | **Ano de contrato do rookie 2026 × rollover × passo 5** — pergunta do owner a 7 dias do draft: o rookie entra e PERMANECE Ano 1? **F1 10/08 (MAN-OFF26-23-REG-F1):** a ordem segura existe mas **não é imposta por código** — o `draft_import` não tem gate de `rollover_done`; importar o draft ANTES do rollover incrementaria todo rookie p/ Ano 2 (varredura cega, `offseason.py:686`). **Roteiro seguro da semana entregue na seção** (rollover 18/08 ANTES do import do draft; passo 5 só pós-24/08 — validado: nada o lê além da UI, e o clear precoce zeraria os salários do próprio import). Gainwell = mesma manifestação, raiz distinta (canal, não ordem) — MAN-OFF26-23-REG-F1/-F2/**-FIX** (SyntaxError no JS da /offseason pego pelo smoke do owner — string quebrada na edição gerada; fix de 1 linha + `template_js_test.py` como guarda permanente) | Alta (semana 17→24/08) | ⚠️ 10/08/2026 (**gates + fix no ar — smoke prod pendente**, gate [[PROC1]]) |
 | OFF26-24 | **Script de população do board da liga fantasma** — decisão do owner 10/08 (reverte o adiamento p/ 2027): Playwright headed na máquina do owner, perfil dedicado logado, ⛔ guarda de nascença `league_id 1389725099556372481` + ⛔ API interna vetada (a descoberta do `draft_id` usa a API PÚBLICA da liga, a mesma do OFF26-4). **Cowork segue plano A** até o critério: 12/12 em ensaio + auditoria OFF26-4 zerada + zero intervenção + RESET exercido, **até 19/08** — sem isso, 2026 roda Cowork e o script vai a 2027. F1 10/08 (sheet JSON sem sid → export do `build_sheet`); **ensaio 11/08** (spec de seletores; achado: o cliente MENTE — comando via DOM, **verdade via API**); **F2a 11/08 (MAN-OFF26-24-F2a):** `tools/phantom_board/` — núcleo puro + guardas de nascença + `validate` read-only + `designate` ponta a ponta + endpoint `keeper_sheet_export`; 30→35 testes; **-F2a-FIX 11/08**: guarda de identidade refeita POR CONSTRUÇÃO (URL×draft_id derivado — a página do draft não exibe o nome da liga) + espera de login na 1ª vida do perfil (JOIN DRAFT proibido); `validate` já VERDE em execução real (18/18, $176) — MAN-OFF26-24-REG-F1/**-F2a (FECHADA: Cam Ward assentado via API; validate 19/19)/-F2b** (populate por time + --all retomável; idempotência PRIMEIRO — a lição da F2a; bloqueado_teto = resultado; auditoria OFF26-4 como juiz; **FIX8: assentamento ASSÍNCRONO** — lag real da API >5min (Josh Allen) matou o poll bloqueante; reconciliação por time c/ teto 300s + reload no meio (hipótese do cache por visita, telemetria decide) + `assentado_local_api_atrasada`; 87 testes) (**FIX9 12/08:** campanha real — abort de time deixava o MODAL aberto → TimeoutError cru no time seguinte; higiene de estado em TODO abort + verificação defensiva pré-clique + populate sem traceback cru (abort padrão de time E de campanha); anti-homônimo passou a exigir NOME — a busca do Sleeper é fuzzy: "Malik Willis" devolvia Malik Williams ×2 + Hajj-Malik Williams QB, FAs de sigla vazia = linhas REAIS, não artefato; critério 0/2+ intacto; 104 testes) (**FIX10 12/08:** campanha 12/12 — as DUAS caras do teto: além da recusa síncrona §B.3.2, o input CLAMPA silenciosamente ao max bid (digitou 6/4/3/2, gravou 5/1/1/1 = $196 sem aviso); modelo verificado ao dólar `max_bid = 200 − gasto − $1×vagas restantes`; fix = READ-BACK do input pré-SET → clampou = bloqueado_teto DO KEEPER, nada gravado, sheet canônica; conferência aponta divergentes por nome; telemetria: lag puro 8–121s, zero reload — contra a hipótese do cache; **Travis Hunter = único two-way (DB+WR) dos 237 da sheet** → pendência OFF26-24-HUNTER c/ micro-probe manual; 121 testes) (**FIX11 12/08:** probe do owner FECHOU a HUNTER — ele está no pool (rank 167, tabs All+WR, "+" habilitado), rótulo "DB,WR"; o abort real foi a eleição exigindo igualdade de posição; fix = pertencimento (`position_matches`, fonte única): "WR" ∈ "DB,WR", "QB" segue não casando; parse devolve o rótulo íntegro; anti-homônimo intacto; 134 testes) (**GO 12/08:** **critério de 19/08 CUMPRIDO com 7 dias de antecedência** — ciclo limpo: RESET → campanha oficial `185453Z` 12/12, 235 designados + 2 bloqueados declarados (AlexTheDawg; Croskey entrou a $4 de sheet pelo grão do FIX10), 0 falhas, zero intervenção, Hunter designado → auditoria = SÓ os 2 bloqueados, zero salário divergente → RESET final provado, validate 0 picks/237 sheet/3º draft_id derivado; **alocação de owners em Draft Settings→DRAFT ORDER é PERMANENTE** (sobrevive ao RESET; mapa via `draft_order`); ⛔ RANDOMIZE e RESET BUDGETS proibidos junto do START DRAFT; telemetria: 382 assentamentos, zero reload = lag puro; **script = PLANO A de 22/08, Cowork = plano B**) (âncora no #modal[role=alertdialog] real; header “Make Manual Pick for Team N” como identidade; fallback logado) (busca/linhas/preço escopados ao MODAL — a lista de fundo vazava; filtro conferido antes do matching) (parser do anti-homônimo lê o DOM real — newlines/sigla duplicada/injury; critério intacto) (célula por COLUNA do slot, nunca nth global; “Change Player” proibido; handler sem crash) (mapa slot↔owner: cadeia draft_order → slot_to_roster_id×rosters → picks; validate passou a conferir owner de verdade) (hCaptcha recusa o Chromium de teste → launch pelo Chrome real via channel; captcha é resolvido pelo HUMANO, nunca burlado) | Alta (uso real 22/08) | 🔲 (**critério de 19/08 ✅ CUMPRIDO 12/08 — script = PLANO A de 22/08, Cowork = plano B**; fecha ✅ e migra ao archive após a população real de 22/08) |
@@ -4110,348 +4113,6 @@ Q2 da UX12-F1 (08/08) as re-conferiu no cache local e elas **batem** (depth char
 
 ---
 
-### L3 — Projeção de cap por time na `/league`
-⚠️ **F2 IMPLEMENTADA 13/08/2026 (MAN-L3) — smoke de produção PENDENTE (gate [[PROC1]])** —
-Prioridade **A definir** — F1 read-only no mesmo dia (MAN-L3-F1, parecer preservado abaixo)
-
-**Decisões de produto do owner (todas implementadas):** exibir cap atual **E** projetado ·
-destacar over-cap projetado · levar também ao `/team/<id>` · projeção visível **só pré-rollover**
-(gate `rollover_done`) · rótulo pelo **ano derivado**.
-
-**O que foi feito (F2):**
-- **Helper único `routes.salary.compose_budget(players, projected=True, extra_salaries=())`** —
-  a composição *salário-base → roster sintético → `draft_budget`* que vivia **inline** no POST
-  `/budget`. Três consumidores: o endpoint do projector, a `/league` e o `/team/<id>`.
-  ⛔ Nenhuma aritmética de cap no helper (soma, vagas e reserva de $1 seguem no `draft_budget`);
-  `projected=False` preserva o modo D9 do [[OFF26-1]]; filtro `is_dropped` alinhado ao
-  `roster_salary` ([[OFF26-16]]).
-- **`/league`:** 6º stat no card — *"Cap proj. `<ano>`"* ao lado de *"Cap restante"*, nos 12 times.
-  Over-cap projetado: ⚠️ + valor em vermelho + faixa no card (`.league-card-proj-over`, faixa
-  interna para não disputar com o destaque do próprio time). Selo **PROV** herda o gate do Bid
-  Máximo (mesma tabela ESPN, nenhuma 2ª definição de "provisório").
-- **`/team/<id>`:** *"Cap proj."* + *"Resto proj."* na status bar, mesma fonte e mesmo gate.
-- **Gate de fase `_projection_open()`** (`rollover_done`): pós-rollover a projeção significaria
-  **season+2** sobre salário já valorizado e contradiria o número ao lado — a mesma arbitragem do
-  D9. ⚠️ **Corrigido em 13/08 (MAN-L3-FIX):** a redação original dizia que a flag "volta
-  sozinha na intertemporada seguinte" — **não volta**; ver [[L4]].
-- **Ano derivado em 8 rótulos** (`g_current_season`, custo zero — o context processor já o
-  injeta): título + h1 + barra do Cap Projector, 2 cabeçalhos da tabela JS, banner ESPN, e a
-  coluna PROJ de `/` e `/team/<id>`. ⛔ Zero ano literal nas 4 superfícies (guarda estática).
-
-**Validação (localhost, cópia do banco — nada de prod tocado):**
-- **Refactor puro provado:** payload do `/budget` **idêntico** antes × depois nos 12 times + no
-  cenário com corte + no modo `projected:false`.
-- **12/12 coerentes** entre `/team/<id>` e o projector (folha projetada e resto).
-- ⛔ **Bid Máximo, Cap restante, Record, Picks e Dynasty idênticos byte a byte** nos 12 cards.
-- Gate exercido nos dois sentidos; rótulos conferidos virando `current_season` para 2026 (tudo
-  acompanhou: "Cap Projector 2027", "Proj 2027").
-- **22 testes novos** (`cap_projetado_test.py`, incl. guardas anti-réplica e a do Bid Máximo);
-  **494 verdes** no total (salary_engine 54/54 intacto).
-- **Dado real:** só **2 dos 12** times têm projeção diferente do cap atual hoje — Cangaceiros
-  (−$1) e Trust The Process (**$76 → $59**) — porque a ESPN ainda é **provisória** (≈1.0 em 134
-  dos 248, [[OFF26-20]]) e a projeção colapsa para perto do corrente. É exatamente o que o selo
-  PROV comunica; os números separam de verdade quando a definitiva entrar (18/08). Único over-cap
-  projetado: **3 peat… of pain** ($201, −$1) — o destaque foi exercido em dado real, não montado.
-- ⚠️ **Desvio consciente de um critério:** a contagem de queries do render **subiu** —
-  `/league` 17 → **19**, `/team/<id>` 18 → **21**. A **projeção custa ZERO query** (o ponto da F1:
-  ela opera sobre os players já carregados; as 12 composições não aparecem no trace). O acréscimo
-  é **constante, não por time**: +2 do gate (`get_config` custa **2 queries** nesta base — 1
-  `sqlite_master` do `_table_exists` + 1 select; as 4 chamadas já existentes respondiam por **8
-  das 17** do baseline) e +1 no detalhe do time pelo `ESPNImportLog` do selo PROV. Zerar o gate
-  exigiria mexer no `get_config`/`_table_exists` em `models.py` — **fora do escopo** desta F2
-  (candidato a item próprio: 4 varreduras de `sqlite_master` por render é desperdício que nada
-  tem a ver com o L3).
-
-**Fora do gate de propósito:** a **coluna PROJ por jogador** de `/` e `/team/<id>` continua
-aparecendo pós-rollover — ela é pré-existente (T4 do [[OFF26-20]]), útil o ano todo, e o item só
-pediu o **ano derivado** nela. O gate cobre o **agregado** novo.
-
----
-
-**FIX-F1 (13/08/2026, read-only) — por que a projeção não aparece em produção:**
-
-⛔ **CAUSA RAIZ: o commit do L3 NUNCA FOI EMPURRADO.** `main` está **`ahead 2`** de
-`origin/main`, que segue em `ac1a2cf` (MAN-O6-REFINE). O Render faz deploy do GitHub ⇒
-**produção roda o código pré-L3**. Não é hipótese — é estado verificável:
-- `git show origin/main:templates/league.html` renderiza **exatamente 5 rótulos** — Record ·
-  Cap restante · Bid Máximo · Picks · Dynasty — **idêntico ao screenshot**;
-- `compose_budget` e `_projection_open`: **0 ocorrências** em `origin/main`;
-- os 2 commits retidos são `8ecce54` (F1, docs) e `e4aa5e4` (F2, código).
-
-**Veredicto por hipótese:**
-1. **Helper não invocado no render da liga** — ✅ *é a causa, por ausência de código*: no
-   `_build_team_card` novo ele É invocado (12 cards mediram projeção na validação local); em
-   produção o helper **não existe**. Mapa rótulo→valor do que prod renderiza hoje: `Record` =
-   `standing.wins-losses` · `Cap restante` = `SALARY_CAP − roster_salary` (folha única com IR,
-   [[OFF26-16]]) · `Bid Máximo` = `draft_budget(...)["usable_draft_budget"]` base **corrente**
-   (L1-BID) + tag PROV de `ESPNImportLog(season+1, final)` · `Picks` = contagem · `Dynasty` =
-   soma FantasyCalc. **Nenhum campo de projeção existe no payload do card deployado.**
-2. **Gate errado / invertido / default errado / divergência local × prod** — ⛔ **REFUTADO.**
-   `_projection_open()` lê `rollover_done` com default `"false"` e abre quando `!= "true"`;
-   exercido nos dois sentidos em teste. Prod está **pré-rollover**, e há evidência direta: o
-   smoke da urna em prod (07/08) **exercitou o escape do banner de ensaio** — escape que só é
-   necessário quando `rollover_done != "true"` ([[OFF26-10]] / `rollover_blocks_urn`). Logo o
-   gate em prod está **aberto**; ele não tem participação no sintoma.
-3. **Projeção renderiza colapsada pela ESPN provisória** — ⛔ **não é a causa** (a linha está
-   *ausente*, não igual), ⚠️ **mas é achado real para o pós-deploy**: na medição local **10 dos
-   12** times têm projetado **idêntico** ao atual; só Cangaceiros (−$1) e Trust The Process
-   ($76 → $59) separam. Dois números iguais lado a lado em 10 cards **lê como bug** — é o que
-   sustenta o ajuste de rótulo que o owner já sinalizou. Separa de verdade quando a ESPN
-   definitiva entrar (18/08).
-4. **Divergência liga × detalhe** — ⛔ **inexistente**: as duas telas chamam o **mesmo**
-   `_projection_open()` e o **mesmo** `compose_budget`, e as duas estão igualmente ausentes de
-   produção. Não há caminho divergente para explicar.
-5. **Réplicas de exibição/gate** — **uma só definição**: o gate vive em `_projection_open()`
-   (`routes/league.py`), os dois templates apenas **leem** `show_projection`, e **não há JS**
-   envolvido. Os outros leitores de `rollover_done` (passo 4 do `/offseason`,
-   `rollover_blocks_urn` do late_drop) são consumidores da mesma flag para **outra finalidade**
-   — não réplicas do gate de exibição.
-
-**Smoke de produção do L3: NUNCA foi realizado** — o próprio registro da F2 diz "smoke de
-produção PENDENTE (gate [[PROC1]])" e toda a validação foi em **localhost sobre cópia do banco**.
-O cenário validado (pré-rollover, 12 cards com projeção) **corresponde** ao estado de prod; o que
-não correspondia era o **código deployado**. Lição: "commitar" ≠ "estar em produção", e a
-validação local não tem como perceber a diferença.
-
-⚠️ **Achado colateral do próprio L3** (não causa o sintoma): a docstring de `_projection_open`
-afirma que `rollover_done` "volta sozinha na intertemporada seguinte, quando o reset da season a
-zera". **É FALSO pelo código:** `_seed_app_config` só insere chave **ausente**
-([app.py:441](app.py#L441)), o `ensaio_janela_selada --reset` não toca a flag, e **nenhum sítio
-grava `"false"`** — só o rollover grava `"true"`
-([routes/offseason.py:707](routes/offseason.py#L707)). Consequência: depois de 18/08 a projeção
-some e **não volta sozinha** no ciclo seguinte. O comportamento de hoje é o desejado (pós-rollover
-a projeção deve mesmo sumir); o que está errado é a **frase**, escrita por raciocínio e não por
-verificação.
-
-**Menor caminho de fix:** `git push origin main` + deploy + conferência do hash (PROC1).
-**Nenhuma linha de código é necessária para o sintoma.** Ajuste de rótulo (owner) e correção da
-docstring são escopo à parte — decisão do próximo prompt.
-
----
-
-**FIX (13/08/2026, MAN-L3-FIX) — card reorientado a PLANEJAMENTO + push:**
-
-Feedback da liga colhido pelo owner antes do push: o card tinha de responder primeiro *"quanto
-posso gastar na auction"*. As grandezas **projetadas** viram a informação principal; as atuais
-descem a linha de conferência, sem sair da tela.
-
-- **Card da `/league` em 3 zonas:** (1) **bloco de planejamento** — *Bid máximo `<ano>`* como o
-  maior número da peça, com *Cap `<ano>`* e **Slots livres** ao lado; (2) linha discreta
-  **"Atual: cap $X · bid $Y"**; (3) **rodapé** com picks · record · dynasty. Pós-rollover o gate
-  fecha e **as grandezas correntes assumem o mesmo bloco de destaque** — mesma macro Jinja
-  (`bloco_destaque`), dois usos, **nenhuma condicional além do gate**.
-- **Selo PROV nas duas grandezas projetadas** (era só no bid). É o que explica os pares
-  coincidentes enquanto a ESPN for provisória — o achado (a) da FIX-F1 vira microcopy, não bug.
-- **`slots`** = `empty_spots` do **mesmo** `draft_budget` já chamado para o bid (⛔ zero conta
-  nova; o número é igual nas duas bases porque projetar não muda o **tamanho** do elenco).
-- **`/team/<id>`:** rótulos passam a **"Cap atual"/"Resto atual"** × **"Cap proj. `<ano>`"/"Resto
-  proj."**, ambos os projetados com PROV. Sem reestruturação de layout.
-- **Docstring do gate corrigida** (task 4) + guarda de teste
-  (`TestGateSemPromessaFalsa`) que barra tanto a volta da promessa quanto uma implementação
-  silenciosa da reabertura. ⚠️ **A 1ª versão da guarda proibia a palavra "automátic" e derrubava a
-  própria NEGAÇÃO** ("não é automática hoje") — refeita para mirar a afirmação. Registro do
-  tropeço porque é a classe de teste que empurra o autor seguinte a apagar a explicação.
-- ⛔ **Bid Máximo atual intocado** — base, cálculo e valor idênticos; `proj_bid_max` é **campo
-  separado**, com teste que falha se um contaminar o outro.
-
-**Validação (localhost, cópia do banco):** 12 cards com as 3 zonas · **slots conferidos contra a
-contagem de elenco do banco nos 12** · **linha "Atual" idêntica** ao que o card exibia antes desta
-mudança (comparação automática contra a captura do L3) · **Trust The Process separa de verdade**
-(bid $76 → **$59**, cap $124 → **$141**) e **Miller Time!** coincide com PROV visível · gate
-fechado ⇒ bloco de destaque passa a mostrar *"Bid máximo"* corrente, linha "Atual" some, rodapé
-permanece · **499 testes verdes** (salary_engine 54/54).
-
-⚠️ **Achado colhido na validação (não é regressão, é o [[OFF26-13]] aparecendo na tela):** o
-**achane tem 24 jogadores** (22 + 2 IR) ⇒ `empty_spots` sai **clampado em 0** pelo `max(0, …)` do
-`draft_budget`, então o card exibe *"Slots livres 0"* — verdadeiro, mas **silencia que o time está
-2 acima do teto**. Não inventei UI para isso: a decisão (corte obrigatório × exceção) é do
-[[OFF26-13]], que segue 🔲.
-
-**PUSH + DEPLOY (13/08/2026) — [[PROC1]] cumprido por evidência do que está NO AR:**
-`ac1a2cf..19d9398 main -> main`; os **4 commits retidos** (`8ecce54` · `e4aa5e4` · `ac35f6a` ·
-`19d9398`) estão em `origin/main`, que é de onde o Render deploya. Confirmação do deploy **sem
-depender de dashboard**: o `static/style.css` **servido em produção** é **byte-idêntico** ao do
-commit (83.467 B, `diff` limpo) e contém as classes que só existem nele
-(`league-plan`, `league-now`, `league-card-foot`, `league-card-proj-over`); o app — não só o
-static — responde `GET /league → 302 /login` (roteamento + guarda de auth vivos). O build foi
-observado subindo (502 → 502 → 200).
-⚠️ **Isto é confirmação de DEPLOY, não o smoke.** O item segue ⚠️: falta a conferência **visual**
-do owner na `/league` logada (as 3 zonas nos 12 cards, o bid projetado em destaque e o bid atual
-coerente com a keeper sheet).
-
----
-
-**FIX-UX (13/08/2026) — sobreposição de rótulos no bloco de planejamento (CSS-only):**
-
-O smoke visual do owner pegou o que a minha validação não tinha como pegar: **"BID MÁXIMO 2026"
-sobreposto a "Cap 2026 [PROV] $X/$200"**, com as duas tags PROV empilhadas, em **todos** os cards
-na largura real. Dados, over-cap, linha "Atual" e rodapé estavam corretos — defeito puramente de
-layout.
-
-**Causa raiz (medida):** `.league-plan` era **uma linha flex com duas colunas, ambas
-`white-space: nowrap`**. Na grade `repeat(auto-fill, minmax(280px, 1fr))` o card de produção dá
-**~258px úteis** dentro do bloco, contra **~310px de largura MÍNIMA** do conteúdo. O
-`min-width: 0` do herói permitia encolher, mas **texto `nowrap` sem `overflow` não encolhe:
-transborda** — e pintava por cima da coluna vizinha; as duas tags PROV caíam uma sobre a outra
-porque uma fica no fim do rótulo que vazava e a outra no início do item vizinho.
-
-**Fix:** o bloco passa a **empilhar** (`flex-direction: column`) e a fila secundária ganha
-`flex-wrap: wrap` — nenhuma largura depende mais de caber numa linha. Cada item segue `nowrap`
-**internamente** (um valor nunca se separa do seu rótulo) e a quebra acontece **entre** itens.
-O rótulo do herói virou flex com `gap`, então a tag PROV senta ao lado do texto em vez de flutuar.
-⛔ Nada além de CSS: **34 linhas em `static/style.css`**, zero backend, zero template, zero JS.
-
-**Validação — geométrica, não textual (a lição do defeito):** script Playwright mede o
-`getBoundingClientRect()` de cada caixa de texto do bloco e acusa cruzamento entre caixas
-não-aninhadas, em 4 larguras. **Rodou primeiro contra o CSS DE PRODUÇÃO como controle, para provar
-que o instrumento enxerga o defeito: 24 colisões a 1280px (12 cards × 2 pares), 13 a 1024px, 1 a
-390px.** Com o fix: **0 colisões, 0 transbordos, 0 overflow horizontal** nas 4 larguras (cards de
-300 / 320 / 406 / 358px), com e sem over-cap projetado. Hierarquia intacta (bid projetado é o
-maior número; ⚠️ + vermelho + faixa no card do over-cap). `/team/<id>` conferido: **0 colisões** —
-a `.team-status-bar` sempre teve `flex-wrap: wrap`, então **nunca** sofreu do defeito.
-**499 testes verdes.**
-
-⚠️ **Correção de premissa do prompt:** a macro `bloco_destaque` **não é compartilhada com o
-`/team/<id>`** — seus dois usos são os **dois ramos do gate**, ambos em `league.html`; o detalhe do
-time tem markup próprio (`.team-status-bar`). A raiz era exclusiva do card da liga.
-
-**Achado de carona (pré-existente, fora do escopo):** a **navbar** transborda a viewport a ~860px
-(`nav-right` / `btn-sync` / `nav-user-menu`) — **idêntico no controle e no fix**, portanto não é
-regressão do L3. Fica anotado como candidato a item próprio.
-
-**PUSH + DEPLOY do FIX-UX ([[PROC1]]):** commit `f012d28` em `origin/main`; o `style.css` **servido
-em produção** é **byte-idêntico** ao do commit (84.262 B, `diff` limpo), o bloco `.league-plan` no
-ar traz `flex-direction: column` e o app responde `GET /league → 302 /login`.
-⚠️ Segue faltando **só** o smoke visual do owner na largura real.
-
----
-
-**FIX-UX2 (13/08/2026) — anatomia idêntica nos 12 cards (CSS-only, 9 linhas):**
-
-O FIX-UX matou a sobreposição, mas com **quebra CONDICIONAL** (`flex-wrap`) na fila secundária: o
-card com over-cap projetado tem o rótulo mais largo (⚠️ + valor) e empurrava *"Slots livres"* para
-a 2ª linha, enquanto o vizinho cabia em uma — **cards lado a lado com anatomias diferentes**.
-Decisão do owner: **padrão único**. `.league-plan-side` deixa de ser fila com wrap e passa a
-**empilhar sempre** (`flex-direction: column` + `align-items: flex-start`): bid (herói) · cap ·
-slots, uma grandeza por linha, **em qualquer largura e com qualquer dado**.
-
-**A sonda geométrica ganhou uma medida nova — ANATOMIA**, porque ausência de colisão não prova
-uniformidade: para cada bloco ela extrai a assinatura `classe@topo` de cada linha e compara os 12.
-⚠️ 1ª versão da assinatura incluía o `left`, e acusava "3 anatomias" por diferenças de **1px**
-vindas da largura do texto (`$5/$200` × `$180/$200`) — dado, não anatomia; o `left` virou
-verificação separada (alinhamento de coluna).
-
-**Controle × fix (mesmo instrumento, mesmas 4 larguras):**
-- **CSS de produção:** no card de **300px**, **2 anatomias** — 11 cards com `item@69 | item@69`
-  (mesma linha) e o over-cap com `item@69 | item@93`; `linhas/bloco = [3, 4]`, alturas **100 e
-  123**; 11 dos 12 com as linhas fora da mesma coluna. ⚠️ Nas larguras maiores a divergência
-  **não aparecia** — era exclusiva do card mais estreito, que é o de produção.
-- **Com o fix:** **1 anatomia**, `linhas/bloco = [4]`, altura **123** e `fora da coluna: []` nas
-  **quatro** larguras; 0 colisões, 0 transbordos, 0 overflow. **499 testes verdes.**
-
-**PUSH + DEPLOY ([[PROC1]]):** commit `b228efa`; o `style.css` **servido em produção** é
-**byte-idêntico** ao do commit (84.765 B, `diff` limpo), o `.league-plan-side` no ar traz
-`flex-direction: column` + `align-items: flex-start`, e o app responde `GET /league → 302`.
-✅ **A lição do poller anterior foi aplicada e funcionou:** detector 100% em ferramenta do bash
-(`diff` contra o arquivo do commit), que registrou a transição real **84.262 B → 502 (restart) →
-84.765 B** e parou sozinho na 4ª tentativa — sem falso negativo.
-
-⚠️ **Lição de ferramenta (custou um falso TIMEOUT):** o poller do deploy dizia "não pousou" por
-**10 minutos depois de ter pousado** (o tamanho servido mudou de 83.467 → 84.262 B na 5ª
-tentativa). O detector inline era `python -c` lendo `/tmp/prod2.css` — e **Python nativo do Windows
-não enxerga `/tmp/`**, que é mount do Git Bash: resolve como `C:\tmp\` e estoura
-`FileNotFoundError`, caindo no `|| echo 0` a cada iteração. As ferramentas do bash (`wc`, `diff`,
-`grep`, `awk`) leem esse caminho **sem problema** — foi por isso que o poller do deploy anterior,
-feito com `grep`, funcionou. **Regra:** num pipeline Git Bash, a checagem tem de ser feita com
-ferramenta do bash, ou o caminho tem de ser nativo do Windows. E **um detector que só sabe dizer
-"não" precisa de um controle positivo** — o mesmo cuidado que a validação geométrica teve, e o
-poller não.
-
----
-
-**F1 (parecer read-only, 13/08/2026) — preservado:**
-
-**Problema:** a `/league` exibe o cap da season corrente (`cap_used`/`cap_space`, computados no
-render); a projeção da season seguinte (valorização × tabela ESPN) só existe agregada no Cap
-Projector, **time a time**. Não há tela com o agregado projetado dos 12 — a divergência entre as
-duas grandezas motivou o item.
-
-**F1 — as 5 respostas (evidência por âncora):**
-
-**1. Fonte canônica.** Por jogador: `salary_engine.project_next_salary`
-([salary_engine.py:176](salary_engine.py#L176)) — pura (projeta `contract_year+1`; sem ESPN →
-salário atual; renovação → floor(ESPN); waiver ano 2 → 0,8; senão VALORIZAÇÃO). Agregação:
-`salary_engine.draft_budget` (pura). O agregado PROJETADO que o projector exibe nasce da
-**composição** dos dois — inline, num único sítio: o POST `/api/cap_projector/<team>/budget`
-([routes/salary.py:150-180](routes/salary.py#L150-L180)) monta roster sintético de
-`SimpleNamespace(salary=project_next_salary(p))` p/ os mantidos (+ rookies do cenário a
-`year1_salary`) e passa ao `draft_budget`. ⚠️ O GET `/api/cap_projector/<team>` devolve
-`next_salary` por jogador, mas o `budget` dele é sobre salário **CORRENTE**
-([routes/salary.py:92](routes/salary.py#L92)) — o número projetado da barra sticky vem do POST.
-**Não existe helper nomeado "budget projetado"**; a composição não tem nome nem segundo consumidor.
-
-**2. Inventário de réplicas — veredicto: ZERO réplicas de cálculo hoje.**
-(a) `project_next_salary` = canônica; (b) `Player.projected_next_salary()`
-([models.py:178](models.py#L178)) **DELEGA** (T4 do [[OFF26-20]]) — wrapper, não réplica;
-consumidor: coluna PROJ de `/` e `/team/<id>` (`_macros.html:73`); (c) `Player.to_dict()` idem
-([models.py:239](models.py#L239)); (d) `apply_season_rollover` implementa as mesmas regras
-**dentro** do engine, com teste de concordância (`trilha_fa_proj_test.py:89`); (e) **JS: nenhuma
-agregação** — o débito era o [[F10]], **eliminado em 12/06/2026**; o JS atual do projector só
-posta estado e exibe payload (`cap_projector.html:167-170`, "Nenhuma agregação de cap em JS").
-**Como a F2 não cria réplica:** o risco real é a composição inline do `/budget` ganhar uma 2ª
-cópia em `league.py`. Caminho: extrair a composição p/ **helper único fora do `salary_engine`**
-(p.ex. em `routes/salary.py`, importado pela `/league` — precedente de import cross-blueprint já
-existe: [routes/league.py:14](routes/league.py#L14) importa de `routes.roster`), ficando o POST
-`/budget` e o render da `/league` como os 2 consumidores. Nenhuma aritmética nova em lugar nenhum.
-
-**3. Custo: 0 queries novas, sem N+1.** O `league_hub` faz 5 queries (Team, SeasonStandings,
-contagem de Pick, **todos** os Players numa query, ESPNImportLog —
-[routes/league.py:59-86](routes/league.py#L59-L86)) e já computa `cap_used`/`bid_max` no render
-sobre `players_by_team`. `project_next_salary` lê só colunas já carregadas (salary,
-contract_year, acquisition_type, espn_ref_value) — **nenhuma query por chamada**. Projetar os 12
-= ~250 chamadas puras + 12 `draft_budget` sobre listas de ~22, O(n) em memória. Caminhos
-rejeitados: 12 fetches JS ao GET por time (12 requests + 1 query `EspnValueStore` **cada** — o
-único N+1 real do mapa; a `/league` não precisa dela — o PROV por jogador é do projector, e o
-flag de liga `bid_provisional` já sai do ESPNImportLog em
-[routes/league.py:85](routes/league.py#L85)); endpoint batch novo (complexidade de cliente sem
-ganho — o render server-side preserva o perfil da tela).
-
-**4. Fase.** `project_next_salary` projeta sobre o estado **armazenado** ⇒ o significado muda no
-rollover: **pré**-rollover projeta a season seguinte (janela útil máxima entre a ESPN definitiva
-de 18/08 e o rollover); **pós**-rollover o salário armazenado JÁ É o da season nova e re-projetar
-mostraria season+2 — exibi-lo ao lado do cap corrente contradiria as grandezas. O código já
-arbitrou isso: **D9 do [[OFF26-1]]** usa `projected:false` pós-rollover porque "re-projetar
-duplicaria" ([routes/salary.py:133-138](routes/salary.py#L133-L138)). Flags disponíveis:
-`rollover_done` (AppConfig por ciclo, setada em
-[routes/offseason.py:707](routes/offseason.py#L707)) decide exibição/rótulo; `bid_provisional`
-marca PROV (mesma flag do Bid Máximo). Qualidade pré-definitiva: com ESPN provisória (~1.0 em
-134/248, cf. [[OFF26-20]]) a projeção colapsa p/ ≈ salário atual (subestimada) — mesmo caveat do
-banner do projector. O que o código permite exibir sem contradição: rotular pelo **ano**
-(`season`/`season+1` — ⛔ não hardcodar "2026" como fazem hoje o título do projector e a coluna
-PROJ) e ocultar/rebaixar o projetado quando `rollover_done`.
-
-**5. Premissas × código / comportamentos em risco.**
-(a) "L3 registrado no improvements.md" — **FALSA**: não existia (Status Rápido ia de L1 a L2);
-registrado nesta sessão. (b) "cap ATUAL pré-computado" — **imprecisa**: nada é persistido; é
-computado a cada render (`roster_salary`, [routes/league.py:26](routes/league.py#L26)) —
-inofensiva, e reforça o caminho (projeção no MESMO render). (c) "disponível apenas no
-cap_projector" — **imprecisa**: por JOGADOR a projeção já está em `/` e `/team/<id>` (coluna
-"Proj 2026"); o que só existe no projector é o **agregado**. (d) "débito conhecido de agregação
-em JS" — **FALSA/desatualizada** ([[F10]] ✅ 12/06/2026). Comportamentos: ⛔ **não trocar a base
-do Bid Máximo** — o `bid_max` do card é base CORRENTE (L1-BID,
-[routes/league.py:31-34](routes/league.py#L31-L34)), o **mesmo número** da keeper sheet
-(`fa_budget`, D4); um "bid projetado" no lugar quebraria a coerência tela × sheet (perda
-não-intencional). "Cap restante" corrente: se a F2 **substituir** em vez de somar, some a única
-leitura corrente da liga em tela (remoção só se intencional do owner).
-
-**Questões de produto (owner decide; a F1 só informa o que o código permite):** atual+projetado ×
-só projetado (ambos custam o mesmo: $0 de query); levar o agregado projetado também ao
-`/team/<id>` (mesma composição, mesmo custo); destaque de over-cap projetado (`draft_budget` já
-devolve `over_cap`/`insufficient_budget` — flags prontas); comportamento pós-rollover (ocultar ×
-rebaixar com rótulo de ano).
-
----
-
 ### L4 — Qual evento reabre a exibição de projeção no ciclo seguinte?
 🔲 **Pendente** — Prioridade **Baixa** — registrado 13/08/2026 (MAN-L3-FIX)
 
@@ -6488,5 +6149,105 @@ engrenagem, não criar um caminho paralelo.
 
 **Cross-refs:** [[M14]] (query params existentes), [[UX12]] (origem do campo 3, archive),
 [[M13]] (o botão no perfil), [[T1]] (o simulador onde o quadro vive).
+
+---
+
+### UX16 — Navbar transborda a viewport a ~860px
+🔲 **Pendente** — Prioridade **Baixa** — achado de carona da [[L3]]-FIX-UX, registrado
+13/08/2026 (MAN-L3-CLOSE-REG)
+
+**Problema (medido, com controle):** a ~860px de viewport o documento fica com
+`scrollWidth > innerWidth` e a página ganha rolagem horizontal. Os elementos que ultrapassam a
+borda são os do lado direito da navbar: `nav-right`, `btn-sync`, `nav-user-menu`,
+`nav-user-button`.
+
+⚠️ **NÃO é regressão do [[L3]]:** o transbordo apareceu idêntico no **controle** (o CSS anterior
+ao fix de layout) e no fix — a sonda geométrica mediu os dois e nomeou os mesmos culpados. É
+defeito **pré-existente**, que só ficou visível porque a sonda passou a olhar geometria.
+
+**Faixa exata:** medido em **390px → sem transbordo**, **860px → transborda**, **1024px e
+1280px → sem transbordo**. A faixa intermediária é onde a navbar ainda tenta manter tudo em
+linha e já não cabe.
+
+**Como corrigir (a decidir na F1/F2):** a mesma família de causa do bloco de planejamento — fila
+horizontal que não cabe. Opções óbvias: `flex-wrap` na navbar, esconder rótulos (deixando ícones)
+na faixa, ou colapsar em menu. **Não decidir sem medir** — e **validar pela sonda** ([[O7]]),
+que já sabe apontar o elemento culpado.
+
+**Cross-refs:** [[N1]] (redesign da navbar que criou a estrutura atual), [[UX6]] (largura máxima
+do container), [[O7]] (o instrumento), [[L3]] (de onde o achado caiu).
+
+---
+
+### UX17 — Paridade da barra de status: roster próprio × detalhe de time
+🔲 **Pendente** — Prioridade **Média** — registrado 13/08/2026 (MAN-L3-CLOSE-REG),
+**registro apenas; nenhuma diagnose feita**
+
+**Problema:** depois do [[L3]], a `/team/<id>` passou a mostrar **cap atual, resto atual, cap
+projetado (com PROV), resto projetado, dynasty, ativos, IR e quebra por posição**. A tela do
+**próprio roster** (`/`) segue com **salário usado, restante e %** — mais pobre justamente na
+tela que o owner mais abre, e sem a grandeza de planejamento que motivou o L3 inteiro.
+
+**Objetivo:** a mesma riqueza no roster próprio, sem criar uma segunda definição de nada.
+
+**Perguntas que a F1 tem de MEDIR (⛔ não herdar premissa):**
+1. **A barra do detalhe é macro compartilhável ou markup próprio?** — a [[L3]]-FIX-UX derrubou
+   exatamente essa classe de premissa: o prompt afirmava que a macro do card era compartilhada com
+   o `/team/<id>`, e **não era** (os dois usos eram os dois ramos do gate). Medir antes.
+2. **O render de `/` já dispõe dos dados ou precisa invocar `compose_budget`?** — e **a que custo
+   de query**: hoje `/` **não** consulta `ESPNImportLog` (selo PROV) nem `rollover_done` (gate). No
+   [[L3]] o gate custou **+2 queries** por render, e o mesmo preço se repetiria aqui.
+3. **Gate de fase e tags de provisoriedade valem idênticos?** — a resposta esperada é sim (mesma
+   grandeza, mesma semântica), mas é decisão a registrar, não a assumir.
+
+**Cross-refs:** [[UX4]] (a **tabela** de roster já convergiu entre as duas telas — este item é o
+mesmo movimento para a **barra**), [[L3]] (helper canônico, gate, PROV), [[OFF26-16]] (a régua
+única de folha que ambas as telas consomem), [[M17]] (o `/` deriva do usuário logado).
+
+---
+
+### O7 — Sonda de validação visual como ferramenta permanente
+🔲 **Pendente** — Prioridade **Média** — registrado 13/08/2026 (MAN-L3-CLOSE-REG)
+
+**De onde veio:** a saga do [[L3]] queimou **três gerações** de instrumento de validação em um dia,
+cada uma nascida de um defeito que a anterior **aprovou** (detalhe na seção L3 do
+`improvements_archive.md`):
+
+| Geração | Mediu | Deixou passar |
+|---|---|---|
+| Regex sobre HTML | valores, payloads, queries | **layout** — aprovou 12 cards com texto sobreposto |
+| Geometria (`getBoundingClientRect`) | colisão, transbordo, overflow | **uniformidade** — anatomias diferentes entre cards vizinhos |
+| Assinatura de anatomia (`classe@topo`) | estrutura repetida entre N elementos | — |
+
+**Proposta:** promover a sonda a `tools/`, no **molde do [[O5]]** (ferramenta read-only em
+`tools/` + gate ancorado no `CLAUDE.md`). Hoje ela vive no scratchpad e morre com a sessão —
+enquanto o defeito que ela pega é recorrente por natureza (todo CSS de grade/flex).
+
+**A F1 decide:**
+- **cobertura inicial** de páginas (candidatas: `/league`, `/team/<id>`, `/` e `/cap_projector` —
+  as de maior densidade);
+- **larguras canônicas**, obrigatoriamente incluindo a **largura real de produção** e **mobile**
+  — no [[L3]] a divergência de anatomia **só existia no card mais estreito** e sumia em telas
+  largas;
+- **como servir as páginas**: hoje é `file://` sobre HTML salvo do test client (avatares remotos
+  não carregam — aceitável, mas é desenho a confirmar) × subir um servidor efêmero;
+- **ancoragem do gate**: sessão que toca CSS/template roda a sonda nas páginas afetadas **antes do
+  push**, como o `backlog_audit.py` é gate do fechamento.
+
+**Lições de método a preservar na ferramenta** (todas pagas com defeito real):
+- **validar na largura REAL de produção** — aprovação em tela larga não vale;
+- **layout não se valida por texto/regex**;
+- **ausência de colisão ≠ uniformidade** — são duas medidas;
+- **assinatura mede ESTRUTURA, não dado** — incluir o `left` fazia 1px de largura de texto parecer
+  anatomia diferente;
+- ⛔ **todo detector precisa de controle positivo**: rodar contra o defeito conhecido **antes** de
+  aceitar o verde. Sem isso, um poller deu **falso TIMEOUT de 10 min** sobre deploy que já estava
+  no ar.
+
+**Primeiro cliente:** [[UX16]] (transbordo da navbar) — defeito já medido pela sonda, com culpado
+nomeado, esperando correção com validação pelo mesmo instrumento.
+
+**Cross-refs:** [[O5]] (precedente de ferramenta em `tools/` + gate), [[UX16]] (1º cliente),
+[[L3]] (origem, archive).
 
 ---
