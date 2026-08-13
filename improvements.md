@@ -103,7 +103,7 @@
 | L1 | League Hub: visão geral da liga + detalhe por time | Alta | ✅ 23/04/2026 |
 | L2 | League Hub season mode: matchups, schedule, standings | Baixa | 🔲 |
 | L4 | **Qual evento reabre a exibição de projeção no ciclo seguinte?** O gate do [[L3]] fecha quando `rollover_done` vira `"true"` — e **nenhum sítio grava `"false"` de volta** (medido na MAN-L3-FIX-F1): `_seed_app_config` só insere chave ausente, o `--reset` do ensaio não toca a flag. Hoje a projeção some no rollover e **não volta sozinha** na intertemporada seguinte. Design pequeno, mas toca `app_config` — **contrato externo consumido pelo Optimizer** — então a decisão (que evento zera: fechar a season? abrir o passo 1? flag própria de exibição?) é do owner — MAN-L3-FIX | Baixa | 🔲 |
-| L3 | Projeção de cap por time na `/league` **e no `/team/<id>`** (agregado da season seguinte via valorização × ESPN, antes só no cap_projector time a time) — MAN-L3-F1/**MAN-L3** | A definir | ⚠️ **F2 13/08/2026: implementada, aguardando smoke prod.** Composição extraída para o helper único `compose_budget` (3 consumidores; payload do `/budget` **idêntico** = refactor puro), cap projetado nos 12 cards + status bar do time, over-cap destacado, PROV herdado, gate `rollover_done`, 8 rótulos com ano derivado. ⛔ **Bid Máximo intocado** (byte a byte nos 12). Projeção = **0 query**; gate = +2 constantes (`get_config` custa 2 nesta base). 22 testes novos, **494 verdes**. ⛔ **FIX-F1 13/08: a projeção não aparecia em prod porque o COMMIT NUNCA FOI EMPURRADO** — `main` ahead 2, `origin/main` em `ac1a2cf`, prod rodando código pré-L3 (`compose_budget`/`_projection_open` = 0 ocorrências lá; os 5 rótulos do screenshot são exatamente os do template deployado). Gate, helper e divergência liga×detalhe **refutados**. Fix = push + deploy, zero linha de código. **MAN-L3-FIX 13/08:** card reorientado a **planejamento** (3 zonas — bid projetado em destaque + cap projetado + slots · linha "Atual" discreta · rodapé), PROV nas duas grandezas projetadas, docstring do gate corrigida (⇒ [[L4]]), ⛔ bid atual intocado; **499 verdes**; **push feito** |
+| L3 | Projeção de cap por time na `/league` **e no `/team/<id>`** (agregado da season seguinte via valorização × ESPN, antes só no cap_projector time a time) — MAN-L3-F1/**MAN-L3** | A definir | ⚠️ **F2 13/08/2026: implementada, aguardando smoke prod.** Composição extraída para o helper único `compose_budget` (3 consumidores; payload do `/budget` **idêntico** = refactor puro), cap projetado nos 12 cards + status bar do time, over-cap destacado, PROV herdado, gate `rollover_done`, 8 rótulos com ano derivado. ⛔ **Bid Máximo intocado** (byte a byte nos 12). Projeção = **0 query**; gate = +2 constantes (`get_config` custa 2 nesta base). 22 testes novos, **494 verdes**. ⛔ **FIX-F1 13/08: a projeção não aparecia em prod porque o COMMIT NUNCA FOI EMPURRADO** — `main` ahead 2, `origin/main` em `ac1a2cf`, prod rodando código pré-L3 (`compose_budget`/`_projection_open` = 0 ocorrências lá; os 5 rótulos do screenshot são exatamente os do template deployado). Gate, helper e divergência liga×detalhe **refutados**. Fix = push + deploy, zero linha de código. **MAN-L3-FIX 13/08:** card reorientado a **planejamento** (3 zonas — bid projetado em destaque + cap projetado + slots · linha "Atual" discreta · rodapé), PROV nas duas grandezas projetadas, docstring do gate corrigida (⇒ [[L4]]), ⛔ bid atual intocado; **499 verdes**. **Push + deploy confirmados** (`ac1a2cf..19d9398`; CSS servido byte-idêntico ao do commit, `/league`→302). **Falta só o smoke visual do owner** |
 | N1 | Redesign navbar: estrutura com dropdowns + acesso rápido aos times | Média | ✅ 23/04/2026 |
 | C1 | Cap projector: modo "drop programado" para simular liberações de cap | Média | 🔲 |
 | M8-PERM | Lottery: simulação aberta a owners + bloqueio server-side pós-oficial | Média | ✅ 23/04/2026 |
@@ -4266,6 +4266,18 @@ permanece · **499 testes verdes** (salary_engine 54/54).
 `draft_budget`, então o card exibe *"Slots livres 0"* — verdadeiro, mas **silencia que o time está
 2 acima do teto**. Não inventei UI para isso: a decisão (corte obrigatório × exceção) é do
 [[OFF26-13]], que segue 🔲.
+
+**PUSH + DEPLOY (13/08/2026) — [[PROC1]] cumprido por evidência do que está NO AR:**
+`ac1a2cf..19d9398 main -> main`; os **4 commits retidos** (`8ecce54` · `e4aa5e4` · `ac35f6a` ·
+`19d9398`) estão em `origin/main`, que é de onde o Render deploya. Confirmação do deploy **sem
+depender de dashboard**: o `static/style.css` **servido em produção** é **byte-idêntico** ao do
+commit (83.467 B, `diff` limpo) e contém as classes que só existem nele
+(`league-plan`, `league-now`, `league-card-foot`, `league-card-proj-over`); o app — não só o
+static — responde `GET /league → 302 /login` (roteamento + guarda de auth vivos). O build foi
+observado subindo (502 → 502 → 200).
+⚠️ **Isto é confirmação de DEPLOY, não o smoke.** O item segue ⚠️: falta a conferência **visual**
+do owner na `/league` logada (as 3 zonas nos 12 cards, o bid projetado em destaque e o bid atual
+coerente com a keeper sheet).
 
 ---
 
