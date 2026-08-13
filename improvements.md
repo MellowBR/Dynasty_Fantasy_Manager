@@ -4349,6 +4349,13 @@ verificação separada (alinhamento de coluna).
 - **Com o fix:** **1 anatomia**, `linhas/bloco = [4]`, altura **123** e `fora da coluna: []` nas
   **quatro** larguras; 0 colisões, 0 transbordos, 0 overflow. **499 testes verdes.**
 
+**PUSH + DEPLOY ([[PROC1]]):** commit `b228efa`; o `style.css` **servido em produção** é
+**byte-idêntico** ao do commit (84.765 B, `diff` limpo), o `.league-plan-side` no ar traz
+`flex-direction: column` + `align-items: flex-start`, e o app responde `GET /league → 302`.
+✅ **A lição do poller anterior foi aplicada e funcionou:** detector 100% em ferramenta do bash
+(`diff` contra o arquivo do commit), que registrou a transição real **84.262 B → 502 (restart) →
+84.765 B** e parou sozinho na 4ª tentativa — sem falso negativo.
+
 ⚠️ **Lição de ferramenta (custou um falso TIMEOUT):** o poller do deploy dizia "não pousou" por
 **10 minutos depois de ter pousado** (o tamanho servido mudou de 83.467 → 84.262 B na 5ª
 tentativa). O detector inline era `python -c` lendo `/tmp/prod2.css` — e **Python nativo do Windows
