@@ -26,8 +26,13 @@ def _projection_open() -> bool:
     exibido ao lado. Mesma arbitragem que o D9 do [[OFF26-1]] fez no `/budget`
     (`projected:false` pós-rollover, "re-projetar duplicaria").
 
-    `rollover_done` é flag do ciclo de offseason corrente: some no rollover e volta
-    sozinha na intertemporada seguinte, quando o reset da season a zera.
+    Comportamento **verificado** de `rollover_done` (MAN-L3-FIX-F1, 13/08/2026): abre
+    enquanto o rollover do ciclo não foi executado e **fecha quando ele executa**
+    (`routes/offseason.py` grava `"true"`). ⚠️ **Nenhum sítio do código grava `"false"`
+    de volta** — `_seed_app_config` só insere chave ausente e o reset do ensaio não
+    toca a flag. Ou seja: a reexibição no ciclo seguinte **não é automática hoje**, e o
+    evento que deve reabri-la está registrado como item próprio ([[L4]]). A afirmação
+    contrária que esta docstring trazia era raciocínio, não medição.
     """
     return get_config("rollover_done", "false") != "true"
 
@@ -48,13 +53,18 @@ def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=Non
     # L1-BID (07/08/2026): "Bid Máximo" = `usable_draft_budget` da FONTE ÚNICA
     # `draft_budget`, com base salarial CORRENTE (equivale ao `projected:false` da porta
     # e é a mesma régua da keeper sheet). Nenhuma aritmética de cap nova aqui.
-    bid_max = int(draft_budget(players)["usable_draft_budget"])
+    # L3-FIX: o dict inteiro é reaproveitado — `empty_spots` é a contagem de vagas
+    # (MAX_ROSTER − elenco atual) que o card passa a exibir. Mesma chamada de sempre,
+    # zero conta nova; o número é igual nas duas bases (projetar não muda o TAMANHO
+    # do elenco), então vem da corrente, que é a definição literal de "vagas hoje".
+    atual = draft_budget(players)
+    bid_max = int(atual["usable_draft_budget"])
     # L3: cap PROJETADO da season seguinte — MESMA composição do cap projector
     # (`compose_budget`, base `project_next_salary`). Zero query: opera sobre os
     # `players` que o render já carregou numa consulta só.
     # ⛔ O `bid_max` acima NÃO muda de base: é corrente de propósito (é o número que a
-    # keeper sheet publica como Bid Máximo — trocá-lo por projeção quebraria a
-    # coerência tela × sheet).
+    # keeper sheet publica como Bid Máximo e o oficial da auction — trocá-lo por
+    # projeção quebraria a coerência tela × sheet). O projetado é campo SEPARADO.
     proj = compose_budget(players) if show_projection else None
     return {
         "id": team.id,
@@ -67,7 +77,9 @@ def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=Non
         "proj_used": proj["keeper_salaries"] if proj else None,
         "proj_space": (SALARY_CAP - proj["keeper_salaries"]) if proj else None,
         "proj_over_cap": bool(proj["over_cap"]) if proj else False,
+        "proj_bid_max": int(proj["usable_draft_budget"]) if proj else None,
         "bid_max": bid_max,
+        "slots": atual["empty_spots"],
         "pick_count": pick_count,
         "dynasty_total": dynasty_total,
         "rank": standing.rank if standing else 999,

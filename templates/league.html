@@ -1,6 +1,33 @@
 {% extends "base.html" %}
 {% block title %}League Hub — Dynasty SB{% endblock %}
 
+{#- L3-FIX: bloco de DESTAQUE do card. Uma definição, dois usos — o ramo projetado
+    (pré-rollover) e o ramo corrente (pós-rollover, quando o gate fecha e as grandezas
+    atuais assumem o destaque). Só renderiza valores que o backend já calculou:
+    nenhuma aritmética aqui. `prov` é o selo de tabela ESPN provisória. -#}
+{% macro bloco_destaque(rotulo_bid, rotulo_cap, bid, cap_usado, cap_total, slots,
+                        over_cap=False, prov=False) -%}
+<div class="league-plan">
+  <div class="league-plan-hero">
+    <span class="league-plan-label">{{ rotulo_bid }}
+      {%- if prov %} <span class="tag tag-prov" title="Provisório: a tabela ESPN definitiva ainda não entrou — este número muda quando ela entrar">PROV</span>{% endif %}
+    </span>
+    <span class="league-plan-value {% if bid <= 0 %}cap-negative{% endif %}"
+          title="Teto de lance: o que sobra depois de reservar $1 por vaga ainda vazia">
+      ${{ bid|int }}
+    </span>
+  </div>
+  <div class="league-plan-side">
+    <span class="league-plan-item">{{ rotulo_cap }}
+      {%- if prov %} <span class="tag tag-prov" title="Provisório: a tabela ESPN definitiva ainda não entrou">PROV</span>{% endif %}
+      <strong class="{% if over_cap %}cap-negative{% endif %}">
+        {%- if over_cap %}⚠️ {% endif %}${{ cap_usado|int }}/${{ cap_total|int }}</strong>
+    </span>
+    <span class="league-plan-item">Slots livres <strong>{{ slots }}</strong></span>
+  </div>
+</div>
+{%- endmacro %}
+
 {% block content %}
 <div class="page-header">
   <h1 class="page-title">🏟️ League Hub</h1>
@@ -31,52 +58,34 @@
       </div>
     </div>
 
-    <div class="league-card-stats">
-      <div class="league-stat">
-        <span class="league-stat-label">Record</span>
-        <span class="league-stat-value">
-          {% if c.wins is not none %}{{ c.wins }}-{{ c.losses }}{% else %}—{% endif %}
-        </span>
+    {#- Zona 1 — PLANEJAMENTO. Pré-rollover o card responde "quanto posso gastar na
+        auction", então as grandezas PROJETADAS ficam no destaque. Pós-rollover o gate
+        fecha, a projeção passaria a significar season+2 e as CORRENTES assumem o mesmo
+        lugar — mesmo bloco, mesma macro, nenhuma condicional além do gate. -#}
+    {% if show_projection %}
+      {{ bloco_destaque('Bid máximo ' ~ proj_season, 'Cap ' ~ proj_season,
+                        c.proj_bid_max, c.proj_used, cap, c.slots,
+                        over_cap=c.proj_over_cap, prov=bid_provisional) }}
+      {#- Zona 2 — conferência discreta: o que vale HOJE. O bid atual é o número da
+          keeper sheet e o oficial da auction; segue exibido, com base intocada. -#}
+      <div class="league-now">
+        Atual: cap <strong class="{% if c.cap_space < 0 %}cap-negative{% endif %}">${{ c.cap_used|int }}/${{ cap|int }}</strong>
+        · bid <strong class="{% if c.bid_max <= 0 %}cap-negative{% endif %}">${{ c.bid_max }}</strong>
       </div>
-      <div class="league-stat">
-        <span class="league-stat-label">Cap restante</span>
-        <span class="league-stat-value {% if c.cap_space < 0 %}cap-negative{% endif %}">
-          ${{ c.cap_space|int }}
-        </span>
-      </div>
-      {# L3: cap PROJETADO da season seguinte, ao lado do corrente. Só pré-rollover —
-         depois dele o salário armazenado já é o da season nova e projetar mostraria
-         season+2, contradizendo o número ao lado. #}
-      {% if show_projection %}
-      <div class="league-stat">
-        <span class="league-stat-label">Cap proj. {{ proj_season }}
-          {% if bid_provisional %}<span class="tag tag-prov" title="Provisório: a tabela ESPN definitiva ainda não entrou — a projeção muda quando ela entrar">PROV</span>{% endif %}
-        </span>
-        <span class="league-stat-value {% if c.proj_over_cap %}cap-negative{% endif %}"
-              title="Folha projetada para {{ proj_season }}: ${{ c.proj_used|int }} de ${{ cap|int }} (valorização × ESPN)">
-          {% if c.proj_over_cap %}⚠️ {% endif %}${{ c.proj_space|int }}
-        </span>
-      </div>
-      {% endif %}
-      <div class="league-stat">
-        <span class="league-stat-label">Bid Máximo
-          {% if bid_provisional %}<span class="tag tag-prov" title="Provisório: a tabela ESPN definitiva ainda não entrou">PROV</span>{% endif %}
-        </span>
-        <span class="league-stat-value {% if c.bid_max <= 0 %}cap-negative{% endif %}"
-              title="Teto de lance: sobra depois de reservar $1 por vaga ainda vazia">
-          ${{ c.bid_max }}
-        </span>
-      </div>
-      <div class="league-stat">
-        <span class="league-stat-label">Picks</span>
-        <span class="league-stat-value">{{ c.pick_count }}</span>
-      </div>
-      <div class="league-stat">
-        <span class="league-stat-label">Dynasty</span>
-        <span class="league-stat-value">
-          {% if c.dynasty_total %}🪙 {{ c.dynasty_total }}{% else %}—{% endif %}
-        </span>
-      </div>
+    {% else %}
+      {{ bloco_destaque('Bid máximo', 'Cap', c.bid_max, c.cap_used, cap, c.slots,
+                        over_cap=(c.cap_space < 0), prov=bid_provisional) }}
+    {% endif %}
+
+    {#- Zona 3 — rodapé: contexto de temporada, sem disputar destaque com o cap. -#}
+    <div class="league-card-foot">
+      <span class="league-foot-item">Picks <strong>{{ c.pick_count }}</strong></span>
+      <span class="league-foot-item">Record
+        <strong>{% if c.wins is not none %}{{ c.wins }}-{{ c.losses }}{% else %}—{% endif %}</strong>
+      </span>
+      <span class="league-foot-item">Dynasty
+        <strong>{% if c.dynasty_total %}🪙 {{ c.dynasty_total }}{% else %}—{% endif %}</strong>
+      </span>
     </div>
   </a>
   {% endfor %}

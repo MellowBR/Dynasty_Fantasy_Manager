@@ -37,12 +37,14 @@
      Progress bar é feature nova em /team/<id> (tela não tinha antes; roster.html já tinha). #}
   <div class="team-status-bar">
     <div class="status-group">
+      {# L3-FIX: "atual" explícito no rótulo — o contraste com o projetado ao lado é o
+         que impede ler dois números iguais (ESPN provisória) como repetição. #}
       <span class="status-item">
-        <span class="status-label">Cap</span>
+        <span class="status-label">Cap atual</span>
         <span class="status-value {% if cap_used > cap %}cap-negative{% endif %}">${{ cap_used|int }}/${{ cap|int }}</span>
       </span>
       <span class="status-item">
-        <span class="status-label">Resto</span>
+        <span class="status-label">Resto atual</span>
         <span class="status-value {% if cap_remaining < 0 %}cap-negative{% endif %}">${{ cap_remaining|int }}</span>
       </span>
       {# L3: cap projetado da season seguinte — mesma fonte do Cap Projector
@@ -55,7 +57,9 @@
         <span class="status-value {% if proj_over_cap %}cap-negative{% endif %}">${{ proj_cap_used|int }}/${{ cap|int }}</span>
       </span>
       <span class="status-item">
-        <span class="status-label">Resto proj.</span>
+        <span class="status-label">Resto proj.
+          {% if bid_provisional %}<span class="tag tag-prov" title="Provisório: a tabela ESPN definitiva ainda não entrou">PROV</span>{% endif %}
+        </span>
         <span class="status-value {% if proj_cap_remaining < 0 %}cap-negative{% endif %}">${{ proj_cap_remaining|int }}</span>
       </span>
       {% endif %}

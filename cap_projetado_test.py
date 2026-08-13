@@ -168,8 +168,35 @@ class TestCardDaLiga(unittest.TestCase):
         card = self._card(roster_misto(), show_projection=False)
         self.assertIsNone(card["proj_used"])
         self.assertIsNone(card["proj_space"])
+        self.assertIsNone(card["proj_bid_max"])
         self.assertFalse(card["proj_over_cap"])
         self.assertEqual(card["cap_used"], 46)                  # o corrente permanece
+        self.assertEqual(card["bid_max"], 137)                  # e o bid corrente também
+        self.assertEqual(card["slots"], MAX_ROSTER - 4)         # vagas não dependem do gate
+
+    def test_bid_projetado_e_campo_separado_do_corrente(self):
+        """L3-FIX: o card passa a exibir os DOIS bids. São campos distintos, cada um da
+        sua base — o projetado nunca sobrescreve o oficial da auction."""
+        players = roster_misto()
+        card = self._card(players)
+        self.assertEqual(card["proj_bid_max"],
+                         int(compose_budget(players)["usable_draft_budget"]))
+        self.assertEqual(card["bid_max"],
+                         int(draft_budget(players)["usable_draft_budget"]))
+        self.assertNotEqual(card["proj_bid_max"], card["bid_max"])
+
+    def test_slots_sao_vagas_do_elenco_atual(self):
+        """`slots` = MAX_ROSTER − elenco. Projetar não muda o TAMANHO do elenco, então o
+        número é o mesmo nas duas bases — o card não precisa de conta própria."""
+        players = roster_misto()
+        card = self._card(players)
+        self.assertEqual(card["slots"], MAX_ROSTER - len(players))
+        self.assertEqual(card["slots"], draft_budget(players)["empty_spots"])
+        self.assertEqual(card["slots"], compose_budget(players)["empty_spots"])
+
+    def test_time_cheio_tem_zero_slots(self):
+        cheio = [FakePlayer(5, contract_year=2) for _ in range(MAX_ROSTER)]
+        self.assertEqual(self._card(cheio)["slots"], 0)
 
     def test_over_cap_projetado_marcado_no_card(self):
         caros = [FakePlayer(60, contract_year=2, espn_ref_value=160.0) for _ in range(3)]
@@ -178,8 +205,9 @@ class TestCardDaLiga(unittest.TestCase):
         self.assertLess(card["proj_space"], 0)
 
     def test_bid_maximo_nao_muda_de_base(self):
-        """⛔ O Bid Máximo é CORRENTE — o mesmo número da keeper sheet (D4). A tela
-        exibir projeção ao lado não pode contaminá-lo."""
+        """⛔ O Bid Máximo (o oficial da auction) é CORRENTE — o mesmo número da keeper
+        sheet (D4). A tela exibir o bid PROJETADO em destaque ao lado não pode
+        contaminá-lo: são dois campos, duas bases."""
         players = roster_misto()
         esperado = int(draft_budget(players)["usable_draft_budget"])
         for gate in (True, False):
@@ -279,6 +307,41 @@ class TestSemReplicaDeComposicao(unittest.TestCase):
             for m in self.CHAMADA.finditer(self._src(f"templates/{tpl}")):
                 ofensores.append(f"{tpl}: {m.group(0)}")
         self.assertEqual(ofensores, [], f"cálculo de projeção no template: {ofensores}")
+
+
+class TestGateSemPromessaFalsa(unittest.TestCase):
+    """MAN-L3-FIX-F1: a docstring do gate prometia que `rollover_done` "volta sozinha"
+    no ciclo seguinte. **Nenhum sítio grava `"false"`** — `_seed_app_config` só insere
+    chave ausente e o reset do ensaio não toca a flag. A promessa saiu; enquanto o
+    [[L4]] não definir o evento de reabertura, ela não pode voltar."""
+
+    def test_docstring_do_gate_nao_promete_reabertura(self):
+        """⚠️ A guarda mira a AFIRMAÇÃO, não a palavra: a docstring corrigida diz
+        "não é automática hoje", e um teste que proibisse "automátic" derrubaria a
+        própria negação (foi o que aconteceu na 1ª versão desta guarda)."""
+        from routes.league import _projection_open
+        doc = " ".join((_projection_open.__doc__ or "").lower().split())
+        for frase in ("volta sozinha", "reset da season a zera",
+                      "reabre sozinha", "reabertura automática"):
+            self.assertNotIn(frase, doc, f"promessa de reabertura de volta: {frase}")
+        # O que está no lugar dela é o comportamento MEDIDO. Estas duas exigências é que
+        # barram a forma afirmativa: trocar "não é automática" por "é automática"
+        # derruba o teste aqui, sem precisar proibir a palavra solta.
+        self.assertIn("nenhum sítio", doc)
+        self.assertIn("não é automática", doc)
+
+    def test_nenhum_sitio_grava_a_reabertura(self):
+        """Se alguém implementar o [[L4]], ESTE teste é o que avisa que a docstring
+        (e o item) precisam ser atualizados — falhar aqui é notícia boa."""
+        alvo = re.compile(r"set_config\(\s*[\"']rollover_done[\"']\s*,\s*[\"']false[\"']")
+        ofensores = []
+        for py in sorted(BASE_DIR.glob("*.py")) + sorted((BASE_DIR / "routes").glob("*.py")):
+            if py.name.endswith("_test.py"):
+                continue          # os testes escrevem a flag de propósito
+            if alvo.search(py.read_text(encoding="utf-8")):
+                ofensores.append(py.name)
+        self.assertEqual(ofensores, [],
+                         f"reabertura implementada em {ofensores} — atualizar L4 + docstring")
 
 
 class TestSemAnoLiteral(unittest.TestCase):

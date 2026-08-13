@@ -2017,6 +2017,69 @@ a.player-name:hover {
 .league-stat-value { font-size: .95rem; font-weight: 600; margin-top: .1rem; }
 .cap-negative { color: #ef4444; }
 
+/* ── L3-FIX: card em 3 zonas — planejamento / conferência / contexto ──────────
+   O card responde primeiro "quanto posso gastar na auction": o bid do bloco de
+   destaque é o maior número da peça. Zona 2 ("Atual") e zona 3 (rodapé) descem na
+   hierarquia sem sair da tela. */
+.league-plan {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  padding: .6rem .7rem;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.league-plan-hero { display: flex; flex-direction: column; min-width: 0; }
+.league-plan-label {
+  font-size: .68rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.league-plan-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.league-plan-side {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  margin-left: auto;
+  text-align: right;
+}
+.league-plan-item { font-size: .74rem; color: var(--text-dim); white-space: nowrap; }
+.league-plan-item strong {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-left: .25rem;
+}
+.league-now {
+  font-size: .74rem;
+  color: var(--text-dim);
+  margin-top: .5rem;
+}
+.league-now strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.league-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .15rem .9rem;
+  margin-top: .55rem;
+  padding-top: .5rem;
+  border-top: 1px solid var(--border);
+  font-size: .72rem;
+  color: var(--text-dim);
+}
+.league-foot-item strong {
+  color: var(--text);
+  font-weight: 600;
+  margin-left: .2rem;
+}
+
 /* ── Team Detail ────────────────────────────────────────────────────────── */
 .team-detail-header {
   display: flex;
