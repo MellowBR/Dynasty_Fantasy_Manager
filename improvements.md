@@ -1,12 +1,12 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 13/08/2026-pt3 (sessão MAN-L3-FIX-F1, **docs-only**: diagnose read-only do sintoma "projeção ausente nos cards da /league" em prod. **CAUSA RAIZ, verificável e não-hipótese: o commit do L3 nunca foi empurrado** — `main` **ahead 2**, `origin/main` parado em `ac1a2cf`, e o Render faz deploy do GitHub ⇒ **produção roda o código pré-L3**. Prova: `git show origin/main:templates/league.html` renderiza **exatamente os 5 rótulos do screenshot** (Record · Cap restante · Bid Máximo · Picks · Dynasty) e `compose_budget`/`_projection_open` têm **0 ocorrências** lá. **Três hipóteses refutadas com evidência:** gate invertido/default errado (o gate abre com `rollover_done != "true"`, e o smoke da urna de 07/08 **exercitou o escape do banner** — escape que só existe quando a flag é falsa ⇒ gate ABERTO em prod), helper não invocado (é invocado no código novo; ele é que não existe em prod) e divergência liga × detalhe (as duas telas chamam o MESMO gate e o MESMO helper). **Achado que sobrevive ao push:** sob ESPN provisória **10 dos 12** cards mostram projetado IDÊNTICO ao atual (só Cangaceiros −$1 e Trust The Process $76→$59 separam) — dois números iguais lado a lado leem como bug, e é o que sustenta o ajuste de rótulo do owner. **Achado colateral sobre o próprio L3:** a docstring de `_projection_open` promete que `rollover_done` "volta sozinha" no ciclo seguinte — **falso**: `_seed_app_config` só insere chave ausente, o `--reset` do ensaio não toca a flag e **nenhum sítio grava "false"**. Lição registrada: **commitar ≠ estar em produção**, e validação local não enxerga a diferença. Menor caminho de fix = push + deploy + hash (PROC1), **zero linha de código**. Auditor verde.)
 > Atualizado em: 13/08/2026-pt2 (sessão MAN-L3: **F2 do [[L3]] entregue** — o cap PROJETADO da season seguinte passa a conviver com o corrente na `/league` (12 cards) e no `/team/<id>`. **A extração veio antes da feature:** a composição *salário-base → roster sintético → `draft_budget`*, que vivia **inline** no POST `/budget`, virou `routes.salary.compose_budget` com 3 consumidores — sem isso a `/league` teria criado a 2ª cópia, que é exatamente o que o [[F10]] matou no JS. **Refactor puro PROVADO por medição**, não por leitura: payload do `/budget` idêntico antes × depois nos 12 times + cenário com corte + modo `projected:false`. Over-cap projetado com ⚠️ + vermelho + faixa no card (exercido em **dado real**: 3 peat… of pain, $201); PROV **herdado** do gate do Bid Máximo (nenhuma 2ª definição de "provisório"); gate `rollover_done` nos dois sentidos (pós-rollover a projeção seria season+2 — a arbitragem do D9); **8 rótulos** passam a derivar o ano de `g_current_season` (conferido virando a season: "Cap Projector 2027"). ⛔ **Bid Máximo intocado** — é o mesmo número da keeper sheet, e há teste dedicado para a tentação de trocá-lo. **22 testes novos** (`cap_projetado_test.py`), **494 verdes**. ⚠️ **Desvio reportado:** queries do render 17→19 na liga (a projeção custa **zero**; os +2 são o gate — `get_config` custa 2 queries nesta base). Diffstat conferido. **Smoke de prod é do owner** (gate [[PROC1]]).)
 > Atualizado em: 13/08/2026 (sessão MAN-L3-F1, **docs-only**: registro do **[[L3]] 🔲 — projeção de cap por time na `/league`** + parecer F1 read-only completo na seção. Achados centrais: a fonte canônica do agregado projetado é a **COMPOSIÇÃO** `project_next_salary` → `draft_budget`, que vive **inline e num único sítio** — o POST `/budget` do cap_projector (`routes/salary.py:150-180`); **zero réplica de agregação hoje** (⚠️ a premissa do prompt sobre "débito de agregação em JS" está DESATUALIZADA — era o F10, fechado 12/06, e o JS atual só posta estado); a coluna PROJ de `/` e `/team/<id>` já projeta POR JOGADOR pela mesma fonte (T4). **Caminho F2 sem réplica e sem N+1:** agregar server-side no render do `league_hub` sobre o `players_by_team` JÁ carregado — **0 queries novas** (as 5 da tela mantidas; ~250 chamadas puras + 12 `draft_budget` em memória) — extraindo a composição do `/budget` p/ helper único fora do `salary_engine`, com 2 consumidores. Fase: pós-rollover a projeção "next" passa a significar season+2 — o precedente D9 (`projected:false`) é a arbitragem do próprio código; gate de exibição = `rollover_done`, PROV herda `bid_provisional`. ⛔ **NÃO trocar a base do Bid Máximo** (corrente = o mesmo número da keeper sheet). Premissa "L3 já registrado" era **FALSA** — registrado nesta sessão. Auditor verde. Zero código.)
 > Atualizado em: 11/08/2026-pt10 (sessão MAN-OFF26-24-FIX8: **o assentamento vira ASSÍNCRONO** — o teste morno provou a impaciência: o pick do Josh Allen ($30, preço editado certo — caminho >$1 provado de brinde) **gravou na hora** e a API pública levou **>5min** para refleti-lo; o poll de 15s desistiu de um sucesso lento → retry → busca vazia (o board local, CERTO, escondia o designado) → abort falso. No ensaio o lag fora ~3s — **a variância é o fato central**; hipótese do owner em teste: propagação dependente de VISITA (cache preguiçoso). **Desenho novo:** `command_pick` comanda e SEGUE (`pendente_confirmacao`; teto continua síncrono); `reconcile_team` POR TIME (teto 300s, poll 5s, **reload no meio do teto** — a visita do próprio script como gatilho possível; **telemetria por keeper** distingue fila contínua = lag puro de rajada pós-reload = cache por visita — o achado redefine a espera de 22/08); `post_teto_decision` puro (board local designado → `assentado_local_api_atrasada`, ⛔ nunca re-comandar · disponível → 1 re-comando + mini-reconciliação · esgotou → falha DO KEEPER, resto do time preservado); **idempotência em LOTE** antes do 1º clique; busca vazia cruza run própria → API → board local (tarefa 5). Testes 86→87 (simulador puro com lags 3s/40s/6min); suítes verdes; diffstat conferido. **Re-teste morno do owner: populate --team-slot 10** — 2 ja_assentados no lote + comandos + reconciliação, telemetria respondendo a hipótese.)
 > Atualizado em: 11/08/2026-pt9 (sessão MAN-OFF26-24-F2b: **F2a FECHADA** (Cam Ward $1 → TTP assentado e confirmado pela API; validate 19/19 zero divergências) **com a lição descoberta na própria pele** — o pick gravou numa run que morreu antes do poll e a seguinte gastou um ciclo com “busca vazia misteriosa” (designado some do pool) → **idempotência é a PRIMEIRA verificação, não a última**. **F2b entregue:** `idempotency_decision` no núcleo (já-assentado = sucesso com zero cliques · divergente = conflito nomeado · ausente = designa) + re-checagem da API em busca vazia (`EmptySearchResult` — o desync corre); `populate --team-slot N` (loop por time com conferência contagem+soma vs sheet; falha aborta O TIME preservando o que assentou) e `populate --all` (12 em ordem de slot, **retomável por construção**; `bloqueado_teto` = resultado esperado §B.3.2 — AlexTheDawg/Miller Time! — registra e segue, exit code não-falha); **o juiz é a auditoria OFF26-4** (instrução no relatório; a contagem do script não substitui). Critério de 19/08 no README: RESET (owner) → --all provisória 12/12 zero intervenção → auditoria coerente → RESET final. Testes 66→**86** (+ os 3 do header do FIX7 que um gerador falho tinha deixado de fora — pego na conferência); suítes verdes; diffstat conferido. **O ensaio 12/12 é do owner.**)
-> Atualizado em: 11/08/2026-pt8 (sessão MAN-OFF26-24-F2a-FIX7: a heurística do FIX6 ancorou no trio do FUNDO — o screenshot do abort provou que o manual pick vive num `#modal[role=alertdialog]` com o header “Make Manual Pick for Team 10” dentro, e a página de fundo DUPLICA input/lista/botão; o input eleito ficou fora do dialog e o underlay interceptou 30s. Fix: **âncora no `#modal` quando presente** (heurística vira FALLBACK logado no relatório), **espera de ESTADO** pós-Set Player (não abre → abort nomeado) e **o header como identidade** (`modal_header_check` puro: time errado → abort com fronteira Team 1≠10; dialog sem header → Esc + abort nomeando o conteúdo — o tratamento de dialog residual da tarefa 4). O caso do abort é impossível por construção: o escopo NASCE do #modal. Guardas intactas (anti-homônimo, filtro, proibições). Testes 65→66; suítes verdes; diffstat conferido. Re-execução do mesmo comando é do owner.)
-> 📁 Entradas anteriores em **`improvements_sessions.md`** (91 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
+> 📁 Entradas anteriores em **`improvements_sessions.md`** (92 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
@@ -102,7 +102,7 @@
 | O2 | Enriquecer página do jogador: contexto NFL (time + **link do time da liga** + **idade** + depth chart — 7 dimensões pós-roteamento (b) do [[UX12]]) + stats históricas + ECR/ADP + schedule — MAN-O2-F1/MAN-UX12-REFINE/MAN-O2-F2-B1/**MAN-O2-B1-DONE** | Média | ⚠️ **Batch 1 VALIDADO EM PROD 08/08/2026** (PROC1: hash `2ed0b4a` live; DJ Moore completo, link cruzado Gainwell → franquia dele, validação do Michel; `nfl_context.py` núcleo puro + 19 testes, página nunca faz rede, idade derivada. Ressalva: degradação fora-do-pool **não exercida em prod** — pool de prod mais fresco que o local; coberta por unit test) — **Batch 2 (stats + schedule) pendente** |
 | L1 | League Hub: visão geral da liga + detalhe por time | Alta | ✅ 23/04/2026 |
 | L2 | League Hub season mode: matchups, schedule, standings | Baixa | 🔲 |
-| L3 | Projeção de cap por time na `/league` **e no `/team/<id>`** (agregado da season seguinte via valorização × ESPN, antes só no cap_projector time a time) — MAN-L3-F1/**MAN-L3** | A definir | ⚠️ **F2 13/08/2026: implementada, aguardando smoke prod.** Composição extraída para o helper único `compose_budget` (3 consumidores; payload do `/budget` **idêntico** = refactor puro), cap projetado nos 12 cards + status bar do time, over-cap destacado, PROV herdado, gate `rollover_done`, 8 rótulos com ano derivado. ⛔ **Bid Máximo intocado** (byte a byte nos 12). Projeção = **0 query**; gate = +2 constantes (`get_config` custa 2 nesta base). 22 testes novos, **494 verdes** |
+| L3 | Projeção de cap por time na `/league` **e no `/team/<id>`** (agregado da season seguinte via valorização × ESPN, antes só no cap_projector time a time) — MAN-L3-F1/**MAN-L3** | A definir | ⚠️ **F2 13/08/2026: implementada, aguardando smoke prod.** Composição extraída para o helper único `compose_budget` (3 consumidores; payload do `/budget` **idêntico** = refactor puro), cap projetado nos 12 cards + status bar do time, over-cap destacado, PROV herdado, gate `rollover_done`, 8 rótulos com ano derivado. ⛔ **Bid Máximo intocado** (byte a byte nos 12). Projeção = **0 query**; gate = +2 constantes (`get_config` custa 2 nesta base). 22 testes novos, **494 verdes**. ⛔ **FIX-F1 13/08: a projeção não aparecia em prod porque o COMMIT NUNCA FOI EMPURRADO** — `main` ahead 2, `origin/main` em `ac1a2cf`, prod rodando código pré-L3 (`compose_budget`/`_projection_open` = 0 ocorrências lá; os 5 rótulos do screenshot são exatamente os do template deployado). Gate, helper e divergência liga×detalhe **refutados**. Fix = push + deploy, zero linha de código. Achados p/ o próximo prompt: 10 dos 12 cards mostram projetado **idêntico** ao atual sob ESPN provisória (rótulo), e a docstring do gate afirma um reset de `rollover_done` que **não existe** no código |
 | N1 | Redesign navbar: estrutura com dropdowns + acesso rápido aos times | Média | ✅ 23/04/2026 |
 | C1 | Cap projector: modo "drop programado" para simular liberações de cap | Média | 🔲 |
 | M8-PERM | Lottery: simulação aberta a owners + bloqueio server-side pós-oficial | Média | ✅ 23/04/2026 |
@@ -4163,6 +4163,67 @@ destacar over-cap projetado · levar também ao `/team/<id>` · projeção visí
 **Fora do gate de propósito:** a **coluna PROJ por jogador** de `/` e `/team/<id>` continua
 aparecendo pós-rollover — ela é pré-existente (T4 do [[OFF26-20]]), útil o ano todo, e o item só
 pediu o **ano derivado** nela. O gate cobre o **agregado** novo.
+
+---
+
+**FIX-F1 (13/08/2026, read-only) — por que a projeção não aparece em produção:**
+
+⛔ **CAUSA RAIZ: o commit do L3 NUNCA FOI EMPURRADO.** `main` está **`ahead 2`** de
+`origin/main`, que segue em `ac1a2cf` (MAN-O6-REFINE). O Render faz deploy do GitHub ⇒
+**produção roda o código pré-L3**. Não é hipótese — é estado verificável:
+- `git show origin/main:templates/league.html` renderiza **exatamente 5 rótulos** — Record ·
+  Cap restante · Bid Máximo · Picks · Dynasty — **idêntico ao screenshot**;
+- `compose_budget` e `_projection_open`: **0 ocorrências** em `origin/main`;
+- os 2 commits retidos são `8ecce54` (F1, docs) e `e4aa5e4` (F2, código).
+
+**Veredicto por hipótese:**
+1. **Helper não invocado no render da liga** — ✅ *é a causa, por ausência de código*: no
+   `_build_team_card` novo ele É invocado (12 cards mediram projeção na validação local); em
+   produção o helper **não existe**. Mapa rótulo→valor do que prod renderiza hoje: `Record` =
+   `standing.wins-losses` · `Cap restante` = `SALARY_CAP − roster_salary` (folha única com IR,
+   [[OFF26-16]]) · `Bid Máximo` = `draft_budget(...)["usable_draft_budget"]` base **corrente**
+   (L1-BID) + tag PROV de `ESPNImportLog(season+1, final)` · `Picks` = contagem · `Dynasty` =
+   soma FantasyCalc. **Nenhum campo de projeção existe no payload do card deployado.**
+2. **Gate errado / invertido / default errado / divergência local × prod** — ⛔ **REFUTADO.**
+   `_projection_open()` lê `rollover_done` com default `"false"` e abre quando `!= "true"`;
+   exercido nos dois sentidos em teste. Prod está **pré-rollover**, e há evidência direta: o
+   smoke da urna em prod (07/08) **exercitou o escape do banner de ensaio** — escape que só é
+   necessário quando `rollover_done != "true"` ([[OFF26-10]] / `rollover_blocks_urn`). Logo o
+   gate em prod está **aberto**; ele não tem participação no sintoma.
+3. **Projeção renderiza colapsada pela ESPN provisória** — ⛔ **não é a causa** (a linha está
+   *ausente*, não igual), ⚠️ **mas é achado real para o pós-deploy**: na medição local **10 dos
+   12** times têm projetado **idêntico** ao atual; só Cangaceiros (−$1) e Trust The Process
+   ($76 → $59) separam. Dois números iguais lado a lado em 10 cards **lê como bug** — é o que
+   sustenta o ajuste de rótulo que o owner já sinalizou. Separa de verdade quando a ESPN
+   definitiva entrar (18/08).
+4. **Divergência liga × detalhe** — ⛔ **inexistente**: as duas telas chamam o **mesmo**
+   `_projection_open()` e o **mesmo** `compose_budget`, e as duas estão igualmente ausentes de
+   produção. Não há caminho divergente para explicar.
+5. **Réplicas de exibição/gate** — **uma só definição**: o gate vive em `_projection_open()`
+   (`routes/league.py`), os dois templates apenas **leem** `show_projection`, e **não há JS**
+   envolvido. Os outros leitores de `rollover_done` (passo 4 do `/offseason`,
+   `rollover_blocks_urn` do late_drop) são consumidores da mesma flag para **outra finalidade**
+   — não réplicas do gate de exibição.
+
+**Smoke de produção do L3: NUNCA foi realizado** — o próprio registro da F2 diz "smoke de
+produção PENDENTE (gate [[PROC1]])" e toda a validação foi em **localhost sobre cópia do banco**.
+O cenário validado (pré-rollover, 12 cards com projeção) **corresponde** ao estado de prod; o que
+não correspondia era o **código deployado**. Lição: "commitar" ≠ "estar em produção", e a
+validação local não tem como perceber a diferença.
+
+⚠️ **Achado colateral do próprio L3** (não causa o sintoma): a docstring de `_projection_open`
+afirma que `rollover_done` "volta sozinha na intertemporada seguinte, quando o reset da season a
+zera". **É FALSO pelo código:** `_seed_app_config` só insere chave **ausente**
+([app.py:441](app.py#L441)), o `ensaio_janela_selada --reset` não toca a flag, e **nenhum sítio
+grava `"false"`** — só o rollover grava `"true"`
+([routes/offseason.py:707](routes/offseason.py#L707)). Consequência: depois de 18/08 a projeção
+some e **não volta sozinha** no ciclo seguinte. O comportamento de hoje é o desejado (pós-rollover
+a projeção deve mesmo sumir); o que está errado é a **frase**, escrita por raciocínio e não por
+verificação.
+
+**Menor caminho de fix:** `git push origin main` + deploy + conferência do hash (PROC1).
+**Nenhuma linha de código é necessária para o sintoma.** Ajuste de rótulo (owner) e correção da
+docstring são escopo à parte — decisão do próximo prompt.
 
 ---
 
