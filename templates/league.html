@@ -5,16 +5,20 @@
     (pré-rollover) e o ramo corrente (pós-rollover, quando o gate fecha e as grandezas
     atuais assumem o destaque). Só renderiza valores que o backend já calculou:
     nenhuma aritmética aqui. `prov` é o selo de tabela ESPN provisória. -#}
+{#- `bid_alerta` vem PRONTO do backend (UX18): `insufficient_budget or
+    cannot_fill_roster`. ⛔ Aqui não se compara número — o `<= 0` que morava nesta linha
+    pintava de vermelho um roster CHEIO a $200 (teto $0 sem vaga é estado saudável) e ao
+    mesmo tempo deixava passar o teto $0 COM vagas abertas no projector. -#}
 {% macro bloco_destaque(rotulo_bid, rotulo_cap, bid, cap_usado, cap_total, slots,
-                        over_cap=False, prov=False) -%}
+                        over_cap=False, prov=False, bid_alerta=False) -%}
 <div class="league-plan">
   <div class="league-plan-hero">
     <span class="league-plan-label">{{ rotulo_bid }}
       {%- if prov %} <span class="tag tag-prov" title="Provisório: a tabela ESPN definitiva ainda não entrou — este número muda quando ela entrar">PROV</span>{% endif %}
     </span>
-    <span class="league-plan-value {% if bid <= 0 %}cap-negative{% endif %}"
-          title="Teto de lance: o que sobra depois de reservar $1 por vaga ainda vazia">
-      ${{ bid|int }}
+    <span class="league-plan-value {% if bid_alerta %}cap-negative{% endif %}"
+          title="{% if bid_alerta %}Inviável: o teto de lance não cobre as vagas abertas a $1 cada. {% endif %}Teto de lance: o que sobra depois de reservar $1 por vaga ainda vazia">
+      {% if bid_alerta %}⚠️ {% endif %}${{ bid|int }}
     </span>
   </div>
   <div class="league-plan-side">
@@ -65,16 +69,18 @@
     {% if show_projection %}
       {{ bloco_destaque('Bid máximo ' ~ proj_season, 'Cap ' ~ proj_season,
                         c.proj_bid_max, c.proj_used, cap, c.slots,
-                        over_cap=c.proj_over_cap, prov=bid_provisional) }}
+                        over_cap=c.proj_over_cap, prov=bid_provisional,
+                        bid_alerta=c.proj_bid_alerta) }}
       {#- Zona 2 — conferência discreta: o que vale HOJE. O bid atual é o número da
           keeper sheet e o oficial da auction; segue exibido, com base intocada. -#}
       <div class="league-now">
-        Atual: cap <strong class="{% if c.cap_space < 0 %}cap-negative{% endif %}">${{ c.cap_used|int }}/${{ cap|int }}</strong>
-        · bid <strong class="{% if c.bid_max <= 0 %}cap-negative{% endif %}">${{ c.bid_max }}</strong>
+        Atual: cap <strong class="{% if c.over_cap %}cap-negative{% endif %}">${{ c.cap_used|int }}/${{ cap|int }}</strong>
+        · bid <strong class="{% if c.bid_alerta %}cap-negative{% endif %}">{% if c.bid_alerta %}⚠️ {% endif %}${{ c.bid_max }}</strong>
       </div>
     {% else %}
       {{ bloco_destaque('Bid máximo', 'Cap', c.bid_max, c.cap_used, cap, c.slots,
-                        over_cap=(c.cap_space < 0), prov=bid_provisional) }}
+                        over_cap=c.over_cap, prov=bid_provisional,
+                        bid_alerta=c.bid_alerta) }}
     {% endif %}
 
     {#- Zona 3 — rodapé: contexto de temporada, sem disputar destaque com o cap. -#}

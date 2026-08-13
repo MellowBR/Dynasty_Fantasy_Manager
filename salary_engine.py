@@ -258,6 +258,22 @@ def draft_budget(team_players: list) -> dict:
     raw_budget = SALARY_CAP - keeper_salaries
     usable = raw_budget - min_required
 
+    # UX18 (13/08/2026) — INVIABILIDADE de completar o elenco.
+    #
+    # `insufficient_budget` (usable < 0) NÃO capturava este estado, e a diagnose mediu o
+    # buraco de exatamente um passo: com folha 198 e 3 vagas o teto de lance é **$0** —
+    # não dá para contratar ninguém (lance mínimo é $1) e faltam 3 jogadores — mas
+    # `usable == 0` e a flag dizia `False`. As telas tapavam o furo com limiar inline
+    # (`< 0` no projector, `<= 0` na liga), cada uma com um número diferente.
+    #
+    # Predicado: há vaga a preencher **e** o teto de lance não alcança o mínimo
+    # regulamentar. Equivale a `raw_budget < empty_spots × $1` — o dinheiro não cobre nem
+    # $1 por vaga.
+    #
+    # ⛔ O `empty_spots > 0` é OBRIGATÓRIO, não defensivo: roster CHEIO (22) somando
+    # exatamente $200 também dá teto $0 — e é estado **saudável**, não há vaga a
+    # preencher. Era esse o falso positivo que o `<= 0` da /league pintava de vermelho
+    # em produção (card do Miller Time!).
     return {
         "salary_cap": SALARY_CAP,
         "keeper_salaries": keeper_salaries,
@@ -268,4 +284,5 @@ def draft_budget(team_players: list) -> dict:
         "usable_draft_budget": usable,
         "over_cap": keeper_salaries > SALARY_CAP,
         "insufficient_budget": usable < 0,
+        "cannot_fill_roster": empty_spots > 0 and usable < MIN_SALARY,
     }

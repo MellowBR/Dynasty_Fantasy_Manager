@@ -235,6 +235,17 @@ def audit(board: dict, sheet: dict) -> dict:
                 f"{len(keepers)} keepers para {rounds} vagas na sala — não cabem "
                 f"(ressalva aritmética do D2).")
 
+        # UX18: inviabilidade de completar o elenco, herdada da flag canônica do
+        # `draft_budget` (via sheet). ⛔ É AVISO, no canal que já existe — **não** uma 5ª
+        # classe de divergência (o D2 fixa quatro, e há teste que falha se alguém criar
+        # outra). Ausente da sheet → `.get()` devolve None → nada acontece: as fixtures
+        # congeladas seguem válidas sem edição.
+        if team.get("cannot_fill_roster"):
+            warnings.append(
+                "Teto de lance não cobre as vagas abertas a $1 cada — com este elenco o "
+                "time não consegue completar o roster no leilão (flag "
+                "`cannot_fill_roster`).")
+
         board_total = sum(i["amount"] for i in designations)
         sheet_total = sum(_to_int(k[3]) for k in keepers)
         teams_out.append({
@@ -517,6 +528,9 @@ def build_sheet(season: int | None = None) -> dict:
             "team_id": t["team_id"], "team_name": t["team_name"],
             "sleeper_owner_id": _sid(db_team.sleeper_owner_id) if db_team else None,
             "fa_budget": t["fa_budget"], "keepers": keepers,
+            # UX18: repasse da flag canônica (o produtor é `routes/cuts`). `.get()` para
+            # a sheet legada/congelada sem a chave seguir funcionando.
+            "cannot_fill_roster": t.get("cannot_fill_roster"),
         })
     return {"revealed": True, "season": season,
             "lock_timestamp": raw.get("lock_timestamp"), "teams": teams,

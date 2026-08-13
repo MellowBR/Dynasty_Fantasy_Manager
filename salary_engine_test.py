@@ -11,6 +11,7 @@ Run with:
 import unittest
 import sys
 import os
+from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -323,6 +324,78 @@ class TestDraftBudgetFencepost(unittest.TestCase):
         result = draft_budget(self._roster(24, salary=5))
         self.assertEqual(result["empty_spots"], 0)
         self.assertEqual(result["min_required_for_spots"], 0)
+
+
+class TestCannotFillRoster(unittest.TestCase):
+    """UX18 — a flag de INVIABILIDADE: há vaga a preencher e o teto de lance não alcança
+    o mínimo regulamentar. As três fronteiras vêm da diagnose MAN-UX-BID0, medidas antes
+    de a flag existir."""
+
+    def _roster(self, n, total):
+        """n jogadores somando exatamente `total`."""
+        base = total // n
+        salarios = [base] * (n - 1) + [total - base * (n - 1)]
+        assert sum(salarios) == total and len(salarios) == n
+        return [SimpleNamespace(salary=s, is_dropped=False) for s in salarios]
+
+    def test_caso_do_owner_198_com_3_vagas(self):
+        """O cenário do screenshot: 19 jogadores somando 198 → teto $0 e 3 vagas.
+        ⛔ As DUAS flags antigas dizem False aqui — foi o buraco que originou o item."""
+        b = draft_budget(self._roster(MAX_ROSTER - 3, 198))
+        self.assertEqual(b["empty_spots"], 3)
+        self.assertEqual(b["usable_draft_budget"], 0)
+        self.assertFalse(b["over_cap"])
+        self.assertFalse(b["insufficient_budget"])
+        self.assertTrue(b["cannot_fill_roster"])
+
+    def test_fronteira_197_fecha_exatamente(self):
+        """Um dólar a menos de folha e o elenco FECHA: teto $1, 3 vagas, $3 disponíveis
+        para 3 contratos de $1. Viável — a flag não pode disparar."""
+        b = draft_budget(self._roster(MAX_ROSTER - 3, 197))
+        self.assertEqual(b["usable_draft_budget"], 1)
+        self.assertFalse(b["cannot_fill_roster"])
+
+    def test_roster_CHEIO_com_teto_zero_e_saudavel(self):
+        """⛔ O falso positivo que o `<= 0` da /league pintava de vermelho em produção
+        (card do Miller Time!): 22 jogadores somando $200 → teto $0, mas ZERO vagas.
+        Não há o que preencher ⇒ estado saudável."""
+        b = draft_budget(self._roster(MAX_ROSTER, 200))
+        self.assertEqual(b["empty_spots"], 0)
+        self.assertEqual(b["usable_draft_budget"], 0)
+        self.assertFalse(b["cannot_fill_roster"])
+        self.assertFalse(b["insufficient_budget"])
+
+    def test_negativo_dispara_as_duas_flags(self):
+        b = draft_budget([SimpleNamespace(salary=10, is_dropped=False)] * 21)
+        self.assertTrue(b["over_cap"])
+        self.assertTrue(b["insufficient_budget"])
+        self.assertTrue(b["cannot_fill_roster"])       # 1 vaga e teto negativo
+
+    def test_roster_cheio_e_acima_do_cap_nao_e_inviabilidade_de_vaga(self):
+        """Sem vaga, o problema é outro (cap estourado) — `over_cap`/`insufficient`
+        dizem isso. A flag de preenchimento não se mete."""
+        b = draft_budget([SimpleNamespace(salary=10, is_dropped=False)] * MAX_ROSTER)
+        self.assertEqual(b["empty_spots"], 0)
+        self.assertFalse(b["cannot_fill_roster"])
+
+    def test_time_saudavel_nao_dispara(self):
+        b = draft_budget(self._roster(15, 100))
+        self.assertGreater(b["usable_draft_budget"], 1)
+        self.assertFalse(b["cannot_fill_roster"])
+
+    def test_roster_vazio_nao_dispara(self):
+        b = draft_budget([])
+        self.assertEqual(b["empty_spots"], MAX_ROSTER)
+        self.assertFalse(b["cannot_fill_roster"])
+
+    def test_chaves_antigas_intactas(self):
+        """A flag é ADITIVA: nenhuma chave existente mudou de nome ou de valor."""
+        antigas = {"salary_cap", "keeper_salaries", "num_keepers", "empty_spots",
+                   "min_required_for_spots", "raw_budget", "usable_draft_budget",
+                   "over_cap", "insufficient_budget"}
+        b = draft_budget(self._roster(15, 100))
+        self.assertTrue(antigas <= set(b))
+        self.assertEqual(set(b) - antigas, {"cannot_fill_roster"})
 
 
 class TestEdgeCases(unittest.TestCase):

@@ -420,12 +420,16 @@ def _late_drop_state(season: int):
     return LateDropAudit.query.filter_by(season=season, is_canonical=True).first()
 
 
-def _team_fa_budget(keepers: list) -> int:
-    """Budget de FA do time = `usable_draft_budget` (D4). Consome o ÚNICO `draft_budget`
-    com base salarial CORRENTE (`p.salary` — equivale a `projected:false` da porta).
-    Nenhuma aritmética de cap nova (invariante F10)."""
+def _team_budget(keepers: list) -> dict:
+    """Payload do ÚNICO `draft_budget` com base salarial CORRENTE (`p.salary` — equivale
+    ao `projected:false` da porta). Nenhuma aritmética de cap nova (invariante F10)."""
     roster = [SimpleNamespace(salary=p.salary, is_dropped=False) for p in keepers]
-    return int(draft_budget(roster)["usable_draft_budget"])
+    return draft_budget(roster)
+
+
+def _team_fa_budget(keepers: list) -> int:
+    """Budget de FA do time = `usable_draft_budget` (D4)."""
+    return int(_team_budget(keepers)["usable_draft_budget"])
 
 
 def _build_keeper_sheet(season: int) -> dict:
@@ -460,13 +464,17 @@ def _build_keeper_sheet(season: int) -> dict:
             label = f"Late drop: {drop['drop_name']}"
         else:
             label = "Sem late drop"
+        budget = _team_budget(keepers)          # uma chamada, dois consumidores abaixo
         teams.append({
             "team_id": team.id,
             "team_name": team.name,
             "late_drop_label": label,
             # compat de nome com o consumidor antigo do CSV/tabela
             "declared_label": label,
-            "fa_budget": _team_fa_budget(keepers),  # usable_draft_budget (D4)
+            "fa_budget": int(budget["usable_draft_budget"]),  # usable_draft_budget (D4)
+            # UX18: flag canônica no PAYLOAD apenas. ⛔ A tabela e o CSV da sheet são
+            # contrato de consumo externo — nenhuma coluna nova aqui.
+            "cannot_fill_roster": bool(budget["cannot_fill_roster"]),
             "num_keepers": len(keepers),
             "num_ir": sum(1 for p in keepers if p.is_on_ir),
             "keepers": [{

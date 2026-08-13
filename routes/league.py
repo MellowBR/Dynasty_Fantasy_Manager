@@ -80,6 +80,16 @@ def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=Non
         "proj_bid_max": int(proj["usable_draft_budget"]) if proj else None,
         "bid_max": bid_max,
         "slots": atual["empty_spots"],
+        # UX18: o alerta do bid vem das FLAGS canônicas, não de comparação na tela.
+        # `insufficient_budget` (teto negativo) OU `cannot_fill_roster` (teto abaixo do
+        # mínimo de $1 com vaga aberta). ⛔ O `<= 0` que estava no template acusava
+        # falso positivo em roster CHEIO a $200 — teto $0 sem vaga é saudável.
+        "bid_alerta": bool(atual["insufficient_budget"] or atual["cannot_fill_roster"]),
+        # idem para a folha: `over_cap` canônico no lugar do `cap_space < 0` que a tela
+        # calculava. Mesma semântica, uma definição só.
+        "over_cap": bool(atual["over_cap"]),
+        "proj_bid_alerta": bool(
+            proj["insufficient_budget"] or proj["cannot_fill_roster"]) if proj else False,
         "pick_count": pick_count,
         "dynasty_total": dynasty_total,
         "rank": standing.rank if standing else 999,

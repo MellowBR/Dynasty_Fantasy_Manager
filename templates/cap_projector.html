@@ -193,19 +193,37 @@ function refreshScenario() {
       document.getElementById('proj-usable').textContent = '$' + b.usable_draft_budget;
       document.getElementById('proj-spots').textContent = b.empty_spots + ' (min $' + b.min_required_for_spots + ')';
 
+      // UX18: o PERIGO deriva das flags canônicas do backend, nunca de limiar local.
+      // `over_cap` cobre folha e restante (restante < 0 ⟺ folha > cap); o bid soma a
+      // inviabilidade de preencher as vagas — o caso "teto $0 com vaga aberta", que o
+      // antigo `val < 0` deixava passar como se fosse um bid saudável.
+      // O amarelo de budget baixo (< 10) FICA: é aconselhamento, não estado.
+      const perigo = {
+        'proj-total': b.over_cap,
+        'proj-remaining': b.over_cap,
+        'proj-usable': b.insufficient_budget || b.cannot_fill_roster,
+      };
       ['proj-total', 'proj-remaining', 'proj-usable'].forEach(id => {
         const el = document.getElementById(id);
         const val = parseInt(el.textContent.replace('$', ''));
-        el.className = 'cap-value ' + (val < 0 ? 'text-danger' : (val < 10 ? 'text-warn' : ''));
+        el.className = 'cap-value ' + (perigo[id] ? 'text-danger'
+                                                  : (val < 10 ? 'text-warn' : ''));
       });
 
       const bar = document.getElementById('proj-bar');
       bar.style.width = d.cap_pct + '%';
-      bar.className = 'cap-bar-fill ' + (d.cap_pct >= 100 ? 'cap-danger' : d.cap_pct > 80 ? 'cap-warn' : 'cap-ok');
+      // UX18: o VERMELHO da barra vem do `over_cap` canônico. O `cap_pct >= 100` que
+      // estava aqui pintava de perigo a folha EXATAMENTE no cap ($200), que não estourou
+      // nada — a mesma classe de erro do `<= 0` da liga. O amarelo (>80%) fica: aviso.
+      bar.className = 'cap-bar-fill ' + (b.over_cap ? 'cap-danger' : d.cap_pct > 80 ? 'cap-warn' : 'cap-ok');
 
       const warnings = [];
       if (b.over_cap) warnings.push(`⚠️ Projeção acima do cap de $${b.salary_cap}!`);
       if (b.insufficient_budget) warnings.push(`⚠️ Budget insuficiente: faltam $${d.shortfall} para preencher ${b.empty_spots} spots.`);
+      // UX18: o estado que passava calado — teto de lance abaixo do mínimo de $1 COM
+      // vaga aberta. Sem `insufficient_budget` (que exige budget negativo), o cenário
+      // "$2 para 3 vagas" ficava sem aviso nenhum.
+      else if (b.cannot_fill_roster) warnings.push(`⚠️ Cenário inviável: com $${b.raw_budget} não dá para preencher ${b.empty_spots} spot(s) a $1 cada — o teto de lance é $${b.usable_draft_budget}.`);
       document.getElementById('proj-warnings').innerHTML =
         warnings.map(w => `<div class="alert alert-warn" style="margin-top:.5rem">${w}</div>`).join('');
       document.getElementById('proj-cap-bar').style.display = 'block';
