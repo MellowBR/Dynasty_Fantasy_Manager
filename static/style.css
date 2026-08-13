@@ -2021,10 +2021,19 @@ a.player-name:hover {
    O card responde primeiro "quanto posso gastar na auction": o bid do bloco de
    destaque é o maior número da peça. Zona 2 ("Atual") e zona 3 (rodapé) descem na
    hierarquia sem sair da tela. */
+/* ⚠️ L3-FIX-UX (13/08/2026): este bloco era UMA LINHA flex com duas colunas, e as duas
+   traziam `white-space: nowrap`. Numa grade `minmax(280px, 1fr)` o card de 3 colunas dá
+   ~258px úteis aqui dentro, contra ~310px de largura MÍNIMA do conteúdo (rótulo
+   maiúsculo + tag PROV | "Cap <ano> PROV $X/$200"). O `min-width: 0` do herói deixava
+   ele encolher, mas texto `nowrap` sem `overflow` não encolhe: TRANSBORDA — e pintava
+   por cima da coluna vizinha, com as duas tags PROV caindo uma sobre a outra.
+   Agora o bloco EMPILHA (coluna) e a fila secundária quebra sozinha: nenhuma largura
+   depende de caber numa linha. Cada item segue `nowrap` internamente — o que não pode
+   é um valor se separar do seu rótulo. */
 .league-plan {
   display: flex;
-  align-items: center;
-  gap: .8rem;
+  flex-direction: column;
+  gap: .5rem;
   padding: .6rem .7rem;
   background: var(--bg3);
   border: 1px solid var(--border);
@@ -2032,11 +2041,14 @@ a.player-name:hover {
 }
 .league-plan-hero { display: flex; flex-direction: column; min-width: 0; }
 .league-plan-label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .3rem;
   font-size: .68rem;
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: .04em;
-  white-space: nowrap;
 }
 .league-plan-value {
   font-size: 1.6rem;
@@ -2046,17 +2058,21 @@ a.player-name:hover {
 }
 .league-plan-side {
   display: flex;
-  flex-direction: column;
-  gap: .25rem;
-  margin-left: auto;
-  text-align: right;
+  flex-wrap: wrap;
+  gap: .25rem .85rem;
 }
-.league-plan-item { font-size: .74rem; color: var(--text-dim); white-space: nowrap; }
+.league-plan-item {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  font-size: .74rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
 .league-plan-item strong {
   color: var(--text);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  margin-left: .25rem;
 }
 .league-now {
   font-size: .74rem;
