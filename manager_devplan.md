@@ -5670,3 +5670,29 @@ campanha oficial → auditoria → alocação de owners → RESET final.
   avaliadas: sunset natural · instrução de leitura seletiva no CLAUDE.md · split completo ·
   padrão só para OFF27). 5 questões abertas para o owner listadas na seção. Auditor exit 0 após
   o registro (138 rows / 51 seções). Diff da sessão: improvements.md + devplan, docs-only.
+
+### MAN-O6-REFINE — decisões do owner absorvidas + alternativa B + ponteiro stale + arbitragens do O5 (13/08/2026, Fable) · docs-only
+
+- **Decisões do owner (13/08, via Claude.ai) absorvidas na seção e na row do O6:** (a) split
+  adiado — gate = **re-medição da família OFF26 pós-26/08**; (b) **alternativa B implementada**:
+  parágrafo de leitura seletiva do backlog no CLAUDE.md (Status Rápido como índice; OFF26-* não
+  se carrega fora da campanha; verificação estrutural é do auditor); (c) **alternativa D aceita**:
+  OFF27 nasce em arquivo de campanha próprio + retrofit multi-arquivo do auditor (V7) na 1ª
+  sessão pós-campanha; (d) motivação registrada: **consumo de token do Code**, não navegação
+  humana. O6 segue 🔲.
+- **Ponteiro stale (urgente pré-18/08):** `runbook_cowork_liga_fantasma.md:377` corrigido —
+  referência por ID + nota de que a seção do OFF26-10 (✅) vive no archive pela regra O3.
+  Varredura da classe nos demais runbooks: **1 única ocorrência viva; classe não recorrente** →
+  regra candidata "runbooks referenciam por ID" NÃO registrada (critério: só se recorrente).
+- **Arbitragens dos 4 avisos do O5 — todas FACTUAIS, evidência citada, nenhuma sobrou para o
+  owner:** DP1 row 🔲→⚠️ (F2 implementada 10/06, devplan + commit `dc47bd4`; "desbloqueado" era
+  estado pré-implementação); OFF26-4 seção 🔲→⚠️ (row já detalhava F2 + smoke parcial 03/08 —
+  linha da seção nunca atualizada); F9 seção 🔲→⚠️ (devplan 16/06: bulk_register pela porta
+  canônica, aguardando smoke); OFF26-20 row 🔲→⚠️ (seção + FIX/CLOSE de 06/08: executado em prod
+  22/22, resta smoke). Correções restritas a emoji + palavra de status adjacente (calibragem
+  aprovada). **Auditor: exit 0 com ZERO avisos** (antes: 4).
+- **Ocorrência MAN-METH-REG registrada na seção do candidato** (a pedido do owner): a restrição
+  literal da Parte 4 ("só o emoji") produziria `⚠️ **Pendente**` — refutada na avaliação prévia
+  do prompt, calibrada antes da execução.
+- Diff da sessão: improvements.md + CLAUDE.md + runbook_cowork + devplan — docs-only, zero
+  código, zero split executado.

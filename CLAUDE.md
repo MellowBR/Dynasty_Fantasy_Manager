@@ -376,6 +376,13 @@ ativo (nenhuma seção `###` ✅, toda seção com emoji de status, namespace se
 fechado) e **deve retornar sucesso antes do commit de qualquer sessão que toque `improvements.md`**.
 O auditor é read-only — aponta, não corrige.
 
+**Leitura seletiva do backlog (O6, 13/08/2026 — economia de contexto):** o Status Rápido é o
+índice; seções detalhadas se leem **sob demanda** (busca dirigida por ID/heading + offset), nunca
+o arquivo inteiro. **Fora de trabalho na campanha da intertemporada, não carregar seções
+OFF26-***. Para registrar item novo basta o Status Rápido + o ponto de inserção da seção.
+Verificação estrutural do backlog é papel do `tools/backlog_audit.py` (custo zero de contexto),
+não de leitura pelo Code.
+
 `improvements_sessions.md` (08/08/2026) guarda as entradas `> Atualizado em:` antigas do cabeçalho.
 **O ativo mantém só as 5 mais recentes** — o bloco havia chegado a **66 entradas / 114 KB = 22% do
 arquivo**, duplicando o que o log de decisões do `manager_devplan.md` e o `git log` já registram.

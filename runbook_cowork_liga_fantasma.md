@@ -374,7 +374,8 @@ do board (§B.2).
 ## B.3.2 🔧 **NOVO (02/08/2026) — o teto de lance bloqueia times estourados**
 
 > Não estava neste runbook e **vai aparecer na tela** em 2026. Descoberto por experimento na
-> própria liga; detalhe completo na seção do [[OFF26-10]] em `improvements.md`.
+> própria liga; detalhe completo na seção do item [[OFF26-10]] (✅ concluído — a seção vive no
+> `improvements_archive.md`; itens ✅ migram para lá pela regra O3).
 
 O Sleeper **impõe um teto por designação** e **reserva $1 por vaga ainda não preenchida**:
 
