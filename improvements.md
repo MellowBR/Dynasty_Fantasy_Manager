@@ -4319,6 +4319,22 @@ time tem markup próprio (`.team-status-bar`). A raiz era exclusiva do card da l
 (`nav-right` / `btn-sync` / `nav-user-menu`) — **idêntico no controle e no fix**, portanto não é
 regressão do L3. Fica anotado como candidato a item próprio.
 
+**PUSH + DEPLOY do FIX-UX ([[PROC1]]):** commit `f012d28` em `origin/main`; o `style.css` **servido
+em produção** é **byte-idêntico** ao do commit (84.262 B, `diff` limpo), o bloco `.league-plan` no
+ar traz `flex-direction: column` e o app responde `GET /league → 302 /login`.
+⚠️ Segue faltando **só** o smoke visual do owner na largura real.
+
+⚠️ **Lição de ferramenta (custou um falso TIMEOUT):** o poller do deploy dizia "não pousou" por
+**10 minutos depois de ter pousado** (o tamanho servido mudou de 83.467 → 84.262 B na 5ª
+tentativa). O detector inline era `python -c` lendo `/tmp/prod2.css` — e **Python nativo do Windows
+não enxerga `/tmp/`**, que é mount do Git Bash: resolve como `C:\tmp\` e estoura
+`FileNotFoundError`, caindo no `|| echo 0` a cada iteração. As ferramentas do bash (`wc`, `diff`,
+`grep`, `awk`) leem esse caminho **sem problema** — foi por isso que o poller do deploy anterior,
+feito com `grep`, funcionou. **Regra:** num pipeline Git Bash, a checagem tem de ser feita com
+ferramenta do bash, ou o caminho tem de ser nativo do Windows. E **um detector que só sabe dizer
+"não" precisa de um controle positivo** — o mesmo cuidado que a validação geométrica teve, e o
+poller não.
+
 ---
 
 **F1 (parecer read-only, 13/08/2026) — preservado:**
