@@ -390,7 +390,7 @@ class TestRotaDoRolloverRecusa(unittest.TestCase):
 
     def setUp(self):
         from models import (db, Team, Player, User, SeasonStandings, DraftLotteryResult,
-                            set_config, get_current_season)
+                            ESPNImportLog, set_config, get_current_season)
         with self.app.app_context():
             db.drop_all()
             db.create_all()
@@ -409,6 +409,12 @@ class TestRotaDoRolloverRecusa(unittest.TestCase):
             db.session.add(DraftLotteryResult(season=season + 1, pick_number=1,
                                               team_id=t.id, team_name=t.name, locked=True))
             set_config("espn_values_updated", "true")
+            # OFF26-25: o passo 4 passou a exigir DUPLA condição — a flag manual acima
+            # E o import ESPN mais recente da season alvo marcado `final`. Sem esta linha
+            # o gate NOVO recusaria antes do gate da URNA, e estes 3 testes passariam a
+            # provar o item errado.
+            db.session.add(ESPNImportLog(season=season + 1, status="final",
+                                         url_used="upload:teste.pdf"))
             set_config("rollover_done", "false")
             db.session.commit()
             self.season, self.admin_id, self.t_id = season, admin.id, t.id

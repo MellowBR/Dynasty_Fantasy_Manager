@@ -95,7 +95,7 @@ def calculate():
 @salary_bp.route("/api/cap_projector/<path:team_name>")
 @login_required
 def cap_projector_data(team_name):
-    from models import ESPNImportLog, get_current_season, EspnValueStore
+    from models import get_current_season, EspnValueStore
     team = Team.query.filter_by(name=team_name).first()
     if not team:
         return jsonify({"error": "Team not found"}), 404
@@ -122,9 +122,10 @@ def cap_projector_data(team_name):
 
     budget = draft_budget(players)
 
-    # ESPN import status
-    last_import = ESPNImportLog.query.filter_by(season=target_season)\
-        .order_by(ESPNImportLog.imported_at.desc()).first()
+    # ESPN import status — OFF26-25: mesma LEITURA que o gate do rollover e o preview
+    # usam (`latest_espn_import`); esta consulta inline era byte a byte a mesma coisa.
+    from models import latest_espn_import
+    last_import = latest_espn_import(target_season)
     espn_status = None
     if last_import:
         espn_status = {

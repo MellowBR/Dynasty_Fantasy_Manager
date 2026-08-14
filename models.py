@@ -749,6 +749,42 @@ class ESPNImportLog(db.Model):
         }
 
 
+def latest_espn_import(season: int):
+    """Import ESPN mais RECENTE registrado para `season` — qualquer status, ou None.
+
+    É a LEITURA; quem julga é o `espn_final_import` abaixo. Existe separada porque o
+    preview do rollover precisa exibir o candidato mesmo quando ele NÃO satisfaz o gate
+    (o operador tem que ver com o que a mutação rodaria)."""
+    return (ESPNImportLog.query.filter_by(season=season)
+            .order_by(ESPNImportLog.imported_at.desc()).first())
+
+
+def espn_final_import(season: int):
+    """OFF26-25 — FONTE ÚNICA de *"a tabela ESPN DEFINITIVA desta season entrou"*.
+
+    Devolve o log do import se ele qualificar, senão None (verdade booleana direta).
+
+    ⛔ **O critério é o import MAIS RECENTE da season, não "existe algum final"** — a
+    diferença é de correção, não de estilo: reimportar uma PROVISÓRIA depois da definitiva
+    (para corrigir um match, cenário real da tela de review) **sobrescreve
+    `player.espn_ref_value`** via `set_espn_value` e devolve o banco ao estado provisório,
+    enquanto a linha `final` antiga continua no log. Com "existe algum final" o gate daria
+    falso OK — uma trava que mente é pior que trava nenhuma.
+
+    ⚠️ **Limite residual, declarado e NÃO resolvido aqui:** isto prova um EVENTO (o import
+    desta season), não o ESTADO da coluna que o rollover lê. `set_espn_value` materializa
+    `espn_ref_value` em QUALQUER import, inclusive de outra season — um import posterior
+    para 2027 sobrescreveria a coluna sem tocar este predicado. Prova de estado exigiria
+    varrer `EspnValueStore`/`ESPNValue` da season alvo; decisão do owner (14/08/2026) foi
+    ficar no evento por ora. O caso comum — reimport da mesma season — está coberto.
+
+    ⛔ Não recriar esta consulta inline. Consumidores: gate do passo 4 + recusa do
+    `do_rollover` (routes/offseason.py), preview do rollover (routes/admin.py), selo PROV
+    da `/league` e do `/team/<id>` (routes/league.py)."""
+    log = latest_espn_import(season)
+    return log if (log is not None and log.status == "final") else None
+
+
 class Trade(db.Model):
     __tablename__ = "trades"
 

@@ -6,8 +6,9 @@ from flask_login import login_required, current_user
 from sqlalchemy import func
 
 from models import (
-    db, Team, Player, Pick, SeasonStandings, ESPNImportLog,
+    db, Team, Player, Pick, SeasonStandings,
     SALARY_CAP, get_config, get_current_season, sort_players_by_pos,
+    espn_final_import,                                # OFF26-25: fonte única do "definitiva"
 )
 from salary_engine import roster_salary, draft_budget  # OFF26-16 + Bid Máximo (L1-BID)
 from routes.salary import compose_budget               # L3: cap projetado (fonte única)
@@ -135,13 +136,18 @@ def league_hub():
     # L3: o mesmo selo cobre o cap projetado — projeção e Bid Máximo dependem da
     # MESMA tabela ESPN, e com a provisória (valores ≈1.0) a projeção colapsa para
     # perto do salário corrente. Um único gate, nenhuma segunda definição de "PROV".
-    espn_final = ESPNImportLog.query.filter_by(
-        season=season + 1, status="final").first() is not None
+    # OFF26-25: a consulta saiu daqui para `models.espn_final_import` — a MESMA verdade
+    # que destrava o passo 4 do rollover. Era a 1ª de 4 cópias do predicado.
+    # UX19: `and show_projection` — o selo qualifica o número PROJETADO. Pós-rollover a
+    # projeção fecha, o destaque passa a exibir as grandezas CORRENTES (que acabaram de
+    # nascer da tabela definitiva) e o selo, decidido por `season+1` = a season seguinte,
+    # voltava a acender sobre elas. Nada provisório sobrou para marcar.
+    espn_final = espn_final_import(season + 1) is not None
 
     return render_template("league.html", cards=cards, season=season,
                            cap=SALARY_CAP, show_projection=show_projection,
                            proj_season=season + 1,
-                           bid_provisional=not espn_final)
+                           bid_provisional=show_projection and not espn_final)
 
 
 @league_bp.route("/team/<int:team_id>")
@@ -180,8 +186,10 @@ def team_detail(team_id):
     # L3: cap projetado no breakdown — mesma fonte e mesmo gate da /league.
     show_projection = _projection_open()
     proj = compose_budget(players) if show_projection else None
-    espn_final = ESPNImportLog.query.filter_by(
-        season=season + 1, status="final").first() is not None
+    # OFF26-25 (fonte única) + UX19 (o selo só qualifica o projetado). Aqui o template já
+    # guardava os dois selos dentro do `if show_projection`; o `and` alinha a semântica na
+    # ROTA, para as duas telas responderem a mesma coisa à mesma pergunta.
+    espn_final = espn_final_import(season + 1) is not None
 
     is_my_team = bool(
         current_user.is_authenticated
@@ -204,7 +212,7 @@ def team_detail(team_id):
         "proj_cap_used": proj["keeper_salaries"] if proj else None,
         "proj_cap_remaining": (SALARY_CAP - proj["keeper_salaries"]) if proj else None,
         "proj_over_cap": bool(proj["over_cap"]) if proj else False,
-        "bid_provisional": not espn_final,
+        "bid_provisional": show_projection and not espn_final,
         "ir_count": len(ir),
         "ir_names": [p.name for p in ir],   # OFF26-16: informativo de escalação
         "active_count": len(active),

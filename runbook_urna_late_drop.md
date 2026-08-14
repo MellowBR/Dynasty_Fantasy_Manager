@@ -122,8 +122,15 @@ a ordem certa para ela nunca precisar ser recusada.
    este item) — importar antes do rollover colocaria a classe inteira na varredura e **todo
    rookie viraria Ano 2**.
 2. **18/08, na ordem:**
-   a. **Import ESPN definitiva** (`/offseason` passo 3).
-   b. **Season Rollover** (passo 4 — once-only; o painel exige o passo 3 antes).
+   a. **Import ESPN definitiva** (`/offseason` passo 3). ⭐ **MARCAR o checkbox
+      "Importação final (valores definitivos)"** no upload — desde a MAN-OFF26-25 é ele
+      que destrava o rollover. Sem a marca o import entra como PROVISÓRIO e **o passo 4
+      recusa** (409, citando o status e a data do que encontrou). ⚠️ **Não existe tela
+      para promover um import a final**: se esquecer, o caminho é **reimportar o PDF**.
+   b. **Season Rollover** (passo 4 — once-only). O painel exige o passo 3 **e** o import
+      final da season alvo (dupla condição: confirmação humana + registro real). Antes de
+      disparar, abra o **preview no `/admin`**: o topo diz com QUE tabela a mutação
+      rodaria (season · DEFINITIVA/PROVISÓRIA · data) — é o último ponto de detecção.
    c. **Só então: importar o rookie draft** (`/draft_import`, modo linear). Os salários da
       classe saem do store (`floor(ESPN×1,2)`); os rookies nascem **Ano 1/2026** e nada os
       toca até o rollover de 2027.

@@ -39,6 +39,9 @@ python poka_yoke_test.py
 # Run parse do JS inline de todos os templates (OFF26-23-FIX — 3 testes; node ou fallback)
 python template_js_test.py
 
+# Run gate mecânico da tabela ESPN definitiva no rollover (OFF26-25 — 33 testes)
+python espn_gate_test.py
+
 # Run núcleo do script de população do board da fantasma (OFF26-24 — 30 testes; sem browser)
 python phantom_board_test.py
 
@@ -176,7 +179,17 @@ foi o owner.
    re-executável/idempotente. A contagem varia com o calendário NFL (~288 com rosters de 90 em
    julho; ~150 pós-corte de agosto) — comportamento esperado; recapturar após o corte se o board
    seguir em uso
-4. Season Rollover → apply salary rules, increment contract years
+4. Season Rollover → apply salary rules, increment contract years.
+   **OFF26-25 (poka-yoke):** o passo 4 exige **DUPLA condição** — a flag manual
+   `espn_values_updated` (passo 3, confirmação humana) **E** a mecânica: o import ESPN
+   **mais recente** da season alvo (`current+1`, derivada) com `status='final'`. Fonte
+   única em `models.espn_final_import` — ⛔ **não recriar a consulta inline** (era réplica
+   em 2 sítios da `/league`; hoje 5 consumidores leem o helper). Recusa **dura**, sem
+   `force` (409 `blocked_by="espn_nao_definitiva"`, citando status e data do que
+   encontrou); o **once-only vem antes** na ordem das checagens. O preview do `/admin`
+   exibe a tabela candidata. ⚠️ **Limite declarado:** prova o EVENTO (import da season),
+   não o ESTADO da coluna — `set_espn_value` materializa `espn_ref_value` em qualquer
+   import, inclusive de outra season
 5-7. Informational: rookie draft, keepers/cuts, FA auction (manual via /auction).
    **OFF26-23 (poka-yoke):** a ordem rollover → import do draft é INVARIANTE DE CÓDIGO —
    o importador linear recusa classe de season futura (`rollover_order_gate`), o passo 5
@@ -369,6 +382,7 @@ fantasy_manager/
   late_drop_test.py                 # OFF26-10: urna do late drop + keeper sheet via sync (47)
   poka_yoke_test.py                 # OFF26-23: gates da ordem rollover→import→passo 5 (15)
   template_js_test.py               # OFF26-23-FIX: JS inline de todo template parseia (3)
+  espn_gate_test.py                 # OFF26-25: gate mecânico da tabela ESPN definitiva (33)
   phantom_board_test.py             # OFF26-24: núcleo do script de população do board (30)
   tools/phantom_board/              # OFF26-24: script standalone (Playwright; comando via DOM,
                                     #   verdade via API; guardas de nascença; ver README local)

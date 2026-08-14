@@ -314,7 +314,22 @@ function triggerSync() {
 function previewRollover() {
   fetch('/api/admin/rollover/preview').then(r => r.json()).then(d => {
     const sum = document.getElementById('rollover-summary');
-    sum.innerHTML = `
+    // OFF26-25: com QUE tabela ESPN este preview foi calculado — e se ela destrava o
+    // passo 4. Ler "PROVISÓRIO" aqui é o último ponto de detecção antes do irreversível.
+    const imp = d.espn_import;
+    let espnHtml;
+    if (!imp) {
+      espnHtml = `<div class="alert alert-warn">⛔ Nenhum import ESPN registrado para ${d.next_season} — o Season Rollover está bloqueado. Importe o PDF com "Importação final" marcado.</div>`;
+    } else {
+      const fin = imp.status === 'final';
+      const quando = formatLocalDT(imp.imported_at);   // M18: fonte única do formato/fuso
+      espnHtml = `<div class="alert ${d.espn_gate_ok ? 'alert-ok' : 'alert-warn'}">`
+        + `${d.espn_gate_ok ? '✅' : '⛔'} Tabela ESPN da temporada <strong>${imp.season}</strong>: `
+        + `<strong>${fin ? 'DEFINITIVA' : 'PROVISÓRIA'}</strong> (importada em ${quando})`
+        + (d.espn_gate_ok ? '' : ' — o Season Rollover está bloqueado até o import final desta temporada.')
+        + `</div>`;
+    }
+    sum.innerHTML = espnHtml + `
       <div class="stat-grid">
         <div class="stat-item"><span class="stat-num">${d.player_count}</span><span class="stat-label">Jogadores</span></div>
         <div class="stat-item"><span class="stat-num stat-warn">${d.renewals}</span><span class="stat-label">Renovações</span></div>

@@ -177,8 +177,16 @@ def last_sync():
 @admin_bp.route("/api/admin/rollover/preview", methods=["GET"])
 @login_required
 def rollover_preview():
-    """Preview what season rollover will do — no DB changes."""
+    """Preview what season rollover will do — no DB changes.
+
+    OFF26-25: o preview passa a exibir COM QUE TABELA a mutação rodaria — o import
+    candidato da season alvo (season/status/data) e o veredito do gate. É o último ponto
+    de detecção antes do irreversível; ver o `provisional` aqui vale mais que qualquer
+    mensagem depois."""
+    from models import espn_final_import, latest_espn_import
     next_season = get_current_season() + 1
+    espn_log = latest_espn_import(next_season)
+    espn_gate_ok = espn_final_import(next_season) is not None
     players = Player.query.filter_by(is_dropped=False).all()
     preview = []
     for p in players:
@@ -207,6 +215,9 @@ def rollover_preview():
         "total_next": total_next,
         "renewals": len([r for r in preview if r["is_renewal"]]),
         "players": preview,
+        # OFF26-25 — a tabela com que este preview foi calculado
+        "espn_import": espn_log.to_dict() if espn_log else None,
+        "espn_gate_ok": espn_gate_ok,
     })
 
 

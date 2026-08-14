@@ -21,6 +21,7 @@ from models import (
     SeasonStandings, DraftLotteryResult, AppConfig, LotteryAudit,
     get_config, set_config, get_current_season, is_offseason,
     SALARY_CAP, MY_OWNER_ID, MY_TEAM_NAME, LEAGUE_ID,
+    espn_final_import, latest_espn_import,
 )
 from routes.auth import admin_required
 
@@ -178,6 +179,12 @@ def _get_step_statuses():
     lottery_locked = DraftLotteryResult.query.filter_by(
         season=season + 1, locked=True).count() > 0
     espn_updated = get_config("espn_values_updated", "false") == "true"
+    # OFF26-25: DUPLA condição no passo 4. A flag acima é confirmação HUMANA e continua
+    # valendo (passo 3 do painel, intacto); a condição abaixo é a MECÂNICA — derivada do
+    # registro real de import, para a season que o rollover vai valorizar. Sozinha, a flag
+    # nunca soube QUAL tabela estava no banco: podia estar `true` desde uma provisória de
+    # junho, e o rollover (once-only) rodava sobre ela sem recusa.
+    espn_final = espn_final_import(season + 1) is not None
     rollover_done = get_config("rollover_done", "false") == "true"
     rookie_done = get_config("rookie_draft_done", "false") == "true"
     auction_done = get_config("auction_done", "false") == "true"
@@ -194,7 +201,8 @@ def _get_step_statuses():
         {"num": 3, "name": "Atualizar ESPN Values", "key": "espn_values_updated",
          "done": espn_updated, "locked": False},
         {"num": 4, "name": "Season Rollover", "key": "rollover_done",
-         "done": rollover_done, "locked": not (lottery_locked and espn_updated)},
+         "done": rollover_done,
+         "locked": not (lottery_locked and espn_updated and espn_final)},
         {"num": 5, "name": "Rookie Draft", "key": "rookie_draft_done",
          "done": rookie_done, "locked": False},
         {"num": 6, "name": "Definir Keepers / Cortes", "done": cuts_done, "locked": False},
@@ -658,10 +666,62 @@ def confirm_espn():
 # STEP 4 — Season Rollover
 # ══════════════════════════════════════════════════════════════════════════════
 
+def espn_gate_message(target_season, log):
+    """OFF26-25 — núcleo PURO do gate da tabela definitiva (sem DB, sem rede).
+
+    `log` = o import mais recente da season alvo (`models.latest_espn_import`) ou None;
+    quem decide "qualifica ou não" é `models.espn_final_import` — aqui só se traduz a
+    recusa em mensagem acionável. Devolve dict de erro (molde do `rollover_order_gate`
+    do OFF26-23) ou None.
+
+    A season alvo é DERIVADA (`current_season + 1`, a que o rollover vai valorizar e a
+    mesma que o import ESPN usa por default) — ⛔ nunca literal."""
+    if log is not None and log.status == "final":
+        return None
+
+    onde = ("Importação ESPN (/admin/espn_import) com o checkbox "
+            "\"Importação final (valores definitivos)\" MARCADO")
+    if log is None:
+        falta = (f"não há NENHUM import ESPN registrado para a temporada "
+                 f"{target_season}")
+        motivo = "sem_import"
+    else:
+        # ⚠️ "UTC" explícito: esta string é composta no SERVIDOR, enquanto o preview
+        # formata o mesmo carimbo no fuso do device (M18, `formatLocalDT`). Sem o rótulo,
+        # as duas telas exibem DATAS DIFERENTES para o mesmo import perto da meia-noite —
+        # observado no smoke (28/07 UTC × 27/07 21:30 local).
+        quando = (log.imported_at.strftime("%d/%m/%Y %H:%M UTC")
+                  if log.imported_at else "data desconhecida")
+        falta = (f"o import mais recente da temporada {target_season} é "
+                 f"PROVISÓRIO (de {quando})")
+        motivo = "provisorio"
+
+    return {
+        "error": (
+            f"Rollover bloqueado: {falta}. O rollover valoriza TODOS os contratos a "
+            f"partir da tabela ESPN que estiver no banco e é irreversível (roda uma vez "
+            f"só) — com a provisória (valores ≈1.0) a folha inteira sai errada e a "
+            f"definitiva que chegar depois não corrige nada. Reimporte o PDF em "
+            f"{onde}."
+        ),
+        "blocked_by": "espn_nao_definitiva",
+        "espn_gate": motivo,
+        "target_season": target_season,
+        "import": log.to_dict() if log is not None else None,
+    }
+
+
 @offseason_bp.route("/api/offseason/rollover", methods=["POST"])
 @admin_required
 def do_rollover():
-    """Execute season rollover (gated by steps 2+3).
+    """Execute season rollover (gated by steps 2+3 + tabela ESPN definitiva).
+
+    MAN-OFF26-25 (14/08/2026): gate MECÂNICO — o passo 4 só destrava se o import mais
+    recente da season alvo for `final` (`models.espn_final_import`). A flag manual
+    `espn_values_updated` continua valendo como confirmação humana, mas deixou de ser
+    suficiente sozinha: ela nunca soube QUAL tabela estava no banco. Recusa dura, sem
+    `force` — não existe cenário legítimo de rodar sobre provisória (se a definitiva
+    atrasa, a reação certa é adiar o dia), e o dano é irreversível.
 
     MAN-OFF26-10-AJUSTES (07/08/2026): gate NOVO — a urna do late drop ([[OFF26-10]])
     trava o rollover enquanto estiver viva e não revelada. Bilhetes e snapshot são
@@ -669,10 +729,21 @@ def do_rollover():
     revelação sairia VAZIA, sem erro nenhum. Era instrução de runbook — virou código."""
     steps = _get_step_statuses()
     step4 = next(s for s in steps if s["num"] == 4)
-    if step4["status"] == "locked":
-        return jsonify({"error": "Rollover bloqueado — complete etapas anteriores"}), 400
+    # OFF26-25: o once-only vem PRIMEIRO de propósito — rollover já executado tem que
+    # recusar por "já executado", nunca pela condição nova (pós-rollover a season alvo
+    # vira `current+1` = a seguinte, que naturalmente não tem tabela definitiva; sem esta
+    # ordem a mensagem passaria a mentir sobre o motivo). Equivalente ao comportamento
+    # antigo: `_get_step_statuses` já dá precedência a "done" sobre "locked".
     if step4["done"]:
         return jsonify({"error": "Rollover ja foi executado"}), 400
+
+    season = get_current_season()
+    gate_espn = espn_gate_message(season + 1, latest_espn_import(season + 1))
+    if gate_espn:
+        return jsonify(gate_espn), 409
+
+    if step4["status"] == "locked":
+        return jsonify({"error": "Rollover bloqueado — complete etapas anteriores"}), 400
 
     from routes.late_drop import urn_blocks_rollover
     motivo = urn_blocks_rollover(get_current_season())
