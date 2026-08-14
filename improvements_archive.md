@@ -8432,3 +8432,251 @@ templates — resíduo da substituição feita pelo UX4-c. Higiene, não defeito
 
 **Cross-refs:** [[O5]] (precedente de ferramenta em `tools/` + gate), [[UX16]] (1º cliente),
 [[L3]] (origem, archive).
+
+---
+
+### UX16 — Navbar transborda a viewport a ~860px
+✅ **CONCLUÍDO 14/08/2026** — smoke visual do owner **aprovado nas três faixas**: desktop,
+intermediária (~680–860, com hamburger + `cap-chip` + Sync + avatar **contidos** na barra) e
+mobile — Prioridade **Baixa** — achado de carona da [[L3]]-FIX-UX, registrado 13/08/2026
+(MAN-L3-CLOSE-REG); **primeiro cliente do gate visual do [[O7]]** — MAN-UX16 →
+**MAN-CLOSE-LOTE-14-08**
+
+**O arco, numa passada:**
+1. **Achado pela F1 do [[O7]], não por olho** — a sonda geométrica mediu `scrollWidth >
+   innerWidth` na faixa intermediária e **nomeou os culpados**; o **controle** (CSS pré-[[L3]])
+   reproduziu idêntico ⇒ defeito **pré-existente**, não regressão.
+2. **FIX (CSS puro, 2 media queries, zero template/JS)** — a causa medida não era falta de
+   espaço, era **colapso tardio**: a barra desktop precisa de **916px** e o hamburger só entrava
+   em **≤768px** ⇒ 769–944 transbordava em **toda** página. Colapso passa a **1023px**;
+   **1024+ intocado**; menu do usuário só sai abaixo de 768.
+3. ⭐ **O gate do [[O7]] provado no sentido INVERSO** — com o fix aplicado, a sonda imprimiu
+   `conhecido(s) que NÃO reproduziram: ['UX16'] — remover de KNOWN_DEFECTS` e a entrada saiu do
+   registro **por indicação da ferramenta**. `KNOWN_DEFECTS` **vazio**; suíte **exit 0 sem
+   máscara**. 527 testes verdes.
+4. **Smoke do owner (14/08)** — navbar íntegra nas três faixas, nenhuma função perdida no
+   colapso. ✅
+
+**Problema (medido, com controle):** a ~860px de viewport o documento fica com
+`scrollWidth > innerWidth` e a página ganha rolagem horizontal. Os elementos que ultrapassam a
+borda são os do lado direito da navbar: `nav-right`, `btn-sync`, `nav-user-menu`,
+`nav-user-button`.
+
+⚠️ **NÃO é regressão do [[L3]]:** o transbordo apareceu idêntico no **controle** (o CSS anterior
+ao fix de layout) e no fix — a sonda geométrica mediu os dois e nomeou os mesmos culpados. É
+defeito **pré-existente**, que só ficou visível porque a sonda passou a olhar geometria.
+
+**Faixa exata:** medido em **390px → sem transbordo**, **860px → transborda**, **1024px e
+1280px → sem transbordo**. A faixa intermediária é onde a navbar ainda tenta manter tudo em
+linha e já não cabe.
+
+**Como corrigir (a decidir na F1/F2):** a mesma família de causa do bloco de planejamento — fila
+horizontal que não cabe. Opções óbvias: `flex-wrap` na navbar, esconder rótulos (deixando ícones)
+na faixa, ou colapsar em menu. **Não decidir sem medir** — e **validar pela sonda** ([[O7]]),
+que já sabe apontar o elemento culpado.
+
+---
+
+**FIX (13/08/2026, MAN-UX16) — primeiro cliente do gate visual:**
+
+✅ **Implementado e validado** — smoke visual do owner aprovado em 14/08/2026 nas 3 faixas.
+
+**Causa raiz medida** (com a sonda do [[O7]], largura a largura): a barra **desktop precisa de
+916px** — `nav-brand` 123 + `nav-links` **507** + `nav-right` 214 + cromo ~72 — e o hamburger só
+entrava em **≤768px**. Logo, a faixa **769–944px transbordava a viewport em TODA página** (a
+navbar vive no `base.html`). Nada ali podia ceder: `.nav-links` **não encolhe** (filhos `nowrap`
+⇒ `min-width: auto`) e `.nav-right` é `flex-shrink: 0`; só a busca cedia — de 178px a 0 — e os
+916px restantes continuavam sem caber. ⇒ **o defeito não era "faltar espaço", era o colapso
+entrar tarde**.
+
+**Fix (CSS puro, 2 media queries, zero template e zero JS):** o colapso passa a **`max-width:
+1023px`** — a barra desktop passa a existir **só onde foi medida cabendo**. E o menu do usuário,
+que sumia junto com os links, agora **só sai abaixo de 768px**: na faixa nova a barra colapsada
+precisa de ~380px e sobra espaço, então avatar e logout ficam visíveis.
+
+**Nada de função se perdeu:** o painel do hamburger já tinha **busca, navegação completa, times,
+admin e logout** — conferido antes de escolher o breakpoint.
+
+**Medição antes × depois** (mesma sonda, mesmas larguras):
+| viewport | antes | depois |
+|---|---|---|
+| 1280 / 1100 / 1024 | desktop, sem transbordo | **idêntico** (⇒ "1024+ sem mudança perceptível" ✓) |
+| 960 · 900 · 860 · 820 · 800 · 780 | **TRANSBORDA** (precisa 916px) | hamburger, precisa **434px**, folga de 346–526px |
+| 768 · 700 · 390 | hamburger | **idêntico** |
+
+**Verificação funcional nas 4 larguras** (Playwright): dropdown do [[N1]] **abre no clique, fecha
+no clique-fora e no Esc** em 1280/1024 (`.nav-group-label`) e em 860 (`.nav-user-button`);
+hamburger abre com busca + logout em 860 e 390; `cap-chip`, `btn-sync` e altura de 54px intactos
+em todas. **527 testes verdes.**
+
+⭐ **O gate do [[O7]] foi exercido e o mecanismo fechou o ciclo no sentido INVERSO ao da estreia:**
+com o fix aplicado e a entrada `UX16` **ainda registrada**, a sonda passou a imprimir
+`ℹ️ conhecido(s) que NÃO reproduziram: ['UX16'] — remover de KNOWN_DEFECTS`. A entrada saiu por
+**indicação da ferramenta**, não por memória. `KNOWN_DEFECTS` está **vazio** — e a suíte completa
+dá **exit 0 sem defeito conhecido mascarando nada** (16 medições, 0 achados, ~16s).
+
+⚠️ **Tropeço da minha verificação (não do app):** o script funcional tentou clicar o menu do
+usuário a 390px, onde ele está escondido **de propósito** — 30s de timeout até eu ver que o
+comportamento certo era o do app. Corrigi o script para só clicar alvo visível.
+
+**PUSH + DEPLOY ([[PROC1]]):** commit `b750ce6`; o `style.css` **servido em produção** é
+**byte-idêntico** ao do commit (**85.800 B**, `diff` limpo), a regra `@media (max-width: 1023px)`
+está **no ar** (linha 2480 do arquivo servido) e o app responde `GET /league → 302`. Transição
+observada: 84.765 B → 502 (restart) → 85.800 B, com o detector 100% em ferramenta do bash (a
+lição do falso TIMEOUT segue aplicada).
+✅ **Smoke visual do owner aprovado em 14/08/2026** nas três faixas (~1280 · intermediária
+~680–860, com hamburger + chip + Sync + avatar contidos · celular). Item fechado.
+
+**Cross-refs:** [[N1]] (redesign da navbar que criou a estrutura atual), [[UX6]] (largura máxima
+do container), [[O7]] (o instrumento), [[L3]] (de onde o achado caiu).
+
+---
+
+### UX18 — Bid Máximo inviável ($0 com vagas abertas) não acende alerta
+✅ **CONCLUÍDO 14/08/2026** — smoke do owner **aprovado nas DUAS direções**: o alerta **acende**
+no cenário simulado do `/cap_projector` (com o banner explicativo) e o card do **Miller Time!**
+na `/league` **deixou de pintar vermelho** — Prioridade **Média** — a diagnose (abaixo,
+preservada) refutou a premissa do fix original; o owner decidiu a **opção (a)** e liberou o
+`salary_engine` só para isso — MAN-UX-BID0 (REG + diagnose) · MAN-UX-BID0-F2 (fix) →
+**MAN-CLOSE-LOTE-14-08**
+
+**O arco, numa passada:**
+1. **REG + diagnose (docs-only, fix NÃO implementado de propósito)** — ⛔ a **premissa central do
+   prompt foi REFUTADA por medição**: `insufficient_budget` é `usable < 0` e dava **`False`** no
+   caso do owner (folha 198 · 3 vagas · bid $0) ⇒ implementá-lo à risca **pioraria** o item. O
+   predicado correto saiu das **duas fronteiras** medidas: folha **197** (fecha exatamente,
+   viável) e **roster cheio a $200 / 0 vagas** (bid $0 **saudável** ⇒ `empty_spots > 0` é
+   obrigatório). Veredicto de réplica: **3 limiares divergentes**, nenhum correto.
+2. **Decisão do owner: opção (a)** — a flag nasce **no `salary_engine.draft_budget`**, ao lado de
+   `over_cap`/`insufficient_budget`, **aditiva** (9 chaves antigas intactas):
+   `cannot_fill_roster := empty_spots > 0 and usable < MIN_SALARY`. Baseline do engine **54 → 62**.
+3. **Os DOIS defeitos de sinal corrigidos de uma vez** — o falso **negativo** (bid $0 inviável
+   mudo) e o falso **positivo** já em produção (Miller Time! vermelho). Os 4 limiares inline
+   saíram das telas; amarelos informativos ficam. Gate do [[O7]] **exit 0**; **535 testes verdes**.
+4. **Smoke do owner (14/08)** — as duas direções confirmadas em produção. ✅
+
+**Problema (screenshot do owner, cap_projector em simulação):** barra sticky com
+**Cap projetado $198 · Restante $2 · Spots vazios 3 (min $2) · Bid Máximo $0** — plano de corte
+em que o time **não consegue preencher o roster** ($2 para 3 vagas a $1 cada) — e a barra não
+comunica nada. A simulação é o habitat natural do estado: é onde se exploram planos.
+
+⛔ **A PREMISSA CENTRAL DO PROMPT ESTÁ REFUTADA — e implementá-lo à risca pioraria o caso.**
+O prompt supõe que o estado é "capturado pela flag canônica". Não é:
+
+```
+insufficient_budget := usable_draft_budget < 0        (salary_engine.py:270)
+```
+
+Reprodução numérica do cenário exato (via `draft_budget`, não pelo screenshot):
+
+| cenário | folha | resto | vagas | min | **BID** | `over_cap` | `insufficient_budget` | inviável **de fato** |
+|---|---|---|---|---|---|---|---|---|
+| **caso do owner** (19 jog.) | 198 | 2 | 3 | 2 | **$0** | False | **False** | **SIM** |
+| limite de viabilidade (folha 197) | 197 | 3 | 3 | 2 | $1 | False | False | não |
+| roster **cheio** a $200 (0 vagas) | 200 | 0 | 0 | 0 | **$0** | False | False | **não** |
+| negativo (folha 210) | 210 | −10 | 1 | 0 | −$10 | True | **True** | sim |
+
+⇒ **as duas flags dizem "tudo bem"** no caso que motivou o item. Trocar as comparações locais
+pela flag canônica — o que o prompt pede — **apagaria** o pouco de sinal que hoje existe.
+
+**Predicado correto (medido, não deduzido):** `empty_spots > 0 and usable < MIN_SALARY`.
+Equivale a `raw_budget < empty_spots × $1` — não dá para completar o elenco. A linha do roster
+cheio prova que **o `empty_spots > 0` é obrigatório**: bid $0 com 0 vagas é estado **saudável**.
+
+**Inventário — superfície → fonte da decisão → limiar → erro** (veredicto de réplica:
+**REPLICADO E DIVERGENTE — 3 limiares para a mesma grandeza, nenhum correto**):
+
+| superfície | fonte da decisão | limiar | erro |
+|---|---|---|---|
+| `/cap_projector` — cor do bid (`cap_projector.html:196`) | **comparação inline em JS** | `< 0` → danger; `< 10` → warn | **falso negativo**: o $0 inviável fica *warn*, igual a um $9 saudável |
+| `/cap_projector` — banner de aviso (`:207`) | **flag canônica** `insufficient_budget` | `usable < 0` | **falso negativo**: não dispara no $0 |
+| `/league` — bid do bloco de destaque (`league.html`, macro) | **comparação inline em template** | `<= 0` | **falso POSITIVO**: roster cheio a $200/0 vagas pinta vermelho — é o caso **Miller Time!** hoje em produção |
+| `/league` — linha "Atual: … bid" | **comparação inline em template** | `<= 0` | idem |
+| `/team/<id>` | — | — | **não exibe bid** (só cap atual/projetado) |
+| `/cuts/keeper_sheet` e `/admin/keeper_audit` | — | — | exibem `fa_budget` **sem tratamento nenhum** |
+| `/draft_import` — alertas por time | **flags canônicas** | canônico | herda o falso negativo |
+
+**Achado colateral (defeito de sinal oposto, já em produção):** o `<= 0` da `/league` **acusa
+falso positivo** em time completo e dentro do cap — visível no card do **Miller Time!** ($200,
+0 vagas, bid $0, pintado de vermelho). Corrigir só o falso negativo sem tratar este deixaria a
+tela com os dois erros trocando de lugar.
+
+**Por que parei aqui (e não implementei):** a restrição do próprio prompt diz — *"se a flag
+existente não capturar exatamente o estado (verificar na diagnose), **reportar antes de
+implementar variação, não decidir sozinho**"*. É exatamente o caso. Criar a flag envolve decisões
+que são do owner: **onde** ela mora, **qual** o limiar e **qual** o tratamento visual.
+
+**Opções (com recomendação, sem decidir):**
+- ⭐ **(a) `salary_engine.draft_budget`** — é onde `over_cap` e `insufficient_budget` já moram;
+  uma linha (`"cannot_fill_roster": empty_spots > 0 and usable < MIN_SALARY`) + teste no
+  `salary_engine_test`, e **os 7 consumidores herdam** (incluindo keeper sheet, auditoria e
+  `/draft_import`, hoje sem sinal). ⚠️ Exige liberar o `salary_engine`, que **esta sessão
+  proibia**. **Recomendada:** é estado do budget, não de tela.
+- **(b) derivação de display na rota** (`/budget` já devolve `cap_pct` e `shortfall`) +
+  `_build_team_card`. Não toca o engine, mas **nasce em dois lugares** — a réplica que o [[L3]]
+  gastou uma sessão para eliminar.
+- **(c) corrigir o limiar inline em cada tela** — ⛔ mantém 3 réplicas e o limiar em JS/template.
+
+**Escopo excluído por decisão registrada:** o excesso de teto de roster do achane é
+[[OFF26-13]] 🔲, não este item.
+
+**Nenhuma linha de código foi alterada nesta sessão** — logo o gate visual do [[O7]] não
+disparou (o diff não toca `static/*.css` nem `templates/*.html`), o que é o comportamento
+correto do disparo mecânico.
+
+---
+
+**F2 (13/08/2026, MAN-UX-BID0-F2) — a flag canônica e os DOIS defeitos corrigidos:**
+
+**A flag nasceu no engine, ao lado das irmãs** (`salary_engine.draft_budget`), **aditiva** — as 9
+chaves anteriores intactas:
+
+```python
+"cannot_fill_roster": empty_spots > 0 and usable < MIN_SALARY
+```
+
+**8 testes de fronteira novos** (`salary_engine_test.TestCannotFillRoster`), entre eles os três
+casos que a diagnose mediu **antes de a flag existir**: 198/3 vagas (**inviável**, e as duas flags
+antigas dizendo `False`), 197 (**fecha exatamente** — teto $1 para 3 vagas, viável) e **roster
+cheio a $200 com 0 vagas** (**saudável**, o falso positivo do Miller Time!). Mais um teste que
+falha se alguma chave antiga mudar. **Baseline do engine: 54 → 62.**
+
+**Consumidores — nenhum recalcula limiar:**
+- **`/cap_projector`** (barra sticky, a cada atualização da simulação): o **perigo** de folha,
+  restante e bid passa a vir de `over_cap` / `insufficient_budget || cannot_fill_roster`; banner
+  novo *"Cenário inviável: com $X não dá para preencher N spot(s) a $1 cada"*; a barra de
+  progresso troca `cap_pct >= 100` por `over_cap` (o `>= 100` pintava de perigo a folha
+  **exatamente** no cap). **Amarelos (`< 10`, `> 80%`) ficam** — aconselhamento, não estado
+  (item 3 do prompt).
+- **`/league`**: `bid_alerta` e `over_cap` vêm **prontos** do card; os **dois** pontos de template
+  com `<= 0` e os **dois** com `cap_space < 0` saíram.
+- **Auditoria pré-leilão**: a flag vira **aviso** no canal `warnings` que já existia. ⛔ **Não é
+  uma 5ª classe de divergência** (o D2 fixa quatro e há teste que falha se alguém criar outra);
+  sheet sem a chave → `.get()` → nada acontece, e as **34 fixtures congeladas seguem válidas sem
+  edição**.
+- **Keeper sheet**: a flag entra **só no payload**. **CSV e tabela byte-idênticos** — cabeçalho
+  conferido (`Time,Keeper,Posicao,Salario,IR,Bid Maximo (time),Late drop`), zero coluna nova.
+
+**Validação em cópia do banco, com os dois cenários CONSTRUÍDOS** (19 jogadores somando 198; e um
+roster cheio somando exatamente 200):
+
+| | bid | alerta | veredicto |
+|---|---|---|---|
+| time inviável (3 vagas, teto $0) | **$0** | **⚠️ + vermelho** | acende ✓ |
+| roster cheio saudável (0 vagas, teto $0) | **$0** | nenhum | apaga ✓ |
+
+⭐ **O mesmo número, $0, com tratamentos opostos** — é exatamente a discriminação que o item pedia,
+e que nenhum limiar numérico local conseguiria fazer. Conferido nas **duas bases**: linha "Atual"
+(corrente, pré-rollover) e herói do card (corrente, pós-rollover, com o gate fechado). No
+`/budget`, o alerta **acende com o cenário inviável e apaga ao cortar 1 jogador** (teto $0 → $17).
+
+**Gate do [[O7]] exercido** (o diff toca templates): suíte **exit 0**, 16 medições, 0 achados.
+**535 testes verdes** no total.
+
+⚠️ **Tropeço meu na validação:** a 1ª versão da sonda mirou o **herói** do card, que pré-rollover
+é o bid **PROJETADO** — outra base, com os salários que eu construí já valorizados. O app estava
+certo; a leitura é que estava errada. Corrigido para conferir as duas bases explicitamente.
+
+**Cross-refs:** [[OFF26-18]] (o fencepost que define `usable`), [[L3]] (flags canônicas e a
+regra de não recalcular limiar na tela), [[OFF26-13]] (o excesso de roster, fora daqui),
+[[O7]] (o gate que não precisou disparar).
