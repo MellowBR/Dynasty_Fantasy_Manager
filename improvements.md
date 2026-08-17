@@ -6829,4 +6829,83 @@ R2/R3 = `_build_default_draft_order(standings)` = seeds 1..6 por `rank 13-seed` 
 ⚠️ **Decisão da direção é do owner** — a F1 recomenda, não arbitra. ⚠️ **Produção não foi lida**
 (sem credencial nesta máquina); todas as medições vêm do `dynasty.db` **local** em modo read-only.
 
+#### F1b (17/08/2026, MAN-UX20-F1b — read-only; análise crítica pré-execução da direção (e))
+
+O owner, ao ver o achado da F1 (R1×R2/R3 causador do desalinho), definiou a **direção (e)**: colunas
+por round independentes, lista linear com nome do time na célula, rótulo de origem no cabeçalho,
+clique realça picks do time, sem ✎. Análise crítica confronta as premissas da direção contra o
+código e mapeia a anatomia da mudança.
+
+**Premissas críticas verificadas:**
+
+| Premissa | Evidência | Veredito |
+|---|---|---|
+| Ordem nasce no backend na rota | `picks_page()` → `_build_pick_projections()` (picks.py:51) | ✅ |
+| Chega estruturada por `(team_id, round)` | `proj: {(season, round, team_id) → {pick_number, locked}}` (linhas 261, 274) | ✅ |
+| R2 e R3 são o mesmo vetor | `tail_rounds = [r for r in PICK_ROUNDS if r != 1]` reutiliza `_build_default_draft_order(standings)` (linhas 268-277) | ✅ |
+| Rechaveamento é transformação pura, zero query | Ordem já está em `proj`; reordenar por round é reordenação do dict existente | ✅ |
+| Sem tocar `_build_pick_projections` | Transformação nova recebe `matrix` pronto, rota fica em cima | ✅ viável |
+
+**Omissões do prompt (não refutam, apenas alertam):**
+
+- R2 e R3 podem divergir no futuro se standings for refrescado entre draft real e redraft; hoje não.
+- Célula vazia `—` em (time, round) sem pick original existe e precisa destino.
+- Filtro JS acoplado a "exatamente 3 rounds" (passo de 4); novo JS sem acoplamento.
+- Projeção travada vs estimada existe no template mas não é usada; direção (e) preserva.
+
+**Anatomia da mudança por camada:**
+
+| Camada | Hoje | Depois | Tamanho | Risco |
+|---|---|---|---|---|
+| **Rota (Python)** | `matrix[season]["projections"] = {(team_id, round): {...}}` | Transformação nova: `round_centered = {(season, round): [(position, team_id, ...)]}`; reordenação pura após `_build_pick_projections` | +20 linhas | 🟢 Nenhum — reordenação de estrutura existente |
+| **Template** | Grid 4 colunas (times + 3 rounds), linha por time | 3 seções lineares por round, lista ordenada de picks com nome do time | 30 add / 60 rem = -30 linhas | 🟢 Simpler — sem grid minmax |
+| **CSS** | `.picks-matrix` grid `minmax(150px, 1.4fr) repeat(3, minmax(110px, 1fr))` | `.draft-order-row` flexbox linear | 25 add / 15 rem = +10 linhas | 🟢 Mais seguro (sem reflow espremido) |
+| **JavaScript** | `filterTeam(name)` com passo de 4 (`HEADER_COUNT=4, i+=4`) | `highlightTeam(name)` com toggle por elemento vivo + novo `filterTeam` simples | 20 add / 15 rem = +5 linhas | 🟡 Mecânica muda, sem testes automáticos |
+
+**Diff total:** ~30 linhas neto. **Nenhum impacto em `/api/picks` ou `/trades`** (restrição respeitada).
+
+**Destino dos 5 comportamentos preservados:**
+
+| # | Comportamento | Status | Forma |
+|---|---|---|---|
+| 1 | Filtro por equipe | ✅ Continua | `filterTeam` refatorado — itera `.draft-order-row` por `data-team-name`, sem passo de 4 |
+| 2 | Edição admin por célula | ❌ Removido (F15) | UI: ✎ desaparece; backend: check consumidores antes de remover rota (escopo de F15) |
+| 3 | Indicação de pick trocada | ✅ Preservado | `is-traded` + `→ {{ pick.current_team_name }}` vira texto `(via <original>)` na linha |
+| 4 | Destaque "minha" | ⚠️ Convive com realce | 3 opções: (a) cor de fundo + borda sutil de realce, (b) borda/box-shadow sutil, (c) abandona cor em favor de realce único — visual pending F2 |
+| 5 | Multi-season | ✅ Preservado | Mesmo `PICK_SEASONS`; seções por season independentes; sem projeção = seção não renderiza |
+
+**Comportamentos existentes não capturados no registro (F1, linhas 6757-6776) — destino:**
+
+| Comportamento | Direção (e) | Risco |
+|---|---|---|
+| ⭐ **Link trade pré-seleção (M9-FIX)** — toda célula navega para `/trades?team_a=...` | ⚠️ **Migra para alvo discreto dentro da linha** — gesto (a) decidido: clique realça, trade fica em alvo explícito (ícone? link discreto?) | 🔴 **Alta** — perda de funcionalidade sem forma concreta; F2 deve resolver |
+| **`projection.locked` (travada vs estimada)** — dado existe, não é renderizado | ✅ Preservado — não é escopo desta direção; carregar de F1: `/trades` usa `#` × `~#`, board não | 🟢 Baixa |
+| **Tooltip** com season · round · original · atual | ✅ Preservado — atributo `title` na linha | 🟢 Nenhum |
+| **Célula vazia `—`** para sem pick | ✅ Renderizada — lista simples deixa o hiato óbvio | 🟢 Nenhum |
+| **Banner e card de odds** | ✅ Intactos — fora do redesenho | 🟢 Nenhum |
+| **`resetPick()` código morto** | ✅ Removido de carona — função JS morta | 🟢 Nenhum |
+
+**Casos degenerados:**
+
+| Caso | Comportamento | Risco |
+|---|---|---|
+| Sem projeção (2027/2028 hoje; 2026 após rollover) | Seção não é renderizada (como badges hoje) OU renderiza vazia com nota | 🟢 Nenhum — viável em ambos sentidos |
+| Viewport estreito (mobile) | Flexbox reflui naturalmente; muito estreito (<300px): `flex-direction: column` em media query | 🟢 Melhor que hoje (sem "apertão" de colunas) |
+| "3 rounds" triplicado (Python/JS/CSS) | Python: intacto (outros consumidores); JS: sem passo de 4 (novo `filterTeam` itera elemento); CSS: nenhum `repeat(3)`; acoplamento reduz de 3 → 1 sítio | 🟢 Positivo — dívida reduz |
+
+**Gate visual (O7):**
+
+Hoje `.picks-matrix` é exercida por testes de geometria. Depois:
+- ✅ `.draft-order-section`, `.draft-order-row` são estruturas lineares simples
+- ✅ Geometria previsível — sem minmax rebotes
+- ⚠️ Novo bloco é novo sítio para exercer, mas simpler que grid
+- **Parecer:** O7 fica mais seguro.
+
+**Veredito de execução:**
+
+- **F2 é seguro?** ✅ SIM — nenhuma premissa refutada, transformação viável, riscos mapeados, 1 decision point (forma do trade link)
+- **Tamanho?** ~30 linhas neto (moderado) — sem toque em lógica pura
+- **Bloqueadores?** ⚠️ 1 decision point: **forma concreta do alvo de trade discreto** — precisa estar resolvida na F2
+- **Janela?** ✅ Executável a qualquer momento — ideal pré-18/08 para validar em vivo; pós-rollover, seções vazias (não observável mas funcional). **Nenhum bloqueador operacional.**
+
 ---
