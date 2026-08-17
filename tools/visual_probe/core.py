@@ -94,12 +94,11 @@ PAGES = [
     {
         "nome": "picks",
         "rota": "/picks",
-        "geometria": [".picks-matrix"],
+        "geometria": [".picks-order-container"],
         "anatomia": None,
-        "nota": "a matriz é grade livre e server-rendered, mas as células divergem "
-                "LEGITIMAMENTE (vazia × preenchida × trocada) — anatomia aqui daria "
-                "falso positivo. Só geometria até haver sub-seletor que isole as "
-                "células comparáveis.",
+        "nota": "UX20: a matriz virou colunas lineares por round. As linhas divergem "
+                "LEGITIMAMENTE (com × sem 'via', com × sem alvo de trade) — anatomia "
+                "aqui daria falso positivo. Só geometria, como antes.",
     },
 ]
 

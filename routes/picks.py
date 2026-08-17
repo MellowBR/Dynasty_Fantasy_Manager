@@ -82,6 +82,32 @@ def picks_page():
                 if key in proj:
                     matrix[season]["projections"][(r["id"], rnd)] = proj[key]
 
+    # UX20-F2: transformação round-centered — lista linear por round, ordenada por pick_number
+    round_centered = {}
+    for season in PICK_SEASONS:
+        if season not in matrix:
+            continue
+        round_centered[season] = {}
+        season_picks = [p for p in all_picks if p.season == season]
+        tids_in_season = {p.original_team_id for p in season_picks if p.original_team_id}
+        for rnd in PICK_ROUNDS:
+            picks_in_round = []
+            for team_id in tids_in_season:
+                if (team_id, rnd) in matrix[season]["projections"]:
+                    proj_data = matrix[season]["projections"][(team_id, rnd)]
+                    pick_obj = matrix[season]["cells"].get((team_id, rnd))
+                    picks_in_round.append({
+                        'position': proj_data['pick_number'],
+                        'team_id': team_id,
+                        'team_name': teams_by_id[team_id].name,
+                        'pick': pick_obj,
+                        'locked': proj_data['locked'],
+                    })
+            if not picks_in_round:
+                continue
+            picks_in_round.sort(key=lambda x: x['position'])
+            round_centered[season][rnd] = picks_in_round
+
     # M9: meu time vinculado (ou None se admin sem time)
     my_team_name = (current_user.team_rel.name
                     if current_user.is_authenticated and current_user.team_rel
@@ -89,6 +115,7 @@ def picks_page():
 
     return render_template("picks.html",
                            matrix=matrix,
+                           round_centered=round_centered,
                            seasons=PICK_SEASONS,
                            rounds=PICK_ROUNDS,
                            teams=[t.name for t in teams],

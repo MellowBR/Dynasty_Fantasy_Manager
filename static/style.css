@@ -1400,151 +1400,135 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   color: var(--text-dim, #aaa);
 }
 
-/* ── M9: Picks Matrix ─────────────────────────────────────────────────────── */
+/* ── UX20-F2: Draft order by round (linear, independent columns) ────────────── */
 
-.picks-matrix {
-  display: grid;
-  grid-template-columns: minmax(150px, 1.4fr) repeat(3, minmax(110px, 1fr));
-  gap: 4px;
-  margin: .5rem 0 1rem;
-  background: rgba(255,255,255,.02);
-  border: 1px solid rgba(255,255,255,.06);
-  border-radius: 6px;
-  padding: 4px;
-}
-
-.picks-matrix-header {
-  padding: .45rem .6rem;
-  font-size: .78rem;
-  color: var(--text-dim, #aaa);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  font-weight: 600;
-  text-align: center;
-  background: rgba(255,255,255,.03);
-  border-radius: 4px;
-}
-
-.picks-matrix-corner {
-  background: transparent;
-}
-
-.picks-matrix-rowlabel {
-  padding: .45rem .6rem;
-  font-size: .85rem;
-  font-weight: 500;
-  color: var(--text, #e0e0e0);
-  background: rgba(255,255,255,.03);
-  border-radius: 4px;
+.picks-order-container {
   display: flex;
-  align-items: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  gap: 2rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
 }
 
-.picks-matrix-cell {
-  padding: .4rem .55rem;
-  border-radius: 4px;
-  background: rgba(255,255,255,.02);
-  border: 1px solid rgba(255,255,255,.04);
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  gap: .4rem;
-  font-size: .82rem;
-  position: relative;
-  text-decoration: none;
-  color: inherit;
-  transition: background .12s ease, border-color .12s ease;
-}
-
-.picks-matrix-cell.is-empty {
-  color: var(--text-dim, #aaa);
-  justify-content: center;
-  opacity: .4;
-}
-
-.picks-matrix-cell.is-mine {
-  border-color: rgba(110, 231, 183, 0.4);
-  background: rgba(110, 231, 183, 0.05);
-}
-
-.picks-matrix-cell.is-traded:not(.is-mine) {
-  background: rgba(110, 168, 254, 0.05);
-}
-
-.picks-matrix-cell.clickable {
-  cursor: pointer;
-}
-
-.picks-matrix-cell.clickable:hover {
-  background: rgba(110, 168, 254, 0.14);
-  border-color: rgba(110, 168, 254, 0.5);
-}
-
-.picks-badge {
-  display: inline-block;
-  padding: .1rem .4rem;
-  font-size: .7rem;
-  font-weight: 700;
-  color: var(--text, #e0e0e0);
-  background: rgba(255,255,255,.08);
-  border-radius: 99px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.picks-matrix-cell .pick-current-owner {
-  font-size: .75rem;
-  color: #6ea8fe;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.draft-order-column {
   flex: 1;
+  min-width: 280px;
 }
 
-.picks-matrix-cell .pick-mine-label {
-  font-size: .7rem;
-  color: #7ee2b5;
+.draft-order-header {
+  font-size: 1rem;
   font-weight: 600;
-  margin-left: auto;
+  margin-bottom: 1rem;
+  padding-bottom: .5rem;
+  border-bottom: 2px solid var(--border, #333);
 }
 
-.picks-matrix-cell .pick-edit-btn {
-  margin-left: auto;
-  opacity: 0;
-  transition: opacity .15s ease;
-  background: rgba(255,255,255,.08);
-  border: none;
+.order-origin {
+  font-size: .85rem;
+  font-weight: normal;
   color: var(--text-dim, #aaa);
+}
+
+.draft-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.draft-order-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: .75rem 1rem;
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  background: rgba(255,255,255,.02);
   cursor: pointer;
-  padding: .15rem .35rem;
-  font-size: .75rem;
+  transition: background .1s ease, box-shadow .1s ease;
+}
+
+.draft-order-row:hover {
+  background: rgba(255,255,255,.05);
+}
+
+.draft-order-row.is-mine {
+  background: rgba(126,226,181,.08);
+  border-color: rgba(126,226,181,.3);
+}
+
+.draft-order-row.highlighted {
+  background: rgba(102,186,255,.15);
+  border-color: rgba(102,186,255,.5);
+  box-shadow: 0 0 8px rgba(102,186,255,.2);
+}
+
+.draft-order-row.is-mine.highlighted {
+  /* Both colors visible: green base + blue highlight overlay */
+  background: linear-gradient(135deg, rgba(126,226,181,.12), rgba(102,186,255,.15));
+  border-color: rgba(102,186,255,.5);
+}
+
+.draft-order-position {
+  font-weight: 600;
+  min-width: 3rem;
+  text-align: center;
+  color: var(--text-dim, #aaa);
+  font-size: .9rem;
+}
+
+.draft-order-team {
+  flex: 1;
+  font-weight: 500;
+}
+
+.draft-order-via {
+  font-size: .85rem;
+  color: var(--text-dim, #aaa);
+  margin-left: auto;
+}
+
+.draft-order-trade-link {
+  margin-left: auto;
+  padding: .35rem .5rem;
+  font-size: 1rem;
+  color: #6ea8fe;
+  text-decoration: none;
+  border: 1px solid rgba(110,168,254,.3);
   border-radius: 3px;
-  line-height: 1;
+  transition: all .15s ease;
+  opacity: 0.6;
 }
 
-.picks-matrix-cell:hover .pick-edit-btn {
+.draft-order-trade-link:hover {
   opacity: 1;
-}
-
-.picks-matrix-cell .pick-edit-btn:hover {
-  background: rgba(255,255,255,.18);
-  color: var(--text, #e0e0e0);
+  background: rgba(110,168,254,.1);
+  border-color: rgba(110,168,254,.6);
 }
 
 @media (max-width: 720px) {
-  .picks-matrix {
-    grid-template-columns: minmax(100px, 1.2fr) repeat(3, minmax(70px, 1fr));
+  .picks-order-container {
+    gap: 1rem;
   }
-  .picks-matrix-rowlabel {
+
+  .draft-order-column {
+    min-width: 100%;
+  }
+
+  .draft-order-row {
+    gap: .5rem;
+    padding: .5rem .75rem;
+  }
+
+  .draft-order-position {
+    min-width: 2.5rem;
+    font-size: .85rem;
+  }
+
+  .draft-order-team {
+    font-size: .9rem;
+  }
+
+  .draft-order-via {
     font-size: .75rem;
-    padding: .35rem .4rem;
-  }
-  .picks-matrix-cell {
-    font-size: .72rem;
-    min-height: 36px;
   }
 }
 

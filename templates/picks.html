@@ -21,84 +21,65 @@
 </div>
 {% endif %}
 
+{# UX20-F2: uma coluna de round = lista linear já na ordem das picks daquele round.
+   O rótulo do cabeçalho diz de onde vem a ordem — é a peça que evita a leitura falsa. #}
+{% macro coluna_round(entries, rnd, titulo, origem) %}
+<div class="draft-order-column">
+  <h3 class="draft-order-header">{{ titulo }} <span class="order-origin">· {{ origem }}</span></h3>
+  <div class="draft-order-list">
+    {% for entry in entries %}
+    {% set pick = entry.pick %}
+    {% if pick %}
+      {% set dono = pick.current_team_name %}
+      {% set is_mine = my_team_name and dono == my_team_name %}
+      <div class="draft-order-row{% if is_mine %} is-mine{% endif %}"
+           data-team-name="{{ dono }}"
+           data-pick-id="{{ pick.id }}"
+           title="Season {{ pick.season }} · Round {{ pick.round }} · Original: {{ pick.original_team_name }} · Atual: {{ dono }}">
+        <div class="draft-order-position">{{ rnd }}.{{ '%02d' % entry.position }}</div>
+        <div class="draft-order-team">{{ dono }}</div>
+        {% if pick.traded_away %}
+        <div class="draft-order-via">via {{ pick.original_team_name }}</div>
+        {% endif %}
+        {% if my_team_name %}
+        <a class="draft-order-trade-link"
+           title="{% if is_mine %}Oferecer esta pick em trade{% else %}Propor trade com {{ dono }} (pedir esta pick){% endif %}"
+           href="{% if is_mine %}{{ url_for('trades.trades_page', team_a=my_team_name, pick_a=pick.id) }}{% else %}{{ url_for('trades.trades_page', team_a=my_team_name, team_b=dono, pick_b=pick.id) }}{% endif %}">⇄</a>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="draft-order-row is-empty" title="Sem pick registrada">
+        <div class="draft-order-position">{{ rnd }}.{{ '%02d' % entry.position }}</div>
+        <div class="draft-order-team text-dim">—</div>
+      </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endmacro %}
+
 {% for season in seasons %}
-{% set season_data = matrix.get(season) %}
-{% if season_data %}
+{% if season in round_centered %}
+{% set round_data = round_centered[season] %}
 <section class="picks-year-section">
   <h2 class="picks-year-title">{{ season }}</h2>
 
-  <div class="picks-matrix">
-    <div class="picks-matrix-header picks-matrix-corner"></div>
-    {% for rnd in rounds %}
-      <div class="picks-matrix-header">Round {{ rnd }}</div>
-    {% endfor %}
-
-    {# S3: a linha é chaveada pelo id do time; `row.name` é o nome vivo (rótulo). #}
-    {% for row in season_data.teams_ordered %}
-      <div class="picks-matrix-rowlabel" title="{{ row.name }}" data-team="{{ row.name }}">{{ row.name }}</div>
-      {% for rnd in rounds %}
-        {% set pick = season_data.cells.get((row.id, rnd)) %}
-        {% set projection = season_data.projections.get((row.id, rnd)) %}
-        {% if pick %}
-          {% set is_mine = my_team_name and pick.current_team_name == my_team_name %}
-          {# M9-FIX: toda pick é clicável quando o user tem time vinculado.
-             Minha pick → /trades?team_a=meu&pick_a=<id> (oferecer).
-             Pick de outro → /trades?team_a=meu&team_b=<dono>&pick_b=<id> (pedir). #}
-          {% set clickable = my_team_name is not none %}
-          {% set cell_classes = 'picks-matrix-cell' +
-               (' is-mine' if is_mine else '') +
-               (' is-traded' if pick.traded_away else '') +
-               (' clickable' if clickable else '') %}
-          {% set cell_title = 'Season ' ~ pick.season ~ ' · Round ' ~ pick.round ~
-                               ' · Original: ' ~ pick.original_team_name ~
-                               ' · Atual: ' ~ pick.current_team_name %}
-          {% if clickable and is_mine %}
-            {% set cell_title = cell_title ~ ' — Clique para oferecer esta pick em trade' %}
-            {% set href_target = url_for('trades.trades_page', team_a=my_team_name, pick_a=pick.id) %}
-          {% elif clickable %}
-            {% set cell_title = cell_title ~ ' — Clique para propor trade com ' ~ pick.current_team_name ~ ' (pedir esta pick)' %}
-            {% set href_target = url_for('trades.trades_page', team_a=my_team_name, team_b=pick.current_team_name, pick_b=pick.id) %}
-          {% endif %}
-          {% if clickable %}
-            <a class="{{ cell_classes }}"
-               data-orig="{{ pick.original_team_name }}"
-               data-cur="{{ pick.current_team_name }}"
-               data-pick-id="{{ pick.id }}"
-               title="{{ cell_title }}"
-               href="{{ href_target }}">
-              {% if projection %}<span class="picks-badge">#{{ projection.pick_number }}</span>{% endif %}
-              {% if pick.traded_away %}
-                <span class="pick-current-owner">→ {{ pick.current_team_name }}</span>
-              {% elif is_mine %}
-                <span class="pick-mine-label">minha</span>
-              {% endif %}
-              <button class="btn-xs pick-edit-btn"
-                      onclick="event.preventDefault();event.stopPropagation();openPickEdit({{ pick.id }}, '{{ pick.current_team_name | replace("'", "\\'") }}')"
-                      title="Editar pick (admin)">✎</button>
-            </a>
-          {% else %}
-            <div class="{{ cell_classes }}"
-                 data-orig="{{ pick.original_team_name }}"
-                 data-cur="{{ pick.current_team_name }}"
-                 data-pick-id="{{ pick.id }}"
-                 title="{{ cell_title }}">
-              {% if projection %}<span class="picks-badge">#{{ projection.pick_number }}</span>{% endif %}
-              {% if pick.traded_away %}
-                <span class="pick-current-owner">→ {{ pick.current_team_name }}</span>
-              {% elif is_mine %}
-                <span class="pick-mine-label">minha</span>
-              {% endif %}
-              <button class="btn-xs pick-edit-btn"
-                      onclick="openPickEdit({{ pick.id }}, '{{ pick.current_team_name | replace("'", "\\'") }}')"
-                      title="Editar pick (admin)">✎</button>
-            </div>
-          {% endif %}
-        {% else %}
-          <div class="picks-matrix-cell is-empty" title="Sem pick">—</div>
-        {% endif %}
-      {% endfor %}
-    {% endfor %}
+  {% if round_data %}
+  <div class="picks-order-container">
+    {# M16: R1 vem do sorteio; R2 e R3 são o MESMO vetor (standings invertido). #}
+    {% if round_data.get(1) %}
+      {{ coluna_round(round_data[1], 1, 'Round 1', 'Sorteio (lottery)') }}
+    {% endif %}
+    {% if round_data.get(2) %}
+      {{ coluna_round(round_data[2], 2, 'Round 2', 'Classificação invertida') }}
+    {% endif %}
+    {% if round_data.get(3) %}
+      {{ coluna_round(round_data[3], 3, 'Round 3', 'Classificação invertida') }}
+    {% endif %}
   </div>
+  {% else %}
+  <p class="text-dim">Ordem do draft ainda não definida para {{ season }} — sem sorteio travado nem classificação da temporada anterior. As picks existem; a ordem aparece quando a fonte existir.</p>
+  {% endif %}
 </section>
 {% endif %}
 {% endfor %}
@@ -120,82 +101,49 @@
   </p>
 </div>
 
-<!-- Edit pick modal -->
-<div id="pick-modal" class="modal" style="display:none">
-  <div class="modal-overlay" onclick="closePick()"></div>
-  <div class="modal-box modal-sm">
-    <h2>Editar Pick</h2>
-    <input type="hidden" id="modal-pick-id" />
-    <div class="form-group" style="margin-bottom:1rem">
-      <label>Dono Atual</label>
-      <select id="modal-owner">
-        {% for t in teams %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closePick()">Cancelar</button>
-      <button class="btn btn-primary" onclick="savePick()">Salvar</button>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+let highlightedTeam = null;
+
+function highlightTeam(teamName, event) {
+  // UX20-F2: toggle highlight — clique realça todas as picks do time; clique de novo limpa
+  if (event) event.stopPropagation();
+
+  document.querySelectorAll('.draft-order-row').forEach(row => {
+    if (highlightedTeam === teamName) {
+      // Clique de novo limpa
+      row.classList.remove('highlighted');
+    } else if (row.dataset.teamName === teamName) {
+      // Novo time: realça as dele
+      row.classList.add('highlighted');
+    } else {
+      // Remove realce de outros
+      row.classList.remove('highlighted');
+    }
+  });
+
+  highlightedTeam = (highlightedTeam === teamName) ? null : teamName;
+}
+
 function filterTeam(name) {
-  // M9: filtra linhas da matrix. Se nenhum filtro: tudo visível.
-  // Com filtro: mostra rowlabel onde data-team === name + 3 cells da mesma row
-  // (+ também cells trocadas em rows de outros times onde current == name).
-  document.querySelectorAll('.picks-year-section').forEach(section => {
-    const matrix = section.querySelector('.picks-matrix');
-    if (!matrix) return;
-    const children = Array.from(matrix.children);
-    // Children: 1 corner + 3 headers + N × (1 rowlabel + 3 cells)
-    // Vamos iterar em grupos de 4 (rowlabel + 3 cells) após os headers.
-    // Header count = 1 (corner) + 3 (round headers) = 4
-    const HEADER_COUNT = 4;
-    if (!name) {
-      children.forEach(c => c.style.display = '');
-      return;
-    }
-    // Cada row tem 4 elementos: [rowlabel, cell_r1, cell_r2, cell_r3]
-    for (let i = HEADER_COUNT; i < children.length; i += 4) {
-      const rowlabel = children[i];
-      const cells = children.slice(i + 1, i + 4);
-      const origTeam = rowlabel && rowlabel.dataset.team;
-      // Linha fica visível se: esse é o time filtrado OU alguma cell tem current_team === name
-      const rowMatches = origTeam === name;
-      const cellMatches = cells.some(c => c && c.dataset.cur === name);
-      const visible = rowMatches || cellMatches;
-      [rowlabel, ...cells].forEach(el => { if (el) el.style.display = visible ? '' : 'none'; });
-    }
+  // UX20-F2: filtra linhas por data-team-name. Se nenhum filtro: tudo visível.
+  document.querySelectorAll('.draft-order-row').forEach(row => {
+    const visible = !name || row.dataset.teamName === name;
+    row.style.display = visible ? '' : 'none';
   });
 }
 
-function openPickEdit(pickId, currentOwner) {
-  document.getElementById('modal-pick-id').value = pickId;
-  const sel = document.getElementById('modal-owner');
-  for (const opt of sel.options) opt.selected = (opt.value === currentOwner);
-  document.getElementById('pick-modal').style.display = 'flex';
-}
-
-function closePick() {
-  document.getElementById('pick-modal').style.display = 'none';
-}
-
-function savePick() {
-  const id = document.getElementById('modal-pick-id').value;
-  const owner = document.getElementById('modal-owner').value;
-  fetch(`/api/picks/${id}`, {
-    method:'PATCH', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({current_team_name: owner})
-  }).then(r => r.json()).then(() => { closePick(); location.reload(); });
-}
-
-function resetPick(id) {
-  if (!confirm('Resetar pick para o dono original?')) return;
-  fetch(`/api/picks/${id}/reset`, {method:'POST'})
-    .then(r => r.json()).then(() => location.reload());
-}
+// Attach click listeners to all draft-order-rows for highlight toggle
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.draft-order-row').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'A') {  // Don't trigger if clicking the trade link
+        highlightTeam(row.dataset.teamName, e);
+      }
+    });
+  });
+});
 </script>
 {% endblock %}
