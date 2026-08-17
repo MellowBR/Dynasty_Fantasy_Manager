@@ -155,7 +155,7 @@
 | UX19 | **Selo PROV falso nas grandezas CORRENTES da `/league` pós-rollover** — `bid_provisional = not espn_final` é calculado contra `season + 1` ([league.py:138](routes/league.py#L138)); assim que o rollover vira a season, a consulta passa a perguntar por uma tabela ESPN de **2027**, que não existe ⇒ `True` — e o ramo pós-rollover da macro recebe `prov=bid_provisional` ([league.html:82](templates/league.html#L82)), marcando **PROV** justamente nos números que acabaram de nascer da tabela DEFINITIVA. ⚠️ Só a `/league`: no `/team/<id>` os dois selos vivem **dentro** do `{% if show_projection %}` ([team_detail.html:52-65](templates/team_detail.html#L52-L65)) e somem junto com a projeção; o `/cap_projector` lê `espn_is_final` por jogador e degrada para `None` (sem selo). Achado de auditoria da MAN-DP-PREFLIGHT-1808 — aparece **em 18/08**, no dia em que o selo deveria sumir. Cosmético (nenhum número muda), mas contradiz o evento do dia na tela de planejamento. Parente do [[L4]] (o outro efeito colateral do gate que só fecha) — MAN-DP-PREFLIGHT-1808/**MAN-OFF26-25** | Baixa | ⚠️ **CORRIGIDO DE CARONA 14/08/2026** no [[OFF26-25]] (decisão do owner: o helper único passa nos 4 sítios, e o UX19 fecha junto). `bid_provisional` passou a ser `show_projection and not espn_final` nas **duas** rotas — o selo qualifica o número **projetado**, e pós-rollover não há projeção para qualificar. Coberto por `cap_projetado_test` (27) + o gate visual do [[O7]]. **Falta a observação em 18/08**, no dia em que a projeção fecha — é a mesma janela do OFF26-25 |
 | O7 | **Sonda de validação visual como ferramenta permanente** (`tools/`, molde do [[O5]]): Playwright medindo **colisão / transbordo / overflow** + **assinatura de anatomia** para estruturas repetidas. Nasceu descartável na [[L3]] e pegou **dois** defeitos que suíte de unidade e leitura de HTML não pegam. **F1 decide:** cobertura inicial de páginas, larguras canônicas (incl. a **real de produção** e mobile), como servir as páginas (hoje é `file://` com HTML salvo do test client) e a ancoragem do gate (sessão que toca CSS/template roda a sonda antes do push — precedente do `backlog_audit.py`). Primeiro cliente: [[UX16]] — **MAN-L3-CLOSE-REG** | Média | ✅ 13/08/2026 (`tools/visual_probe/` + gate mecânico no CLAUDE.md; **demonstração bidirecional**: suíte verde `exit 0` em ~20s × controle `--css` pré-FIX-UX `exit 1` com **37 colisões @1280px**. 28 testes do núcleo puro. Mecanismo defeito conhecido × regressão nova se provou na estreia — corrigiu a lista de culpados do [[UX16]] de 4 p/ 5 **pela medição**. **Detalhe no archive**) |
 | UX15 | **Jogador pré-selecionado na página de trade** — o botão do perfil ([[M14]]) já leva os dois times; falta o jogador chegar marcado. Refinamento do campo 3 do [[UX12]] (archive); provável F2 direta, a confirmar réplica (quantos caminhos de entrada têm pré-seleção?) — MAN-ARC-BUSCA-DONE | Baixa | 🔲 |
-| UX20 | **Board global de picks ilegível quando a ordem do round difere da ordem das linhas** — as linhas são ancoradas por **owner** e as colunas por **round**, com a posição da pick só na badge `#N`; quando a ordem de um round não coincide com a ordem das linhas (caso real 2026: no Round 2 a segunda célula de baixo para cima é a pick **#5**, não a #2), a leitura vertical da coluna induz uma **sequência falsa** e o owner precisa varrer as 12 badges para reconstruir a ordem. **Direções candidatas registradas e NÃO arbitradas** (a escolha é entregável da F1): (a) inverter o eixo (coluna do round ordenada 1→12, célula mostra o dono atual) · (b) toggle "por time" × "por ordem de draft" · (c) visão linear complementar por round (1.01…N.12) sem remover o board · (d) o que a F1 achar superior. F1 pergunta de onde vem a ordem de cada round (projeção do lottery no R1 × critério dos demais — [[M16]]) e **se a marcação do board tem réplica** (outras telas que rendem picks, chips do trade manager, seção Picks do detalhe de time). ⛔ O redesenho **não pode criar leitura própria de ownership** — [[S2]]/`board_mirror` é a fonte canônica. Distinto do [[UX5]] (outra tela, problema de densidade e não de ordem) — MAN-UX15-REG | Média | 🔲 |
+| UX20 | **Board global de picks ilegível quando a ordem do round difere da ordem das linhas** — as linhas são ancoradas por **owner** e as colunas por **round**, com a posição da pick só na badge `#N`; quando a ordem de um round não coincide com a ordem das linhas (caso real 2026: no Round 2 a segunda célula de baixo para cima é a pick **#5**, não a #2), a leitura vertical da coluna induz uma **sequência falsa** e o owner precisa varrer as 12 badges para reconstruir a ordem. **Direções candidatas registradas e NÃO arbitradas** (a escolha é entregável da F1): (a) inverter o eixo (coluna do round ordenada 1→12, célula mostra o dono atual) · (b) toggle "por time" × "por ordem de draft" · (c) visão linear complementar por round (1.01…N.12) sem remover o board · (d) o que a F1 achar superior. F1 pergunta de onde vem a ordem de cada round (projeção do lottery no R1 × critério dos demais — [[M16]]) e **se a marcação do board tem réplica** (outras telas que rendem picks, chips do trade manager, seção Picks do detalhe de time). ⛔ O redesenho **não pode criar leitura própria de ownership** — [[S2]]/`board_mirror` é a fonte canônica. Distinto do [[UX5]] (outra tela, problema de densidade e não de ordem). **F1 17/08 (MAN-UX20-F1, read-only):** ⛔ **premissa central REFUTADA** — as linhas **não** são ancoradas por owner, são ordenadas pelo **`pick_number` projetado do R1** ([picks.py:68](routes/picks.py#L68)) ⇒ o board **já é** a visão "por ordem de draft" **do R1**, e a causa é **R1 × R2/R3** ([[M16]]: sorteio × classificação invertida), divergindo só nas 6 posições do lottery — reprodução mecânica do board 2026 na seção (linha 2 = R2 **#5** ✅ confere; ⚠️ *"de baixo para cima"* estava errado, é de cima para baixo) e **R2 ≡ R3 por construção**. Ordem **já chega estruturada** na rota (re-key puro, zero query nova); ⚠️ **`board_mirror`/[[S2]] não é consumido pelo board** (é sync — a autoridade em render é a linha `Pick`). ⛔ **Janela de observação fecha em 18/08:** pós-rollover `proj` fica **vazio** e o board perde **todas** as badges. Réplica: só o `/trades` compartilha a fonte (e é **mais rico** — `~#` × `#`); `/team/<id>` e a proposta não têm projeção; **órfão já existente**: `/picks/lottery/<season>` é a linear do R1 **sem link a partir do board**. Achados fora da lista: **célula = link de trade** ([[M9]]-FIX), `✎` **sem gate de admin** no template (403 silencioso), "3 rounds" **triplicado** (py/JS/CSS), `resetPick()` morto. **Recomendação (d): (c) enxuta** — rotular a origem da ordem no cabeçalho de cada round (ataca a CAUSA, 1 linha) + bloco linear de 2 ordens + fechar o órfão de navegação; **(a) rejeitada** (o eixo já está invertido para o R1 e uma ordem de linhas não serve aos 3 rounds) — **decisão do owner** — MAN-UX15-REG/**MAN-UX20-F1** | Média | 🔲 |
 | OFF26-23 | **Ano de contrato do rookie 2026 × rollover × passo 5** — pergunta do owner a 7 dias do draft: o rookie entra e PERMANECE Ano 1? **F1 10/08 (MAN-OFF26-23-REG-F1):** a ordem segura existe mas **não é imposta por código** — o `draft_import` não tem gate de `rollover_done`; importar o draft ANTES do rollover incrementaria todo rookie p/ Ano 2 (varredura cega, `offseason.py:686`). **Roteiro seguro da semana entregue na seção** (rollover 18/08 ANTES do import do draft; passo 5 só pós-24/08 — validado: nada o lê além da UI, e o clear precoce zeraria os salários do próprio import). Gainwell = mesma manifestação, raiz distinta (canal, não ordem) — MAN-OFF26-23-REG-F1/-F2/**-FIX** (SyntaxError no JS da /offseason pego pelo smoke do owner — string quebrada na edição gerada; fix de 1 linha + `template_js_test.py` como guarda permanente) | Alta (semana 17→24/08) | ⚠️ 10/08/2026 (**gates + fix no ar — smoke prod pendente**, gate [[PROC1]]) |
 | OFF26-24 | **Script de população do board da liga fantasma** — decisão do owner 10/08 (reverte o adiamento p/ 2027): Playwright headed na máquina do owner, perfil dedicado logado, ⛔ guarda de nascença `league_id 1389725099556372481` + ⛔ API interna vetada (a descoberta do `draft_id` usa a API PÚBLICA da liga, a mesma do OFF26-4). **Cowork segue plano A** até o critério: 12/12 em ensaio + auditoria OFF26-4 zerada + zero intervenção + RESET exercido, **até 19/08** — sem isso, 2026 roda Cowork e o script vai a 2027. F1 10/08 (sheet JSON sem sid → export do `build_sheet`); **ensaio 11/08** (spec de seletores; achado: o cliente MENTE — comando via DOM, **verdade via API**); **F2a 11/08 (MAN-OFF26-24-F2a):** `tools/phantom_board/` — núcleo puro + guardas de nascença + `validate` read-only + `designate` ponta a ponta + endpoint `keeper_sheet_export`; 30→35 testes; **-F2a-FIX 11/08**: guarda de identidade refeita POR CONSTRUÇÃO (URL×draft_id derivado — a página do draft não exibe o nome da liga) + espera de login na 1ª vida do perfil (JOIN DRAFT proibido); `validate` já VERDE em execução real (18/18, $176) — MAN-OFF26-24-REG-F1/**-F2a (FECHADA: Cam Ward assentado via API; validate 19/19)/-F2b** (populate por time + --all retomável; idempotência PRIMEIRO — a lição da F2a; bloqueado_teto = resultado; auditoria OFF26-4 como juiz; **FIX8: assentamento ASSÍNCRONO** — lag real da API >5min (Josh Allen) matou o poll bloqueante; reconciliação por time c/ teto 300s + reload no meio (hipótese do cache por visita, telemetria decide) + `assentado_local_api_atrasada`; 87 testes) (**FIX9 12/08:** campanha real — abort de time deixava o MODAL aberto → TimeoutError cru no time seguinte; higiene de estado em TODO abort + verificação defensiva pré-clique + populate sem traceback cru (abort padrão de time E de campanha); anti-homônimo passou a exigir NOME — a busca do Sleeper é fuzzy: "Malik Willis" devolvia Malik Williams ×2 + Hajj-Malik Williams QB, FAs de sigla vazia = linhas REAIS, não artefato; critério 0/2+ intacto; 104 testes) (**FIX10 12/08:** campanha 12/12 — as DUAS caras do teto: além da recusa síncrona §B.3.2, o input CLAMPA silenciosamente ao max bid (digitou 6/4/3/2, gravou 5/1/1/1 = $196 sem aviso); modelo verificado ao dólar `max_bid = 200 − gasto − $1×vagas restantes`; fix = READ-BACK do input pré-SET → clampou = bloqueado_teto DO KEEPER, nada gravado, sheet canônica; conferência aponta divergentes por nome; telemetria: lag puro 8–121s, zero reload — contra a hipótese do cache; **Travis Hunter = único two-way (DB+WR) dos 237 da sheet** → pendência OFF26-24-HUNTER c/ micro-probe manual; 121 testes) (**FIX11 12/08:** probe do owner FECHOU a HUNTER — ele está no pool (rank 167, tabs All+WR, "+" habilitado), rótulo "DB,WR"; o abort real foi a eleição exigindo igualdade de posição; fix = pertencimento (`position_matches`, fonte única): "WR" ∈ "DB,WR", "QB" segue não casando; parse devolve o rótulo íntegro; anti-homônimo intacto; 134 testes) (**GO 12/08:** **critério de 19/08 CUMPRIDO com 7 dias de antecedência** — ciclo limpo: RESET → campanha oficial `185453Z` 12/12, 235 designados + 2 bloqueados declarados (AlexTheDawg; Croskey entrou a $4 de sheet pelo grão do FIX10), 0 falhas, zero intervenção, Hunter designado → auditoria = SÓ os 2 bloqueados, zero salário divergente → RESET final provado, validate 0 picks/237 sheet/3º draft_id derivado; **alocação de owners em Draft Settings→DRAFT ORDER é PERMANENTE** (sobrevive ao RESET; mapa via `draft_order`); ⛔ RANDOMIZE e RESET BUDGETS proibidos junto do START DRAFT; telemetria: 382 assentamentos, zero reload = lag puro; **script = PLANO A de 22/08, Cowork = plano B**) (âncora no #modal[role=alertdialog] real; header “Make Manual Pick for Team N” como identidade; fallback logado) (busca/linhas/preço escopados ao MODAL — a lista de fundo vazava; filtro conferido antes do matching) (parser do anti-homônimo lê o DOM real — newlines/sigla duplicada/injury; critério intacto) (célula por COLUNA do slot, nunca nth global; “Change Player” proibido; handler sem crash) (mapa slot↔owner: cadeia draft_order → slot_to_roster_id×rosters → picks; validate passou a conferir owner de verdade) (hCaptcha recusa o Chromium de teste → launch pelo Chrome real via channel; captcha é resolvido pelo HUMANO, nunca burlado) | Alta (uso real 22/08) | 🔲 (**critério de 19/08 ✅ CUMPRIDO 12/08 — script = PLANO A de 22/08, Cowork = plano B**; fecha ✅ e migra ao archive após a população real de 22/08) |
 | OFF26-25 | ⛔ **O rollover não tem gate MECÂNICO de tabela ESPN definitiva** — o passo 4 destrava com `espn_values_updated`, flag **manual** escrita só por `confirm_espn` ([offseason.py:653](routes/offseason.py#L653)) e **agnóstica a QUAL tabela está no banco**; o import ESPN nunca a escreve. ⇒ o rollover **roda sobre a provisória sem recusa**, e como é **once-only** (`rollover_done`) a tabela definitiva que chegasse depois **não corrigiria** os 244 contratos — só a restauração do backup. Achado de auditoria da MAN-DP-PREFLIGHT-1808 (14/08); a **diagnose já existia** ([[OFF26-9]] ✅, archive: *"o rollover pode rodar sobre ESPN preliminar… o gate é satisfeito por um checkbox do admin"*) — o que **não** existe é o poka-yoke. Mesma família do [[OFF26-23]] e mesma diretriz do owner (*ponto de não-retorno não se protege com runbook*): hoje a defesa são **dois `confirm()`** ([offseason.html:735](templates/offseason.html#L735)), que é disciplina. Fix candidato: `_get_step_statuses` exigir `ESPNImportLog(season=current+1, status='final')` no passo 4 (a mesma verdade que a `/league` já lê para o selo PROV). ⚠️ **Não é bloqueador de 18/08** — backup + preview do rollover cobrem operacionalmente — MAN-DP-PREFLIGHT-1808/**MAN-OFF26-25** | Alta (18/08) | ⚠️ **IMPLEMENTADO 14/08/2026 — falta o ciclo real.** **Dupla condição** no passo 4: a flag manual (passo 3, intacta) **E** `models.espn_final_import(current+1)`. ⭐ **O predicado é o import MAIS RECENTE, não "existe algum final"** — reimportar provisória depois da definitiva devolve `espn_ref_value` ao estado provisório e a linha final antiga ficaria no log: *trava que mente é pior que trava nenhuma*. **Recusa dura server-side** (409 `blocked_by="espn_nao_definitiva"`, citando status + data **UTC** + o caminho: reimportar com o checkbox); **once-only tem precedência** na ordem das checagens. Preview do `/admin` passa a exibir a tabela candidata (season/status/data) — último ponto de detecção. **Fonte única**: a consulta saiu de 2 cópias inline da `/league` e serve 5 consumidores; guarda estática anti-réplica + anti-season-literal (por AST). **33 testes novos** (`espn_gate_test.py`) + fixture do `late_drop_test` ajustada (3 testes provavam a urna e passariam a provar o gate errado). ⭐ **Smoke em navegador REAL, bidirecional** (app servindo sobre cópia, sessão por cookie assinado): **17/17 recusando** (passo 4 bloqueado **com a flag true** — a célula exata do item) × **6/6 aceitando** com a definitiva no log. **588 testes verdes**; gate [[O7]] exit 0 |
@@ -6646,5 +6646,147 @@ o código**, no espírito do [[MAN-METH-REG]] — nenhum deles foi verificado ne
   leitura própria de ownership**.
 - **[[M9]]** (o grid navegável que este board é), **[[M8]]/[[M15]]/[[M16]]** (a origem da ordem que a
   tela exibe).
+
+#### F1 (17/08/2026, MAN-UX20-F1 — read-only; nenhuma escrita em código)
+
+⛔ **A premissa central do registro está REFUTADA por leitura do código, e ela muda o parecer.**
+O board **não** ancora as linhas por owner: elas são ordenadas pelo **`pick_number` projetado do
+Round 1** ([picks.py:68-71](routes/picks.py#L68-L71)), com queda para `999` + nome (alfabético)
+quando não há projeção. ⇒ o board **já é** a "visão por ordem de draft" — **do R1**. O eixo real é
+**ordem do R1 × round**, não *owner × round*.
+
+**A causa medida é outra:** o desalinho é **R1 × R2/R3**, e nasce do próprio [[M16]] — R1 = lottery,
+R2/R3 = standings invertido (`_build_default_draft_order`). As linhas seguem o R1; logo R2/R3
+divergem **exatamente nas posições que o sorteio embaralhou** (as 6 do lottery), e coincidem de 7 a
+12. Reprodução mecânica do board de 2026 a partir do banco (`current_season=2025`, lottery 2026
+travado 12/12):
+
+| linha | time | R1 | R2 | R3 | rank 2025 |
+|---|---|---|---|---|---|
+| 1 | Miller Time! | #1 | #1 | #1 | 12º |
+| 2 | Fazenda Pederasta | **#2** | **#5** | **#5** | 8º |
+| 3 | Trust The Process | #3 | **#4** | **#4** | 9º |
+| 4 | mongoloides | #4 | **#2** | **#2** | 11º |
+| 5 | 3 peat… of pain | #5 | **#3** | **#3** | 10º |
+| 6 | AlexTheDawg | #6 | #6 | #6 | 7º |
+| 7–12 | (times de playoff) | #7–#12 | #7–#12 | #7–#12 | 6º–1º |
+
+- ✅ **O valor observado pelo owner confere**: a **segunda linha** tem R2 = **#5**. ⚠️ A direção do
+  registro (*"de baixo para cima"*) está **errada** — é a segunda **de cima para baixo**; de baixo
+  para cima a segunda linha é `#11`.
+- ⚠️ **R2 e R3 não são "dois desalinhos parecidos": são o MESMO vetor**, por construção
+  (`tail_rounds = [2, 3]`, mesma chamada — [picks.py:266-277](routes/picks.py#L266-L277)). A visão
+  linear precisa de **2 ordens, não 3**.
+- ⚠️ **`board_mirror`/[[S2]] não é consumido pelo board.** É módulo de **sync** (desconta a permutação
+  administrativa ao ingerir `/traded_picks`); em tempo de render a autoridade do dono é a **linha
+  `Pick`** (`current_team_id`/`current_team_name`). A restrição do registro segue válida na prática
+  (consumir `Pick`, nunca recalcular dono) — mas o texto que a justificava estava impreciso. ⭐ O
+  docstring do `board_mirror.py` **já descreve a divergência R1×R2/R3** que produz este item: a
+  álgebra do problema estava escrita no repo antes do sintoma ser registrado.
+
+**Q1 — origem da ordem (respondida).** Camada: **backend, na rota** — `_build_pick_projections()`
+([picks.py:159](routes/picks.py#L159)), chamada por `picks_page` **e** por `/api/picks`. O template
+só lê `projection.pick_number`; **não há cálculo de ordem no template nem no JS**. A ordem **já
+chega estruturada**: `matrix[season]["projections"][(team_id, round)] = {pick_number, locked}` —
+completa por (time, round). ⇒ **rechavear para `{round: [(posição, time)]}` é transformação pura na
+rota, zero query nova.** Critério por round: R1 = `DraftLotteryResult` (data-driven, [[M8]]/[[M15]]);
+R2/R3 = `_build_default_draft_order(standings)` = seeds 1..6 por `rank 13-seed` + fixas 7..12.
+
+- **Sem lottery para a draft season:** os **3 rounds** recebem a mesma ordem de standings ⇒ o board
+  fica **perfeitamente alinhado** e o sintoma **não existe**. ⇒ ⚠️ **o defeito só se manifesta na
+  janela em que há lottery travado para a draft season.**
+- **Sem standings tampouco:** `proj` fica **vazio** — **nenhuma badge**, linhas em ordem
+  **alfabética**. É o estado de 2027/2028 hoje (medido: standings só de 2025).
+- ⛔ **Consequência de calendário, medida:** depois do rollover de 18/08 (`current_season` 2025→2026),
+  `draft_season` vira **2027**, que não tem lottery **nem** standings de 2026 ⇒ `proj = {}` e a
+  **2026 deixa de ser draft_season**. **O board inteiro perde TODAS as badges** — o sintoma do UX20
+  desaparece e é substituído por *ausência total de ordem*. Quem for fazer a F2 precisa saber:
+  **a janela para observar (e validar contra) o desalinho real fecha em 18/08** — depois disso só
+  em cópia do banco.
+
+**Q2 — os 5 comportamentos declarados, conferidos um a um:**
+
+| # | Comportamento | Veredito | Evidência |
+|---|---|---|---|
+| 1 | Filtro por equipe | ✅ **confirmado, com ressalva** | `filterTeam` ([picks.html:145](templates/picks.html#L145)): mostra a linha do time **ou** linha alheia com célula cujo **dono atual** casa. ⚠️ Anda em passo fixo de 4 (`HEADER_COUNT = 4`, `i += 4`) — **assume 3 rounds** |
+| 2 | Edição admin por célula | ⚠️ **DIVERGENTE** | O `✎` é renderizado para **todo usuário** — não há gate de admin no template; o CSS só o esconde até o `:hover` ([style.css:1514](static/style.css#L1514)). A proteção é **só server-side** (`@admin_required`), e `savePick` faz `.then(r => r.json())` + `location.reload()` **sem tratar 403** ⇒ para o não-admin a edição falha **em silêncio** |
+| 3 | Indicação de pick trocada | ✅ confirmado | `is-traded` + `→ {{ pick.current_team_name }}` ([picks.html:70](templates/picks.html#L70)) + legenda no subtítulo |
+| 4 | Destaque "minha" | ✅ **confirmado, com ressalva** | `is_mine = pick.current_team_name == my_team_name` — comparação **por NOME**, contra o espírito do [[S3]] (que moveu as linhas para `id` justamente porque `Team.name` é mutável) |
+| 5 | Multi-season | ✅ **confirmado, com ressalva** | `PICK_SEASONS = [2025, 2026, 2027, 2028]` **hardcoded** ([picks.py:10](routes/picks.py#L10)); season sem pick é pulada em silêncio (2025 hoje) |
+
+**Comportamentos existentes que o registro NÃO capturou** (⚠️ o primeiro é o mais funcional da tela):
+
+1. ⭐ **Toda célula é um link para `/trades` com pré-seleção** ([[M9]]-FIX): pick minha →
+   `?team_a=meu&pick_a=<id>`; pick alheia → `?team_a=meu&team_b=<dono>&pick_b=<id>`. É o que torna o
+   board **ferramenta de trade**, e nenhuma direção pode perdê-lo.
+2. **O board não distingue projeção travada de estimada** — mas o `/trades` distingue (`#` × `~#`,
+   por `projection_locked` — [trades.html:337](templates/trades.html#L337)). O dado **existe** no
+   board (`projections[...]["locked"]`) e o template **não o usa**. A mesma pick aparece mais
+   qualificada no trade manager do que no board.
+3. **Tooltip por célula** com season · round · original · atual + a dica de ação.
+4. **Célula vazia `—`** para (time, round) sem pick; **banner** para usuário sem time vinculado;
+   **card de odds do lottery** ([[M15]]/M15-FIX) no rodapé.
+5. ⛔ **Nenhuma legenda explica o `#N`** nem que R2/R3 usam ordem diferente do R1 — o subtítulo só
+   fala de cor ("azul = trocados"). **É a omissão que produz a leitura falsa.**
+6. **`resetPick()` é código morto** ([picks.html:195](templates/picks.html#L195)): definido, nunca
+   chamado ⇒ `/api/picks/<id>/reset` é **inalcançável pela UI**.
+7. **"3 rounds" está TRIPLICADO**: `PICK_ROUNDS` (Python), `HEADER_COUNT`/`i += 4` (JS), `repeat(3,
+   …)` (CSS, [style.css:1407](static/style.css#L1407) e :1539).
+8. **`.picks-matrix` está sob o gate visual do [[O7]]** (`core.py:97`, geometria) — a F2 já nasce com
+   rede.
+
+**Q3 — réplica (respondida): 3 sítios renderizam pick, e só UM compartilha a fonte da ordem.**
+
+| Sítio | Renderiza | Fonte | Veredito |
+|---|---|---|---|
+| `/picks` board | badge `#N` | `_build_pick_projections()` na rota | **origem** |
+| `/trades` chips (JS) | `2026 Rd1 ~#5` + 🪙 | `/api/picks` → **a mesma** `_build_pick_projections` | ✅ **fonte comum** — e **mais rica** (`#` × `~#`) |
+| `/team/<id>` seção Picks | `Rd{N}` + origem + notas | query própria ([league.py:166](routes/league.py#L166)) | **derivação própria, SEM projeção** (é a tela do [[UX5]]) |
+| `/trades/proposta/<uuid>` | `{season} Rd{N}` | assets da proposta | **derivação própria, sem projeção** |
+| `/picks/lottery/<season>` | tabela linear `pick · time · fonte` | `DraftLotteryResult` direto | **fonte irmã** (o R1 cru) |
+| `/offseason` passo 2 | resultado do sorteio | `DraftLotteryResult` | irmã |
+| `/league` | só `pick_count` | contagem | não renderiza pick |
+
+- **Arrasta:** um redesenho **que só mexa no board** não arrasta ninguém. ⚠️ Mas **mexer em
+  `_build_pick_projections` arrasta duas coisas**: os chips do `/trades` **e a valoração dynasty**
+  (`pick_sleeper_id` monta `DP_<round-1>_<projected_pick-1>` — [dynasty_values.py:161](dynasty_values.py#L161)).
+- **Órfão:** ninguém fica órfão. ⭐ Mas há um órfão **já existente**: `/picks/lottery/<season>` — que
+  é a visão linear da candidata (c), **já implementada para o R1** — **não tem link a partir do
+  board**; os únicos acessos são pelo `/offseason` (admin). A tela de auditoria tem *"← Voltar ao
+  Picks"*; o caminho de ida não existe.
+
+**Q4 — parecer sobre as candidatas:**
+
+- **(a) inverter o eixo — ⛔ rejeitada como enunciada.** O eixo **já está invertido para o R1**, e o
+  ganho declarado ("escaneabilidade da ordem") **já é o estado atual** daquele round. Pior: como R1
+  e R2/R3 são vetores **diferentes por construção**, **uma única ordem de linhas não pode servir aos
+  três** — inverter "de vez" só troca qual round mente. E o custo é real: some a leitura *"quais
+  picks o time X tem"*, o filtro por equipe perde sentido e a célula-link muda de semântica.
+- **(b) toggle — custo alto, ganho condicionado.** Preserva tudo, mas **duplica a marcação** da
+  matriz, duplica o filtro JS (que já é frágil no passo de 4) e dobra a superfície do gate [[O7]] —
+  em troca de um ganho que depende de o usuário lembrar de trocar de visão.
+- **(c) visão linear complementar — barata e aditiva.** A ordem **já está estruturada na rota**;
+  o bloco é **re-key puro, zero query nova**, o board fica **intocado** (os 5 comportamentos + os 8
+  não listados preservados **por construção**) e a superfície do O7 se limita à marcação nova. E
+  **R2 ≡ R3** ⇒ o bloco tem **2 ordens, não 3**.
+- **(d) ⭐ RECOMENDADA — (c) enxuta + a legenda que falta, nesta ordem de valor:**
+  1. **Rotular a origem da ordem no cabeçalho de cada coluna** (`Round 1 · sorteio` ×
+     `Round 2/3 · classificação invertida`). ⛔ **É a única peça que ataca a CAUSA**: o usuário não
+     lê uma sequência falsa por falta de tabela, lê porque **nada na tela diz que o R2 usa outra
+     ordem**. Custo: uma linha de template.
+  2. **Bloco linear por season** — "Ordem do draft": `#1 … #12 → dono atual`, **duas** colunas
+     (R1 · R2=R3), alimentado pelo `projections` que a rota já monta.
+  3. **Ligar o board ao `/picks/lottery/<season>`**, fechando o órfão de navegação.
+  4. **De carona, se o owner quiser:** o `~#` × `#` do `/trades` no board (o dado já está lá) e o
+     gate de admin no `✎` (hoje o não-admin vê um botão que falha calado).
+
+  **Justificativa:** é a única direção que responde **às duas** perguntas do usuário (*"o que o time
+  X tem"* e *"qual é a ordem do round N"*) em vez de trocar uma pela outra; não toca
+  `_build_pick_projections`, logo **não propaga** para os chips do `/trades` nem para a valoração
+  dynasty; e sobrevive ao estado pós-rollover (com `proj` vazio, o bloco simplesmente não é
+  renderizado — como as badges).
+
+⚠️ **Decisão da direção é do owner** — a F1 recomenda, não arbitra. ⚠️ **Produção não foi lida**
+(sem credencial nesta máquina); todas as medições vêm do `dynasty.db` **local** em modo read-only.
 
 ---
