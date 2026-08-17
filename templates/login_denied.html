@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Acesso não autorizado{% endblock %}
+{# MAN-AUTH1 (metade C) — o 403 de email não cadastrado.
+   Template PRÓPRIO de propósito: o error.html genérico segue servindo 404/500 e o
+   admin_required, e esta é a única tela que precisa nomear a conta rejeitada e oferecer
+   a volta ao seletor. ⛔ Nenhum caminho daqui mexe na sessão Google do navegador — o app
+   só pede a escolha (o logout do Google desconectaria a máquina inteira). #}
+{% block content %}
+<div class="error-page">
+  <div class="error-code">403</div>
+
+  <p class="error-msg" style="margin-bottom:.75rem">
+    Você entrou com <strong style="overflow-wrap:anywhere">{{ email }}</strong>, e esse email não está cadastrado na liga Dynasty SB.
+  </p>
+
+  <p class="error-msg" style="margin-bottom:1.5rem;opacity:.85">
+    Provavelmente o Google usou a conta que já estava logada neste navegador.
+    Se a sua conta da liga é outra, entre com ela — o botão abaixo abre a tela de escolha de contas do Google.
+  </p>
+
+  <a href="{{ url_for('auth.login_google') }}" class="btn btn-primary"
+     style="font-size:1rem;padding:.75rem 2rem">
+    Entrar com outra conta
+  </a>
+
+  <p class="error-msg" style="margin-top:2rem;font-size:.85rem;opacity:.7">
+    Se <strong style="overflow-wrap:anywhere">{{ email }}</strong> é mesmo o email que você usa na liga, ele ainda não foi cadastrado:
+    fale com o administrador.
+  </p>
+</div>
+{% endblock %}

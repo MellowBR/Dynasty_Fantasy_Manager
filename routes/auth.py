@@ -58,7 +58,12 @@ def login_page():
 @auth_bp.route("/login/google")
 def login_google():
     redirect_uri = url_for("auth.auth_callback", _external=True)
-    return oauth.google.authorize_redirect(redirect_uri)
+    # MAN-AUTH1 (metade A): sem `prompt`, o Google reusa a sessão ativa do navegador e
+    # autentica em SILÊNCIO — quem tem outra conta logada (a do trabalho, por exemplo)
+    # nunca chega a ver o seletor e cai direto no 403. `select_account` força a escolha.
+    # ⛔ Custo medido na F1: só o caminho FRIO paga o clique extra — o owner recorrente
+    # entra pelo cookie `remember` (365d) e nem passa por aqui.
+    return oauth.google.authorize_redirect(redirect_uri, prompt="select_account")
 
 
 @auth_bp.route("/auth/callback")
@@ -75,9 +80,11 @@ def auth_callback():
 
     user = User.query.filter_by(email=email).first()
     if not user:
-        return render_template("error.html", code=403,
-                               message="Acesso não autorizado. Seu email não está cadastrado "
-                                       "na liga Dynasty SB. Fale com o administrador."), 403
+        # MAN-AUTH1 (metade C): o 403 genérico não dizia QUAL conta foi rejeitada e não
+        # oferecia saída — a única frase acionável ("fale com o administrador") apontava o
+        # remédio errado para o caso comum (a conta certa existe; o navegador é que entrou
+        # com outra). Template próprio: o error.html segue servindo 404/500 e o admin_required.
+        return render_template("login_denied.html", email=email), 403
 
     # Update name from Google profile if not set
     if not user.name and user_info.get("name"):

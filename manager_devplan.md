@@ -5701,3 +5701,51 @@ campanha oficial → auditoria → alocação de owners → RESET final.
   sunset) — o gate do O6 cita "mesmo script da F1" e comparabilidade exige o mesmo instrumento.
   Smoke: reproduziu a família 236,3 KB / 13 seções contra o ativo pós-REFINE (486,2 KB; 6⚠️/7🔲
   refletindo as arbitragens). Gate na seção O6 atualizado com o caminho do script.
+
+---
+
+### MAN-AUTH1-REG → F1 → F2 — seletor de contas no authorize + 403 com nome e saída (17/08/2026, Opus 5) · código + docs
+
+- **Origem:** relato do owner da liga (Murilo, WhatsApp): no PC do trabalho o login **não pergunta
+  qual conta** — o Google autentica a sessão corporativa ativa e o app devolve **403**; `/logout`
+  não muda nada, aba anônima resolve. Registrado como **MAN-AUTH1** (docs-only) e diagnosticado na
+  mesma janela.
+- **F1 (read-only) — a hipótese confirmada por MEDIÇÃO, e três coisas que ela não previa:**
+  o redirect de [routes/auth.py:61](routes/auth.py#L61) sai **sem `prompt` e sem `login_hint`**
+  (authlib 1.6.9 mescla só `authorize_params` + kwargs, ambos vazios) — reproduzido sem rede.
+  **Sítio único, zero réplicas.** O 403 media **pior** que o relatado: sem o email, sem link de
+  login **nem de logout**, e a única frase acionável (*"fale com o administrador"*) **apontando o
+  remédio errado** — a conta certa existe. **Ciclo de 3 saltos medido** (403 → `/` → `/login` →
+  403). O `/logout` é **inerte por três motivos independentes**, não um: o rejeitado **nunca foi
+  logado** (o 403 retorna antes do `login_user`), não tocaria a sessão Google, e o link **nem
+  aparece** para anônimo.
+- ⛔ **Premissa do prompt DESLOCADA:** *"os 11 owners entram com 1 clique"* — `remember=True` +
+  `REMEMBER_COOKIE_DURATION` **default de 365 dias** ⇒ o caminho diário é **zero clique no fluxo
+  OAuth**. Forçar o seletor **não custa nada no diário**; custa um clique no caminho **frio**. Foi
+  o que tornou a decisão A+C barata.
+- ⛔ **Armadilha registrada na F1 e respeitada na F2:** não encaminhar ao **logout do Google** —
+  desconectaria a máquina inteira de todos os serviços Google; num PC de trabalho é dano colateral
+  fora da alçada do app. **A sessão do navegador não é nossa para encerrar; o que está ao alcance é
+  pedir a escolha.**
+- **F2 (direção A+C do owner):** (**A**) `prompt="select_account"` no sítio único;
+  (**C**) `templates/login_denied.html` — template **próprio**, para o `error.html` genérico seguir
+  servindo 404/500 e o `admin_required` — que **nomeia o email rejeitado**, explica a causa provável
+  (a conta já logada no navegador), oferece **"Entrar com outra conta"** e rebaixa o *"fale com o
+  administrador"* ao **caso residual** correto. Zero mudança em permissões, `unauthorized_handler`,
+  sessão ou cookie.
+- **Smoke sobre as rotas reais** (cópia do banco, sem rede — só a fala com o Google é substituída):
+  `prompt=select_account` na URL do `/login/google`; 403 com email + explicação + botão e **sem
+  criar sessão** para o rejeitado; caminho feliz logando e emitindo `remember_token` como antes;
+  404 ainda no `error.html`. `salary_engine_test` **62/62** (o prompt dizia 48 — está em 62 desde o
+  UX18), `template_js_test` 3/3, **gate O7 exit 0**.
+- ⭐ **A tela nova o gate do O7 não alcança** (não existe rota que a renderize sem OAuth). Medida
+  **ad-hoc com o mesmo instrumento** (`core.JS_OVERFLOW`, 4 larguras canônicas), a medição **pegou
+  um defeito real**: email corporativo longo **transbordava o documento a 390px**. Fechado no
+  nascimento com `overflow-wrap:anywhere` — 8/8 limpas depois, capturas de 390px e 1024px
+  conferidas. **Lição operacional: superfície nova fora da cobertura do gate exige medição
+  explícita — o gate verde não é evidência sobre o que ele não vê.**
+- **MAN-AUTH2 registrado** na mesma janela (docs-only, achado de carona da F1): `next` morto no
+  callback + deep link descartado no `unauthorized_handler` — **fora do escopo da F2**, por
+  restrição do prompt.
+- **Estado:** MAN-AUTH1 ⚠️ — F2 no ar, **smoke de produção pendente** (gate PROC1: conferir o hash
+  deployado antes; o smoke real é o próprio Murilo, no PC do trabalho, vendo o seletor).
