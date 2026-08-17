@@ -1415,6 +1415,16 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   align-items: start;
 }
 
+/* ⛔ `min-width: 0` é OBRIGATÓRIO no item de grade: por padrão ele vale
+   `auto` (= min-content), e como o cabeçalho e a linha são `nowrap`, o
+   min-content deles vira PISO da trilha — a coluna ficava mais larga que o
+   container (medido: trilha 370,7px dentro de 358px) e o conteúdo vazava.
+   Com 0, a trilha acompanha o container e o `overflow: hidden` de cada peça
+   faz o truncamento. */
+.draft-order-column {
+  min-width: 0;
+}
+
 /* Altura FIXA: o rótulo da origem não pode empurrar a lista para baixo em uma
    coluna e não na outra. */
 .draft-order-header {
@@ -1442,17 +1452,27 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 .draft-order-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
-/* Linha de altura uniforme: conteúdo em UMA linha, o que sobrar é truncado.
-   Sem isso o nome longo quebra em duas linhas e desiguala as alturas. */
+/* FIX2 — altura TRAVADA, não sugerida.
+   `min-height` era só um piso: quem decidia a altura era o conteúdo, e a
+   distribuição do "via" (e das fontes que o renderizam) difere de coluna para
+   coluna. Uma diferença sub-pixel por linha vira desvio visível na 12ª — o
+   desalinhamento progressivo que o owner viu. Com `height` fixa + `box-sizing:
+   border-box` + `overflow: hidden`, nem conteúdo nem estado podem mexer na
+   altura: a linha .12 das 3 colunas cai no mesmo pixel por construção.
+   ⛔ Toda variação de estado (is-mine, highlighted, hover) muda apenas COR —
+   a borda é sempre 1px e o realce usa box-shadow, que não ocupa layout. */
 .draft-order-row {
   display: flex;
   align-items: center;
   gap: .5rem;
-  padding: .25rem .5rem;
-  min-height: 30px;
+  padding: 0 .6rem;
+  height: 38px;
+  box-sizing: border-box;
+  overflow: hidden;
+  line-height: 1.2;
   border: 1px solid var(--border, #333);
   border-radius: 4px;
   background: rgba(255,255,255,.02);
@@ -1489,8 +1509,8 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 
 .draft-order-position {
   flex: 0 0 auto;
-  min-width: 2.4rem;
-  font-size: .8rem;
+  min-width: 2.6rem;
+  font-size: .82rem;
   font-weight: 600;
   text-align: right;
   color: var(--text-dim, #aaa);
@@ -1501,7 +1521,7 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 .draft-order-team {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: .85rem;
+  font-size: .88rem;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1511,7 +1531,7 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 .draft-order-via {
   flex: 0 8 auto;
   min-width: 0;
-  font-size: .74rem;
+  font-size: .76rem;
   color: var(--text-dim, #aaa);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1519,9 +1539,9 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 
 .draft-order-trade-link {
   flex: 0 0 auto;
-  padding: 0 .3rem;
-  font-size: .85rem;
-  line-height: 1.4;
+  padding: .1rem .35rem;
+  font-size: .9rem;
+  line-height: 1.2;
   color: #6ea8fe;
   text-decoration: none;
   border: 1px solid rgba(110,168,254,.25);
