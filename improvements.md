@@ -139,6 +139,7 @@
 | F12 | `run_import` sobrescreve salary/contract_year a cada boot com CSV presente (dev local), sem SalaryHistory — reverte silenciosamente rollover/correções locais; coluna `salary_2025` hardcoded — achado AUD1 Lente 2 | Média | ✅ 15/06/2026 (bootstrap one-shot via flag `csv_bootstrap_done`; critério dev-local, sem smoke de prod) |
 | F13 | Versionamento do cache do pool Sleeper (`.sleeper_players_cache.json`, ~15 MB, trackeado no git): mtime pós-deploy reinicia o TTL de 168h (frescor enganoso), cada refresh commitado incha a história, e em prod a raiz read-only (doutrina E1) faz a gravação do cache falhar silenciosamente → pós-TTL, todo load re-baixa ~15 MB da API. Cache em `dirname(DYNASTY_DB)` (volume, padrão E1) + gitignore + validade por carimbo `fetched_at` no conteúdo (não mtime) — achado colateral do smoke DP3-F2 — MAN-DP3-COMMIT/CLOSE/**F13-F1/F2/CLOSE** | **Alta** (janela: rookie draft ago) | ✅ 31/07/2026 (smoke prod OK sobre hash `2cd8de3`: recaptura = **287** (145 entraram, 142 atualizados, 6 saíram por corte), 2ª captura 0/0 sem novo download; board 287 c/ 12 do import ESPN, 6 valorados; busca/filtro no navegador; detalhe no archive; **pendência**: frescor sobreviver ao 2º deploy → próximo release) |
 | F14 | Nomes do board de rookies (DP3) vêm do pool do Sleeper e perderam sufixos de geração (Jr./II/III) presentes na fonte ESPN — cosmético, **não** afeta identidade (resolvida por `sleeper_id`) — achado do smoke MAN-F13-CLOSE | Baixa (cosmético) | 🔲 |
+| F15 | **Remover edição manual de picks** (obsoleta pós-[[S2]]) — o PATCH `/api/picks/<id>` e o modal ✎ do board nasceram quando o dono da pick podia divergir no Manager; desde o S2 o sync é autoridade. Achado MAN-UX20-F1: o ✎ aparece para TODOS (gate só server-side), falha silenciosa para não-admin (403 engolido). UI sai de carona no [[UX20]]; backend: conferir consumidores além do board antes de remover — **MAN-PICKEDIT-REG** | Média | 🔲 |
 | E4-d | Matching frouxo nas portas do /auction: single-entry FA/rookie matcha player por nome exato sem resolver sid (guard E4-b ausente — classe órfão) + upload Excel matcha Team por substring `%name%` — achado AUD1 Lente 4 | Baixa/Média | 🔲 |
 | M19 | Validação de pesos do lottery só existe no client (JS floor/mín-1); `_normalize_weights` aceita float/zero/negativo — POST direto exclui time do pool silenciosamente — achado AUD1 Lente 1 | Baixa | 🔲 |
 | M20 | Descomissionar write-side da flag single-user: sync escreve `is_my_team` via `MY_OWNER_ID`; record_acquisition/bulk_register propagam; colunas + to_dict + check_team.py + mapeamento standings (offseason.py:312) — fora do escopo M17 (só consumidores); **bloqueado: depende de M17, hoje ⚠️ (aguardando smoke prod)** — achado AUD1 Lente 3 | Baixa | 🔲 (bloqueado) |
@@ -1087,6 +1088,45 @@ tela. Puramente cosmético.
 
 **DEPENDÊNCIAS**
 - Relaciona-se com: [[DP3]] (board), [[E2]] (store de nome). Bloqueia: nada.
+
+---
+
+### F15 — Remover edição manual de picks (obsoleta pós-S2)
+🔲 **Registrado 17/08/2026 (MAN-PICKEDIT-REG)** — Prioridade **Média** — **registro apenas; nenhuma
+alteração de código**
+
+**DECISÃO DO OWNER (17/08/2026)**
+A funcionalidade de **editar picks manualmente** (via PATCH `/api/picks/<id>` + modal ✎ no board)
+deve ser **removida, não escondida**. Ela nasceu na era em que a titularidade de uma pick podia
+divergir entre o Sleeper (autoridade temporária) e o Manager (autoridade de projeção). Desde o
+[[S2]] o sync é **determinístico**: a permutação administrativa é descontada ao ingerir
+`/traded_picks`, e não há caso legítimo de divergência que justifique uma mutação manual paralela —
+é risco de inconsistência, não conveniência.
+
+**SINTOMA ORIGINAL (achado MAN-UX20-F1)**
+O botão ✎ do board global de picks aparece para **todo usuário** (sem gate de admin no template); a
+falha para não-admin é **silenciosa** (`savePick` não trata a resposta de permissão negada — 403 é
+engolido). A decisão de remover é mais forte que a de esconder: fecha a questão de raiz.
+
+**ESCOPO EM DUAS PARTES, COM DESTINOS DISTINTOS**
+
+- **UI: carona na [[UX20]]** — quando o redesenho do board for executado (F2 da UX20), o ✎ e o
+  fluxo de edição no cliente saem automaticamente (as células são reconstituídas sem o botão).
+  Nenhum trabalho próprio deste item. Registrar a dependência.
+
+- **Backend: trabalho próprio** — antes de remover a rota `/api/picks/<id>` (PATCH) e o handler
+  `update_pick`, conferir se existe consumidor **além do modal ✎ do board** que a chama:
+  - ⏤ Scripts de seed ou migration?
+  - ⏤ Testes unitários que a cobertura depende?
+  - ⏤ Sync ou importador (draft_import, auction) que use a rota?
+  - ⏤ Outro sítio da UI que não o board?
+
+  **Conferência é pré-requisito:** se houver consumidor fora do board, reportar antes de remover —
+  a decisão de remover também esse consumidor é do owner, não do item.
+
+**RELAÇÕES**
+- [[UX20]] (o redesenho absorve a remoção de UI; pré-requisito UI da remoção).
+- [[S2]] (a razão de a funcionalidade ser obsoleta — S2 tornou o sync determinístico).
 
 ---
 
