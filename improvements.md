@@ -1,11 +1,11 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 17/08/2026-pt7 (sessão **MAN-AUTH2-REG**, **docs-only, registro apenas**: **[[MAN-AUTH2]] 🔲 Baixa, auth/robustez** — *`next` morto no callback OAuth + deep link descartado*, achado de **carona da [[MAN-AUTH1]]-F1** que a restrição daquele prompt deixou fora do registro. ⭐ **São a mesma cadeia partida ao meio:** o lado que **deveria produzir** o destino não produz — [auth.py:36](routes/auth.py#L36) manda o anônimo a `/login` **sem `next`**, medido na F1 (`GET /team/1` → `Location: /login`, sem parâmetro) ⇒ link profundo vira home pós-login — e o lado que **consumiria** o destino existe sem consumidor: o `request.args.get("next", …)` de [auth.py:88](routes/auth.py#L88) **nunca chega populado**, porque quem chama o callback é o redirect do Google (que carrega `code`/`state`, não um `next` nosso) ⇒ ramo **inalcançável**. ⚠️ A parte que não é só higiene: se alguém "consertar" o comportamento 1 do jeito óbvio, o parâmetro passa a chegar e é consumido **sem validação** — `redirect()` aceita destino absoluto e externo, **cheiro de open redirect**. Hoje é inofensivo **porque está morto**; o momento barato de fechar é **antes** de existir consumidor. **Natureza dupla registrada, metades independentes:** higiene (remover ou validar, sem mudar comportamento observável) × **decisão de produto do owner** (restaurar o deep link ponta a ponta **ou** assumir a home como destino fixo) — ⛔ **nenhuma arbitrada**, e dimensionada pela própria F1: o caminho só é sentido **a frio**, já que o owner recorrente entra pelo `remember_token` de 365 dias. Fronteira com o [[MAN-AUTH1]] declarada nos dois lados (lá é *quem* entra; aqui é *para onde* vai quem entrou) e o [[T1]] citado como o caso de uso onde o descarte dói (proposta compartilhada por URL). Auditor exit 0; gate do [[O7]] **não disparou, corretamente** (zero CSS/template). Zero código.)
 > Atualizado em: 17/08/2026-pt6 (sessão **MAN-AUTH1-REG**, **docs-only, registro apenas**: **[[MAN-AUTH1]] 🔲 Média, UX/auth** — *login OAuth não oferece seletor de contas Google*. Relato do owner da liga (Murilo, WhatsApp): no PC do trabalho o clique em login **não pergunta qual conta** — o Google autentica direto com a sessão ativa do navegador (email **corporativo**, fora do cadastro) e o app devolve **403**, sem o usuário nunca chegar a escolher a conta certa. ⚠️ O que transforma o 403 em **beco sem saída** é o `/logout` **não mudar nada**: ele encerra a sessão **Flask**, não a sessão **Google do navegador**, então reentrar reautentica a mesma conta errada. Workaround em uso: **aba anônima** — do usuário, não do app. Natureza registrada: **bug de UX de autenticação** na camada [[X1b]], **não** de permissão nem de cadastro (a conta certa existe; cadastrar o email do trabalho seria contornar). ⛔ **Nada verificado contra o código e nenhuma direção arbitrada**, conforme a restrição do prompt — o pedido de autorização, a folha morta do 403 e o alcance real do `/logout` são as perguntas da **F1, obrigatória antes da F2**, junto com réplica de pontos de entrada e a fronteira "consertar no authorize × na página de erro × nos dois", que é decisão do owner. Auditor exit 0; gate do [[O7]] **não disparou, corretamente** (zero CSS/template). Zero código.)
 > Atualizado em: 17/08/2026-pt5 (sessão **MAN-UX20-DONE**, **docs-only**: **[[UX20]] ✅ FECHADO** — smoke de produção aprovado pelo owner sobre o hash live **`70a73bf` conferido ANTES do smoke** (gate [[PROC1]] cumprido, e só foi possível porque o diff toca `static/style.css`, artefato público servido). Aprovados um a um: colunas por round, densidade 38px, ⭐ **a linha `.12` das 3 colunas alinhada no navegador onde o drift era observado** — a prova que faltava, já que o FIX2 travou a altura **por construção, sem conseguir reproduzir** o drift localmente —, realce + verde de "minha", ⇄ com pré-seleção, filtro, e dados do R1 conferindo com a referência da liga. ⚠️ A divergência local × prod vista no smoke local **não abre item**: o `dynasty.db` do repo é **seed defasado**, não espelho do vivo (`/data/dynasty.db`) — prod é a superfície canônica e confere. Seção detalhada migrada **verbatim** para o `improvements_archive.md` ([[O3]]); no Status Rápido **só a linha do UX20 mudou**. [[F15]] segue 🔲 com a fronteira reafirmada: a parte de **UI fechou de carona** e o que resta é **só a rota PATCH de backend**, viva de propósito até a conferência de consumidores. Auditor exit 0; zero código.)
 > Atualizado em: 17/08/2026-pt4 (sessão **MAN-UX20-F2-FIX2**, **CSS puro**: ⚠️ **o desalinhamento progressivo relatado NÃO reproduz aqui** — medido em ponto flutuante (o FIX1 media arredondado, que é onde um desvio acumulativo se esconde): 31,750px idêntico nas 36 linhas, drift 0,00 entre colunas, em dpr 1/1,25/1,5, e altura **natural** uniforme até nas linhas com emoji. Como não dava para reproduzir o ambiente, corrigiu-se o **mecanismo**: `min-height` é **piso, não trava** — quem decidia a altura era o conteúdo, e o conteúdo **difere por coluna** (a distribuição do `via`; o R2 é o que mais tem), então outra métrica de fonte faria uma linha crescer e o erro **acumular até a 12ª**. Agora a altura é **travada em 38px** (`box-sizing: border-box` + `overflow: hidden`), e **estado só muda cor** — borda sempre 1px, realce por `box-shadow`, que não ocupa layout (medido: normal, "minha" e realçada **todas em 38,000px**). Densidade recalibrada 32 → 38px: a seção termina em **813px**, os 12 × 3 cabem numa viewport de 900px sem rolagem interna. ⭐ **O gate do [[O7]] fez exatamente o trabalho dele e bloqueou o push**: 81 transbordos a 390px, de um `min-width: 0` que o FIX1 pôs nos itens de texto e **esqueceu no item de grade** (a trilha calculava 370,7px dentro de 358px). Drift 0,00 nas 14 larguras varridas, regressão zero, gate exit 0, suítes e auditor verdes. Sem push; [[UX20]] segue ⚠️ até o smoke de prod.)
 > Atualizado em: 17/08/2026-pt3 (sessão **MAN-UX20-F2-FIX1**, **CSS puro**: densidade e alinhamento do board novo, com a geometria **medida no navegador em 13 larguras antes de tocar o CSS** — e a medição **mudou o diagnóstico**. Densidade: a linha quebrava em duas e as alturas iam de **65 a 135px** porque faltava `min-width: 0` no item flex (sem ele o ellipsis não age); com `nowrap` + ellipsis a altura virou **32px única** e a seção de 2026 caiu de **953px → 492px**. O **"via" cede espaço antes do nome do time**, e o `title` da linha guarda o texto inteiro. ⭐ Alinhamento: a hipótese natural (cabeçalho mais longo empurrando a lista) foi **refutada** — os 3 cabeçalhos têm 36px em toda largura; a causa era o **`flex-wrap` derrubando uma coluna inteira** para a linha seguinte a partir de 900px. O container virou **grade `repeat(auto-fit, minmax(260px, 1fr))`**, que alinha topos por construção; ⛔ `auto-fit` e **não** `repeat(3, …)` — a triplicação do "3 rounds" que o F2 quitou não volta. Rota, `round_centered`, template e JS **intocados**. Regressão zero no smoke de navegador, gate [[O7]] exit 0, suítes e auditor verdes. Sem push; [[UX20]] segue ⚠️ até o smoke de prod.)
-> Atualizado em: 17/08/2026-pt2 (sessão **MAN-UX20-F1b + MAN-UX20-F2**: a **F1b** validou a direção (e) do owner — anatomia por camada, veredito dos comportamentos, degenerados, ~30 linhas neto — e o **F2 a construiu**: o board de picks virou **3 colunas lineares por round**, cada uma na ordem daquele round, célula com **`R.PP` · time atual · `via <original>` · ⇄**, cabeçalho **rotulando a origem da ordem** (sorteio × classificação invertida) e **clique-realça** por time em cima do verde de "minha" (as duas arbitragens do owner). ⛔ `_build_pick_projections` intocada — a transformação é **re-key puro na rota**, então chips do `/trades` e valoração dynasty não se movem. **`✎` fora** (só o cliente; a rota PATCH é [[F15]]), `resetPick()` morto removido, CSS `.picks-matrix*` deletado e a **triplicação do "3 rounds" caiu de 3 sítios para 1**. Sonda do [[O7]] reapontada para o seletor novo. ⚠️ **Reportado:** um valor da lista de validação do prompt não conferia (o `1.05` é *Trust The Process*) — o banco deu razão ao código. Smoke de navegador real verde, gate [[O7]] exit 0, 10 suítes OK, auditor verde. **Sem push** — deploy e smoke de prod são do owner; [[UX20]] fica ⚠️.)
 > 📁 Entradas anteriores em **`improvements_sessions.md`** (101 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
@@ -167,6 +167,7 @@
 | MAN-ESPN12 | Diagnose read-only: onde o fator ×1.2 do ESPN é aplicado — veredito da suspeita central (réplica ×1.2 no client) **negativo**; débito real (a/b/c) registrado na seção como F2 opcional (helper único `adjust_espn` + reponteirar 5 sítios), decisão aguarda o owner — row criada pelo [[O5]] (a seção detalhada existia sem entrada no namespace) | A definir | 🔲 |
 | O5 | Quitação da dívida O3 + auditor poka-yoke do backlog: reancorar sub-seções `###` órfãs, migrar seções ✅ ao archive, `tools/backlog_audit.py` (stdlib, read-only, exit ≠ 0) como **gate do checklist de fim de sessão** — MAN-O5-REG/MAN-O5 | Média | ✅ 13/08/2026 (mesma sessão, precedente O3 de self-aplicação: reorg íntegra por asserts de máquina + auditor demonstrado nos dois sentidos — ativo pós-limpeza exit 0, backup pré-limpeza exit 1 com 83 violações; **zero seções ✅ de item existiam para migrar** — a baseline externa leu marcos ✅ internos de itens abertos; 42 headings reancorados sob o [[OFF26-20]]; detalhe no archive) |
 | MAN-AUTH1 | **Login OAuth não oferece seletor de contas Google — usuário com sessão Google não-cadastrada cai em 403 sem saída** — relato do owner (Murilo, WhatsApp, 17/08): no PC do trabalho o clique em login **não pergunta qual conta**; o Google autentica direto com a sessão ativa do navegador (email corporativo, fora do `users.csv`) e a rota devolve **403**. O `/logout` do app **não muda nada** (encerra a sessão Flask, não a do Google), então o usuário fica **preso no loop**: reentrar reautentica a mesma conta errada. Workaround em uso: **aba anônima**. Bug de **UX de autenticação** na camada [[X1b]] (Google OpenID Connect via authlib) — não é permissão nem cadastro (a conta certa existe). ⛔ **Nenhuma direção arbitrada e nada verificado contra o código neste registro** (o parâmetro de autorização, a página do 403 e o alcance do `/logout` são perguntas da F1) — **F1 obrigatória antes de F2** — MAN-AUTH1-REG | Média | 🔲 |
+| MAN-AUTH2 | **`next` morto no callback OAuth (cheiro de open redirect se populado) + deep link descartado no `unauthorized_handler`** — dois comportamentos da mesma cadeia: (1) [auth.py:36](routes/auth.py#L36) redireciona o anônimo a `/login` **sem preservar o destino** ⇒ quem abre um link profundo cai na home depois de logar (**medido na F1**: `GET /team/1` → `Location: /login`, sem `next`); (2) [auth.py:88](routes/auth.py#L88) lê `request.args.get("next", ...)` no callback, mas **o redirect do Google não carrega esse parâmetro** — o `next` **nunca chega populado** pelo fluxo real ⇒ **código morto**, e se algum dia passasse a chegar seria `next` **não validado** (destino externo aceito sem checagem — cheiro de **open redirect**). ⚠️ **Natureza dupla, e as duas metades são independentes:** limpeza de código morto **com validação defensiva** (higiene, não muda comportamento observável) × **decisão de produto opcional** — restaurar o deep link ponta a ponta **ou** assumir a home como destino fixo e apagar o resto. Achado de **carona da [[MAN-AUTH1]]-F1** (seção *achados fora do escopo*), não registrado na hora por restrição daquele prompt. ⛔ **Nenhuma direção arbitrada** — MAN-AUTH2-REG | Baixa | 🔲 |
 | O6 | Split do backlog por campanha: `improvements_off26.md` receberia as seções OFF26-* verbatim (pertencimento por prefixo), Status Rápido segue ÚNICO no ativo, auditor valida a união — **rota CANDIDATA, não decidida**. F1 read-only 13/08: família OFF26 = **49,9% do ativo** (236,3 KB / 13 seções, 8🔲/5⚠️, zero ✅); partição por prefixo tem 3 classes de resíduo; ~97% da família tem fechamento previsto 18–24/08 → **recomendação: NÃO executar agora; re-medir pós-26/08** (sunset natural) e decidir com números; **decisões do owner 13/08 (MAN-O6-REFINE):** split adiado (gate = re-medição pós-26/08) · **B implementada** (leitura seletiva no CLAUDE.md — motivação: consumo de token do Code, não navegação humana) · **D aceita** (OFF27 nasce em arquivo de campanha próprio + retrofit do auditor, 1ª sessão pós-campanha) — MAN-O6-REG/MAN-O6-F1/MAN-O6-REFINE | Média | 🔲 (gate: re-medição pós-26/08) |
 
 ---
@@ -6730,5 +6731,65 @@ qualquer F2.** Perguntas que a F1 deve responder **medindo**, no espírito do [[
   e ⛔ **não é o defeito** (cadastrar o email do trabalho seria contornar, não corrigir).
 - **[[F4]]** ✅ — precedente de mexida no fluxo OAuth (callback local); registro de evidência no
   `improvements_archive.md`.
+
+---
+
+### MAN-AUTH2 — `next` morto no callback OAuth (cheiro de open redirect se populado) + deep link descartado no `unauthorized_handler`
+🔲 **Registrado 17/08/2026 (MAN-AUTH2-REG)** — Prioridade **Baixa** — categoria **auth/robustez** —
+**registro apenas; nenhuma direção arbitrada, nenhuma mudança de código**
+
+**Origem:** achado de **carona da diagnose [[MAN-AUTH1]]-F1** (sessão read-only, 17/08), na seção
+*"achados fora do escopo"*. Não foi registrado na hora porque aquele prompt restringia o escopo ao
+item AUTH1 — este registro é o desdobramento, para o achado não se perder no relatório.
+
+**Comportamento 1 — o destino original é descartado.** [auth.py:36](routes/auth.py#L36): o
+`unauthorized_handler` manda o anônimo para `/login` **sem carregar o destino**:
+
+```python
+return redirect(url_for("auth.login_page"))     # ← sem next=
+```
+
+⇒ quem abre um **link profundo** (a página de um jogador, o detalhe de um time, uma proposta de
+trade compartilhada) e ainda não tem sessão **perde o destino**: loga e chega na home. ⭐ **Medido
+na F1, não deduzido:** `GET /team/1` como anônimo devolve `302` com `Location: /login` — **sem
+`next`**.
+
+**Comportamento 2 — o `next` do callback é código morto.** [auth.py:88](routes/auth.py#L88):
+
+```python
+next_page = request.args.get("next", url_for("roster.index"))
+return redirect(next_page)
+```
+
+O parâmetro **nunca chega populado pelo fluxo real**: quem chama `/auth/callback` é o **redirect do
+Google**, e ele carrega `code`/`state` — não um `next` nosso. ⇒ o `.get()` cai **sempre** no default
+`roster.index`, e o ramo que lê a query string é **inalcançável**. ⚠️ **A parte que não é só
+higiene:** se algum dia esse parâmetro passasse a chegar (alguém "consertando" o comportamento 1 da
+forma óbvia), ele seria consumido **sem validação** — `redirect()` aceita destino **absoluto e
+externo** ⇒ **cheiro de open redirect**. Hoje é inofensivo **porque está morto**; o risco nasce no
+momento em que alguém o ressuscita sem guarda.
+
+⭐ **Os dois comportamentos são a mesma cadeia partida ao meio:** o lado que **deveria produzir** o
+destino não produz, e o lado que **consumiria** o destino existe, sem validação, sem consumidor.
+
+**Natureza dupla — as metades são independentes e podem ser decididas separadamente:**
+
+1. **Higiene (não muda comportamento observável):** ou o `next` do callback sai, ou ganha
+   **validação defensiva** de destino relativo. Fecha o cheiro de open redirect **antes** de existir
+   um consumidor — que é a única hora barata de fechar.
+2. **Decisão de produto (opcional, é do owner):** restaurar o **deep link ponta a ponta** (o handler
+   carrega o destino, o fluxo o preserva pelo `state`, o callback o consome **validado**) **×**
+   assumir a **home como destino fixo** e apagar o resto. ⛔ **Não arbitrada aqui.** Nota de
+   dimensionamento: o deep link só é sentido no caminho **frio** — a F1 mediu que o owner recorrente
+   entra pelo `remember_token` (365 dias) e nem passa por essa cadeia.
+
+**Relações:**
+
+- **[[MAN-AUTH1]]** 🔲 — mesma diagnose de origem e **mesmo arquivo**, ⛔ **problema diferente**:
+  lá é *quem* entra (conta errada, sem seletor, 403 sem saída); aqui é *para onde* vai quem entrou.
+  Se as duas forem executadas juntas, o fluxo é tocado uma vez só — mas **nenhuma depende da outra**.
+- **[[X1b]]** ✅ / **[[F4]]** ✅ — a camada e o precedente de mexida no callback (archive).
+- **[[T1]]** — as **propostas de trade compartilháveis** (URL por UUID) são o caso de uso em que o
+  descarte do destino mais aparece: link mandado ao outro owner, que loga e chega na home.
 
 ---
