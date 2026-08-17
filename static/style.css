@@ -1400,49 +1400,64 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   color: var(--text-dim, #aaa);
 }
 
-/* ── UX20-F2: Draft order by round (linear, independent columns) ────────────── */
+/* ── UX20: ordem do draft por round (colunas lineares) ────────────────── */
 
+/* FIX1: grade, não flex. Com flex-wrap, uma coluna que não cabe cai para a linha
+   seguinte e começa numa altura própria — era a origem do desnível entre colunas.
+   Na grade, colunas da mesma faixa alinham o topo por construção.
+   ⛔ `auto-fit` no lugar de `repeat(3, …)`: o CSS segue sem saber quantos rounds
+   existem — a triplicação que o F2 quitou não volta. */
 .picks-order-container {
-  display: flex;
-  gap: 2rem;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem 1.25rem;
   margin-bottom: 1.5rem;
+  align-items: start;
 }
 
-.draft-order-column {
-  flex: 1;
-  min-width: 280px;
-}
-
+/* Altura FIXA: o rótulo da origem não pode empurrar a lista para baixo em uma
+   coluna e não na outra. */
 .draft-order-header {
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
-  padding-bottom: .5rem;
+  display: flex;
+  align-items: baseline;
+  gap: .35rem;
+  height: 2rem;
+  margin: 0 0 .5rem;
+  padding-bottom: .3rem;
   border-bottom: 2px solid var(--border, #333);
+  font-size: .95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .order-origin {
-  font-size: .85rem;
+  font-size: .78rem;
   font-weight: normal;
   color: var(--text-dim, #aaa);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .draft-order-list {
   display: flex;
   flex-direction: column;
-  gap: .5rem;
+  gap: 2px;
 }
 
+/* Linha de altura uniforme: conteúdo em UMA linha, o que sobrar é truncado.
+   Sem isso o nome longo quebra em duas linhas e desiguala as alturas. */
 .draft-order-row {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: .75rem 1rem;
+  gap: .5rem;
+  padding: .25rem .5rem;
+  min-height: 30px;
   border: 1px solid var(--border, #333);
   border-radius: 4px;
   background: rgba(255,255,255,.02);
   cursor: pointer;
+  white-space: nowrap;
   transition: background .1s ease, box-shadow .1s ease;
 }
 
@@ -1458,44 +1473,66 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
 .draft-order-row.highlighted {
   background: rgba(102,186,255,.15);
   border-color: rgba(102,186,255,.5);
-  box-shadow: 0 0 8px rgba(102,186,255,.2);
+  box-shadow: 0 0 6px rgba(102,186,255,.2);
 }
 
+/* "minha" E realçada: as duas cores legíveis ao mesmo tempo (arbitragem do owner). */
 .draft-order-row.is-mine.highlighted {
-  /* Both colors visible: green base + blue highlight overlay */
-  background: linear-gradient(135deg, rgba(126,226,181,.12), rgba(102,186,255,.15));
+  background: linear-gradient(135deg, rgba(126,226,181,.14), rgba(102,186,255,.16));
   border-color: rgba(102,186,255,.5);
 }
 
+.draft-order-row.is-empty {
+  cursor: default;
+  opacity: .55;
+}
+
 .draft-order-position {
+  flex: 0 0 auto;
+  min-width: 2.4rem;
+  font-size: .8rem;
   font-weight: 600;
-  min-width: 3rem;
-  text-align: center;
+  text-align: right;
   color: var(--text-dim, #aaa);
-  font-size: .9rem;
+  font-variant-numeric: tabular-nums;
 }
 
+/* `min-width: 0` é o que habilita o ellipsis dentro de um item flex. */
 .draft-order-team {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: .85rem;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* Encolhe ANTES do nome do time: o "via" é contexto, o nome é a informação. */
 .draft-order-via {
-  font-size: .85rem;
+  flex: 0 8 auto;
+  min-width: 0;
+  font-size: .74rem;
   color: var(--text-dim, #aaa);
-  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .draft-order-trade-link {
-  margin-left: auto;
-  padding: .35rem .5rem;
-  font-size: 1rem;
+  flex: 0 0 auto;
+  padding: 0 .3rem;
+  font-size: .85rem;
+  line-height: 1.4;
   color: #6ea8fe;
   text-decoration: none;
-  border: 1px solid rgba(110,168,254,.3);
+  border: 1px solid rgba(110,168,254,.25);
   border-radius: 3px;
-  transition: all .15s ease;
-  opacity: 0.6;
+  opacity: .55;
+  transition: opacity .15s ease, background .15s ease, border-color .15s ease;
+}
+
+.draft-order-row:hover .draft-order-trade-link,
+.draft-order-trade-link:focus {
+  opacity: 1;
 }
 
 .draft-order-trade-link:hover {
@@ -1504,31 +1541,14 @@ td.small-text { font-size: .76rem; color: var(--text-dim); }
   border-color: rgba(110,168,254,.6);
 }
 
+/* Toque: sem hover, o alvo precisa estar sempre visível. */
+@media (hover: none) {
+  .draft-order-trade-link { opacity: 1; }
+}
+
 @media (max-width: 720px) {
   .picks-order-container {
-    gap: 1rem;
-  }
-
-  .draft-order-column {
-    min-width: 100%;
-  }
-
-  .draft-order-row {
-    gap: .5rem;
-    padding: .5rem .75rem;
-  }
-
-  .draft-order-position {
-    min-width: 2.5rem;
-    font-size: .85rem;
-  }
-
-  .draft-order-team {
-    font-size: .9rem;
-  }
-
-  .draft-order-via {
-    font-size: .75rem;
+    grid-template-columns: 1fr;
   }
 }
 
