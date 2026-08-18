@@ -5749,3 +5749,46 @@ campanha oficial → auditoria → alocação de owners → RESET final.
   restrição do prompt.
 - **Estado:** MAN-AUTH1 ⚠️ — F2 no ar, **smoke de produção pendente** (gate PROC1: conferir o hash
   deployado antes; o smoke real é o próprio Murilo, no PC do trabalho, vendo o seletor).
+
+---
+
+### MAN-OFF26-24-REG + MAN-OFF26-25 + MAN-OFF26-27-F1 — incidente do rookie draft: registro, raiz corrigida, picks diagnosticadas (17-18/08/2026, Opus 5 + Fable) · código + docs
+
+- **O ciclo (17-18/08, regime de urgência — REG→execução invertida de propósito, registrada):**
+  ESPN definitiva → rollover → rookie draft **fora do board** (WhatsApp; picks à mão nos rosters)
+  → sync criou a classe como **31 stubs** ($1, unknown, needs_review, **css=2025**) + 5 ausentes.
+  Draft real ficou `pre_draft` — o importador OFF26-3 nunca teve insumo.
+- **F1 (read-only):** raiz do carimbo = [sync_sleeper.py:304] usando a CONSTANTE `CURRENT_SEASON`
+  (fixa em 2025) em vez do AppConfig que o rollover avança; irmão no `/auction` (2025 hardcoded no
+  cliente); `record_acquisition` no update cura tudo MENOS `needs_review`; store 2026 íntegro;
+  preview do importador provado read-only por AST.
+- **FIX (`bcf8a5d`) + FIX-b (`d77314b`):** `wa_draft_2026_fix.py` — one-shot molde M2 pela porta
+  canônica; preflight Brown-safe (âncoras Love $54/Tate $12/Price $9/Tyson $6/Sadiq $2, estados,
+  guarda de fase), idempotência por `wa_draft:2026:<r>.<p>`, auditoria molde OFF26-4 + smoke de
+  escopo. ⭐ **O preflight de prod ABORTOU num estado real imprevisto** (Singleton: aprovação Cat A
+  prévia na fila) — FIX-b adicionou o estado elegível com critério estreito. **A máquina recusou o
+  que a pressa não teria visto** — é a nota metodológica registrada (candidata MAN-METH-REG).
+- **Execução em PROD (18/08 madrugada, pelo owner):** preflight 36/36 → apply → **AUDITORIA LIMPA
+  36/36** → smoke de escopo OK. Backup `/data/dynasty_prod_backup_2026-08-18_wa_draft.db` +
+  snapshots do Sleeper em `/data`. Folhas: Haliburton $209, SAFIEL $208, mongoloides $208 acima do
+  teto — enquadramento pelos cortes de 20/08.
+- **Raiz corrigida na MESMA janela (`bdd3044`, prompt MAN-OFF26-25):** `stub_season =
+  get_current_season()` hoisted no sync; constante zero uso cru; `sync_stub_season_test.py` (6,
+  guarda AST); ⭐ smoke com `run_sync` REAL contra cópia adaptada recriou os 36 rookies ausentes do
+  seed **todos em css=2026**, zero existente alterado. Suítes 62+15+64+33 verdes. ⚠️ smoke de prod
+  pendente (sync pós-cortes de 20/08).
+- **Picks 2026 (prompt MAN-OFF26-27-F1, read-only):** 7 consumidores; o funcional é `/api/picks`
+  sem filtro alimentando simulador/propostas; ⛔ premissa "registrar trade" DESLOCADA (o Manager
+  não executa — exposição é planejamento); ⛔ delete REFUTADO (critério do sync é ANO-CALENDÁRIO,
+  e o Sleeper ainda lista 21 traded picks 2026 ⇒ `_ensure_default_picks` recriaria); recomendação:
+  predicado `consumida = existe AuctionLog(rookie_draft, season)` + filtro no `/api/picks` + selo
+  (decisão do owner) — F2 ~1 sessão, zero schema/delete, `_sync_trades` intocado.
+- **Decisões de produto:** FA auction de 24/08 **volta à liga fantasma** (OFF26-24 plano A; usar o
+  draft real foi descartado — picks 2026 vivas + risco às 2027 trocadas); draft real permanece
+  `pre_draft`; picks 2026 mortas por governança (aviso).
+- ⚠️ **Colisão de namespace:** trilha nomeada MAN-OFF26-24-*/25/26/27, mas OFF26-24 (board
+  fantasma) e OFF26-25 (gate ESPN) já existiam no backlog ⇒ itens registrados como
+  **OFF26-26 (✅ archive) / OFF26-27 (⚠️) / OFF26-28 (🔲 Alta, 24/08) / OFF26-29 (🔲)** —
+  precedente UX15→UX20, colisão documentada nos 4.
+- Diff docs: improvements.md (4 rows + 3 seções ativas + cabeçalho), archive (seção OFF26-26),
+  sessions (rotação), devplan (esta entrada). Código da janela já commitado em separado.

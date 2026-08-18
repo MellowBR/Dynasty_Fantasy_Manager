@@ -9124,3 +9124,83 @@ saiu de carona no F2 e **está fechada** — o que resta lá é só a **rota PAT
 propósito até a conferência de consumidores. O órfão de navegação apontado pela F1
 (`/picks/lottery/<season>` sem link a partir do board) **não foi fechado** — a direção (e) do owner
 substituiu a candidata (c) que o previa.
+
+---
+
+### OFF26-26 — Rookie draft 2026 realizado FORA do board do Sleeper: incidente, diagnose e reparo one-shot
+✅ **Concluído 18/08/2026 (auditoria limpa em produção)** — Prioridade **Alta** — trilha
+MAN-OFF26-24-REG / MAN-OFF26-24-F1 / MAN-OFF26-24-FIX (`bcf8a5d`) / MAN-OFF26-24-FIX-b (`d77314b`)
+
+> ⚠️ **Nota de namespace:** as sessões desta trilha foram nomeadas `MAN-OFF26-24-*` em regime de
+> urgência, mas o ID **OFF26-24 do backlog já pertencia** ao script do board da fantasma (e
+> OFF26-25 ao gate ESPN do rollover). O item vive como **OFF26-26** — próximo livre — pelo
+> precedente UX15→UX20 (a baseline de dedupe do [[O3]] não se fura). Os desdobramentos seguiram a
+> mesma regra: fix do sync = [[OFF26-27]], `/auction` = [[OFF26-28]], picks 2026 = [[OFF26-29]].
+
+**Registro retroativo — exceção consciente à ordem REG→F1→F2:** a operação rodou em urgência
+(17-18/08, madrugada) com os caps precisando estar corretos ANTES do planejamento da FA auction de
+24/08; os prompts existiram e estão na trilha da conversa. Este registro consolida o ciclo.
+
+**Linha do tempo (17→18/08):**
+
+1. 17/08: tabela ESPN definitiva travada → **rollover executado** (season 2025→2026, gate
+   [[OFF26-25]] exercido no ciclo real) → **rookie draft realizado via WhatsApp**, fora do board
+   do Sleeper; os owners inseriram as picks manualmente nos rosters.
+2. Sync intermediário criou a classe como **31 stubs** — `$1, unknown, needs_review=1,
+   contract_start_season=2025`; 5 jogadores adicionados ao Sleeper após o sync nem existiam no
+   Manager. O draft linear da liga real ficou `pre_draft` — **o importador OFF26-3 nunca teve
+   insumo** e não foi usado.
+3. **F1 (read-only):** raiz do carimbo 2025 = `sync_sleeper.py:304` usa a **constante de módulo**
+   `CURRENT_SEASON` (fixa em 2025, comentada *"fallback — prefer get_current_season()"*) enquanto o
+   rollover avança o AppConfig — fonte estagnada. **Achado irmão** no `/auction` (2025 hardcoded no
+   cliente, 4 campos + `now_year` nunca passado pela rota → [[OFF26-28]]). `record_acquisition` no
+   caminho de update **cura** salary/contract_year/contract_start_season/acquisition_type/
+   espn_ref_value + grava SalaryHistory/AuctionLog, mas **NÃO limpa needs_review**; a fila de
+   review não esvazia (muda de Cat A → Cat B); `RookieEspnValue` 2026 íntegro (âncora Love
+   sid 13287). Preview do importador provado read-only por AST.
+4. **FIX (`bcf8a5d`):** `wa_draft_2026_fix.py` — one-shot molde M2/off26_20_fix, **toda escrita
+   pela porta canônica** `record_acquisition`. Preflight obrigatório: resolução Brown-safe contra
+   o pool global (nome+posição+time NFL; posição por PERTENCIMENTO — lição FIX11/Hunter), franquia
+   por exato → normalizado → hint de owner (só os 2 documentados), estados classificados
+   (stub/ausente/já-aplicado; INESPERADO aborta), guarda de fase (`current_season=2026` +
+   `rollover_done`) e **âncoras de salário** (Love $54 · Tate $12 · Price $9 · Tyson $6 · Sadiq $2
+   · demais $1) — divergência impede a escrita (`--allow-anchor-mismatch` só para ensaio). Apply:
+   backup conferível obrigatório, valor pela MESMA precedência do importador (coluna → store → $1
+   nativo do `year1_salary`), **clear explícito de needs_review** com trilha `review_approved`
+   molde M2, verificação in-transação, **idempotência por `wa_draft:2026:<round>.<pick>`**.
+   Auditoria molde OFF26-4 (exit 0 = limpo) + smoke de escopo (hash dos players fora dos 36; toda
+   linha nova de SH/AL pertencente ao conjunto). Ensaio local completo sobre seed adaptado: 36/36,
+   os 3 caminhos de franquia exercitados, gate de âncora recusando sem flag, idempotência provada.
+5. **FIX-b (`d77314b`):** o preflight de produção reprovou com **1 achado real** — Nicholas
+   Singleton (1.11, sid 13288) em `free_agent/$1/needs_review=False`, a assinatura exata da
+   **aprovação Cat A com defaults** (cenário 5 da F1: alguém aprovou o stub na fila antes do
+   reparo). Classificador ganhou o terceiro estado elegível **"aprovado em review (update)"** com
+   critério ESTREITO (free_agent + $1 + espn 0 + css ∈ {2025,2026}); qualquer outra assinatura
+   segue INESPERADA. Ensaio: cenário A (Singleton fabricado → 36/36) e B (salary $2 → aborta).
+6. **Execução em PRODUÇÃO (18/08, madrugada):** backup
+   `/data/dynasty_prod_backup_2026-08-18_wa_draft.db` → preflight **36/36** (âncoras OK, 30 stubs
+   + 1 aprovado em review + 5 criações) → apply → **AUDITORIA LIMPA 36/36** (salário, ano 1,
+   season 2026, rookie_draft, review zerado, time, trilha SH+AL) → smoke de escopo OK →
+   idempotência disponível. Snapshots de segurança do Sleeper em `/data` (traded_picks + draft
+   2026 pre_draft).
+
+**Folhas pós-reparo (informativo):** Haliburton Time! $209, SAFIEL $208, mongoloides $208 — acima
+do teto; **enquadramento via cortes de 20/08** (comportamento esperado da régua [[OFF26-16]]).
+
+**Decisões de produto registradas:**
+
+- **FA auction de 24/08 VOLTA ao fluxo da liga fantasma** ([[OFF26-24]] segue plano A) — a ideia
+  de usar o draft da liga real foi **descartada**: picks 2026 vivas + risco às picks 2027 trocadas.
+- Draft da liga real permanece **pre_draft**; picks 2026 mortas **por governança** (aviso no
+  grupo). Pendências funcionais no Manager → [[OFF26-29]].
+
+**Nota metodológica (candidata à família [[MAN-METH-REG]] — registrada, NÃO consolidada):**
+a operação de emergência inverteu REG→execução; o custo foi trilha retroativa — o benefício foi
+cap correto no prazo. ⭐ **O preflight abortando no Singleton validou o desenho: a máquina recusou
+um estado imprevisto que a pressa não teria visto.**
+
+**Desdobramentos:** [[OFF26-27]] (raiz no sync — corrigida na mesma janela deste registro),
+[[OFF26-28]] (`/auction` hardcoded, prazo 24/08), [[OFF26-29]] (picks 2026 tradáveis no Manager,
+F1 feita). Relações: [[OFF26-3]] (o importador que ficou sem insumo), [[OFF26-23]]/[[OFF26-25]]
+(os poka-yokes da semana, exercidos no ciclo real), [[M2]] (a fila de review cujo Cat A produziu o
+caso Singleton), [[E2]]/[[DP3]] (o store que deu os salários).
