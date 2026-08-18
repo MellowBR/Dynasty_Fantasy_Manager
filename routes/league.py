@@ -11,7 +11,7 @@ from models import (
     espn_final_import,                                # OFF26-25: fonte única do "definitiva"
     consumed_pick_seasons, pick_is_consumed,          # OFF26-29: pick consumida (fonte única)
 )
-from salary_engine import roster_salary, draft_budget  # OFF26-16 + Bid Máximo (L1-BID)
+from salary_engine import roster_salary, draft_budget, MAX_ROSTER  # OFF26-16 + L1-BID + UX25
 from routes.salary import compose_budget               # L3: cap projetado (fonte única)
 from dynasty_values import get_dynasty_values, resolve_asset_value
 from routes.roster import _build_players_by_pos as build_players_by_pos, _ACQ_LABELS
@@ -61,6 +61,15 @@ def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=Non
     # do elenco), então vem da corrente, que é a definição literal de "vagas hoje".
     atual = draft_budget(players)
     bid_max = int(atual["usable_draft_budget"])
+    # UX25: obrigação de corte — o excesso que o `max(0, …)` do empty_spots ENGOLE
+    # (time com 27 jogadores mostra "Slots livres 0", igual ao time exatamente cheio).
+    # Contagem de COMPOSIÇÃO (regulamento 1.3, mesma régua do OFF26-16): o limite é
+    # MAX_ROSTER=22 ATIVOS; os até 2 IR ficam fora da conta. Fonte do limite: a
+    # constante do salary_engine — nenhum literal novo. ⛔ Nada aqui muda régua de
+    # cap/bid: `atual` segue intocado; isto é só contagem para exibição.
+    active_count = sum(1 for p in players if not p.is_on_ir)
+    ir_count = len(players) - active_count
+    cut_needed = max(0, active_count - MAX_ROSTER)
     # L3: cap PROJETADO da season seguinte — MESMA composição do cap projector
     # (`compose_budget`, base `project_next_salary`). Zero query: opera sobre os
     # `players` que o render já carregou numa consulta só.
@@ -82,6 +91,11 @@ def _build_team_card(team, standing, pick_count, players, dv_map, my_team_id=Non
         "proj_bid_max": int(proj["usable_draft_budget"]) if proj else None,
         "bid_max": bid_max,
         "slots": atual["empty_spots"],
+        # UX25: contagem visível + obrigação (0 = sem ruído; o template só rende se > 0)
+        "active_count": active_count,
+        "ir_count": ir_count,
+        "roster_limit": MAX_ROSTER,
+        "cut_needed": cut_needed,
         # UX18: o alerta do bid vem das FLAGS canônicas, não de comparação na tela.
         # `insufficient_budget` (teto negativo) OU `cannot_fill_roster` (teto abaixo do
         # mínimo de $1 com vaga aberta). ⛔ O `<= 0` que estava no template acusava

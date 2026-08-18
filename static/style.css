@@ -2111,6 +2111,29 @@ a.player-name:hover {
   margin-top: .5rem;
 }
 .league-now strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* UX25 — obrigação de corte no card do Hub (excesso de roster). Faixa discreta mas
+   inequívoca: a cor de alerta que o card já usa para cap negativo, sem roubar o
+   destaque do bid. Só rende quando cut_needed > 0. */
+.league-cut-obligation {
+  margin-top: .5rem;
+  padding: .3rem .5rem;
+  font-size: .76rem;
+  border: 1px solid rgba(231, 76, 60, .45);
+  border-radius: 4px;
+  background: rgba(231, 76, 60, .08);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+.league-cut-obligation strong { color: #e74c3c; }
+.league-cut-count {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
 .league-card-foot {
   display: flex;
   flex-wrap: wrap;

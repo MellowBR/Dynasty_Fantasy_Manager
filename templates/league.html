@@ -83,6 +83,17 @@
                         bid_alerta=c.bid_alerta) }}
     {% endif %}
 
+    {#- UX25: excesso de roster vira OBRIGAÇÃO explícita — o "Slots livres 0" é igual
+        para cheio-exato e para estourado (o max(0,…) engole o excesso). Time no limite
+        ou abaixo: nada rende (zero ruído). Cap negativo tem alerta próprio e não é
+        assunto desta faixa. -#}
+    {% if c.cut_needed > 0 %}
+    <div class="league-cut-obligation" title="Limite de composição: {{ c.roster_limit }} ativos (IR fora da conta, regulamento 1.3). A contagem mostra de onde vem o N.">
+      ⚠️ <strong>Cortar ≥{{ c.cut_needed }}</strong> jogador{{ 'es' if c.cut_needed > 1 else '' }} até 20/08
+      <span class="league-cut-count">{{ c.active_count }}/{{ c.roster_limit }} ativos{% if c.ir_count %} +{{ c.ir_count }} IR{% endif %}</span>
+    </div>
+    {% endif %}
+
     {#- Zona 3 — rodapé: contexto de temporada, sem disputar destaque com o cap. -#}
     <div class="league-card-foot">
       <span class="league-foot-item">Picks <strong>{{ c.pick_count }}</strong></span>
