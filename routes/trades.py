@@ -87,7 +87,11 @@ def trades_page():
         except (ValueError, TypeError):
             return None
         pick = Pick.query.get(pid)
-        if pick and pick.current_team_id == team_ids_by_name.get(team_name):
+        # OFF26-29: pick consumida não chega pré-marcada — o checkbox dela nem existe
+        # mais na lista do /api/picks; validar aqui fecha o funil pela mesma fonte única.
+        from models import pick_is_consumed
+        if (pick and pick.current_team_id == team_ids_by_name.get(team_name)
+                and not pick_is_consumed(pick)):
             return pid
         return None
 
@@ -451,4 +455,12 @@ def _fetch_players(ids: list) -> list:
 
 
 def _fetch_picks(ids: list) -> list:
-    return [p for pid in ids if (p := Pick.query.get(pid))]
+    # OFF26-29: funil único de resolução de picks do trade flow (preview, proposta nova
+    # E render de proposta antiga com TTL vivo). Pick consumida é omitida aqui ⇒ some da
+    # simulação, do delta dynasty (_pick_asset_dict só vê o que passa por esta lista) e
+    # do render — ocultação consistente, decisão do owner. Ids gravados em proposta
+    # antiga ficam inertes no JSON; a row da Pick segue viva (espelho preservado).
+    from models import consumed_pick_seasons, pick_is_consumed
+    consumed = consumed_pick_seasons()
+    return [p for pid in ids
+            if (p := Pick.query.get(pid)) and not pick_is_consumed(p, consumed)]

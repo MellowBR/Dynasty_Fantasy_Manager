@@ -9,6 +9,7 @@ from models import (
     db, Team, Player, Pick, SeasonStandings,
     SALARY_CAP, get_config, get_current_season, sort_players_by_pos,
     espn_final_import,                                # OFF26-25: fonte única do "definitiva"
+    consumed_pick_seasons, pick_is_consumed,          # OFF26-29: pick consumida (fonte única)
 )
 from salary_engine import roster_salary, draft_budget  # OFF26-16 + Bid Máximo (L1-BID)
 from routes.salary import compose_budget               # L3: cap projetado (fonte única)
@@ -108,10 +109,13 @@ def league_hub():
     season = get_current_season()
     teams = Team.query.order_by(Team.name).all()
     standings = {s.team_id: s for s in SeasonStandings.query.filter_by(season=season).all()}
-    pick_counts = dict(
-        db.session.query(Pick.current_team_id, func.count())
-        .group_by(Pick.current_team_id).all()
-    )
+    # OFF26-29: a contagem do card exclui picks de draft já realizado — consumidor que a
+    # F1 não listou (card diria 9 e a lista oculta mostraria 6); mesma fonte única.
+    _consumed = consumed_pick_seasons()
+    _pick_q = db.session.query(Pick.current_team_id, func.count())
+    if _consumed:
+        _pick_q = _pick_q.filter(Pick.season.notin_(_consumed))
+    pick_counts = dict(_pick_q.group_by(Pick.current_team_id).all())
     all_players = Player.query.filter_by(is_dropped=False).all()
     players_by_team = defaultdict(list)
     for p in all_players:
@@ -165,6 +169,9 @@ def team_detail(team_id):
 
     picks = Pick.query.filter_by(current_team_id=team.id)\
         .order_by(Pick.season, Pick.round).all()
+    # OFF26-29: pick de draft já realizado some da seção Picks (ocultação; row viva).
+    _consumed = consumed_pick_seasons()
+    picks = [pk for pk in picks if not pick_is_consumed(pk, _consumed)]
     picks_by_season = defaultdict(list)
     for pk in picks:
         picks_by_season[pk.season].append(pk)

@@ -464,6 +464,35 @@ def acquisition_already_recorded(event_ref) -> bool:
         AuctionLog.notes.like(f"%{tag}%")).first() is not None
 
 
+# ── OFF26-29: pick consumida — predicado ÚNICO por evidência de AuctionLog ─────
+
+def consumed_pick_seasons() -> set:
+    """OFF26-29 — seasons cujo rookie draft JÁ ACONTECEU: existe AuctionLog
+    `entry_type='rookie_draft'` na season. A MESMA evidência do gate do passo 5
+    (OFF26-23); materializada em 2026 pelos 36 registros do reparo OFF26-26.
+
+    É o que decide "pick consumida" nas superfícies de exibição/seleção
+    (board, /team/<id>, /api/picks → simulador/propostas). Data-driven de
+    propósito: autossustentável entre seasons (2027 fica tradável até o draft
+    2027 ter registro), sem ciclo de vida de flag (`rookie_draft_done` foi
+    descartada — família L4). ⛔ A row da Pick fica VIVA (delete foi refutado
+    na F1: o sync recriaria via /traded_picks) e `_sync_trades` segue
+    espelhando trade real — consumida é estado de LEITURA, não de tabela."""
+    rows = db.session.query(AuctionLog.season).filter_by(
+        entry_type="rookie_draft").distinct().all()
+    return {r[0] for r in rows}
+
+
+def pick_is_consumed(pick, consumed: set = None) -> bool:
+    """OFF26-29 — True se a pick pertence a uma season de draft já realizado.
+    `consumed`: passe o set de consumed_pick_seasons() ao filtrar listas
+    (1 query para N picks). ⛔ Predicado em 1 lugar só — consumidores importam
+    daqui; nenhuma réplica em JS/template."""
+    if consumed is None:
+        consumed = consumed_pick_seasons()
+    return pick.season in consumed
+
+
 class ESPNValue(db.Model):
     __tablename__ = "espn_values"
 

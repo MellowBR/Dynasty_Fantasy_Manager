@@ -1,7 +1,9 @@
 import json as _json
 from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import login_required, current_user
-from models import db, Pick, Team, DraftLotteryResult, SeasonStandings, LotteryAudit, get_config, get_current_season
+from models import (db, Pick, Team, DraftLotteryResult, SeasonStandings, LotteryAudit,
+                    get_config, get_current_season,
+                    consumed_pick_seasons, pick_is_consumed)  # OFF26-29: fonte única
 from dynasty_values import get_dynasty_values, pick_sleeper_id, resolve_asset_value
 from routes.auth import admin_required
 
@@ -47,6 +49,12 @@ def _canonical_lottery_weights(draft_season):
 def picks_page():
     teams = Team.query.order_by(Team.name).all()
     all_picks = Pick.query.order_by(Pick.season, Pick.round, Pick.original_team_name).all()
+
+    # OFF26-29: pick de draft já realizado SOME do board (ocultação, decisão do owner).
+    # A row segue viva na tabela — o filtro é de leitura; a seção da season desaparece
+    # porque o loop abaixo já pula season sem picks.
+    _consumed = consumed_pick_seasons()
+    all_picks = [p for p in all_picks if not pick_is_consumed(p, _consumed)]
 
     proj = _build_pick_projections()
 
@@ -142,6 +150,11 @@ def api_picks():
             return jsonify([])
         q = q.filter_by(current_team_id=team.id)
     picks = q.order_by(Pick.season, Pick.round).all()
+
+    # OFF26-29: este endpoint alimenta a lista de picks SELECIONÁVEIS do simulador de
+    # trades (trades.html) — o sítio funcional da F1. Pick consumida não é oferecida.
+    _consumed = consumed_pick_seasons()
+    picks = [p for p in picks if not pick_is_consumed(p, _consumed)]
 
     # Enrich with projected position and pre-resolved dynasty value.
     # dynasty_value pré-resolvido no backend elimina réplica da lógica DP_/FP_
