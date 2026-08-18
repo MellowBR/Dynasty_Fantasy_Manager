@@ -9204,3 +9204,395 @@ um estado imprevisto que a pressa não teria visto.**
 F1 feita). Relações: [[OFF26-3]] (o importador que ficou sem insumo), [[OFF26-23]]/[[OFF26-25]]
 (os poka-yokes da semana, exercidos no ciclo real), [[M2]] (a fila de review cujo Cat A produziu o
 caso Singleton), [[E2]]/[[DP3]] (o store que deu os salários).
+
+---
+
+### UX22 — Board de picks: visão de inventário quando a ordem da season não existe
+> ✅ **FECHADO 19/08/2026 (MAN-SESSION-CLOSE-1908): smoke de produção confirmado pelo owner** — inventário de 2027/2028 no ar com as contagens da liga real. Commit `aac4e97`. Seção movida verbatim (regra O3).
+⚠️ **F2 implementada 18/08/2026 (MAN-UX21-REG-F2, registro + execução na mesma janela) —
+smoke de produção PENDENTE** (gate [[PROC1]]) — Prioridade **Alta** (semana de trades em curso)
+
+> ⚠️ **Nota de ID:** o prompt pedia **UX21**, ocupado desde 17/08 (*página do lottery sem porta
+> de entrada*). Nasceu **UX22**, próximo livre — precedente UX15→UX20, baseline de dedupe do [[O3]].
+
+**Problema (feedback do owner, 18/08, com print):** após a ocultação das picks consumidas
+([[OFF26-29]]), as seções 2027/2028 do board mostravam apenas *"ordem ainda não definida"* —
+nenhuma pick listada. A informação de **POSSE** existe integralmente na tabela `Pick` (dono
+original, dono atual, rodada, season); o que não existe antes do sorteio/classificação é a
+**ORDEM** dentro da rodada. Na semana mais movimentada de trades, a página não respondia
+*"quantas picks tenho, de quem, em que rodada"*.
+
+**F2 — visão de inventário (leitura pura):**
+
+- **Rota** ([routes/picks.py](routes/picks.py)): season presente na matriz cujo `round_centered`
+  ficou sem rodadas ganha `inventory[season]` — picks por rodada ordenadas pelo **nome do dono
+  atual** (alfabética é visivelmente não-draft: nada aqui inventa ordem) + contagem por time.
+  Consumidas já saíram rio acima (predicado [[OFF26-29]] intocado).
+- **Template** ([templates/picks.html](templates/picks.html)): a célula do inventário reusa a
+  anatomia do board [[UX20]] (`draft-order-row`, 38px, `via <original>` na trocada, verde de
+  "minha", ⇄ com pré-seleção) **sem o número de posição**; cabeçalho da coluna diz
+  *"Round N · X picks · ordem pendente"*; chips de contagem por time no topo da seção; o aviso
+  antigo **encolheu** para uma linha dentro da visão (*"a ordem virá do sorteio × classificação
+  invertida e nada aqui a inventa"*). ⭐ Como as células carregam `data-team-name`, **o filtro por
+  equipe e o clique-realça existentes funcionam no inventário sem uma linha de JS nova**.
+- **Season com ordem → comportamento atual intacto:** quando o lottery/classificação nascer,
+  `round_centered` ganha as rodadas e a visão de inventário **sai de cena sozinha** — nenhuma
+  flag, nenhum estado novo.
+- ⛔ Intocados: lógica de ordem (lottery/classificação), card Lottery Odds, predicado de
+  consumida, schema, sync.
+
+**Verificação:** `picks_inventory_test.py` (5 testes — posse+proveniência sem posição, gancho do
+filtro nas células, contagem batendo com a tabela, consumida fora de qualquer visão, **render
+ordenado intacto** via fixture de standings 2026→draft 2027); smoke com o app real sobre a cópia
+do ensaio: **72 células = 72 picks** da tabela (2027+2028), chips somando 72, 2 seções de
+inventário, nomes reais com emoji íntegros; **gate [[O7]] exercido e exit 0** (o diff toca
+template — 4 larguras × 4 páginas limpas); suítes verdes (inventário 5, pick_consumed 13,
+cap_projetado, engine 62, template_js, player_search, poka_yoke).
+
+**Fecha ✅ quando:** smoke de prod do owner — board mostrando o inventário de 2027/2028 com as
+contagens da liga real (gate [[PROC1]]: conferir o hash deployado antes).
+
+**Relações:** [[OFF26-29]] (a ocultação que expôs o vazio — e o predicado que o inventário
+herda), [[UX20]] (a anatomia de célula reusada), [[UX21]] (colisão de ID — item distinto),
+[[M9]]/[[M9]]-FIX (o ⇄ preservado), [[M16]] (de onde a ordem virá quando existir).
+
+---
+
+### UX23 — Cap Projector mira a season de planejamento real (helper de fase + modo corrente D9)
+> ✅ **FECHADO 19/08/2026: smoke de produção confirmado pelo owner** — título 2026 + tag FOLHA CORRENTE, banner verde, board DP1 populado, cenário DP2 somando. Commit `296f166`. Seção movida verbatim (regra O3).
+⚠️ **F2 implementada 18/08/2026 (MAN-UX23-F2) — smoke de produção PENDENTE** ([[PROC1]]) —
+Prioridade **Alta** (janela 20-24/08) — F1 18/08 (MAN-UX23-REG-F1, relatório na trilha da conversa)
+
+**Sintoma (print do owner, 18/08):** pós-rollover o projector virou "2027" no meio da janela da
+auction de 2026 — banner de ESPN respondendo a pergunta errada, Δ +$0 em toda linha, board DP1
+**vazio** e cadeia DP2 **ignorando rookie em silêncio** (`rookie_espn_adjusted(sid, 2027)` → None
+→ `continue`).
+
+**O que a F1 provou:** alvo `get_current_season() + 1` **inline em 6 sítios** (rota:
+data/budget/rookies; template: título ×2, rótulo, `SEASON_PROJ` do JS), **zero** helper e **zero**
+gate de fase — a `/league` fecha a projeção com `_projection_open()`; o projector não tinha
+equivalente. ⭐ A base correta **já existia**: modo D9 (`compose_budget(projected=False)` — *"o
+salário armazenado já está valorizado; re-projetar duplicaria"*). O Δ +$0 **não era bug de
+cálculo**: era `MAX(sal, floor(0.5×espn)) = sal` — a resposta certa para a pergunta errada.
+
+**F2 (decisões do owner no REFINE: sinal = opção b/evidência AuctionLog; colunas saem; título
+explicita o modo):**
+
+- **`models.planning_target_season()`** — fonte única de fase: `current+1` pré-rollover ·
+  `current` pós-rollover com auction pendente · `current+1` quando existir **evidência** de
+  leilão (`AuctionLog fa_auction` da season corrente ≥ **`AUCTION_EVIDENCE_MIN = 3`**).
+  ⭐ **Calibração do limiar (delegada ao Code, documentada no código):** leilão real entra em
+  LOTE pelo importador (dezenas); 1-2 registros são assinatura de teste manual avulso no
+  `/auction` — que não pode virar a chave no meio da janela 20-24/08. Hoje o [[OFF26-28]]
+  (carimbo 2025) ainda "protege" por acidente; o limiar cobre o vão quando o 28 for corrigido.
+  ⛔ `auction_done` (passo 7) **não é insumo** — flag manual fica como está.
+- Os **6 sítios consomem o helper**: as 3 rotas via `_planning_ctx()`; títulos, rótulo do cap e
+  `SEASON_PROJ`/`MODE` do JS **vêm do servidor**. Guardas **AST** falham se `current+1` inline
+  voltar (rota E template).
+- **Modo corrente**: colunas Sal-próximo/Δ **saem** (mostrar Δ zerado seria responder a pergunta
+  errada), ordenação desempata pelo salário corrente, POST `/budget` envia `projected:false`
+  (parâmetro D9 **que já existia** — consumido, não criado), título ganha a tag
+  **"FOLHA CORRENTE · AUCTION 2026"**. Modo projetado (pós-virada): comportamento histórico
+  **intacto**.
+- **Banner, badge PROV, board DP1 e cadeia DP2 voltaram SOZINHOS** pela mudança do target nas
+  queries — zero lógica nova, como a F1 previu.
+
+**Verificação:** `planning_target_test.py` (12 — 3 fases; limiar 2 não vira × 3 vira; 36
+`rookie_draft` **não** contam (o estado real de prod); `fa_auction` de outra season não conta;
+payload `target_season`/`mode`; board de fase; guardas AST). **Smoke estado-de-prod** (cópia:
+current 2026, rollover done, ESPN final, 0 fa_auction): título "Cap Projector 2026" + tag,
+`espn_status=final`, **board DP1 com 251** (287 in_class − 36 draftados, auto-limpeza pelo filtro
+de rosterados), DP2 **somando** o rookie do cenário, budget corrente == GET (a régua do Hub);
+**fixture pós-24/08** (3 `fa_auction`): **volta a 2027/projetado sozinho**, tag some. Gate [[O7]]
+exit 0; `template_js_test` + 9 suítes verdes. ⚠️ Nota do smoke: as 14 badges PROV vistas na cópia
+são **artefato do boot local** (o `import_csv` do seed regrava `is_final=0` via `set_espn_value` —
+em prod o CSV não existe e o boot não toca o store).
+
+**Fecha ✅ quando:** smoke de prod do owner — título 2026 com a tag de modo, banner verde, board
+populado, cenário somando (PROC1: conferir o hash deployado antes).
+
+**Relações:** [[OFF26-29]] (a família do predicado por evidência), [[OFF26-28]] (o carimbo 2025 do
+`/auction` — interage com o limiar, ver acima), [[DP1]]/[[DP2]] (as cadeias que voltaram),
+[[OFF26-1]]-D9 (o modo de base reusado), [[UX19]]/[[L4]] (a família "gate que só fecha" — aqui o
+sinal é por evidência justamente para não herdar esse problema), [[UX24]] (carona registrada).
+
+---
+
+### UX25 — Hub: excesso de roster vira obrigação explícita ("cortar ≥N até 20/08")
+> ✅ **FECHADO 19/08/2026: smoke de produção confirmado pelo owner** — Hub com as faixas de obrigação E o indicador vivo no projector (arco -b). Commits `d3cfceb` + `752a4a6`. Seção movida verbatim (regra O3).
+⚠️ **F2 implementada 19/08/2026 (MAN-UX-NEXT-REG-F2, F1-rápida + F2 na mesma sessão) — smoke de
+produção PENDENTE** ([[PROC1]]; o diff toca `style.css`, artefato público conferível por URL) —
+Prioridade **Crítica** (prazo 20/08)
+
+**Problema (feedback do owner, 19/08, com print):** na janela pré-cortes, o card do Hub mostra
+**"Slots livres 0"** tanto para o time exatamente no limite quanto para o time **acima** dele —
+com os rosters inflados pelos 36 rookies, times com jogadores demais não viam **nenhuma**
+obrigação. O cap negativo tem alerta próprio e **não** é o assunto deste item.
+
+**F1-rápida (read-only, embutida):**
+
+- **Truncamento confirmado:** `empty_spots = max(0, MAX_ROSTER − num_keepers)` no
+  [salary_engine](salary_engine.py) — 27 jogadores → `max(0, −5)` → **0**, o excesso é engolido.
+- **Limite canônico adotado: `MAX_ROSTER = 22` ATIVOS**, com os até 2 IR **fora da conta** — é a
+  contagem de **composição** do regulamento (item 1.3), a mesma distinção que o [[OFF26-16]]
+  cristalizou (IR conta na FOLHA, não na contagem). Fonte no código: a constante do engine —
+  **zero literal novo**; os settings do Sleeper corroboram, mas a régua da liga é a do
+  regulamento.
+
+**F2 (leitura pura — zero schema, zero mudança de régua):**
+
+- [league.py](routes/league.py): `cut_needed = max(0, ativos − MAX_ROSTER)` + `active_count` /
+  `ir_count` / `roster_limit` como campos **novos** do card. ⛔ `atual` (a chamada do
+  `draft_budget`) segue intocada — bid, slots e flags idênticos.
+- [league.html](templates/league.html): faixa **"⚠️ Cortar ≥N jogador(es) até 20/08"** com a
+  contagem **"X/22 ativos (+K IR)"** (o owner confere de onde vem o N; tooltip explica a régua).
+  Renderiza **só** quando `cut_needed > 0` — time regular, zero ruído. CSS mínimo na cor de
+  alerta que o card já usa.
+- ⚠️ **Limite declarado:** o literal *"até 20/08"* morre com a janela — generalizar/remover fica
+  para o pós-cortes (o mecanismo em si é permanente: excesso reaparece em qualquer inflação
+  futura).
+
+**Verificação:** `roster_excess_test.py` (5 — excesso vira obrigação; **IR fora da conta** (22+2
+= legal); excesso com IR conta só ativos; limite exato/abaixo = zero; **réguas intocadas** — o
+`slots` truncado continua o mesmo). Smoke na cópia inflada (estado 18/08): **3 cards com
+obrigação** (24/22→≥2, 26/22→≥4, 27/22→≥5), 3/3 batendo com a query direta; ⭐ **âncora Trust The
+Process conferida dos dois lados: 26 ativos → "cortar ≥4", e o Sleeper AO VIVO devolve os mesmos
+26** (MellowBR: 22, regular — sem faixa). Gate [[O7]] exit 0; suítes verdes.
+
+**-b (19/08/2026, MAN-UX25-b) — a mesma obrigação, VIVA no cap projector:** item **"Roster"** na
+barra sticky, recalculado pelo **POST `/budget` que já roda a cada toggle** — o servidor conta
+(ele conhece `is_on_ir` do banco; o payload do GET também o carrega — gap inexistente, conferido)
+e o JS **só exibe** (F10); o limite chega no payload (`roster.limit` = `MAX_ROSTER` do engine —
+zero hardcode no cliente). Exibição: `X/22 ativos (+K IR) ✓` discreto quando regular; **"· cortar
+≥N"** em alerta quando o cenário excede, **contando para baixo** conforme os toggles até
+regularizar. **Rookies do cenário ocupam vaga de ativo** (entram na contagem). **"Spots vazios"
+mantido como está** — significado de vagas da AUCTION, onde 0 com excesso é verdadeiro; o
+indicador novo ao lado desambigua (decisão de menor mudança). Campo `roster` **aditivo**;
+D9/`budget` intocados — teste prova a folha $125 **com** o IR (régua [[OFF26-16]]) e o
+`empty_spots` seguindo truncado. Smoke (cópia de prod): Trust **26/22 cortar ≥4 → toggla 4 → ✓ →
+volta → reaparece**; rafaelferreirap com `+1 IR` fora da conta; Pitbull 22/22 neutro. +4 testes
+(suíte em 9); `template_js_test` + gate [[O7]] exit 0.
+
+**Fecha ✅ quando:** smoke de prod do owner — os cards estourados do Hub exibindo a faixa com N
+correto **e** o projector com o indicador vivo (PROC1 pelo hash do `style.css` servido).
+
+**Relações:** [[OFF26-16]] (a distinção folha × contagem que define a régua), [[UX18]] (o
+precedente de "estado inviável sem alerta" e das flags canônicas), [[L3]] (o card em 3 zonas onde
+a faixa se encaixa), [[OFF26-26]] (a entrada dos 36 que inflou os rosters), [[M1]] (o alerta de
+cap que NÃO foi tocado).
+
+---
+
+### UX26 — Badge PROV em rookies já contratados (salário real rotulado de provisório)
+> ✅ **FECHADO 19/08/2026: smoke de produção confirmado pelo owner** — Cooper/Douglas/Love sem PROV. Commit `2a2d94f`. Seção movida verbatim (regra O3).
+⚠️ **F1-rápida + F2 implementadas 19/08/2026 (MAN-UX26-REG-F1F2) — smoke de produção PENDENTE**
+([[PROC1]]) — Prioridade **Média**
+
+**Sintoma (print do owner, 19/08):** no projector (modo corrente pós-[[UX23]]), Omar Cooper e
+Caleb Douglas — **contratados** pelo reparo [[OFF26-26]], Ano 1/4, rookie_draft, ESPN definitiva
+travada — exibiam **PROV** ao lado do salário. Semanticamente errado: PROV marca projeção de
+fonte não-final; $1/$54 ali é **contrato gravado**.
+
+**F1-rápida:**
+
+- **Derivação única, sem réplica por-jogador:** [salary.py](routes/salary.py) lê `is_final` do
+  `EspnValueStore` → payload `espn_is_final` → JS `=== false` mostra o badge. Os demais
+  `tag-prov` do app são semânticas **distintas** (o `bid_provisional` table-level da liga, o
+  estágio da keeper sheet, o "PROTEGIDO" da urna, cores de timeline) — nada a consolidar.
+- ⭐ **Causa-raiz medida — e é outra que a suspeita do prompt:** o clear do passo 5 é
+  **irrelevante** (o badge lê `EspnValueStore`; o clear esvazia `RookieEspnValue`). A raiz é
+  **`record_acquisition` → `set_espn_value(...)` com default `is_final=False`**
+  ([models.py:428](models.py#L428)): toda aquisição grava a row do store carimbada **provisória**
+  — o reparo OFF26-26 fez isso com os 36, mesmo com os valores vindos da tabela definitiva (via
+  `RookieEspnValue`).
+
+**F2 (exibição apenas — zero mudança em salário/contrato/store/réguas):**
+
+- **`models.contracted_player_ids(season)`** — fonte única (evidência AuctionLog, mesma família
+  [[OFF26-29]]/[[UX23]]): jogador com contrato de aquisição gravado na season corrente **nunca**
+  exibe PROV, independentemente do carimbo do store.
+- Decisão calculada **no servidor** (`espn_prov` novo no payload); o JS troca `espn_is_final ===
+  false` por `p.espn_prov` — **guarda de teste falha se o JS voltar a decidir pelo dado cru**.
+  `espn_is_final` permanece no payload como dado CRU do store, intocado.
+- **Caso legítimo preservado:** provisório sem contrato na season corrente segue exibindo PROV.
+
+**Verificação:** `espn_prov_badge_test.py` (6 — contratado não exibe; legítimo exibe; final não
+exibe; sem store não exibe; critério só em models; JS consome a decisão). Smoke na cópia (estado
+do reparo: rows do store `is_final=0` + 36 AuctionLog): **12 times varridos, 0 contratados-2026
+com PROV, 241 legítimos preservados** (⚠️ o 241 é artefato do boot local que o [[UX23]] já
+documentou — em prod a definitiva carimbou os veteranos e sobra ~zero); âncoras
+Love/Cooper/Douglas/Price limpas. Gate [[O7]] exit 0; `template_js_test` + suítes verdes.
+
+**Nota de dado (não corrigida aqui, de propósito):** o default `is_final=False` do
+`set_espn_value` continua carimbando rows de aquisição como provisórias — o F2 corrigiu a
+**exibição** pela semântica verdadeira, que blinda qualquer estado do store. Mudar o default (ou
+propagar a finality da fonte) mexeria na porta canônica de contrato — fora do escopo por
+restrição, e desnecessário com o critério novo.
+
+**Fecha ✅ quando:** smoke de prod — Cooper/Douglas/Love sem PROV no projector.
+
+**Relações:** [[OFF26-26]] (os contratos), [[UX23]] (o modo corrente onde o badge vive),
+[[OFF26-29]] (a família de predicados por evidência), [[E4-c]]/[[E2]] (o store e sua semântica de
+`is_final`), [[M2]] (o `record_acquisition` — a porta que carimba o default).
+
+---
+
+### OFF26-27 — Criação de stub no sync usava season estagnada (a raiz do carimbo 2025)
+> ✅ **FECHADO 19/08/2026** — pela COMBINAÇÃO: fix deployado (`bdd3044`) + guarda AST + smoke com `run_sync` REAL recriando os 36 stubs em 2026 + ausência de recorrência em prod desde o deploy. O caso natural (próximo jogador novo entrando por sync) segue como observação de rotina, não gate. Seção movida verbatim (regra O3).
+⚠️ **Fix no ar (`bdd3044`, 18/08/2026) — smoke de produção PENDENTE** — Prioridade **Crítica**,
+prazo **antes do sync pós-cortes de 20/08** (o fix precisa estar deployado antes do próximo stub
+nascer) — prompt MAN-OFF26-25 (⚠️ o ID de backlog é **27**: OFF26-25 já era o gate ESPN do rollover)
+
+**Raiz (provada na F1 do [[OFF26-26]]):** [sync_sleeper.py:304](sync_sleeper.py#L304) criava o
+Player stub com `contract_start_season=CURRENT_SEASON` — constante de módulo fixa em 2025, cujo
+próprio comentário diz *"fallback — prefer get_current_season()"* — enquanto o rollover avança o
+**AppConfig**. Todo entrante pós-rollover nascia na season errada; a classe 2026 inteira nasceu
+assim (curada pelo one-shot do [[OFF26-26]]); o defeito seguia **ativo** para qualquer add/waiver
+com os syncs frequentes da semana (cortes de 20/08, trades).
+
+**Fix mínimo (`bdd3044`):** `stub_season = get_current_season()` lido **uma vez por sync**
+(hoisted antes do loop de rosters) e usado no construtor; a constante segue como fallback de
+última instância **dentro** do helper. Zero uso cru remanescente no módulo (só o import);
+players existentes intocados (a linha 242 do sync — nunca tocar salary/contract de existente —
+não foi alterada).
+
+**Verificação:** `sync_stub_season_test.py` (6 testes) — guarda **AST** no construtor `Player(`
+(reintroduzir a constante na criação de dados FALHA), `run_sync` contém a leitura canônica,
+AppConfig 2026 → 2026, ausente → fallback sem quebrar, pós-rollover o carimbo acompanha.
+⭐ **Smoke com `run_sync` REAL** contra cópia adaptada (2026) reproduziu o incidente como
+validação: os 36 rookies ausentes do seed foram recriados como stubs **todos em
+`contract_start_season=2026`**, e **zero** player existente teve salary/contract/acq/css alterado.
+Suítes verdes: engine 62, poka_yoke 15, late_drop 64, espn_gate 33.
+
+**Fora do escopo (mapeado na F1, sem mudança):** `import_csv` (dormente em prod — CSV fora do
+git), `AuctionLog.season` default (latente — `record_acquisition` sempre passa explícito),
+`/auction` (item próprio: [[OFF26-28]]). Nenhuma migração de dados: não há outros registros 2025
+pós-rollover fora dos 36 já curados.
+
+**Fecha ✅ quando:** hash `bdd3044`+ conferido em prod ([[PROC1]]) e o próximo jogador novo criado
+por sync nascer `contract_start_season=2026` (a movimentação de 20/08 produz o caso natural).
+
+---
+
+### OFF26-29 — Picks 2026 consumidas seguem vivas como ativo no Manager
+> ✅ **FECHADO 19/08/2026: F2 executada (`bfcbd61`, 18/08) + smoke de produção pelo print do board (só 2027/2028 visíveis).** A F2 implementou a recomendação da F1: predicado único `consumed_pick_seasons`/`pick_is_consumed` em models (evidência AuctionLog), filtro no `/api/picks` (fecha simulador, propostas novas e preset), funil `_fetch_picks` (preview + proposta antiga com TTL vivo + delta dynasty), ocultação no board e `/team/<id>`, contagem do card do Hub corrigida (consumidor que a F1 não listara); row VIVA na tabela e `_sync_trades` intocado (espelho preservado); 13 testes + guardas anti-réplica. Seção movida verbatim (regra O3).
+🔲 **Registrado 18/08/2026 (MAN-OFF26-24-REG); F1 read-only FEITA na mesma janela
+(MAN-OFF26-27-F1 — ⚠️ ID de backlog = 29)** — Prioridade **Baixa (REG) — a F1 sugere reavaliar
+para Média** (a exposição é na janela de trades até 24/08) — F2 aguarda decisão do owner
+
+**Contexto:** o rookie draft 2026 foi materializado pelo [[OFF26-26]], mas as picks 2026 seguem
+vivas como ativo: no Sleeper (draft `pre_draft` — governança por aviso) e no Manager (tabela
+`Pick`).
+
+**O que a F1 mediu (evidência na trilha da conversa de 18/08):**
+
+- **7 consumidores** da Pick 2026; o funcional é **`/api/picks` sem filtro de consumida**
+  ([picks.py:127-148](routes/picks.py#L127-L148)), que alimenta a lista de picks **selecionáveis**
+  do simulador ([trades.html:329](templates/trades.html#L329)), o preview e as propostas
+  (`_fetch_picks` resolve ao vivo, [trades.py:453](routes/trades.py#L453)). Board `/picks`,
+  `/team/<id>` e a valoração dynasty ([dynasty_values.py:183](dynasty_values.py#L183) corta só
+  `< current`) exibem/valoram normalmente.
+- ⛔ **Premissa "permite registrar trade" DESLOCADA:** o Manager **não executa** trade (POSTs de
+  `/trades` = preview puro, proposta, delete de registro); ativo só se move via sync ([[S1]]).
+  Exposição real = **planejamento enganoso**, não execução.
+- ⛔ **Delete REFUTADO como mecanismo:** o critério do sync é **ano-calendário**
+  (`datetime.now().year` — [sync_sleeper.py:398-401](sync_sleeper.py#L398-L401); as 2026 morreriam
+  só em 01/01/2027, rollover é irrelevante) e a recriação viria do próprio sync:
+  `active_seasons` sai do `/traded_picks` do Sleeper, que ainda lista **21 picks 2026** (medido ao
+  vivo, 18/08) — com o draft real `pre_draft` para sempre, o Sleeper nunca as solta.
+- **Trade real do Sleeper com pick 2026 pós-expiração:** com a row viva, `_sync_trades` espelha e
+  move ([sync_sleeper.py:746-757](sync_sleeper.py#L746-L757)) — correto para um espelho; com
+  delete, warning `"não encontrada (drafada?)"` e Trade sem a pick rastreada.
+
+**Recomendação da F1 (F2 ~1 sessão, zero schema, zero delete, sync intocado):** predicado
+data-driven **`pick consumida = existe AuctionLog(entry_type='rookie_draft', season da pick)`** —
+a mesma evidência que o gate do passo 5 ([[OFF26-23]]) já usa, materializada pelo reparo (36
+registros) — em **helper único** + filtro no `/api/picks` (fecha simulador, propostas novas e
+preset de uma vez) + selo/ocultação no board e `/team/<id>` (**selo × sumiço = decisão do
+owner**). Autossustentável entre seasons (2027 fica tradável até o draft 2027 ter registro), sem
+risco de ciclo de vida de flag (`rookie_draft_done` foi descartada como predicado — família
+[[L4]]). Riscos nomeados: proposta antiga (TTL 7d) com pick 2026 ainda renderiza; valoração
+dynasty da pick morta segue no delta até o filtro alcançar `_pick_asset_dict`; trade real no
+Sleeper continua espelhando (correto — constar no aviso de governança).
+
+**Pendências do registro original:** expirar/ocultar as picks 2026 no Manager (a F2 acima) +
+**ensaio opcional do draft room na liga fantasma** (operacional, sem código).
+
+---
+
+### OFF26-30 — Draft replay no Sleeper: consumir as picks 2026 no board
+✅ **Concluído 18/08/2026 (execução manual do co-admin; registrado no fechamento
+MAN-SESSION-CLOSE-1908)** — Prioridade **Alta**
+
+**O que era:** as picks 2026 seguiam vivas no board do Sleeper (draft `pre_draft` eterno) depois
+de o rookie draft ter acontecido fora do board ([[OFF26-26]]). O replay consome as picks NO
+SLEEPER — a contraparte da ocultação que o [[OFF26-29]] fez no Manager.
+
+**Execução (18/08, manual, sob o freeze [[OPS2]]):**
+
+- 36 picks registradas pick a pick no board do draft da liga real; draft levado a **`complete`**.
+- **Conferência pela API**: pick a pick nas 4 primeiras + contagem total (36/36).
+- Picks 2026 **consumidas no Sleeper**; picks futuras (2027+) **intactas** no `/traded_picks`.
+- O `start_time` agendado do draft foi **eliminado pelo próprio complete** — o risco de o
+  Sleeper abrir um draft room espúrio morreu junto.
+- **Sync pós-operação: contratos intocados** (âncora Love $54 conferida) — o freeze foi
+  destravado só após o `complete`.
+
+⭐ **O ensaio previsto na F1 nunca foi necessário** — a execução real respondeu as perguntas
+(inclusive as do draft room). Lição registrada no devplan: rookie draft 2027 = WhatsApp como
+palco + **registro pick a pick no board do Sleeper** logo em seguida, para o board nunca mais
+divergir da realidade.
+
+**Relações:** [[OFF26-26]] (o incidente que criou a dívida), [[OFF26-29]] (a ocultação no
+Manager — as duas pontas fecham juntas), [[OPS2]] (o freeze que protegeu a janela),
+[[OFF26-24]] (o script da fantasma — infra irmã, não usada aqui: a liga real pediu operação
+manual).
+
+---
+
+### OFF26-31 — Forense: Cam Little $3→$1 — regra correta sobre estado herdado anômalo
+✅ **Concluída 19/08/2026 (MAN-OFF26-31-REG-F1) — ZERO reparo** — Prioridade **Alta**
+
+**O reporte (Leo, ao vivo):** Cam Little (K/JAX, id 115) "estava $3 e mudou para $1", entre as
+fotos de 07/08 (`pre_smoke_urna.db`) e 18/08 03:30 (`dynasty_prod_backup_2026-08-18_wa_draft.db`),
+aparentemente sem trilha.
+
+**Veredito — ⛔ a premissa central caiu, com evidência dupla:**
+
+1. **A mudança TEM trilha:** a linha de SalaryHistory de **17/08 21:34:17** — *"Waiver Ano 2:
+   floor(0.80×1.0)=$1"* — é gerada por um único sítio do código (`apply_season_rollover`, ramo
+   `waiver + next_yr==2`) e crava a mutação ao segundo. O **"1.0" é o ESPN ajustado** (K,
+   placeholder), não uma base salarial lida errada: **o ramo não lê `Player.salary` por
+   decisão do owner** (06/08, [[OFF26-20]]: canal waiver/FA não carrega contrato; ano 2 =
+   0,8×ESPN REF).
+2. **Sem trilha estava o $3:** o jogador tinha **zero** linhas de SalaryHistory pré-rollover —
+   o $3 veio da era do import e nunca foi trilhado. O que parecia "mudança sem trilha" era o
+   inverso: **valor sem passado que finalmente ganhou uma linha**.
+
+**A cadeia completa** (PlayerHistory + transações do Sleeper 2025, liga `1224848075609100288`):
+FA Auction pelo Cangaceiros (~$2-3) → **drop 12/10** → **re-add `free_agent` pelo Leo 29/10**.
+O re-add não abre contrato novo (o sync nunca toca salário — raiz = [[WV1]], família Gainwell),
+então o $3 do contrato morto sobreviveu como híbrido `$3/free_agent/cy=1` até o rollover aplicar
+a régua do canal.
+
+**Alcance:** a coorte achatável deste rollover (`cy=1 + canal waiver/FA + salary>1`) era
+**exatamente {Cam Little}** — prevista pelo seed e confirmada pelos backups; os 22 do
+[[OFF26-20]] estavam a $1 e **subiram** pela mesma régua. Diff completo foto A × foto B sem
+inexplicados. **População híbrida restante: ~5, todos cy≥2** — caem na VALORIZAÇÃO
+(`MAX(prev, …)`), **nunca descem**. ⚠️ O gerador de híbridos segue vivo até o [[WV1]]: todo
+dropado-readicionado mantém o salário morto, e o rollover de 2027 achatará híbridos novos —
+**por regra**.
+
+**Candidatos eliminados por código:** sync (*NEVER salary/contract*), urna/ensaio, migrações de
+boot, [[OFF26-26]] (fora dos 36 + foto pré-reparo já $1); `correct_player_salary` muda salário
+sem linha NOVA (edita a última in-place) mas emite PlayerHistory — nenhum no período.
+
+**Decisão: ZERO reparo** — $1 é o valor correto do canal; devolver $3 contradiria a decisão de
+06/08 (seria mudança de regra, e regra é pauta — [[REG1]]). **Desdobramentos:** [[WV1]]
+promovido a Alta (fechar o gerador pela porta canônica + caronas: baseline de SalaryHistory,
+revisão do default `is_final` — nota do [[UX26]] —, conferência do lance real de 2025),
+[[REG1]] (FA add × waiver claim na renovação).
+
+**Relações:** [[OFF26-20]] (a decisão de canal que a régua aplica), [[WV1]] (a raiz),
+[[OFF26-26]] (inocentado), [[M2]] (a fila de review — inocentada no período), [[F7]]/[[S1]]
+(a Timeline que preservou a cadeia).

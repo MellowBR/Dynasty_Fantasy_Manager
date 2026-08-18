@@ -5792,3 +5792,42 @@ campanha oficial → auditoria → alocação de owners → RESET final.
   precedente UX15→UX20, colisão documentada nos 4.
 - Diff docs: improvements.md (4 rows + 3 seções ativas + cabeçalho), archive (seção OFF26-26),
   sessions (rotação), devplan (esta entrada). Código da janela já commitado em separado.
+
+---
+
+### MAN-SESSION-CLOSE-1908 — fechamento da leva 18-19/08: 6 smokes de prod, replay, forense (19/08/2026, Opus 5) · docs-only
+
+- **6 itens ✅ por smoke de prod do owner (19/08):** UX22 (inventário de picks no board,
+  `aac4e97`) · UX23 (projector mira a season real; helper `planning_target_season`, `296f166`) ·
+  UX25 + arco -b (obrigação de corte no Hub `d3cfceb` e VIVA no projector `752a4a6`) · UX26
+  (PROV blindado por contrato — raiz medida: default `is_final=False` do `record_acquisition`;
+  hipótese do clear refutada, `2a2d94f`) · OFF26-29 (picks consumidas ocultas por predicado
+  AuctionLog, `bfcbd61`; smoke pelo print do board — só 2027/2028) · OFF26-27 (linha 304 do
+  sync, `bdd3044` — fechado pela combinação fix deployado + guarda AST + smoke com run_sync
+  real + ausência de recorrência; caso natural vira observação de rotina).
+- **OFF26-30 ✅ (novo, direto ao archive):** draft replay MANUAL do co-admin (18/08, sob o
+  freeze OPS2) — 36 picks no board, `complete` conferido na API (4 primeiras + contagem),
+  picks 2026 consumidas no Sleeper, 2027+ intactas, start_time morto pelo complete; sync
+  pós-operação com contratos intocados (Love $54). ⭐ O ensaio da F1 nunca foi necessário.
+- **OFF26-31 ✅ (novo, direto ao archive):** forense Cam Little $3→$1 — ⛔ premissa "sem
+  trilha" REFUTADA (a linha do rollover 17/08 21:34:17 É a trilha; sem trilha estava o $3,
+  zero SH pré-rollover); regra do canal waiver-ano-2 CORRETA (decisão de 06/08) sobre híbrido
+  herdado (drop-readd mantendo salário morto — raiz WV1); cadeia confirmada por fonte externa
+  (transações Sleeper 2025: auction Cangaceiros → drop 12/10 → re-add Leo 29/10); coorte = 1;
+  **ZERO reparo**.
+- **Decisões de produto:** FA auction de 24/08 na **LIGA FANTASMA** (confirmada 19/08; fluxo
+  do runbook existente — a alternativa liga-real morreu: roster cheio não-testado + sem
+  necessidade pós-replay). Rookie draft 2027: **WhatsApp como palco + registro pick a pick no
+  board do Sleeper** (lição do incidente; runbook a atualizar quando a seção for revisada).
+- **Fila:** WV1 **promovido a Alta** (re-add abre contrato ano-1 pela porta canônica; caronas:
+  baseline de SalaryHistory, revisão do default is_final, lance real do Little na API 2025) ·
+  REG1 🔲 (pauta de regulamento: FA add × waiver claim na renovação) · UX27 🔲 (display
+  "FA Auction"→"Auction Draft", ~42 ocorrências, sem embaralhar com o Startup Auction 2025) ·
+  OFF26-28 **rebaixado** Alta→Média/sem prazo · OPS2 segue ⚠️ (smoke = 1º uso real, 24/08).
+- ⭐ **Nota metodológica (candidata MAN-METH-REG, registrada não consolidada):** 3 colisões de
+  namespace na MESMA leva (OFF26-24/25→26/27 · UX21→22 · OPS1→2) — regra candidata: todo
+  prompt REG pede ao executor confirmar o próximo ID livre contra a tabela completa; nunca
+  assumir o ID do enunciado.
+- Diff docs: improvements.md (6 flips + 4 rows novas + 2 seções 🔲 + ocorrência METH +
+  cabeçalho), archive (6 seções migradas verbatim + OFF26-30/31), sessions (rotação), devplan
+  (esta entrada). Auditor exit 0. Zero código, zero banco.
