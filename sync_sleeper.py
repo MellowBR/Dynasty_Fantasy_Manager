@@ -114,10 +114,31 @@ def _norm_name(name: str) -> str:
 
 # ── Main sync ────────────────────────────────────────────────────────────────
 
+def sync_freeze_reason() -> str | None:
+    """OPS2 — freeze administrativo do sync (18/08/2026): durante operação MANUAL no
+    Sleeper (ex.: draft replay do OFF26-30), os rosters ficam em estado transitório e
+    um sync fotografaria os 36 como dropados — sujeira em folha/keeper sheet na semana
+    de cortes. Lição OFF26-23: o sistema RECUSA, não depende de disciplina dos 3 admins.
+    ⛔ GUARDA ÚNICA: as duas entradas de motor (`run_sync` e `_sync_trades`) a consultam;
+    nenhuma porta de rota replica a checagem. Liga/desliga: POST /api/admin/sync_freeze."""
+    from models import get_config
+    if get_config("sync_frozen", "false") == "true":
+        return ("Sync congelado pelo admin — operação manual no Sleeper em curso. "
+                "Destrave no painel /admin (card Sleeper Sync) quando ela terminar.")
+    return None
+
+
 def run_sync() -> dict:
     """
     Full Sleeper sync. Returns a summary dict.
     """
+    # OPS2: recusa ANTES de qualquer I/O — nada é lido, nada é escrito, nenhum SyncLog.
+    frozen = sync_freeze_reason()
+    if frozen:
+        return {"frozen": True, "error": frozen, "teams_updated": 0,
+                "players_updated": 0, "players_added": 0, "picks_updated": 0,
+                "new_unknown": [], "errors": [frozen]}
+
     summary = {
         "players_updated": 0,
         "players_added": 0,
@@ -617,6 +638,13 @@ def _sync_trades(league_id: str, league_season: int | None = None, discount=None
     M1 — cap_alerts populated post-movement, pre-commit, in try/except (failure
     logs to warnings, sync continues — soft cap, alert never blocks).
     """
+    # OPS2: a 2ª entrada de motor — o backfill de trades (/api/admin/sync_trades/backfill)
+    # chama esta função DIRETO, sem passar pelo run_sync; a guarda é o mesmo helper.
+    frozen = sync_freeze_reason()
+    if frozen:
+        return {"frozen": True, "error": frozen, "imported": 0, "skipped": 0,
+                "warnings": [frozen], "cap_alerts": []}
+
     from models import Trade, PlayerHistory, get_current_season
 
     result = {"imported": 0, "skipped": 0, "warnings": [], "cap_alerts": []}

@@ -23,6 +23,7 @@ def admin_page():
     draft_season = get_current_season() + 1
     return render_template("admin.html",
                            last_sync=last_sync,
+                           sync_frozen=get_config("sync_frozen", "false") == "true",
                            player_count=player_count,
                            teams_count=teams_count,
                            current_season=get_current_season(),
@@ -158,9 +159,30 @@ def trigger_sync():
     try:
         from sync_sleeper import run_sync
         result = run_sync()
+        # OPS2: freeze administrativo — a guarda vive no run_sync; aqui só se dá o 409
+        # com a mensagem acionável (o banner da navbar a exibe via data.error).
+        if result.get("frozen"):
+            return jsonify({"success": False, "frozen": True,
+                            "error": result["error"]}), 409
         return jsonify({"success": True, **result})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@admin_bp.route("/api/admin/sync_freeze", methods=["POST"])
+@admin_required
+def toggle_sync_freeze():
+    """OPS2 — liga/desliga do freeze administrativo do sync (molde dos toggles do
+    painel). Poka-yoke da operação manual no Sleeper: com a flag ativa, `run_sync` e
+    `_sync_trades` recusam ANTES de qualquer I/O. Sem TTL, sem auto-destrave — o
+    destravamento é ato explícito de admin quando a operação terminar."""
+    from models import set_config
+    data = request.get_json(silent=True) or {}
+    frozen = bool(data.get("frozen"))
+    set_config("sync_frozen", "true" if frozen else "false")
+    return jsonify({"ok": True, "sync_frozen": frozen,
+                    "message": ("Sync CONGELADO — todas as portas recusam."
+                                if frozen else "Sync destravado.")})
 
 
 @admin_bp.route("/api/admin/last_sync")

@@ -51,9 +51,22 @@
     {% else %}
     <p class="text-dim" style="margin-bottom:1rem">Nenhum sync realizado ainda.</p>
     {% endif %}
+    {# OPS2: freeze administrativo — janela de operação MANUAL no Sleeper. Com a flag
+       ativa, run_sync E _sync_trades recusam antes de qualquer I/O (guarda única). #}
+    {% if sync_frozen %}
+    <div class="alert alert-warn" style="margin-bottom:.75rem">
+      🧊 <strong>Sync CONGELADO</strong> — operação manual no Sleeper em curso.
+      Todas as portas de sync recusam até destravar aqui.
+    </div>
+    {% endif %}
     <button class="btn btn-primary" id="btn-sync-admin" onclick="triggerSync()"
             data-tooltip="Busca rosters, IR e picks atualizados da API do Sleeper.&#10;Atualiza nomes, posições e times.&#10;Salários e contratos NÃO são alterados.">
       🔄 Sincronizar com Sleeper
+    </button>
+    <button class="btn {{ 'btn-primary' if sync_frozen else 'btn-secondary' }}" id="btn-sync-freeze"
+            onclick="toggleSyncFreeze({{ 'false' if sync_frozen else 'true' }})"
+            data-tooltip="Congela TODAS as portas de sync (botão da navbar, backfill de trades)&#10;durante operação manual nos rosters do Sleeper.&#10;Sem TTL: destravar é ato explícito.">
+      {{ '▶️ Destravar sync' if sync_frozen else '🧊 Congelar sync (operação manual)' }}
     </button>
     <div id="sync-result" class="result-box" style="display:none;margin-top:.75rem"></div>
   </div>
@@ -438,6 +451,21 @@ function f8DryRun() {
       btn.disabled = false;
       btn.textContent = '👁 Simular (dry-run)';
     });
+}
+
+// OPS2 — freeze administrativo do sync: liga/desliga e recarrega (o card reflete o estado).
+function toggleSyncFreeze(freeze) {
+  fetch('/api/admin/sync_freeze', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({frozen: freeze}),
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) { location.reload(); }
+      else { alert(d.error || 'Falha ao alternar o freeze'); }
+    })
+    .catch(err => alert('Falha de conexão: ' + err.message));
 }
 
 function f8Rebuild() {
