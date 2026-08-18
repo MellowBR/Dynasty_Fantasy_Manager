@@ -250,7 +250,7 @@ def run_preflight(allow_anchor_mismatch: bool):
         already = acquisition_already_recorded(ev_ref)
         player = find_player_by_sleeper_id(sid)
 
-        # Estado do Player local — qualquer coisa fora de stub/ausente/já-aplicado aborta.
+        # Estado do Player local — fora de stub/aprovado-em-review/ausente/já-aplicado, aborta.
         if already:
             state = "já aplicado (idempotente — será pulado)"
         elif player is None:
@@ -258,6 +258,17 @@ def run_preflight(allow_anchor_mismatch: bool):
         elif (player.needs_review and (player.acquisition_type or "unknown") == "unknown"
               and float(player.salary or 0) == 1.0):
             state = "stub (update)"
+        elif ((player.acquisition_type or "") == "free_agent"
+              and float(player.salary or 0) == 1.0
+              and float(player.espn_ref_value or 0.0) == 0.0
+              and player.contract_start_season in (2025, 2026)):
+            # FIX-b (caso Singleton, 18/08): stub que passou pela APROVAÇÃO Cat A da fila
+            # de review ANTES do reparo — a assinatura exata da mutação do M2 com defaults
+            # (unknown→free_agent, needs_review→False; cenário 5 da OFF26-24-F1). O estado
+            # é legítimo e a cura é a MESMA do stub (update pela porta canônica). Critério
+            # ESTREITO de propósito: salário ≠ $1, espn ≠ 0 ou season fora de 2025/2026
+            # seguem INESPERADOS e abortando.
+            state = "aprovado em review (update)"
         else:
             errors.append(
                 f"pick {ref} '{name}' sid={sid}: estado INESPERADO no banco — "
@@ -294,7 +305,8 @@ def run_preflight(allow_anchor_mismatch: bool):
 
     n_unique = len({p['sid'] for p in plan})
     print(f"\nResolução: {len(plan)}/{len(PICKS)} picks | {n_unique} sids únicos | "
-          f"{sum(1 for p in plan if 'stub' in p['state'])} stubs | "
+          f"{sum(1 for p in plan if p['state'] == 'stub (update)')} stubs | "
+          f"{sum(1 for p in plan if p['state'] == 'aprovado em review (update)')} aprovados em review | "
           f"{sum(1 for p in plan if 'ausente' in p['state'])} criações | "
           f"{sum(1 for p in plan if p['already'])} já aplicados")
     for w in warnings:
