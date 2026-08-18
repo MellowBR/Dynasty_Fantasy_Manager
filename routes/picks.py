@@ -116,6 +116,35 @@ def picks_page():
             picks_in_round.sort(key=lambda x: x['position'])
             round_centered[season][rnd] = picks_in_round
 
+    # UX22: season com picks mas SEM ordem (sem sorteio travado nem classificação) →
+    # visão de INVENTÁRIO: posse por rodada, dono atual + proveniência, SEM inventar
+    # ordem (a lista sai por nome do dono atual — ordem alfabética é visivelmente
+    # não-draft). A ordem, quando nascer (lottery/classificação — lógica intocada),
+    # faz round_centered ganhar as rodadas e esta visão sai de cena sozinha.
+    # Picks consumidas (OFF26-29) já saíram de all_picks lá em cima.
+    inventory = {}
+    for season in matrix:
+        if round_centered.get(season):
+            continue
+        season_picks = [p for p in all_picks if p.season == season]
+        by_round = {}
+        for rnd in PICK_ROUNDS:
+            rp = sorted((p for p in season_picks if p.round == rnd),
+                        key=lambda p: ((p.current_team_name or "").casefold(),
+                                       (p.original_team_name or "").casefold()))
+            if rp:
+                by_round[rnd] = rp
+        if not by_round:
+            continue
+        counts = {}
+        for p in season_picks:
+            counts[p.current_team_name] = counts.get(p.current_team_name, 0) + 1
+        inventory[season] = {
+            "rounds": by_round,
+            "counts": sorted(counts.items(), key=lambda kv: (-kv[1], kv[0].casefold())),
+            "total": len(season_picks),
+        }
+
     # M9: meu time vinculado (ou None se admin sem time)
     my_team_name = (current_user.team_rel.name
                     if current_user.is_authenticated and current_user.team_rel
@@ -124,6 +153,7 @@ def picks_page():
     return render_template("picks.html",
                            matrix=matrix,
                            round_centered=round_centered,
+                           inventory=inventory,
                            seasons=PICK_SEASONS,
                            rounds=PICK_ROUNDS,
                            teams=[t.name for t in teams],

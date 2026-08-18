@@ -77,6 +77,50 @@
       {{ coluna_round(round_data[3], 3, 'Round 3', 'Classificação invertida') }}
     {% endif %}
   </div>
+  {% elif inventory.get(season) %}
+  {# UX22: sem ordem ainda — INVENTÁRIO de posse por rodada. Mesmas células do board
+     (data-team-name ⇒ filtro e realce funcionam de graça), SEM número de posição:
+     nenhuma ordem é inventada. O aviso de "ordem pendente" encolheu para esta linha. #}
+  {% set inv = inventory[season] %}
+  <p class="text-dim" style="font-size:.82rem;margin:0 0 .5rem">
+    📦 Inventário de posse ({{ inv.total }} picks) — a ordem do draft de {{ season }} ainda
+    não existe (virá do sorteio × classificação invertida) e nada aqui a inventa.
+  </p>
+  <p style="margin:0 0 .75rem">
+    {% for name, n in inv.counts %}
+    <span class="tag{% if my_team_name and name == my_team_name %} tag-current{% endif %}"
+          style="margin:0 .3rem .3rem 0;display:inline-block">{{ name }} ×{{ n }}</span>
+    {% endfor %}
+  </p>
+  <div class="picks-order-container">
+    {% for rnd in rounds %}
+    {% if inv.rounds.get(rnd) %}
+    <div class="draft-order-column">
+      <h3 class="draft-order-header">Round {{ rnd }} <span class="order-origin">· {{ inv.rounds[rnd]|length }} picks · ordem pendente</span></h3>
+      <div class="draft-order-list">
+        {% for pick in inv.rounds[rnd] %}
+        {% set dono = pick.current_team_name %}
+        {% set is_mine = my_team_name and dono == my_team_name %}
+        <div class="draft-order-row{% if is_mine %} is-mine{% endif %}"
+             data-team-name="{{ dono }}"
+             data-pick-id="{{ pick.id }}"
+             title="Season {{ pick.season }} · Round {{ pick.round }} · Original: {{ pick.original_team_name }} · Atual: {{ dono }} · ordem a definir">
+          <div class="draft-order-team">{{ dono }}</div>
+          {% if pick.traded_away %}
+          <div class="draft-order-via">via {{ pick.original_team_name }}</div>
+          {% endif %}
+          {% if my_team_name %}
+          <a class="draft-order-trade-link"
+             title="{% if is_mine %}Oferecer esta pick em trade{% else %}Propor trade com {{ dono }} (pedir esta pick){% endif %}"
+             href="{% if is_mine %}{{ url_for('trades.trades_page', team_a=my_team_name, pick_a=pick.id) }}{% else %}{{ url_for('trades.trades_page', team_a=my_team_name, team_b=dono, pick_b=pick.id) }}{% endif %}">⇄</a>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
   {% else %}
   <p class="text-dim">Ordem do draft ainda não definida para {{ season }} — sem sorteio travado nem classificação da temporada anterior. As picks existem; a ordem aparece quando a fonte existir.</p>
   {% endif %}
