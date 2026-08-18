@@ -230,6 +230,12 @@ def cap_projector_budget(team_name):
     budget = compose_budget(kept, projected=projected,
                             extra_salaries=[r["projected_salary"] for r in scenario])
 
+    # UX25-b: obrigação de corte VIVA — recalculada aqui porque este POST já roda a
+    # cada toggle (F10: o cliente exibe, não agrega). Mesma régua do UX25: limite =
+    # MAX_ROSTER ATIVOS, IR fora da conta (regulamento 1.3); rookies do cenário OCUPAM
+    # vaga de ativo e entram na contagem. ⛔ Campo NOVO — `budget` (D9) intocado.
+    active_kept = sum(1 for p in kept if not p.is_on_ir)
+    ir_kept = len(kept) - active_kept
     return jsonify({
         "team": team.name,
         "budget": budget,
@@ -237,6 +243,12 @@ def cap_projector_budget(team_name):
         "shortfall": max(0, -budget["usable_draft_budget"]),
         "scenario_count": len(scenario),
         "scenario_salary_total": sum(r["projected_salary"] for r in scenario),
+        "roster": {
+            "active": active_kept + len(scenario),
+            "ir": ir_kept,
+            "limit": MAX_ROSTER,
+            "cut_needed": max(0, active_kept + len(scenario) - MAX_ROSTER),
+        },
     })
 
 

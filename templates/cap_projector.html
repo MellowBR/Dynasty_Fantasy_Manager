@@ -51,6 +51,14 @@
       <span class="cap-label">Spots vazios</span>
       <span class="cap-value" id="proj-spots">—</span>
     </div>
+    {# UX25-b: obrigação de corte VIVA — mesma régua do Hub (22 ATIVOS, IR fora,
+       regulamento 1.3), recalculada pelo /budget a cada toggle. "Spots vazios" acima
+       mantém o significado de vagas da AUCTION (0 com excesso é verdadeiro); é este
+       indicador que carrega o excesso. #}
+    <div class="cap-summary-item">
+      <span class="cap-label" title="Composição do elenco no CENÁRIO atual (keeps + rookies simulados): limite de ativos do regulamento; IR fora da conta">Roster</span>
+      <span class="cap-value" id="proj-roster">—</span>
+    </div>
   </div>
   <div class="cap-bar" style="margin-top:.75rem">
     <div class="cap-bar-fill" id="proj-bar" style="width:0%"></div>
@@ -215,6 +223,23 @@ function refreshScenario() {
       document.getElementById('proj-budget').textContent = '$' + b.raw_budget;
       document.getElementById('proj-usable').textContent = '$' + b.usable_draft_budget;
       document.getElementById('proj-spots').textContent = b.empty_spots + ' (min $' + b.min_required_for_spots + ')';
+
+      // UX25-b: obrigação de corte VIVA — o servidor conta (mesma régua do Hub: limite
+      // do payload, IR fora), o cliente só exibe. Regular = contagem discreta; excesso =
+      // "cortar ≥N" em alerta, contando para baixo a cada toggle até regularizar.
+      const rc = d.roster;
+      if (rc) {
+        const rosterEl = document.getElementById('proj-roster');
+        let txt = `${rc.active}/${rc.limit} ativos`;
+        if (rc.ir > 0) txt += ` +${rc.ir} IR`;
+        if (rc.cut_needed > 0) {
+          rosterEl.textContent = `${txt} · cortar ≥${rc.cut_needed}`;
+          rosterEl.className = 'cap-value text-danger';
+        } else {
+          rosterEl.textContent = `${txt} ✓`;
+          rosterEl.className = 'cap-value text-dim';
+        }
+      }
 
       // UX18: o PERIGO deriva das flags canônicas do backend, nunca de limiar local.
       // `over_cap` cobre folha e restante (restante < 0 ⟺ folha > cap); o bid soma a
