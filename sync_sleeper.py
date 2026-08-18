@@ -24,7 +24,8 @@ import re
 import requests
 from datetime import datetime
 from models import (db, Team, Player, Pick, SyncLog,
-                    LEAGUE_ID, MY_TEAM_NAME, MY_OWNER_ID, CURRENT_SEASON)
+                    LEAGUE_ID, MY_TEAM_NAME, MY_OWNER_ID, CURRENT_SEASON,
+                    get_current_season)
 
 BASE_URL = "https://api.sleeper.app/v1"
 PLAYER_CACHE_TTL_HOURS = 168  # 1 week
@@ -228,6 +229,13 @@ def run_sync() -> dict:
     # Track which sleeper IDs belong to each team (for drop logic)
     team_assigned_sids: dict[int, set] = {}
 
+    # OFF26-24-F1 (raiz do carimbo 2025): stub novo carimbava contract_start_season com a
+    # CONSTANTE de módulo (fixa em 2025), que o rollover nunca avança — todo entrante
+    # pós-rollover nascia na season errada. A fonte canônica é o AppConfig, lida UMA vez
+    # por sync; a constante segue existindo só como fallback de última instância dentro
+    # de get_current_season() (o que o comentário dela sempre prescreveu).
+    stub_season = get_current_season()
+
     # 7. Sync players per roster
     for roster in rosters:
         rid = str(roster.get("roster_id", ""))
@@ -301,7 +309,7 @@ def run_sync() -> dict:
                     fantasy_team=team.name,
                     salary=1.0,
                     contract_year=1,
-                    contract_start_season=CURRENT_SEASON,
+                    contract_start_season=stub_season,
                     acquisition_type="unknown",
                     espn_ref_value=0.0,
                     is_on_ir=(sp_id_str in ir_ids),
