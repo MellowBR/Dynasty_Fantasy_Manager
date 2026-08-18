@@ -122,6 +122,14 @@ def cap_projector_data(team_name):
     store_vals = {r.sleeper_player_id: r for r in
                   EspnValueStore.query.filter_by(season=target_season).all()}
 
+    # UX26: decisão de exibição do PROV calculada AQUI (fonte única) — jogador com
+    # contrato gravado na season corrente NUNCA exibe PROV (o salário dele é contrato
+    # real, não projeção), independentemente do carimbo do store: record_acquisition
+    # grava a row com is_final=False por default, e foi isso que pintou PROV nos 36
+    # do reparo OFF26-26. `espn_is_final` segue no payload como dado CRU do store.
+    from models import contracted_player_ids
+    contracted = contracted_player_ids(get_current_season())
+
     player_data = []
     for p in players:
         sv = store_vals.get(p.sleeper_player_id)
@@ -130,6 +138,7 @@ def cap_projector_data(team_name):
             "next_salary": project_next_salary(p),
             "espn_is_final": sv.is_final if sv else None,
             "espn_season": sv.season if sv else None,
+            "espn_prov": bool(sv and sv.is_final is False and p.id not in contracted),
         })
 
     budget = draft_budget(players)

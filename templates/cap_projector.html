@@ -173,7 +173,7 @@ function render() {
       <td class="text-dim">${p.nfl_team || '—'}</td>
       <td>${p.contract_display}</td>
       <td>$${Math.round(p.salary)}</td>
-      <td class="text-dim">${p.espn_ref_value ? '$' + Math.round(p.espn_ref_value) : '—'}${p.espn_is_final === false ? ' <span class="tag tag-prov">PROV</span>' : ''}</td>
+      <td class="text-dim">${p.espn_ref_value ? '$' + Math.round(p.espn_ref_value) : '—'}${p.espn_prov ? ' <span class="tag tag-prov">PROV</span>' : ''}</td>
       ${MODE === 'projetado' ? `<td class="${keep ? 'salary-cell' : 'text-dim'}">$${p.next_salary}</td>
       <td class="${dCls}">${dSign}$${delta}</td>` : ''}
       <td class="acq-${p.acquisition_type}">${p.acquisition_type}</td>

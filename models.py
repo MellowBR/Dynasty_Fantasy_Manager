@@ -493,6 +493,19 @@ def pick_is_consumed(pick, consumed: set = None) -> bool:
     return pick.season in consumed
 
 
+def contracted_player_ids(season) -> set:
+    """UX26 — players com CONTRATO DE AQUISIÇÃO gravado na season (evidência
+    AuctionLog — mesma família dos predicados OFF26-29/UX23). Consumidor: o badge
+    PROV por-jogador do cap projector — **contrato real nunca é "provisório"**,
+    independentemente do carimbo do store. Raiz do badge errado nos 36 do reparo:
+    `record_acquisition` → `set_espn_value` com default `is_final=False` — a row
+    nasce carimbada provisória mesmo quando o valor veio da tabela definitiva.
+    ⛔ Critério em 1 lugar só; consumidores importam daqui."""
+    rows = db.session.query(AuctionLog.player_id).filter(
+        AuctionLog.season == season, AuctionLog.player_id.isnot(None)).distinct().all()
+    return {r[0] for r in rows}
+
+
 # ── UX23: season-alvo de PLANEJAMENTO do cap projector — fonte única de fase ──
 
 # Calibração do predicado de "auction realizada" (decisão delegada ao Code no F2):
