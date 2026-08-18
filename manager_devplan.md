@@ -5831,3 +5831,70 @@ campanha oficial → auditoria → alocação de owners → RESET final.
 - Diff docs: improvements.md (6 flips + 4 rows novas + 2 seções 🔲 + ocorrência METH +
   cabeçalho), archive (6 seções migradas verbatim + OFF26-30/31), sessions (rotação), devplan
   (esta entrada). Auditor exit 0. Zero código, zero banco.
+
+### MAN-OFF26-25-REG → MAN-OFF26-32-F1 → -F2 → -DOCS — a contagem dos `fa_auction`: registro, parecer, runner ensaiado (18/08/2026, Fable 5 → Opus 5) · código + docs
+
+Arco de um dia, quatro prompts, sobre o **último grupo aberto do censo do OFF26-20**: os
+jogadores readquiridos no leilão FA de 2025 que carregam a contagem do contrato **pré-drop**.
+Gatilho: o owner viu **Caleb Williams** em *"Ano 3/4"* com *"Início do contrato: 2025"* — a
+própria tela denunciando a contradição.
+
+- **REG** (`e92866e`, docs-only): o ID proposto no prompt (**25**) já era o gate ESPN do
+  rollover ⇒ nasceu **OFF26-32**. É a **4ª colisão de namespace da leva** — a regra candidata
+  [[MAN-METH-REG]] (*confirmar o próximo ID livre contra a tabela completa; nunca assumir o do
+  enunciado*) ganhou mais uma ocorrência, e desta vez **funcionou**: o executor conferiu antes.
+- **F1** (read-only, sem commit): alvo **3→2** — o rollover de 17/08 incrementou o número
+  errado. ⛔ **Premissa do prompt REFUTADA:** "os 24 do censo seguem os mesmos" é **falsa** — 4
+  drops em agosto (Mixon 05, Coleman 07, Aiyuk 12, **Kupp 18/08, pós-rollover**) ⇒ **20 vivos**.
+  Invariante salarial sustentado por 4 verificações independentes; display de fonte única; **zero**
+  consumo de `contract_year` nas superfícies da janela 20-24/08. Impacto real = **renovação em
+  2028 em vez de 2029**.
+- **F2** (`96a2c46`, código): runner `off26_32_fix.py` + 34 testes + carona [[UX13]]. A porta
+  canônica do OFF26-20-FIX serviu **sem uma linha alterada** — a F1 tinha previsto, e o prompt
+  mandava PARAR se não servisse.
+- **DOCS** (esta entrada): registro dos pareceres, [[UX13]] → ⚠️, cabeçalho + rotação.
+
+⭐ **A decisão que valia escrever antes da execução: a lista de alvos é DERIVADA AO VIVO, nunca
+congelada — inversão explícita do precedente [[OFF26-11]].** Lá, congelar a lista é requisito de
+correção; aqui o insumo que envelhece mal é o **banco**: em 20/08 o `is_dropped` estará atrasado
+*de propósito* (cortes direto no Sleeper pelo OFF26-1 ETAPA2 + freeze [[OPS2]]). A prova de que
+não é teoria veio do próprio ensaio — **Coleman, Aiyuk e Kupp têm `is_dropped=0` no banco e a
+guarda os aprovaria**; quem os barrou foi o cruzamento ao vivo. Registrado com ⛔ explícito para
+impedir que alguém "conserte" isso de boa-fé aplicando a regra do OFF26-11.
+
+**Poka-yokes** (molde [[OFF26-23]]): `--apply` recusa sem backup conferido **e** recusa
+`--offline`; API fora do ar ⇒ **nenhuma escrita** (a correção não tem prazo). Segunda porta,
+esta congelada: os 4 drops de 2026 ficam fora **mesmo se voltarem a um roster** — re-add abre
+contrato novo, e corrigir o morto reproduziria o híbrido do [[OFF26-31]] (raiz [[WV1]]).
+
+**Ensaio** (cópia descartável, pós-rollover encenado pela mesma função do route; ⚠️ ESPN local ≠
+definitiva de prod — o que se prova é a **invariância**, não os valores): **20/20** elegíveis,
+diff da tabela inteira limpo (só `contract_year` + `updated_at`), 20 linhas de trilha, salário e
+projeção **idênticos**, 2ª passada com **hash de arquivo inalterado**. `salary_history` 244→244:
+a linha de 2026 do rollover **não** foi reescrita (decisão do owner — a divergência fica
+documentada pela trilha da própria correção).
+
+**Carona [[UX13]] ⚠️:** rótulo PT-BR + badge nos dois dicionários replicados (+ `review_approved`,
+que estava cru pelo mesmo motivo), **verificado em render real** (Chromium sobre o app servido
+contra a cópia do ensaio), com teste que falha se as réplicas divergirem. Gate [[O7]] exit 0.
+
+⚠️ **Anomalia de datas apurada (não corrigida, por decisão do owner):** as 4 entradas de
+cabeçalho rotuladas **19/08** e o commit `MAN-SESSION-CLOSE-1908` foram criados em **18/08** —
+`git author date` de 8 commits monotônicos entre 09:10 e 15:19 do mesmo dia. O rótulo dos docs
+corre **um dia à frente** do calendário real (segunda pista: a seção do [[UX27]] chama 24/08 de
+*"dom"*, mas 24/08/2026 é **segunda**). Carimbos desta sessão usam **18/08**, alinhados ao git e
+aos próprios prompts do owner de hoje. **Entradas antigas não reescritas.**
+
+⚠️ **Ocorrência adicional do [[MAN-METH-REG]], registrada a pedido do owner:** o prompt da F2
+afirmava, em DADOS, que *"a seção no improvements.md contém o parecer F1 integral"* — **falso**:
+o prompt da F1 havia deferido esse registro para prompt próprio, que só veio agora. Erro do
+planejamento, não do executor; o executor sinalizou no relatório. É o **segundo** tipo de premissa
+de prompt refutada no mesmo arco (o primeiro foi o ID).
+
+**Pendente:** execução em prod na **quinta 20/08**, pelo owner, no Render Shell, **pós-lock da
+janela** — backup → `--check` → `--apply`. O deploy precisa levar o runner antes. [[OFF26-32]]
+segue **🔲** até o smoke; [[UX13]] segue **⚠️** pela mesma razão.
+
+- Diff docs: improvements.md (F1 + F2 na seção OFF26-32, UX13 row + seção → ⚠️, cabeçalho),
+  sessions (rotação da 6ª entrada), devplan (esta entrada). Auditor exit 0. **Zero código nesta
+  sessão** — `96a2c46` ficou como está. Zero banco, zero prod.

@@ -1,11 +1,11 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 18/08/2026-pt5 (sessão **MAN-OFF26-25-REG → MAN-OFF26-32-F1 → -F2 → -DOCS**, arco de um dia sobre **[[OFF26-32]] 🔲 Média** — *contagem de contrato herdada do pré-drop nos `fa_auction`*. **REG:** o ID 25 do prompt já era o gate ESPN do rollover → nasceu **32** (4ª colisão de namespace da leva; ocorrência nova do [[MAN-METH-REG]]). **F1 (read-only):** alvo **3→2** (o rollover de 17/08 incrementou o número errado), lista revalidada **24 → 20 vivos** (4 drops em agosto, confirmados transação a transação), invariante salarial sustentado por 4 verificações independentes, display de fonte única, **zero** consumo de `contract_year` nas superfícies da janela 20-24/08; impacto real = renovação em 2028 em vez de 2029. **F2 (código, `96a2c46`):** runner `off26_32_fix.py` no molde do OFF26-20-FIX consumindo a porta canônica **sem alterá-la**; ⭐ **lista de alvos DERIVADA AO VIVO, nunca congelada — inversão explícita do precedente [[OFF26-11]]**, porque em 20/08 o banco estará atrasado *de propósito* (cortes direto no Sleeper + freeze [[OPS2]]); ensaio 20/20 em cópia pós-rollover, idempotência provada por hash, 34 testes novos, gate [[O7]] exit 0; **carona [[UX13]] → ⚠️** (rótulo PT-BR + badge nos 2 templates, verificado em render real). ⚠️ **Anomalia de datas apurada:** as 4 entradas abaixo rotuladas *19/08* e o commit `MAN-SESSION-CLOSE-1908` foram criados em **18/08** (git author date, 09:10→11:10) — o rótulo corre um dia à frente do calendário real; **não reescritas**, por decisão do owner. Execução em prod = quinta **20/08**, pelo owner, pós-lock da janela. Auditor exit 0.)
 > Atualizado em: 19/08/2026-pt4 (sessão **MAN-SESSION-CLOSE-1908**, **docs-only — fechamento da leva 18-19/08**: **6 itens ✅ por smoke de prod do owner** — [[UX22]] (inventário de picks, `aac4e97`), [[UX23]] (projector modo corrente, `296f166`), [[UX25]]+arco -b (obrigação de corte Hub+projector, `d3cfceb`/`752a4a6`), [[UX26]] (PROV blindado por contrato, `2a2d94f`), [[OFF26-29]] (picks consumidas ocultas, `bfcbd61`, smoke pelo print do board) e [[OFF26-27]] (linha 304 do sync — fechado pela combinação fix+guarda AST+smoke real+ausência de recorrência; o caso natural segue como observação). **2 novos ✅ direto no archive:** [[OFF26-30]] (draft replay manual do co-admin em 18/08 — 36 picks, `complete` conferido na API, ⭐ o ensaio da F1 nunca foi necessário) e [[OFF26-31]] (forense Cam Little — ⛔ premissa "sem trilha" REFUTADA: a linha do rollover É a trilha e **sem trilha estava o $3**; regra correta sobre híbrido herdado, coorte = 1, **zero reparo**; raiz = [[WV1]]). [[OPS2]] segue ⚠️ (smoke = leilão de 24/08). **Fila:** [[WV1]] **promovido a Alta** (porta canônica no re-add + 3 caronas), [[REG1]] 🔲 (pauta: FA add × waiver claim), [[UX27]] 🔲 (display "FA Auction"→"Auction Draft", ~42 ocorrências, ⚠️ sem embaralhar com o Startup Auction), [[OFF26-28]] **rebaixado** Alta→Média (leilão confirmado na FANTASMA — decisão 19/08). ⭐ **Nota metodológica registrada no [[MAN-METH-REG]]** (3 colisões de namespace numa leva ⇒ regra candidata: prompt REG confirma o ID livre contra a tabela, nunca assume). 6 seções migradas verbatim ao archive ([[O3]]); auditor exit 0; zero código.)
 > Atualizado em: 19/08/2026-pt3 (sessão **MAN-UX26-REG-F1F2**, código: **[[UX26]] ⚠️ Média** — *badge PROV em rookies já contratados*. Cooper/Douglas (Ano 1/4, rookie_draft, contrato do reparo) apareciam com PROV no projector. **F1-rápida:** derivação única, sem réplica por-jogador; ⭐ **causa-raiz medida — e é outra que a suspeita do prompt**: o clear do passo 5 é irrelevante (o badge lê `EspnValueStore`, não `RookieEspnValue`) — a raiz é o **`record_acquisition` → `set_espn_value` com default `is_final=False`**, que carimbou as rows dos 36 como provisórias mesmo com valores da tabela definitiva. **F2:** `models.contracted_player_ids(season)` (evidência AuctionLog, família OFF26-29/UX23, fonte única + guarda) — **contrato gravado na season corrente nunca exibe PROV**; decisão no servidor (`espn_prov`), JS só exibe (guarda falha se voltar a decidir pelo dado cru); `espn_is_final` segue no payload como dado cru; caso legítimo preservado. ⚠️ Nota de dado registrada: o default do `set_espn_value` **não** foi mudado (porta canônica, fora do escopo — e o critério novo blinda qualquer estado do store). `espn_prov_badge_test.py` (6); smoke 12 times: **0 contratados-2026 com PROV, 241 legítimos preservados** (artefato do boot local já documentado no UX23 — em prod sobra ~zero); âncoras limpas. Gate [[O7]] exit 0; `template_js_test` verde. Auditor exit 0.)
 > Atualizado em: 19/08/2026-pt2 (sessão **MAN-UX25-b**, código: **a obrigação de corte do [[UX25]] agora é VIVA no cap projector** — a tela onde a decisão de corte é de fato simulada. Item "Roster" na barra sticky, recalculado **pelo POST `/budget` que já roda a cada toggle** (F10 honrado: o servidor conta — ele conhece `is_on_ir`; o JS só exibe; o limite vem no payload = `MAX_ROSTER` do engine, **zero hardcode** no cliente): `X/22 ativos (+K IR) ✓` discreto quando regular, **"· cortar ≥N" em alerta** quando o cenário excede, **contando para baixo** até regularizar; **rookies do cenário ocupam vaga de ativo**; "Spots vazios" mantido com o significado de auction (0 truncado é verdadeiro — o indicador novo desambigua; decisão de menor mudança reportada). Campo `roster` aditivo; **D9/`budget` intocados** (teste prova folha $125 COM o IR e `empty_spots` seguindo truncado). +4 testes (`roster_excess_test` 5→9); smoke na cópia de prod: **Trust 26/22 "cortar ≥4" → toggla 4 → ✓ → volta → reaparece**, rafaelferreirap `+1 IR` fora da conta, Pitbull 22/22 neutro. `template_js_test` obrigatório verde; gate [[O7]] exit 0. [[UX25]] segue ⚠️ — agora Hub + projector fecham juntos no mesmo smoke de prod. Auditor exit 0.)
 > Atualizado em: 19/08/2026 (sessão **MAN-UX-NEXT-REG-F2**, código: **[[UX25]] ⚠️ Crítica (20/08)** — *excesso de roster vira obrigação explícita no card do Hub*. O "Slots livres 0" era igual para cheio-exato e ESTOURADO (`max(0, 22−N)` engole o excesso — F1-rápida confirmou o truncamento no engine) e, com os rosters inflados pelos 36 rookies, ninguém via obrigação de corte. **Limite canônico adotado: `MAX_ROSTER=22` ATIVOS, IR fora da conta** (regulamento 1.3, a mesma distinção folha×contagem do [[OFF26-16]]; fonte = a constante do engine, zero literal novo). F2 leitura pura: faixa **"⚠️ Cortar ≥N até 20/08"** + contagem **"X/22 ativos (+K IR)"** como campos NOVOS do card — ⛔ réguas de cap/bid intocadas (teste dedicado prova que o `slots` truncado continua o mesmo), cap negativo segue no alerta próprio, time regular = zero ruído. `roster_excess_test.py` (5, função de card pura); smoke na cópia inflada: 3 cards com obrigação batendo 3/3 com a query, ⭐ **âncora Trust The Process conferida dos DOIS lados** (26 ativos → "cortar ≥4"; o Sleeper AO VIVO devolve os mesmos 26). Gate [[O7]] exit 0 (league.html + style.css). ⚠️ literal "até 20/08" morre com a janela — generalização fica para o pós-cortes. Fica ⚠️ até o smoke de prod ([[PROC1]] — style.css é artefato público conferível). Auditor exit 0.)
-> Atualizado em: 18/08/2026-pt4 (sessão **MAN-OPS1-REG-F2**, código, urgente: **[[OPS2]] ⚠️ Alta** — *freeze administrativo de sync* para a janela de operação MANUAL no Sleeper (draft replay do OFF26-30, hoje): entre os drops e o complete um sync fotografaria os 36 como dropados — sujeira em folha/keeper sheet na semana de cortes. Lição [[OFF26-23]] aplicada: **o sistema recusa, não depende da disciplina dos 3 admins**. Flag `sync_frozen` + `POST /api/admin/sync_freeze` (liga/desliga manual, sem TTL por decisão de escopo) + **guarda-helper única** nas DUAS entradas de motor — `run_sync` recusa **antes de qualquer I/O** (zero rede, zero SyncLog) e `_sync_trades` (⭐ mapeamento achou que o backfill chama essa função DIRETO, sem passar pelo run_sync — coberto pelo mesmo helper, nenhuma réplica por porta); botão da navbar → 409 com mensagem acionável no banner existente; card do `/admin` com 🧊 + toggle; boot degrada gracioso. `sync_freeze_test.py` (6, incl. sentinela de rede provando recusa pré-I/O E que destravado a guarda deixa passar; ⭐ a suíte pegou um caso real de teste-de-app: com ctx permanente o flask-login cacheia o user em `g` e o request seguinte recebe objeto detached). Smoke real: congelar → 409 + backfill frozen + card → destravar → sync roda. Gate [[O7]] exit 0. ⚠️ **ID: o prompt veio MAN-OPS1-*, mas OPS1 é a higiene do working tree** — nasceu OPS2, colisão registrada. Smoke de prod = o próprio uso de hoje. Auditor exit 0.)
 > 📁 Entradas anteriores em **`improvements_sessions.md`** (101 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
@@ -148,7 +148,7 @@
 | UX10 | **Fotos de jogadores desatualizadas** — alguns jogadores exibem a foto da temporada anterior (exemplo do owner: **David Montgomery**). Cosmético, **sem impacto em dados** (identidade segue por `sleeper_id`). F1 precisa **distinguir as hipóteses antes de qualquer fix**: (a) URL do CDN correta e **cache** (navegador ou CDN) servindo imagem velha; (b) URL **construída** com componente desatualizado (temporada, time) em algum ponto do Manager; (c) fonte da imagem **keyed por algo além do `sleeper_id`**. F1 pergunta também: **a construção da URL de foto existe em mais de um lugar** (templates, JS, Python)? — MAN-UX10-UX11-REG | Baixa | 🔲 |
 | UX11 | **Quadro de trades não mostra o time atual do jogador** — F1 por transbordo da MAN-UX12-F1; F2 de carona 10/08 (MAN-UX11-F2): franquia NFL na linha dim do quadro, 1 linha de template, zero backend — MAN-UX10-UX11-REG/UX11-F2 | Média | ✅ 10/08/2026 (**primeira observação em prod no smoke do `20b346b` — MAN-ARC-BUSCA-DONE; ocorrência observation/provenance registrada: checks pré-push não valiam. Detalhe no archive**) |
 | UX12 | **Busca de jogador + página de perfil enriquecida** (pedido do co-admin **Michel**) — registrado 08/08 (MAN-UX12-REG) com questão 0 explícita de sobreposição; **F1 08/08 (MAN-UX12-F1, read-only):** 3 dos 7 campos já existiam na página atual, spec do [[M10]] conferida viva, réplica de fonte refutada, F1 do [[UX11]] respondida de carona, [[UX10]] estreitado, depth chart/idade viáveis via pool — recomendação (b) **despachar**, confirmada pelo owner — MAN-UX12-REG/F1/REFINE | Média | ✅ 08/08/2026 (**ROTEADO — despachado em [[M10]] (busca) e [[O2]] (perfil, refinado in-place absorvendo campos 2+5 + F1 do MAN-O2-F1); sem escopo próprio remanescente. Registro + diagnose no archive**) |
-| UX13 | **Timeline exibe `event_type` cru `contract_year_correction`** — os demais eventos têm label PT-BR + badge; este cai no fallback (`EVENT_LABELS[e.event_type] \|\| e.event_type`). Causa evidente, sem diagnose: a chave (escrita por `contract_year_correction.py`, OFF26-20-FIX) falta nos **dois** dicionários `EVENT_LABELS` copiados (`player_detail.html` + `salary_history.html` — réplica declarada no próprio comentário do template; o fix toca os dois). Display de 1 linha, **candidato a carona** — MAN-O2-B1-DONE | Baixa | 🔲 |
+| UX13 | **Timeline exibe `event_type` cru `contract_year_correction`** — os demais eventos têm label PT-BR + badge; este cai no fallback (`EVENT_LABELS[e.event_type] \|\| e.event_type`). Causa evidente, sem diagnose: a chave (escrita por `contract_year_correction.py`, OFF26-20-FIX) falta nos **dois** dicionários `EVENT_LABELS` copiados (`player_detail.html` + `salary_history.html` — réplica declarada no próprio comentário do template; o fix toca os dois). Display de 1 linha, **candidato a carona** — MAN-O2-B1-DONE. **CORRIGIDO DE CARONA 18/08/2026 (MAN-OFF26-32-F2, `96a2c46`)**: rótulo PT-BR + badge nos dois dicionários, cobrindo também `review_approved`; verificado em **render real** (badge "Correção de ano de contrato") e com teste que falha se as réplicas divergirem — aguardando conferência em prod | Baixa | ⚠️ |
 | UX14 | **Time NFL de dropado com fallback no pool** — perfil do Waller exibe `—` porque `Player.nfl_team` está vazio (sync só atualiza rosterados). Hipótese registrada, NÃO arbitrada: fallback de LEITURA no pool ([[O2]] como precedente), sem persistir; pool sem time → `—` correto (FA real). F1 responde a réplica: entra na fonte única da Q1 da UX12-F1 ou vira 2ª fonte por tela? — MAN-ARC-BUSCA-DONE | Baixa/Média | 🔲 |
 | UX16 | **Navbar transborda a viewport a ~860px** (`nav-right` / `btn-sync` / `nav-user-menu` / `nav-user-button`) — achado de carona da [[L3]]-FIX-UX, **pré-existente ao L3 e confirmado idêntico no controle** (mesmo transbordo com o CSS anterior ⇒ não é regressão). Só nessa faixa: a 390px e a partir de 1024px não ocorre. Corrigir **com validação pela sonda geométrica** — é o primeiro cliente natural do [[O7]] — MAN-L3-FIX-UX → MAN-L3-CLOSE-REG → MAN-UX16 → **MAN-CLOSE-LOTE-14-08** | Baixa | ✅ 14/08/2026 (**smoke visual do owner aprovado nas 3 faixas** — desktop, intermediária ~680–860 com hamburger + chip + Sync + avatar contidos, e mobile. Causa medida: a barra desktop precisa de **916px** e o hamburger só entrava em **≤768px** ⇒ **769–944px** transbordava; fix **CSS puro** — colapso passa a **1023px**, 1024+ intocado. ⭐ **1º cliente do gate [[O7]], que fechou o ciclo no sentido INVERSO:** a entrada saiu de `KNOWN_DEFECTS` **por indicação da sonda**, hoje vazio e com suíte **exit 0 sem máscara**. **Detalhe no archive**) |
 | UX17 | **Paridade da barra de status: roster próprio × detalhe de time** — `/` mostra só salário usado/restante/% enquanto `/team/<id>` mostra cap atual, resto atual, **cap projetado + PROV**, resto projetado, dynasty, ativos, IR e quebra por posição. A tela que o owner mais abre é a mais pobre. Objetivo: mesma riqueza no roster próprio. **F1 mede antes de assumir** (a [[L3]]-FIX-UX já derrubou uma premissa dessa família — a macro do card **não** era compartilhada): (a) a barra do detalhe é macro compartilhável ou markup próprio? (b) o render de `/` já tem os dados ou precisa do `compose_budget` — e a que custo de query, já que hoje ele não consulta `ESPNImportLog` nem `rollover_done`? (c) gate de fase e tags PROV valem idênticos? Parente do [[UX4]] (tabela já convergida entre as duas telas) — **MAN-L3-CLOSE-REG** | Média | 🔲 |
@@ -6254,8 +6254,30 @@ deste item é confrontar o caso-âncora (David Montgomery) com o que o CDN devol
 ---
 
 ### UX13 — Timeline exibe `event_type` cru `contract_year_correction`
-🔲 **Registrado 08/08/2026 (MAN-O2-B1-DONE)** — Prioridade **Baixa** — **display de 1 linha,
-causa evidente, sem diagnose; candidato a carona** em qualquer sessão que toque os templates
+⚠️ **CORRIGIDO DE CARONA 18/08/2026 (MAN-OFF26-32-F2, commit `96a2c46`) — aguardando
+conferência em produção.** Registrado em 08/08/2026 (MAN-O2-B1-DONE) — Prioridade **Baixa** —
+**display de 1 linha, causa evidente, sem diagnose; candidato a carona** em qualquer sessão que
+toque os templates — e foi assim que fechou: a correção do [[OFF26-32]] grava esse `event_type`
+~20 vezes, o que tornou o rótulo cru visível o bastante para pegar carona no mesmo diff.
+
+#### Correção (18/08/2026, dentro da MAN-OFF26-32-F2)
+
+Os **dois** dicionários (réplica declarada) ganharam a chave, em `EVENT_LABELS` **e** em
+`EVENT_BADGES`: `contract_year_correction` → *"Correção de ano de contrato"* (`tag-review`).
+**De carona da carona**, entrou também `review_approved` (escrito pelo approve do [[M2]],
+[admin.py:1163](routes/admin.py#L1163)) → *"Revisão aprovada"* — era o **outro** `event_type` que
+o código escreve e a timeline exibia cru; nenhum outro ficou de fora (varredura dos
+`event_type=` do código contra as chaves dos dicionários).
+
+**Verificação além do unit test:** a página do jogador foi **renderizada de verdade** (app servido
+contra a cópia do ensaio, sessão injetada no molde da sonda [[O7]], Chromium) — a timeline do
+Caleb Williams exibe o badge **"CORREÇÃO DE ANO DE CONTRATO"** no lugar da string crua. Gate
+visual [[O7]] **exit 0**.
+
+⛔ **A réplica continua sendo réplica** — unificar os dicionários segue sendo outro item. O que
+mudou é que agora existe **teste que falha se os dois divergirem** (`off26_32_fix_test.py`,
+`TestRotulosDaTimelineUX13`), incluindo a guarda de que `EVENT_LABELS` e `EVENT_BADGES` cobrem o
+mesmo conjunto de chaves.
 
 **Sintoma (visto pelo owner no smoke do Batch 1 do [[O2]]):** na Timeline do perfil do jogador,
 eventos de correção de `contract_year` aparecem com a string crua `contract_year_correction`,
@@ -7023,6 +7045,9 @@ Auction 2025" onde os dois coexistirem, como na calculadora de aquisição).
 ### OFF26-32 — Contagem de contrato herdada do pré-drop nos 24 `fa_auction`
 🔲 **Registrado 18/08/2026 (MAN-OFF26-25-REG)** — Prioridade **Média** (sem prazo de campanha:
 o efeito financeiro só chega na renovação; o display errado, porém, é visível hoje).
+✅ **F1 + F2 entregues em 18/08/2026** (parecer + runner `off26_32_fix.py` ensaiado, commit
+`96a2c46`) — **o item segue 🔲 porque a EXECUÇÃO é em prod**, quinta **20/08**, pelo owner no
+Render Shell, pós-lock da janela de cortes.
 ⚠️ **ID:** o prompt de registro propunha "OFF26-25", ocupado pelo gate ESPN do rollover
 ([[OFF26-25]]); próximo livre da família = **32** (mesmo tratamento da colisão do [[OFF26-28]]).
 
@@ -7063,5 +7088,110 @@ de 2025 tratou o contrato como continuação do de 2024.
 
 **Cross-refs:** [[OFF26-20]] (origem do censo, da decisão "sem pressa" e da infra de correção),
 [[OFF26-11]] (a classe de dano: contrato errado silencioso), [[OFF26-31]] (carimbo do rollover).
+
+#### F1 (MAN-OFF26-32-F1, 18/08/2026) — read-only: alvo 3→2, e a lista encolhe de 24 para 20
+
+**Proveniência (declarada, porque muda o peso de cada número):** banco **local** aberto em
+`mode=ro` — retrato de 06-07/08 (último `sync_log` 06/08 14:45), **pré-rollover**
+(`rollover_done=false`) — mais a **API do Sleeper ao vivo** (GETs em `/rosters`, `/users`,
+`/transactions/1`). ⛔ **A prod (`/data/dynasty.db`) NÃO foi medida** (exige Render Shell): o
+estado pós-rollover lá é *inferido* de três evidências convergentes (o código do rollover, a
+trilha do [[OFF26-31]] e o relato do owner). O runner **não foi executado**, nem em `--check`.
+
+**Refutação de premissas ([[MAN-METH-REG]]):**
+
+| premissa do prompt | veredito | medição |
+|---|---|---|
+| o rollover de 2026 já rodou | ✅ **confirmada em prod**, ⚠️ **falsa no local** | prod: `SalaryHistory` 2026 + `current_season=2026` (é a trilha que o OFF26-31 achou). Local: `rollover_done=false`, Caleb ainda em ano 2 — **todo ensaio parte de estado pré-rollover** |
+| os 24 do censo seguem os mesmos | ⛔ **FALSA — a lista mudou** | 4 drops e 3 trades desde 05/08, confirmados transação a transação |
+| salário imune ao off-by-one | ✅ confirmada, com evidência nova | `fa_auction` ∉ `_WAIVER_TYPES` ([salary_engine.py:51](salary_engine.py#L51)) ⇒ o ramo dependente de ano nunca dispara |
+| a infra de correção serve | ✅ confirmada | porta genérica; o delta é só o runner |
+
+**1. Estado pós-rollover e alvo.** O rollover itera **só `is_dropped=False`**
+([offseason.py:757](routes/offseason.py#L757)) e faz `contract_year += 1`. Em prod: os **20
+rosterados** estão em **ano 3** ⇒ alvo **3 → 2**. `contract_start_season = 2025` em 29/29 linhas
+medidas — o campo **só** é regravado em renovação (`new_yr == 1`), e nenhum dos 24 renovou.
+**Caso âncora — Caleb Williams** (id 71, sid `11560`): local `cy=2`, `css=2025`, `fa_auction`, $4,
+`needs_review=0`; cadeia `startup 2024 → drop 2025 → fa_auction 2025`, exatamente o relato.
+
+**2. Lista revalidada — 24 → 20.** Saíram por **drop** (API): **Joe Mixon** (05/08), **Keon
+Coleman** (07/08), **Brandon Aiyuk** (12/08), **Cooper Kupp** (18/08 10:22 — *pós-rollover*).
+Trocaram de time e **seguem no grupo** (6.7, o contrato viaja): Otton, Pittman, Hall, Etienne e
+**Kyler Murray** (17/08 22:48 — 1h14 *após* o rollover). Zero `needs_review`, zero
+`sleeper_player_id` ambíguo.
+
+**3. Invariante salarial — nenhum salário muda**, hoje nem no próximo rollover. Quatro
+verificações independentes: (a) a porta escreve **só** `contract_year` + trilha; (b) o ramo de
+0,8×ESPN exige `acq ∈ _WAIVER_TYPES` **E** `next_yr == 2` — a primeira condição já falha para
+todo o grupo; (c) 2026→2027 com ano 3 ou 4 cai na mesma `valorization_rule`, que **não lê o
+ano**; (d) `project_next_salary` idem ⇒ a coluna PROJ não se move.
+
+**4. Superfícies.** O rótulo "Ano X/4" tem **fonte única** (`Player.contract_display()`,
+[models.py:172](models.py#L172)) — corrigido o dado, player page, macro de roster, cap projector,
+trades e busca acompanham **sozinhos**. ⚠️ **Seguem enganosos por desenho (decisão do owner: não
+reescrever histórico):** a linha 2026 do `SalaryHistory` (gravada pelo rollover com `contract_year=3`
+e regra de valorização) e o evento `rollover@2025` rotulado *"Valorização (Ano 2)"* — este último
+descreve o contrato **antigo**, anterior ao drop, então é ambíguo, não errado.
+
+**5. Reuso da infra.** `apply_contract_year_correction` serve **sem uma linha alterada**. Delta =
+runner novo com guarda **pós**-rollover (o do OFF26-20 esperava a **pré**), `NEW_YEAR=2` e
+`event_ref` próprio.
+
+**6. Janela 20-24/08 — nada muda.** `grep` de `contract_year` em `routes/cuts.py`,
+`routes/late_drop.py`, `routes/league.py`, `keeper_audit.py` e `keeper_exclusion.py`: **zero
+ocorrências**. Keeper sheet, urna, bid máximo e budget operam sobre **salário**. A **renovação**
+dispara só no rollover (`next_yr > 4` ⇒ `floor(ESPN_adj)`, ano volta a 1) — sem correção, os 20
+chegam a ano 4 em 2027 e **renovam em 2028**; o sintoma antecipado seria o banner "Ano 4 — renovar
+ou cortar" um ano cedo.
+
+#### F2 (MAN-OFF26-32-F2, 18/08/2026, commit `96a2c46`) — o runner, e a lista que NÃO congela
+
+**Entregue:** `off26_32_fix.py` (runner one-shot, molde do OFF26-20-FIX) + `off26_32_fix_test.py`
+(**34 testes**) + carona [[UX13]]. ⛔ **Zero alteração** na porta canônica, no `salary_engine`, no
+schema, no sync ou no rollover.
+
+⭐ **A decisão de desenho — a lista de alvos é DERIVADA AO VIVO, nunca congelada.** O congelado é
+o **censo** (quem pertence ao grupo, 24 nomes do [[OFF26-20]]); quem está **rosterado** é decisão
+do **Sleeper**, lida por GET no dia da execução.
+
+> ⚠️ **Isto INVERTE, de propósito, o precedente do [[OFF26-11]]** — lá, congelar a lista é
+> *requisito de correção* (a sheet viva contaminaria o import com os arremates do próprio leilão).
+> **Aqui é o contrário, e pela mesma lógica de fundo: o insumo que envelhece mal é o BANCO.** Em
+> 20/08 o `is_dropped` estará atrasado *de propósito* — os cortes acontecem direto no Sleeper
+> ([[OFF26-1]] ETAPA2) e pode haver **freeze de sync** ([[OPS2]]). Corrigir contrato de quem
+> acabou de ser cortado é escrever em contrato morto. ⛔ **Não "consertar" isto congelando a
+> lista**: seria desfazer a proteção achando que se aplica a regra do OFF26-11.
+>
+> **Prova de que a proteção é real, e não teórica:** no ensaio, **Coleman, Aiyuk e Kupp têm
+> `is_dropped=0` no banco** (dropados no Sleeper *depois* do último sync) — **a guarda os
+> aprovaria**. Quem os barrou foi o cruzamento ao vivo.
+
+**Segunda porta de exclusão (congelada, esta sim):** os **4 drops de 2026** ficam fora **mesmo se
+reaparecerem rosterados** — um re-add abre contrato **NOVO**, e corrigir a contagem do contrato
+**morto** produziria exatamente o híbrido que o [[OFF26-31]] documenta (raiz [[WV1]]).
+
+**Os dois poka-yokes** (molde "o sistema recusa, não depende da disciplina", [[OFF26-23]]):
+`--apply` **recusa sem backup conferido** (existência + tamanho plausível) e **recusa `--offline`**;
+se a API do Sleeper falhar, **não há escrita** — a reação certa é reagendar (o efeito é em 2028).
+
+**Ensaio** — cópia descartável cujo pós-rollover foi **encenado pela mesma função do route**
+(`apply_season_rollover` sobre `is_dropped=False`); ⚠️ **proveniência declarada:** prod rolou com a
+ESPN **definitiva** e a cópia tem a **local**, então os salários absolutos diferem — o que o ensaio
+prova é que a correção **não muda salário nenhum**, o que vale sob qualquer tabela.
+
+| verificação | resultado |
+|---|---|
+| `--check` | **20/20 elegíveis**, invariante intacto, exit 0 |
+| `--apply` | 20 corrigidos; diff da tabela inteira: **20 linhas = exatamente os elegíveis**, só `contract_year` + `updated_at` |
+| trilha | 20 linhas `contract_year_correction` com `fix:off26-32` |
+| invariante | salário **e** projeção do ano seguinte idênticos em 20/20 |
+| idempotência | 2ª passada pula 20/20 pela guarda, **hash do arquivo idêntico** (exit 1 = nada a fazer, não falha) |
+| histórico | `salary_history` 244→244 **intacta**; `player_history` **+20** (só a trilha nova) |
+| Caleb Williams | **"Ano 2/4"**, início 2025, **$4 igual**, evento novo na timeline |
+| suítes | 34 novos + `salary_engine` (54), `contract_year_correction` (20), `cap_regua` (14), `template_js` (3) — verdes. Gate [[O7]] **exit 0** |
+
+**Runbook de prod (quinta 20/08, pós-lock):** `sqlite3 /data/dynasty.db ".backup
+'/data/pre_off26_32_fix.db'"` → conferir o arquivo → `python off26_32_fix.py --check` → `--apply
+--backup /data/pre_off26_32_fix.db`. ⚠️ O deploy precisa levar o runner ao servidor antes.
 
 ---
