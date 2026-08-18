@@ -173,6 +173,7 @@
 | OFF26-29 | **Picks 2026 consumidas seguem VIVAS como ativo tradável no Manager** — draft realizado fora do board ⇒ tabela `Pick` season 2026 intacta. **F1 18/08 (mesma janela, read-only):** 7 consumidores mapeados — o funcional é **`/api/picks` sem filtro** ([picks.py:127](routes/picks.py#L127)) alimentando o simulador/propostas ([trades.html:329](templates/trades.html#L329)); ⛔ **premissa "registrar trade" DESLOCADA** (o Manager não executa trade — só preview/proposta; ativo move via sync/S1) ⇒ exposição real = **planejamento enganoso**; ⛔ **delete REFUTADO como mecanismo**: o critério de deleção do sync é **ano-calendário** (`datetime.now().year`, [sync_sleeper.py:398](sync_sleeper.py#L398)) — as 2026 morreriam só em 01/01/2027 — e o Sleeper ainda lista **21 traded picks 2026** (medido ao vivo) ⇒ `_ensure_default_picks` **recriaria** as deletadas. **Recomendação (F2 ~1 sessão, zero schema/delete):** predicado data-driven `pick consumida = existe AuctionLog(rookie_draft, season da pick)` — mesma evidência do gate do passo 5 — em helper único + filtro no `/api/picks` + selo/ocultar no board e `/team/<id>` (selo × sumiço = decisão do owner); `_sync_trades` intocado (trade real segue espelhando). Governança no Sleeper já aplicada (aviso); ensaio opcional do draft room na fantasma — MAN-OFF26-24-REG/**MAN-OFF26-27-F1** (ID = 29) | Baixa (REG) — F1 sugeriu Média e a F2 saiu na janela | ✅ 19/08/2026 (F2 `bfcbd61` — predicado por AuctionLog em fonte única, funil `_fetch_picks`, ocultação em board/team/hub, row VIVA, `_sync_trades` intocado, 13 testes; **smoke de prod pelo print do board: só 2027/2028**; **detalhe no archive**) |
 | OFF26-30 | **Draft replay no Sleeper — consumir as picks 2026 no board** — executado MANUALMENTE pelo co-admin em 18/08, sob o freeze [[OPS2]]: 36 picks registradas no board, draft `complete` (API conferida pick a pick nas 4 primeiras e por contagem), picks 2026 consumidas NO SLEEPER, futuras 2027+ intactas, `start_time` agendado eliminado pelo próprio complete. ⭐ O ensaio previsto na F1 nunca foi necessário — a execução real respondeu as perguntas. Sync pós-operação: contratos intocados (Love $54 conferido) — MAN-OFF26-30 | Alta | ✅ 18/08/2026 (**detalhe no archive**) |
 | OFF26-31 | **Forense: Cam Little $3→$1 "sem trilha"** — ⛔ premissa REFUTADA: a mudança TEM trilha (linha do rollover, 17/08 21:34:17, ramo waiver-ano-2 — **regra CORRETA**, decisão do owner de 06/08) e **sem trilha estava o $3** (zero SalaryHistory pré-rollover — valor herdado da era do import). Híbrido = contrato morto de auction 2025 sobrevivendo a drop-readd (raiz = [[WV1]], pré-existente); fonte externa (transações Sleeper 2025) confirmou a cadeia: auction pelo Cangaceiros → drop 12/10 → re-add free_agent pelo Leo 29/10. **Coorte de afetados = 1** (só o Little — prevista pelo seed, confirmada pelos backups). **ZERO reparo** — $1 é o valor correto do canal. Desdobramentos: [[WV1]] promovido a Alta, [[REG1]], caronas — MAN-OFF26-31-REG-F1 | Alta | ✅ 19/08/2026 (forense concluída sem reparo; **detalhe no archive**) |
+| OFF26-32 | **Contagem de contrato herdada do pré-drop nos 24 `fa_auction`** — readquiridos no leilão FA de 2025 após drop; pela **6.1** o leilão abre contrato NOVO (ano 1 = 2025), mas `contract_year` seguiu contando do contrato anterior. Caso âncora: **Caleb Williams** ("Ano 3/4" convivendo com "Início do contrato: 2025" na player page). Salário CERTO (valorização indiferente ao ano ≥ 2) e `contract_start_season` certo — não tocar; dano real = renovação um ano CEDO (2028 em vez de 2029) + display enganoso hoje. Grupo (c) do censo [[OFF26-20]] (F1C), adiado como "sem pressa" e nunca registrado como item próprio (⚠️ o "OFF26-25" do prompt de registro colidia com o gate ESPN; ID de backlog = **32**). F1 read-only → FIX via porta canônica `contract_year_correction.py` + molde do runner `off26_20_fix.py` — nunca patch direto | Média | 🔲 |
 | REG1 | **Pauta de regulamento: FA add × waiver claim na renovação** — hoje `_WAIVER_TYPES` agrupa `waiver/free_agent/fa/fa_waiver` numa régua só (ano 2 = 0,8×ESPN); decidir se o regulamento DISTINGUE os canais (achado da forense [[OFF26-31]] — o achatamento do Little é a régua agrupada funcionando como escrita). **Registro de pauta, NÃO código** — decisão da liga — MAN-SESSION-CLOSE-1908 | A definir | 🔲 |
 | M21 | **Busca cobre o universo Sleeper** — duas fatias: **A — FAs da liga** (**✅ 10/08/2026**, MAN-M21-A + smoke prod MAN-ARC-BUSCA-DONE: badge FA, ordenação rosterado-antes-de-FA, perfil de FA corrigido; âncora **Kamara**, 41 dropados medidos) e **B — universo não-Player** (Média, pós-intertemporada, 🔲; ⚠️ arbitragem importar×federar em aberto p/ F1b; **caso Helm migrado p/ cá** — nunca foi Player, medição Shell 10/08) — MAN-M21-REG/F1a/A/ARC-BUSCA-DONE | A: Alta · B: Média | 🔲 (fatia A ✅ 10/08/2026 · fatia B pendente) |
 | MAN-METH-REG | Candidato a baseline do DEV_METHODOLOGY: F1 refuta premissas do prompt contra o código (**registro apenas** — candidato, não regra vigente; destino: consolidação em sessão de revisão de metodologia dedicada, transversal manager/optimizer/predictor) — row criada pelo [[O5]] (a seção detalhada existia sem entrada no namespace) | A definir | 🔲 |
@@ -7016,5 +7017,51 @@ Auction 2025" onde os dois coexistirem, como na calculadora de aquisição).
 
 **Relações:** [[OFF26-28]] (a mesma tela `/auction` — se o F2 dele sair junto, um diff só),
 [[F6]] (precedente de vocabulário canônico: "keeper" removido).
+
+---
+
+### OFF26-32 — Contagem de contrato herdada do pré-drop nos 24 `fa_auction`
+🔲 **Registrado 18/08/2026 (MAN-OFF26-25-REG)** — Prioridade **Média** (sem prazo de campanha:
+o efeito financeiro só chega na renovação; o display errado, porém, é visível hoje).
+⚠️ **ID:** o prompt de registro propunha "OFF26-25", ocupado pelo gate ESPN do rollover
+([[OFF26-25]]); próximo livre da família = **32** (mesmo tratamento da colisão do [[OFF26-28]]).
+
+**Problema:** os **24 jogadores do canal `fa_auction`** — dropados e readquiridos no **leilão FA
+de 2025** — mantêm `contract_year` contando a partir do contrato PRÉ-drop. Pela regra **6.1** do
+regulamento, a reaquisição via leilão abre **contrato novo** (ano 1 em 2025 ⇒ ano 2 em 2026).
+É o grupo **(c)** do censo do [[OFF26-20]] (F1B/F1C — T2: canal confirmado 24/24 contra a API;
+T3: "contagem errada, salário CERTO"), deliberadamente deixado sem correção quando o FIX de
+06/08/2026 corrigiu os 22 do canal `free_agent` — ficou na narrativa como *"sem pressa… efeito
+só em 2029"* e **nunca virou item próprio** até o relato do owner em 18/08/2026.
+
+**Caso âncora — Caleb Williams** (startup auction 2024 → drop → readquirido no FA auction 2025):
+a player page exibe **"Ano 3/4"** convivendo com **"Início do contrato: 2025"** — a própria tela
+expõe a contradição. O timeline mostra *"Renovado pela valorização (Ano 2)"* em S2025: o rollover
+de 2025 tratou o contrato como continuação do de 2024.
+
+**O que está CERTO e não deve ser tocado:**
+- **Salário** — na trilha de valorização, `max(prev, 0,5 × ESPN_adj)` dá o mesmo número em
+  qualquer ano ≥ 2 (achado T3 do [[OFF26-20]]); a contagem errada nunca contaminou o valor.
+- **`contract_start_season` = 2025** — correto; é exatamente o que denuncia a contradição na
+  tela.
+
+**Impacto real:**
+1. **Renovação (pós-ano 4) um ano CEDO** — o contrato fecharia o ciclo em 2028 em vez de 2029,
+   com o reset de salário da renovação (`floor(ESPN_adj)`) aplicado na season errada.
+2. **Display enganoso HOJE** — "Ano N/4" errado na player page e no roster (é o que o owner
+   reportou).
+
+**Caminho previsto (⛔ nunca patch direto):**
+- **F1 read-only:** confirmar o estado pós-rollover (a trilha forense do [[OFF26-31]] carimba o
+  rollover em 17/08 21:34; o censo é PRÉ-rollover, então a contagem dos 24 deve ter
+  incrementado), revalidar a lista dos 24 (drops/trades desde o censo de 05-06/08) e determinar
+  o valor-alvo por jogador (abertura 2025 ⇒ ano 2 em 2026).
+- **FIX:** reusar a **porta canônica** `contract_year_correction.py`
+  (`apply_contract_year_correction` — `Player.contract_year` + `PlayerHistory` atômicos, criada
+  no OFF26-20-FIX) e o **molde do runner** `off26_20_fix.py` (lista travada por
+  `sleeper_player_id`, guarda campo a campo, idempotência, ensaio local antes de prod).
+
+**Cross-refs:** [[OFF26-20]] (origem do censo, da decisão "sem pressa" e da infra de correção),
+[[OFF26-11]] (a classe de dano: contrato errado silencioso), [[OFF26-31]] (carimbo do rollover).
 
 ---
