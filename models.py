@@ -493,6 +493,38 @@ def pick_is_consumed(pick, consumed: set = None) -> bool:
     return pick.season in consumed
 
 
+# ── UX23: season-alvo de PLANEJAMENTO do cap projector — fonte única de fase ──
+
+# Calibração do predicado de "auction realizada" (decisão delegada ao Code no F2):
+# ≥3 registros. Um leilão real entra em LOTE pelo importador (dezenas de arremates);
+# 1-2 registros são a assinatura de teste manual/engano avulso no /auction — que NÃO
+# deve virar a chave no meio da janela 20-24/08 (hoje o /auction ainda carimba 2025 —
+# OFF26-28 — mas o fix dele removeria essa proteção acidental; o limiar cobre o vão).
+AUCTION_EVIDENCE_MIN = 3
+
+
+def planning_target_season() -> int:
+    """UX23 — a season que o cap projector PLANEJA (fonte única; era `current+1`
+    inline em 6 sítios, sem consciência de fase — a F1 mapeou todos):
+
+    - pré-rollover → `current + 1` (comportamento histórico: projetar a próxima);
+    - pós-rollover, FA auction da season corrente AINDA NÃO realizada → `current`
+      (a janela operacional é a auction da season que acabou de virar; a base
+      correta é a folha CORRENTE — modo D9, `compose_budget(projected=False)`);
+    - auction realizada → `current + 1` de novo (planejamento da próxima recomeça).
+
+    "Auction realizada" é EVIDÊNCIA, não flag (decisão do owner, opção b — família
+    do predicado OFF26-29): ≥ AUCTION_EVIDENCE_MIN AuctionLog `fa_auction` na season
+    corrente. Autossustentável entre seasons; vira sozinho quando o import do leilão
+    entrar. ⛔ `auction_done` (passo 7) fica como está — não é insumo daqui."""
+    season = get_current_season()
+    if get_config("rollover_done", "false") != "true":
+        return season + 1
+    n = db.session.query(AuctionLog.id).filter_by(
+        entry_type="fa_auction", season=season).count()
+    return season + 1 if n >= AUCTION_EVIDENCE_MIN else season
+
+
 class ESPNValue(db.Model):
     __tablename__ = "espn_values"
 

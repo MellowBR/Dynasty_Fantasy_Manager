@@ -47,6 +47,15 @@ def salary_page():
     return render_template("salary.html")
 
 
+def _planning_ctx():
+    """UX23 — (target_season, mode) do projector. `mode` é rótulo de exibição derivado
+    do helper único: 'corrente' quando o alvo É a season atual (pós-rollover, auction
+    pendente — base D9), 'projetado' caso contrário. ⛔ Nenhuma derivação `+ 1` aqui."""
+    from models import planning_target_season, get_current_season
+    target = planning_target_season()
+    return target, ("corrente" if target == get_current_season() else "projetado")
+
+
 @salary_bp.route("/cap_projector")
 @login_required
 def cap_projector_page():
@@ -54,9 +63,11 @@ def cap_projector_page():
     # M17: pré-seleção deriva do usuário logado (não mais da flag legada is_my_team).
     # Usuário sem time vinculado → "" (nenhuma opção pré-selecionada).
     my_team = current_user.team_rel
+    target_season, mode = _planning_ctx()   # UX23: títulos e JS recebem do servidor
     return render_template("cap_projector.html",
                            teams=[t.name for t in teams],
-                           my_team=my_team.name if my_team else "")
+                           my_team=my_team.name if my_team else "",
+                           target_season=target_season, mode=mode)
 
 
 @salary_bp.route("/salary_history")
@@ -105,8 +116,9 @@ def cap_projector_data(team_name):
     )
 
     # E4-c-1: badge PROV lê a marca provisório/definitivo do STORE canônico (por
-    # sleeper_id), não mais do ESPNValue (por player_id). Mesma season-alvo (atual+1).
-    target_season = get_current_season() + 1
+    # sleeper_id). UX23: a season-alvo vem do helper de FASE (era `atual+1` fixo —
+    # pós-rollover isso apontava para a season seguinte no meio da janela da auction).
+    target_season, mode = _planning_ctx()
     store_vals = {r.sleeper_player_id: r for r in
                   EspnValueStore.query.filter_by(season=target_season).all()}
 
@@ -140,6 +152,9 @@ def cap_projector_data(team_name):
         "budget": budget,
         "salary_cap": SALARY_CAP,
         "espn_status": espn_status,
+        # UX23: o cliente rotula colunas/título por aqui — nenhuma derivação no JS.
+        "target_season": target_season,
+        "mode": mode,
     })
 
 
@@ -195,7 +210,10 @@ def cap_projector_budget(team_name):
     # DP2: rookies do cenário entram na MESMA base (ocupam spot + custam year1_salary).
     # Dedup defensivo; sid fora do store da season é ignorado. Mesma régua de cálculo
     # do board DP1 antigo (year1_salary modo rookie) — caso de referência $46→$55 / $3→$3.
-    season = get_current_season() + 1
+    # UX23: season do helper de fase — com `atual+1` fixo, pós-rollover o sid não achava
+    # o store (só tem a season corrente) e o rookie do cenário era IGNORADO EM SILÊNCIO.
+    from models import planning_target_season
+    season = planning_target_season()
     scenario = []
     seen = set()
     for sid in (data.get("rookie_sids") or []):
@@ -240,9 +258,11 @@ def cap_projector_rookies():
     (regra da liga, D2) — a MESMA fonte única do import de draft, sem réplica.
     Leitura pura: 2 queries indexadas, nada é escrito.
     """
-    from models import get_current_season, RookieEspnValue, Player
+    from models import planning_target_season, RookieEspnValue, Player
     from salary_engine import year1_salary
-    season = get_current_season() + 1
+    # UX23: season do helper de fase — com `atual+1` fixo, pós-rollover o board pedia a
+    # classe de uma season que o store não tem e vinha VAZIO no meio da janela da auction.
+    season = planning_target_season()
     rostered_sids = (db.session.query(Player.sleeper_player_id)
                      .filter(Player.is_dropped == False,           # noqa: E712
                              Player.sleeper_player_id.isnot(None)))

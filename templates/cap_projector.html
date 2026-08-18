@@ -1,10 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Cap Projector {{ g_current_season + 1 }}{% endblock %}
+{% block title %}Cap Projector {{ target_season }}{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1 class="page-title">📊 Cap Projector {{ g_current_season + 1 }}</h1>
-  <p class="page-subtitle">Simule keeper vs. corte e veja o draft budget disponível.</p>
+  {# UX23: o alvo vem do helper de FASE (planning_target_season), nunca de `+ 1` inline —
+     pós-rollover, com a auction da season corrente pendente, o alvo é a PRÓPRIA season e
+     a base é a folha corrente (D9). O título explicita o modo (decisão do owner). #}
+  <h1 class="page-title">📊 Cap Projector {{ target_season }}
+    {% if mode == 'corrente' %}<span class="tag tag-current" style="vertical-align:middle">FOLHA CORRENTE · AUCTION {{ target_season }}</span>{% endif %}
+  </h1>
+  <p class="page-subtitle">
+    {% if mode == 'corrente' %}
+    Salários {{ target_season }} já valorizados (pós-rollover). Simule keeper vs. corte e veja o budget da FA auction de {{ target_season }}.
+    {% else %}
+    Simule keeper vs. corte e veja o draft budget disponível.
+    {% endif %}
+  </p>
 </div>
 
 <div class="toolbar">
@@ -21,7 +32,7 @@
 <div id="proj-cap-bar" class="cap-summary-card cap-summary-sticky" style="display:none">
   <div class="cap-summary-grid">
     <div class="cap-summary-item">
-      <span class="cap-label">Cap Projetado {{ g_current_season + 1 }}</span>
+      <span class="cap-label">{% if mode == 'corrente' %}Cap {{ target_season }} (corrente){% else %}Cap Projetado {{ target_season }}{% endif %}</span>
       <span class="cap-value" id="proj-total">—</span>
     </div>
     <div class="cap-summary-item">
@@ -84,9 +95,12 @@
 {% block scripts %}
 <script>
 // L3: anos derivados da season corrente (AppConfig), nunca literais — sobrevivem ao
-// rollover. Contraparte server-side: `g_current_season` (context processor).
+// rollover. UX23: o ALVO agora vem do servidor (planning_target_season — helper de
+// fase), não de `+ 1` no template. MODE decide as colunas: 'corrente' = folha já
+// valorizada (D9), sem Sal-próximo/Δ; 'projetado' = comportamento histórico intacto.
 const SEASON_ATUAL = {{ g_current_season }};
-const SEASON_PROJ = {{ g_current_season + 1 }};
+const SEASON_PROJ = {{ target_season }};
+const MODE = {{ mode | tojson }};
 let teamData = null;
 let keepState = {};
 
@@ -111,17 +125,23 @@ function loadTeam(name) {
 function render() {
   if (!teamData) return;
   const pos_order = {QB:0,RB:1,WR:2,TE:3,K:4,DST:5,'D/ST':5};
+  // UX23: em modo corrente o desempate de ordenação é o salário JÁ VALORIZADO —
+  // next_salary re-projetaria 2 seasons à frente e não é exibido.
+  const salBase = (p) => MODE === 'corrente' ? p.salary : p.next_salary;
   const sorted = [...teamData.players].sort((a, b) => {
     const pa = pos_order[a.position] ?? 9;
     const pb = pos_order[b.position] ?? 9;
-    return pa !== pb ? pa - pb : b.next_salary - a.next_salary;
+    return pa !== pb ? pa - pb : salBase(b) - salBase(a);
   });
 
+  // UX23: colunas Sal-próximo/Δ SAEM em modo corrente (decisão do owner) — a folha já
+  // é a final da season; mostrar um Δ zerado seria responder a pergunta errada.
+  const projHead = MODE === 'projetado' ? `<th>Sal ${SEASON_PROJ}</th><th>Δ</th>` : '';
   let html = `<table class="data-table">
     <thead><tr>
       <th style="width:44px">Keep</th>
       <th>Pos</th><th>Jogador</th><th>Equipe NFL</th>
-      <th>Contrato</th><th>Sal ${SEASON_ATUAL}</th><th>ESPN Ref</th><th>Sal ${SEASON_PROJ}</th><th>Δ</th><th>Tipo</th>
+      <th>Contrato</th><th>Sal ${SEASON_ATUAL}</th><th>ESPN Ref</th>${projHead}<th>Tipo</th>
     </tr></thead><tbody>`;
 
   sorted.forEach(p => {
@@ -146,8 +166,8 @@ function render() {
       <td>${p.contract_display}</td>
       <td>$${Math.round(p.salary)}</td>
       <td class="text-dim">${p.espn_ref_value ? '$' + Math.round(p.espn_ref_value) : '—'}${p.espn_is_final === false ? ' <span class="tag tag-prov">PROV</span>' : ''}</td>
-      <td class="${keep ? 'salary-cell' : 'text-dim'}">$${p.next_salary}</td>
-      <td class="${dCls}">${dSign}$${delta}</td>
+      ${MODE === 'projetado' ? `<td class="${keep ? 'salary-cell' : 'text-dim'}">$${p.next_salary}</td>
+      <td class="${dCls}">${dSign}$${delta}</td>` : ''}
       <td class="acq-${p.acquisition_type}">${p.acquisition_type}</td>
     </tr>`;
   });
@@ -180,7 +200,10 @@ function refreshScenario() {
   fetch('/api/cap_projector/' + encodeURIComponent(teamData.team.name) + '/budget', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({kept_ids: keptIds, rookie_sids: [...scenario]}),
+    // UX23: modo corrente usa a base D9 (salário JÁ valorizado — projected:false, o
+    // parâmetro que a janela de cortes sempre usou); modo projetado segue o default.
+    body: JSON.stringify({kept_ids: keptIds, rookie_sids: [...scenario],
+                          projected: MODE === 'projetado'}),
   })
     .then(r => r.json())
     .then(d => {
