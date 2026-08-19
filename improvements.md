@@ -188,6 +188,7 @@
 | UX29 | **Fusão do roster principal com o detalhe de time numa superfície única** (Opção 3 da F1 do [[UX28]]) — uma só tela de time, com "Meu Roster" virando o caso particular do time do usuário; o cap projector fica como **ferramenta separada** de chegada parametrizada. A Opção 1 (decidida no [[UX28]]) é **subconjunto aproveitado integralmente** por este item: a chegada por parâmetro e as três saídas continuam válidas — só o destino de "roster completo" muda, passando a ser a superfície fundida. **Absorção dos itens de paridade (medida, não assumida):** [[UX17]] **dissolve** (sem duas telas não há pergunta de paridade); [[UX24]] **NÃO desaparece** — o rótulo "Proj `current+1`" segue errado pós-rollover independentemente de quantas telas o exibem, e a fusão só reduz o trabalho de 2 sítios para 1 (⚠️ correção da própria F1, que dizia "absorvidos ou descartados" para os dois). **Questão aberta do item: id × nome na URL canônica** (o `/team/<id>` é por id, o `?team=` do roster é por nome — ver refutação 5 da F1). Custo **alto**: converge 7 entradas de uma superfície + 4 da outra, mexe em redirect de login, páginas de erro e navbar. Risco declarado: **perda de informação por silêncio** (lição do [[UX4]]-b) — a F1 lista o que é exclusivo de cada tela — MAN-UX28-REG-DECISOES | Baixa | 🔲 |
 | UX30 | **Cenário de rookies do cap projector não é reiniciado ao trocar de time pelo seletor** — colateral medido na F1 do [[UX28]]: `scenario` (Set de sids) e `keepState` são estado de módulo e `loadTeam()` não os limpa ([cap_projector.html:111-131](templates/cap_projector.html#L111-L131)); o `refreshScenario` seguinte posta os `rookie_sids` do time ANTERIOR no `/budget` do time novo, inflando folha e "cortar ≥N" de um time que não escolheu aqueles rookies. O board é global (`/api/cap_projector/rookies` não tem parâmetro de time). ⭐ **Chegada por URL não sofre** (load limpo) — logo o fix é **independente** da F2 do [[UX28]] e não a bloqueia. Reachable hoje: **287 rookies `in_class` na season 2026** (contagem no banco local; o clear do passo 5 ainda não rodou). Fix candidato: limpar `scenario`/`keepState` no `loadTeam` — ⛔ não arbitrado (há leitura alternativa de que o cenário de cortes seja estado do usuário, não do time) — MAN-UX28-REG-DECISOES | Baixa | 🔲 |
 | OPS3 | **CSS morto do antigo layout de cap do detalhe de time** — colateral da F1 do [[UX28]]: `.team-detail-cap-layout` (+ media query + 2 regras descendentes), `.cap-breakdown-grid`, `.cap-breakdown-stat` (+ 2 overrides escopados) e `.cap-by-pos-table` **não têm consumidor em nenhum template** — foram substituídos pela status bar do [[UX4]]-c e sobreviveram só na citação de um comentário. Faixa medida: ~34 linhas em [style.css:2176-2209](static/style.css#L2176-L2209). ⛔ **Escopo estrito: só o que JÁ está morto hoje**; as ~150 linhas de `.team-detail-*`/`.team-status-bar`/`.pos-chip*`/`.team-cap-progress` estão **VIVAS** (a Opção 1 do [[UX28]] mantém o detalhe de time) e só órfãm sob o [[UX29]] — anotadas como dependentes dele, fora deste escopo. ⚠️ Toca `static/style.css` ⇒ o **gate visual do [[O7]]** se aplica (`tools/visual_probe/cli.py` exit 0 antes do push). Globais `.stat-num`/`.stat-label` **não** entram (usados em admin, espn_import, league, lottery_audit) — MAN-UX28-REG-DECISOES | Baixa | 🔲 |
+| OFF26-33 | **Membros INVISÍVEIS do censo do [[OFF26-32]]** — jogador adquirido em `fa_auction` e depois **claimado por waiver** teve o canal **reescrito pelo passo 6 do rebuild [[F8]]** (último evento ativo vence: `fa_auction` → `fa_waiver`) e **saiu do filtro do censo** — logo o runner de 20/08 **não o corrige**. ⭐ **Caso provado: AD Mitchell (sid 11625)** — contrato do leilão FA de 31/08/2025 deveria dar `cy=2` em 2026, e a sonda **MAN-WV1-VERIFY-PROD confirmou `cy=3` no banco VIVO**; achado colateral da F1 do [[WV1]]. ⛔ **O defeito de contagem existe sob QUALQUER regra de janela** — é independente da decisão estrita × lock-aware. Escopo: **F1 própria** para dimensionar a subcoorte (varredura pelo **histórico de eventos**, ⛔ nunca por `acquisition_type`, que é justamente o campo reescrito) + correção pela **mesma porta canônica** do [[OFF26-32]]. Sem urgência de cap (o caso âncora está a $2; efeito é na renovação) — MAN-WV1-DOCS-F1 | Média (sugerida) | 🔲 |
 
 ---
 
@@ -566,6 +567,93 @@ DECISÕES JÁ TOMADAS acima) — este requisito é o consumidor que aquela prese
 **re-add de dropado** mantém o salário do contrato morto — o gerador dos híbridos que o rollover
 seguinte achata. As três faces são o **mesmo predicado**: *quando o waiver NÃO carrega o
 contrato anterior*.
+
+**RESPOSTAS ÀS QUESTÕES (MAN-WV1-F1 + MAN-WV1-VERIFY-PROD, 19/08/2026 — read-only)**
+
+Fontes: a **F1** (varredura da temporada 2025 pela API do Sleeper + banco local) e a
+**VERIFY-PROD** (sonda no Render Shell contra `/data/dynasty.db`, `mode=ro`;
+`current_season=2026`, `rollover_done=true`, 242 vivos). Nenhuma escrita nos dois.
+
+- **Q-A — RESPONDIDA: a API expõe TUDO, e o degrau (3º) morreu.** `GET /v1/league/<id>` →
+  `settings.waiver_type=2` (FAAB), **`waiver_clear_days=2`**, **`waiver_day_of_week=2`**,
+  `daily_waivers=0`, `waiver_budget=200`, `waiver_bid_min=0` — idênticos nas ligas 2025 e 2026.
+  A clearance por drop processa empiricamente em **~47,0-47,2h após a EXECUÇÃO do drop** (11
+  casos, cluster estreito, em qualquer dia/hora); o **batch semanal** roda **quarta ~04-05h BRT**
+  (= quarta 3h ET), 102 dos 113 claims. ⭐ **Tensão de fuso RESOLVIDA e não era fuso:** a tela
+  mostra o `created` (submissão, terça à noite) e a execução é o `status_updated` (quarta de
+  madrugada) — campos diferentes, nenhum lado errado. ⇒ **o degrau (3º) (72h fixas) é
+  desnecessário**: a setting é legível.
+- **Q-D — RESPONDIDA em três partes.** (i) **O instante que importa é `status_updated`, não
+  `created`** — âncora medida: Jordan Love passou de 86,8h para **47,0h** ao trocar o campo, e
+  **mudou de veredito**; qualquer implementação que use `created` como instante do drop erra
+  exatamente os casos-fronteira. (ii) **Não há endpoint por transação** — recuperar o instante
+  exige **re-varrer as 18 legs** da liga da season casando `transaction_id` (18 GETs; feito na
+  F1). (iii) ⭐ **O *"sem nenhum bid"* da 6.8 é aplicável SEM capturar o valor do FAAB** — o
+  **TIPO** da transação já discrimina: **113/113** waivers completos têm `waiver_bid` (incl. **42
+  de $0**, que são vitórias de claim) contra **0/370** `free_agent`. O valor do bid é recuperável,
+  mas **não é insumo** do discriminador.
+- **Q-F — RESPONDIDA COM INVERSÃO DA PERGUNTA.** Sob a leitura estrita da clearance, os degraus
+  **(1º) e (2º) COINCIDEM** — mesmo conjunto de carregadores, divergência **zero**; o (2º) é uma
+  implementação do (1º) lida da API. **A divergência real é DENTRO do (1º)**: leitura *estrita*
+  (a clearance corre sempre, às ~47h) × *lock-aware* (o lock de jogo, **7.1.3.c**, estende o
+  período do drop até a quarta). **Os 17 claims ambíguos** (48-168h, batch de quarta, 1º evento
+  pós-drop) **são o teste de aceitação**. A lock-aware exige **fonte de calendário de jogos NFL**
+  — dado que **não está** no endpoint de liga; investigar na F2.
+- **Q-G — RESPONDIDA (varredura completa de 2025).** **113 claims** de waiver completos (+95
+  perdedores, legíveis). Deles: **28 sem drop prévio** = a **face 1 / caso Puka** (12 ainda
+  rosterados no banco local); **85 com drop prévio**, que se repartem em **11 carrega-certo**
+  (clearance ~47h), **57 nova-certo** (≥168h ou não-1º-evento) e **17 ambíguos**. A coorte
+  fora-da-janela = **18 jogadores certos** + os 17 claims ambíguos, que resolvem para **~10-11
+  jogadores reais** (1 duplicado na coorte A — sid 9228, cujo claim que governa é o mais recente
+  — e **5 sids *churn*** sem row em `players`). ⭐ **Dos 28 resolvidos, 9 já foram DROPADOS** nos
+  cortes de agosto: **a janela de 20/08 encolheu a coorte em um terço sozinha.**
+- **Q-B — RESPONDIDA E MEDIDA EM PRODUÇÃO: o piso zera. ⛔ A previsão da F1 caiu no dado.**
+  A F1 previu delta **positivo** ("a regra candidata torna a coorte mais cara"); a VERIFY mediu o
+  contrário: **`espn_ref_value` entre 1.0 e 2.0 nos 28 resolvidos** ⇒ `floor(0,8×ESPN) < $1` ⇒ o
+  **piso da 6.10** prende tudo em **$1**. Apenas **3 deltas ≠ 0, todos de −$1** — Adonai Mitchell
+  (sid 11625), Quentin Johnston (sid 9754) e Baltimore Ravens (dropado) — dos quais **2 em roster
+  ativo**, totalizando **−$2 na liga inteira** (SAFIEL −1, Trust The Process −1). **Direção
+  OPOSTA à prevista:** os afetados estão hoje **$1 mais caros**, não mais baratos. **Por que a
+  previsão caiu:** claims de FAAB alto (B. Young $115, Vidal $60, Iosivas $40) são **peças de
+  momento sem valor de pré-temporada** — **bid não é proxy de ESPN**, coerente com a **7.1.8**.
+  ⇒ **O efeito remanescente NÃO é de valor, é de CONTAGEM:** a coorte carrega `cy=3` em 2026
+  quando a aquisição nova daria `cy=2` — **renovação um ano CEDO**, mesma família do
+  [[OFF26-32]]. ⚠️ **Ressalva:** o zero depende do **valor** ESPN da coorte — com ESPN definitiva
+  relevante o delta seria ≈ **+0,3 × ESPN por jogador**; e a suspeita **raw × ajustado** (valores
+  **exatos** 1.0/2.0, quando o ajustado de raw $1 seria **1.2**) é matéria do [[MAN-ESPN12]],
+  **não deste item** — âncora de verificação pendente com o owner (nota registrada lá).
+- **Q-C — RESOLVIDA NO PRAZO (não no mérito).** **Sem impacto material no leilão de 24/08**,
+  medido em prod: exposição máxima **$1 em dois rosters, contra o time que a carrega**. O reparo
+  retroativo, **se** decidido, é de **contagem/registro** (não de dinheiro), vai pela **porta
+  canônica com backup** (molde [[OFF26-32]]/[[OFF26-20]]-FIX) e cabe na agenda normal do WV1 —
+  **semana pós-leilão**. ⛔ Nasce da **API**, não do banco (ver achado estrutural abaixo).
+- **Q-E — RESPONDIDA: sem réplica hoje; a disciplina do [[F10]] aguentou.** A régua vive **só** no
+  `salary_engine` (`_WAIVER_TYPES` em 5 sítios) — é onde o discriminador entra, como fonte única.
+  Consumidores que **herdam de graça** (calculam no servidor): coluna Proj do roster e do detalhe,
+  cap projector, `compose_budget` da `/league` e do `/team/<id>`, calculadora de aquisição, preview
+  do import de draft. Precisarão do veredito: **rollover** (real e legado), **`record_acquisition`**
+  / re-add e o **passo 6 do rebuild [[F8]]**. Restam **texto explicativo** (`salary.html`: "Ano 2 =
+  floor(0.80×ESPN×1.2)") e o **display do veredito** (carregou × novo) — exibição, não régua.
+
+**⚖️ DECISÃO CENTRAL EM ABERTO — leitura ESTRITA × LOCK-AWARE (owner; possivelmente liga, vizinha
+do [[REG1]]).** É o que decide os **17 claims ambíguos** e, com eles, o tamanho da coorte (18 × 27):
+
+| Leitura | Argumento a favor | Efeito |
+|---|---|---|
+| **Estrita** | o **texto da 6.8**: se a clearance passou vazia às ~47h, o jogador **virou Free Agent** e o contrato morreu; o claim de quarta é reentrada | os 17 viram **aquisição nova** (coorte 27) |
+| **Lock-aware** | o **entendimento verbal da liga** (19/08): o período de waiver do drop é contínuo até o processamento de quarta quando o time da NFL joga no meio (**7.1.3.c**) | os 17 **carregam** (coorte 18) |
+
+⛔ **Não arbitrada aqui.** Prazo sugerido: **antes da F2 do WV1, semana pós-leilão**. Custo de
+apurar a lock-aware: achar fonte de calendário de jogos NFL (não está no endpoint de liga).
+
+**🧱 ACHADO ESTRUTURAL — o histórico do banco NÃO sustenta o snapshot retroativo.** O
+`PlayerHistory` local cobre **66 dos 113 claims (58%)** e **156 das 410 transações com drop
+(38%)** de 2025. **Causa medida, não suposta:** **100%** dos ausentes são jogadores **sem row em
+`Player`** (*churn* — add+drop que nunca sobreviveu a um sync), e o rebuild [[F8]] **pula evento
+de jogador irresolúvel**. ⇒ **Qualquer snapshot ou reparo retroativo nasce da API**, não do
+`PlayerHistory`. Cross-refs: [[M21]] (fatia B — o universo não-`Player` é exatamente esse buraco),
+[[S4]] (identidade de time por string no mesmo histórico) e o **requisito de snapshot** registrado
+acima (que existe justamente para o rebuild não recalcular com a régua do momento).
 
 **DEPENDÊNCIAS**
 - Depende de: lógica de aquisição / pacote offseason (criação de contrato fora de
@@ -1410,6 +1498,15 @@ daí a proteção do F8a está furada.
   destes dois? (a S3-F1 mapeou `AuctionLog`, `SeasonStandings` e `DraftLotteryResult` como
   **snapshot de display com `team_id` disponível** — fora do risco)
 
+**Nota de ocorrência — o risco deixou de ser teórico (19/08/2026, fonte MAN-WV1-VERIFY-PROD):**
+a sonda em `/data/dynasty.db` revelou **3 times renomeados** entre o seed local de 07/08 e o prod
+de 19/08 — *Fazenda Pederasta* → **Julia Mendes**, *Miller Time!* → **Haliburton Time!**,
+*🕯️🕯️ achane 🕯️🕯️* → **SAFIEL**. Três renames em **12 dias**, na janela mais movimentada do ano.
+É exatamente o gatilho que este item descreve (o nome dentro do índice UNIQUE do [[F8]]a).
+Consequência operacional imediata, já sentida: **toda releitura de tabela antiga precisa usar os
+nomes de prod** — as agregações "por time" da F1 do [[WV1]] saíram com os nomes velhos e tiveram de
+ser relidas. ⛔ Nenhuma correção feita; o item segue 🔲.
+
 **DEPENDÊNCIAS**
 - Depende de: nada (independente). Relaciona-se com [[S3]] (mesma classe, chave estável ausente em
   vez de ignorada), [[F8]]/[[F8a]] (dono do índice UNIQUE), [[F7]] (precedente de histórico
@@ -1808,6 +1905,18 @@ nenhum item marcado resolvido. Veredito da suspeita central (réplica ×1.2 no c
   `espn_raw` = **raw** para rookies (`:262`) — **mesmo rótulo, bases diferentes**. Mais amplo:
   formulários de input e o board tratam "ESPN" como raw; telas de roster mostram adjusted. Divergência
   de **exibição** (não de cálculo).
+
+**Nota de ocorrência — suspeita NOVA, de outra natureza (19/08/2026, fonte
+MAN-WV1-VERIFY-PROD):** a sonda em `/data/dynasty.db` leu `espn_ref_value` da coorte do [[WV1]] e
+achou os valores **EXATOS `1.0` e `2.0`** nos 28 jogadores resolvidos. ⚠️ **Isso tem cara de RAW,
+não de ajustado:** o ajustado de raw $1 seria **1.2** — e **1.2 era exatamente o que o banco local
+de 07/08 mostrava para os mesmos jogadores**. Não é a suspeita original deste item (réplica no
+client, refutada); é a **fronteira de escrita** — quem grava, com que fator, em qual caminho.
+**Âncora de verificação proposta ao owner** (10 segundos na próxima ida ao Shell): ler o
+`espn_ref_value` de um jogador de valor conhecido (ex.: Mahomes, Breece Hall) — **se vier alto**, os
+$1 da coorte são **genuínos** (defesas, kickers e peças de profundidade fora do Top 300) e a
+suspeita morre; **se vier baixo/raw**, o item **sobe de prioridade**, porque afetaria a **folha
+inteira**, não uma coorte. ⛔ **Não resolvido aqui** — pendência do owner; o item segue 🔲.
 
 **JUSTIFICA F2?** A suspeita original (réplica no client) **não se confirma** → não há correção
 urgente de invariante. Há **débito real** (a/b/c) que pode virar F2 **opcional, baixa prioridade**:
@@ -7342,6 +7451,15 @@ prova é que a correção **não muda salário nenhum**, o que vale sob qualquer
 | Caleb Williams | **"Ano 2/4"**, início 2025, **$4 igual**, evento novo na timeline |
 | suítes | 34 novos + `salary_engine` (54), `contract_year_correction` (20), `cap_regua` (14), `template_js` (3) — verdes. Gate [[O7]] **exit 0** |
 
+**Nota de ocorrência (19/08/2026, fonte MAN-WV1-VERIFY-PROD):** a coorte do [[WV1]] (claims de
+waiver fora da janela do drop) e o censo destes 24 são **DISJUNTOS** — verificado **sid a sid**, no
+banco local e **confirmado em produção** ⇒ **nenhuma restrição de ordem** entre este runner e um
+eventual reparo do WV1; o de 20/08 roda como planejado. ⚠️ **Mas o censo tem membros INVISÍVEIS**:
+quem entrou por `fa_auction` em 2025 e depois foi claimado teve o canal reescrito pelo passo 6 do
+[[F8]] e **saiu do filtro** — caso provado AD Mitchell (sid 11625, `cy=3` medido em prod). Isso
+**não invalida** o runner (o que ele corrige, corrige certo); é **cobertura faltante**, registrada
+como [[OFF26-33]].
+
 **Runbook de prod (quinta 20/08, pós-lock):** `sqlite3 /data/dynasty.db ".backup
 '/data/pre_off26_32_fix.db'"` → conferir o arquivo → `python off26_32_fix.py --check` → `--apply
 --backup /data/pre_off26_32_fix.db`. ⚠️ O deploy precisa levar o runner ao servidor antes.
@@ -7787,5 +7905,55 @@ diff de anatomia acusa.
 
 **Cross-refs:** [[UX28]] (F1 que mediu), [[UX29]] (dono do resto), [[UX4]]-c (quem substituiu
 os blocos), [[O7]] (gate), [[OPS1]] (mesma família de higiene).
+
+---
+
+### OFF26-33 — Membros invisíveis do censo do OFF26-32 (canal reescrito pelo rebuild F8)
+🔲 **Registrado 19/08/2026 (MAN-WV1-DOCS-F1 — docs-only)** — Prioridade **Média (sugerida — a
+final é do owner)** — achado colateral da F1 do [[WV1]], **confirmado em produção** pela sonda
+MAN-WV1-VERIFY-PROD.
+
+**O mecanismo.** O **passo 6 do rebuild canônico [[F8]]** reconcilia `acquisition_type` e
+`contract_start_season` a partir dos eventos crus, adotando o **último evento ativo ≥ 2025**
+([sync_sleeper.py:1200-1269](sync_sleeper.py#L1200)). Para quem foi adquirido no **leilão FA de
+2025** (`fa_auction`) e **depois claimado por waiver** na mesma temporada, o último evento é o
+claim ⇒ o canal é **reescrito para `fa_waiver`**. O censo do [[OFF26-32]] — congelado em
+05-06/08/2026 — filtra **por `acquisition_type = fa_auction`**, exatamente o campo que a
+reescrita apagou. ⇒ **esses jogadores são invisíveis ao censo e o runner de 20/08 não os toca.**
+
+**Caso provado — AD Mitchell (WR, sid `11625`, Trust The Process):**
+
+| Evento | Data | Consequência de contrato |
+|---|---|---|
+| DRAFTED por rafaelferreirap, $3 | 26/08/2024 | contrato 2024 |
+| DROPPED to waivers | 04/08/2025 | contrato morre |
+| **DRAFTED no leilão FA 2025 por fernandomxf, $2** | 31/08/2025 | **contrato NOVO — ano 1 em 2025** (regra 6.1, a mesma do [[OFF26-32]]) |
+| DROPPED to waivers | 14/10/2025 | — |
+| ADDED from waivers por michelzela, bid $18 | 05/11/2025 | canal reescrito p/ `fa_waiver` pelo [[F8]] |
+
+⇒ deveria estar em **`cy=2` em 2026**; a sonda em `/data/dynasty.db` mediu **`cy=3`, salário $2,
+`acquisition_type=fa_waiver`, roster ativo**. É **o mesmo defeito do [[OFF26-32]]** (contagem
+herdada do pré-drop), num jogador que aquele censo não enxerga.
+
+**⛔ Independente da decisão em aberto do [[WV1]].** O erro de contagem não depende de o claim de
+05/11 carregar ou não o contrato: sob "carrega", ele carrega o contrato **do leilão de 2025**
+(ano 1 em 2025 ⇒ ano 2 em 2026); sob "aquisição nova", abre ano 1 em 2025 ⇒ ano 2 em 2026. **As
+duas leituras dão `cy=2`** — só a contagem herdada de 2024 dá 3.
+
+**ESCOPO PROPOSTO (F1 própria, read-only):**
+1. **Dimensionar a subcoorte invisível** — varrer o **histórico de eventos** (drafts do leilão FA
+   2025 + claims posteriores, pela API, no molde da varredura do [[WV1]]); ⛔ **nunca filtrar por
+   `acquisition_type`**, que é o campo reescrito e a causa da invisibilidade.
+2. Medir `contract_year` vigente × devido em **prod** (a mesma sonda `mode=ro` já validada).
+3. Correção pela **mesma porta canônica** do [[OFF26-32]] (`correct_player_salary` / runner
+   one-shot com backup pré-execução), ⛔ nunca patch direto.
+
+**Prazo:** sem urgência de cap — o efeito financeiro só chega na **renovação**, e o caso âncora
+está a **$2**. O display errado ("Ano 3/4") é visível hoje. Agenda natural: junto da fila
+pós-leilão do [[WV1]].
+
+**Cross-refs:** [[OFF26-32]] (o irmão visível — censo congelado, runner de 20/08), [[WV1]] (a F1
+que achou), [[F8]] (o passo 6 que reescreve o canal), [[OFF26-20]] (origem do censo e da régua de
+canal), [[S4]] (mesma classe de erosão de identidade no histórico).
 
 ---
