@@ -81,7 +81,7 @@
 | DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — lê o **store canônico** — MAN-DP1-REG | A definir | ⚠️ (F2 implementada 10/06; smoke em prod pendente) |
 | DP2 | Cadeia única de planejamento no cap projector: board DP1 parte do cenário keep/corte (não mais roster integral) + summary sticky unificado refletindo cortes + rookies; estende o endpoint canônico do F10 com `rookie_sids` (1 fonte) — MAN-DP2-REG (revisão consciente da base do DP1-F2) | Média | ✅ 15/06/2026 (smoke de prod confirmado) |
 | DP3 | Composição da lista do board de rookie draft: hoje lista `RookieEspnValue` (não-rosterados ESPN-valorados, Top-300) → mostra veteranos/rookies de classes antigas e omite rookies fora do Top-300; owner decidiu listar só rookies da classe entrante (D1) via pool global do Sleeper, ESPN quando houver e $1 quando não (D2), só status ativo NFL (D3), snapshot materializado (D4), tela alt. A (D5) — MAN-DP3-REG/F1/REFINE/F2/CLOSE | Alta | ✅ 31/07/2026 (smoke prod OK sobre hash `e12fdef`: captura idempotente 148→0, board ordenado, não-rookies fora, busca/filtro sem reload, cenário na barra fixa; **ressalva**: board mostra classe do snapshot de junho — completude depende do **F13**; detalhe no archive) |
-| WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG; **PROMOVIDO 19/08 (caso Cam Little — forense [[OFF26-31]])**: o re-add de dropado mantém o salário do contrato morto (o gerador de híbridos) e o rollover seguinte o achata pela régua do canal; a F2 abre contrato ano-1 pela **porta canônica** no re-add. Caronas da F2: (a) baseline de SalaryHistory p/ híbridos e jogadores sem NENHUMA linha; (b) revisar o default `is_final=False` do `record_acquisition` (nota do [[UX26]]); (c) conferir o lance real do Little na API do auction 2025 e alinhar a Timeline ($3 registrado × $2 lembrado) | ~~Média~~ **Alta** (agenda: semana pós-auction) | 🔲 |
+| WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG; **PROMOVIDO 19/08 (caso Cam Little — forense [[OFF26-31]])**: o re-add de dropado mantém o salário do contrato morto (o gerador de híbridos) e o rollover seguinte o achata pela régua do canal; a F2 abre contrato ano-1 pela **porta canônica** no re-add. Caronas da F2: (a) baseline de SalaryHistory p/ híbridos e jogadores sem NENHUMA linha; (b) revisar o default `is_final=False` do `record_acquisition` (nota do [[UX26]]); (c) conferir o lance real do Little na API do auction 2025 e alinhar a Timeline ($3 registrado × $2 lembrado). ⭐ **SUB-ARCO FIX-COORTE EXECUTADO EM PROD 19/08** (runner `wv1_fix_coorte.py`, commit `e7375a8`, pré-lock da janela de cortes): **14 contagens `cy 3→2` + 2 salários `$2→$1`** (Mitchell `11625`, Q. Johnston `9754`) pelas portas canônicas, 4 dropados pulados por decisão do owner, idempotência provada no re-check. ⛔ **O item SEGUE 🔲**: falta a F2 (regra da janela no motor), a decisão estrita × lock-aware dos **17 ambíguos** e as caronas | ~~Média~~ **Alta** (agenda: semana pós-auction) | 🔲 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
@@ -567,6 +567,78 @@ DECISÕES JÁ TOMADAS acima) — este requisito é o consumidor que aquela prese
 **re-add de dropado** mantém o salário do contrato morto — o gerador dos híbridos que o rollover
 seguinte achata. As três faces são o **mesmo predicado**: *quando o waiver NÃO carrega o
 contrato anterior*.
+
+**SUB-ARCO FIX-COORTE — EXECUTADO EM PRODUÇÃO (19/08/2026, ~19h05 UTC, pelo owner)**
+
+⛔ **O item WV1 SEGUE 🔲 Alta.** O que fechou foi o **reparo da coorte certa** — a regra da
+janela no motor (F2), a decisão estrita × lock-aware dos 17 ambíguos e as caronas continuam
+abertas. Este bloco registra a execução, não o encerramento.
+
+**O que foi corrigido.** Os **18 "certos"** da F1 — claim de waiver **fora da janela do drop**
+em 2025, logo **aquisição nova** sob QUALQUER leitura — carregavam a contagem do contrato
+**morto** (`cy=3` em 2026, quando ano 1 = 2025 dá `cy=2`), e dois deles ainda o salário do
+contrato morto. Motivo do prazo (⚠️ **revoga a agenda "pós-leilão" registrada nas respostas
+acima**): a janela de cortes fechava em **20/08** e os owners decidiam keeper pela tela —
+*"Ano 2/4 a $1"* (3 anos restantes) é ativo diferente de *"Ano 3/4 a $2"*. Caso reportado por
+owner da liga (**Michel**, âncora AD Mitchell).
+
+**Runner:** `wv1_fix_coorte.py` (+ `wv1_fix_coorte_test.py`, 23 testes), commit **`e7375a8`**,
+no molde do `off26_32_fix.py`, **pelas duas portas canônicas** —
+`contract_year_correction.apply_contract_year_correction` (contagem) e
+`models.correct_player_salary` (salário). ⛔ Nenhum patch direto; nenhuma alteração em
+`salary_engine`, schema, sync ou `record_acquisition`.
+
+⭐ **O escopo ENCOLHEU no parecer pré-execução ([[MAN-METH-2]]):** `contract_start_season` **saiu**
+— os 18 já estavam em **2025**, medido sid a sid. O passo 6 do rebuild [[F8]] reconcilia `css` e
+`acquisition_type` pelo último evento; o que ele **não** toca é `contract_year`, e é só aí que
+mora o erro. Isso eliminou a única mutação que **não teria porta canônica** (nenhuma porta
+escreve `css`) — o parecer evitou, por medição, criar uma.
+
+**Execução em prod (saída do Shell, reportada pelo owner):**
+
+| Etapa | Resultado |
+|---|---|
+| backup | `/data/pre_wv1_fix.db` conferido — **700.416 bytes** |
+| `--check` | **14 elegíveis + 4 dropados pulados**, invariante financeiro OK |
+| `--apply` | **14 contagens** `cy 3→2` + **2 salários** `$2→$1` — Adonai Mitchell (sid `11625`) e Quentin Johnston (sid `9754`) |
+| trilha | **14 + 2** linhas (`contract_year_correction` com `sleeper_event_ref=fix:wv1-coorte` + `salary_correction`) |
+| re-`--check` | **0 elegíveis, 18 pulados** — idempotência provada em produção |
+| verificação pós-commit | por conexão independente: só `contract_year` (+`salary` dos 2 aprovados, +`updated_at`) mudou |
+
+**Ordem de execução — duas idas ao Shell (decisão do owner, sobre achado do parecer):** este
+runner **PRÉ-lock** (a lista é congelada ⇒ o resultado não depende do estado dos rosters, e só
+assim o dado chega a tempo da decisão de corte) e o [[OFF26-32]] **PÓS-lock** em 20/08 (a lista
+dele é derivada ao vivo ⇒ corrigir quem está prestes a ser cortado seria escrever em contrato
+morto). ⚠️ **Os dois runners exigem lados OPOSTOS do lock** — o parecer achou o conflito antes da
+execução; a proposta original era rodá-los na mesma ida, o que teria feito este chegar tarde.
+Coortes **disjuntas**, provado sid a sid contra o censo do runner do OFF26-32.
+
+**TRÊS ANOTAÇÕES QUE FICAM ABERTAS:**
+
+1. ⚠️ **Os 4 dropados NÃO foram corrigidos** — Emanuel Wilson (`11435`), Daniel Carlson (`5095`),
+   Tyler Lockett (`2374`), Devin Singletary (`6130`). Decisão do owner, consistente com o
+   `derive_targets` do [[OFF26-32]] (contrato morto; o re-add abre contrato novo pela porta
+   canônica). **O dado histórico deles segue errado** e é corrigível na **F2** ou junto do
+   [[OFF26-33]] — ⛔ pendência anotada, não arbitrada. Nota de leitura: o `cy=2` do **Wilson** é
+   **coincidência**, não correção (é o valor de 2025 congelado — ele foi dropado ANTES do rollover
+   de 17/08 e nunca foi incrementado).
+2. ⚠️ **Os 2 corrigidos não tinham NENHUMA linha em `SalaryHistory`** (medido no ensaio: **281
+   players** do banco estão nessa situação). A correção gravou `Player.salary` + `PlayerHistory`,
+   mas **não teve o que propagar** — `correct_player_salary` atualiza a linha mais recente *"if
+   exists"*. Reforça a **carona (a)** já registrada na row deste item (*baseline de SalaryHistory
+   p/ híbridos e jogadores sem NENHUMA linha*): sem baseline, a trilha de salário fica só no
+   `PlayerHistory`.
+3. ⚠️ **Efeito de cap declarado, pré-leilão:** as duas correções de salário liberam **$1 de cap**
+   para **Trust The Process** e **SAFIEL** (nomes de prod). É o comportamento correto pela regra
+   (6.6 + 6.10), mas **muda o Bid Máximo desses dois times** no leilão de 24/08 — registrado para
+   que a mudança não apareça como surpresa. ⛔ Contraste com o [[OFF26-32]], cujo invariante é
+   *"mexe na contagem, nunca no dinheiro"*: **aqui o dinheiro mexe, de propósito e em 2 linhas**.
+
+**Smoke visual (página do jogador do Mitchell — "Ano 2/4", $1, início 2025, 2 eventos novos na
+timeline):** ⏳ **PENDENTE de confirmação do owner** na data deste registro. O gate de execução
+está completo pela verificação do próprio runner (releitura in-transação + conferência
+pós-commit por conexão independente + re-check idempotente); o smoke confirma a **superfície de
+exibição**, que é o que motivou o prazo.
 
 **RESPOSTAS ÀS QUESTÕES (MAN-WV1-F1 + MAN-WV1-VERIFY-PROD, 19/08/2026 — read-only)**
 
