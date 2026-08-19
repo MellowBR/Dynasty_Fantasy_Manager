@@ -459,8 +459,9 @@ como *"quem vence leva o jogador com o contrato que ele tinha, para qualquer tim
 **não toca** a parte da identidade do time. Mas ⛔ **ela acrescenta uma condição que a
 arbitragem não enunciou**: o "quem vence leva o contrato" passa a valer **só no primeiro
 processamento após o drop**. Formulado em 05/08 de modo categórico, o enunciado agora ganha
-recorte temporal — **o owner precisa confirmar que isto é refinamento, não reversão** (é a
-primeira coisa que a F1 deve pôr na mesa).
+recorte temporal — e o owner **confirmou no prompt completo de 19/08** que é
+**refinamento, não reversão**: *"este registro acrescenta um qualificador TEMPORAL ao que
+conta como canal waiver — não reabre aquela arbitragem"*. Ponto fechado; sai da pauta da F1.
 
 **CASO ÂNCORA — AD Mitchell (WR, NYJ)**
 ⚠️ **Valores lidos da transaction history na TELA do Sleeper — a F1 deve reconferir contra a
@@ -479,12 +480,33 @@ não o waiver do drop de 14/10. Observação a confirmar na F1: **14/10 e 04/11 
 terça-feira**, o que é consistente com processamento semanal de waiver renderizado em outro fuso
 — reforço (não prova) de que são eventos de processamento, e não adds avulsos.
 
-**SETTINGS DA LIGA NO SLEEPER** (print de 19/08/2026): tempo em waivers após drop = **2 dias**;
-processamento às **quartas-feiras**. ⚠️ **O horário/fuso do processamento veio truncado no
-prompt de registro** — a F1 precisa lê-lo direto das settings.
-⛔ **Nota:** a opção "proxy fixa de 72h" citada como alternativa **não corresponde** ao que as
-settings dizem (2 dias = 48h). A proxy, se escolhida, é uma decisão de simplificação **contra**
-o dado, não um espelho dele — a F1 deve apresentá-la assim.
+**SETTINGS DA LIGA NO SLEEPER** (print de 19/08/2026 — a F1 confirma contra a **API**, não
+contra o print): tempo em waivers após drop = **2 dias**; processamento **quarta-feira, 3h**;
+custom daily waivers **desligado**. ⚠️ Tensão a reconciliar na F1: as duas datas do caso âncora
+renderizam como **terças** — processamento de quarta 3h só vira terça em fuso ≥3h atrás da
+referência; dia e fuso precisam sair da API, não de inferência.
+
+**HIERARQUIA DE CRITÉRIO — decisão de PREFERÊNCIA do owner (19/08/2026; não é decisão de
+implementação):**
+1. **(1º)** derivar do **calendário de processamento**: o claim carrega contrato apenas se
+   venceu o **primeiro processamento após o drop** — o critério fiel à **6.8**; adotar **SE**
+   a F1 confirmar viabilidade (dado disponível e cálculo confiável);
+2. **(2º)** fallback: janela em horas lida da **SETTING DA LIGA via API** do Sleeper (tempo em
+   waivers após drop) — ⛔ **nunca constante hardcoded**;
+3. **(3º)** **72h fixas somente como último recurso**, se a API não expuser a setting.
+Nota de coerência: 72h ≠ os 2 dias da setting lida em print — o degrau (3º) é paraquedas para
+API opaca, não espelho do dado; se a setting for legível (degrau 2º), ela vence.
+
+**REQUISITO DE DESENHO — decisão do owner (19/08/2026), não questão aberta:** o **veredito do
+claim** (carrega contrato × aquisição nova) e/ou a **regra/janela vigente na época do add**
+ficam **GRAVADOS no evento histórico** (snapshot), de modo que um rebuild futuro **respeite o
+snapshot em vez de recalcular** com a regra do momento do rebuild. Interação medida que a F1
+deve mapear: o passo 6 do rebuild canônico **[[F8]] re-deriva `acquisition_type` e
+`contract_start_season` dos eventos crus** ([sync_sleeper.py:1200-1269](sync_sleeper.py#L1200))
+— sem snapshot, um rebuild pós-mudança-de-regra reclassificaria claims antigos com a régua
+nova. Relação com o MAN-M18: os timestamps hoje não exibidos (`AuctionLog.created_at`, salary
+history) foram **preservados exatamente como possíveis consumidores desta regra** (ver
+DECISÕES JÁ TOMADAS acima) — este requisito é o consumidor que aquela preservação antecipava.
 
 **ANÁLISE PRÉ-EXECUÇÃO DESTE REGISTRO (19/08, read-only — evidência, não decisão):**
 
@@ -515,9 +537,10 @@ o dado, não um espelho dele — a F1 deve apresentá-la assim.
 
 **QUESTÕES EM ABERTO DA EMENDA — a F1 instrui, o OWNER decide (⛔ nada arbitrado aqui):**
 
-- **Q-A — Critério temporal.** Proxy fixa (72h? 48h?) **×** derivação das settings da liga
-  (janela após drop + dia/hora de processamento). Qual corresponde ao texto da **6.8** e qual é
-  **operacionalmente robusto** (settings mudam entre temporadas; proxy não acompanha).
+- **Q-A — Viabilidade do degrau (1º) da hierarquia.** A API do Sleeper **expõe** a setting de
+  tempo em waivers pós-drop e o **calendário de processamento** (dia/hora)? Em **que
+  endpoint/campos**? Confirmar contra a **API**, não contra o print — é o que decide entre os
+  degraus (1º), (2º) e (3º) já ordenados pelo owner.
 - **Q-B — Direção do impacto.** ⛔ **Não assumir que tratar como FA é sempre mais barato:** o ano
   2 de FA é **0,8 × ESPN ajustado**, que pode **superar** a valorização sobre o contrato
   carregado. O sinal do delta é **por jogador** e precisa ser medido, não presumido.
@@ -526,10 +549,18 @@ o dado, não um espelho dele — a F1 deve apresentá-la assim.
   canônica: [[OFF26-32]], [[OFF26-20]]-FIX.)
 - **Q-D — Dado disponível.** Ver itens 3 e 4 da análise acima: a F1 decide se opera por **leg**
   (já no banco, texto), por **re-leitura da API** (instante exato + FAAB) ou por **coluna nova**
-  de timestamp — e o custo de cada caminho.
+  de timestamp — e o custo de cada caminho. Inclui: o **FAAB não capturado** impede aplicar o
+  *"sem nenhum bid"* da 6.8 **literalmente**? (o item 4 da análise indica que não — está na API.)
 - **Q-E — Réplicas.** Onde o critério, uma vez implementado, teria cópia além do motor de
   salário: JS do **cap projector**, **preview do import de draft**, **calculadora de aquisição**.
   Mesma disciplina do [[F10]] — se a régua nascer replicada, nasce errada.
+- **Q-F — Divergência entre os degraus (1º) e (2º).** Os dois critérios divergem em **algum caso
+  real da temporada 2025**? Se nunca divergem no dado real, a escolha é acadêmica; se divergem,
+  o caso divergente é o teste de aceitação do degrau escolhido.
+- **Q-G — Varredura 2025 (dimensionamento da coorte).** Quais claims de 2025 ocorreram **fora**
+  da janela do drop e entraram **carregando contrato**? Tamanho da coorte e **delta salarial já
+  selado pelo rollover de 17/08** — é o insumo da decisão de retroatividade (Q-C), no molde do
+  censo do [[OFF26-20]].
 
 **Terceira face já registrada na linha do Status Rápido (19/08, forense [[OFF26-31]]):** o
 **re-add de dropado** mantém o salário do contrato morto — o gerador dos híbridos que o rollover
