@@ -81,7 +81,7 @@
 | DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — lê o **store canônico** — MAN-DP1-REG | A definir | ⚠️ (F2 implementada 10/06; smoke em prod pendente) |
 | DP2 | Cadeia única de planejamento no cap projector: board DP1 parte do cenário keep/corte (não mais roster integral) + summary sticky unificado refletindo cortes + rookies; estende o endpoint canônico do F10 com `rookie_sids` (1 fonte) — MAN-DP2-REG (revisão consciente da base do DP1-F2) | Média | ✅ 15/06/2026 (smoke de prod confirmado) |
 | DP3 | Composição da lista do board de rookie draft: hoje lista `RookieEspnValue` (não-rosterados ESPN-valorados, Top-300) → mostra veteranos/rookies de classes antigas e omite rookies fora do Top-300; owner decidiu listar só rookies da classe entrante (D1) via pool global do Sleeper, ESPN quando houver e $1 quando não (D2), só status ativo NFL (D3), snapshot materializado (D4), tela alt. A (D5) — MAN-DP3-REG/F1/REFINE/F2/CLOSE | Alta | ✅ 31/07/2026 (smoke prod OK sobre hash `e12fdef`: captura idempotente 148→0, board ordenado, não-rookies fora, busca/filtro sem reload, cenário na barra fixa; **ressalva**: board mostra classe do snapshot de junho — completude depende do **F13**; detalhe no archive) |
-| WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG; **PROMOVIDO 19/08 (caso Cam Little — forense [[OFF26-31]])**: o re-add de dropado mantém o salário do contrato morto (o gerador de híbridos) e o rollover seguinte o achata pela régua do canal; a F2 abre contrato ano-1 pela **porta canônica** no re-add. Caronas da F2: (a) baseline de SalaryHistory p/ híbridos e jogadores sem NENHUMA linha; (b) revisar o default `is_final=False` do `record_acquisition` (nota do [[UX26]]); (c) conferir o lance real do Little na API do auction 2025 e alinhar a Timeline ($3 registrado × $2 lembrado). ⭐ **SUB-ARCO FIX-COORTE EXECUTADO EM PROD 19/08** (runner `wv1_fix_coorte.py`, commit `e7375a8`, pré-lock da janela de cortes): **14 contagens `cy 3→2` + 2 salários `$2→$1`** (Mitchell `11625`, Q. Johnston `9754`) pelas portas canônicas, 4 dropados pulados por decisão do owner, idempotência provada no re-check. ⛔ **O item SEGUE 🔲**: falta a F2 (regra da janela no motor), a decisão estrita × lock-aware dos **17 ambíguos** e as caronas | ~~Média~~ **Alta** (agenda: semana pós-auction) | 🔲 |
+| WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG; **PROMOVIDO 19/08 (caso Cam Little — forense [[OFF26-31]])**: o re-add de dropado mantém o salário do contrato morto (o gerador de híbridos) e o rollover seguinte o achata pela régua do canal; a F2 abre contrato ano-1 pela **porta canônica** no re-add. Caronas da F2: (a) baseline de SalaryHistory p/ híbridos e jogadores sem NENHUMA linha; (b) revisar o default `is_final=False` do `record_acquisition` (nota do [[UX26]]); (c) conferir o lance real do Little na API do auction 2025 e alinhar a Timeline ($3 registrado × $2 lembrado). ⭐ **SUB-ARCO FIX-COORTE EXECUTADO EM PROD 19/08** (runner `wv1_fix_coorte.py`, commit `e7375a8`, pré-lock da janela de cortes): **14 contagens `cy 3→2` + 2 salários `$2→$1`** (Mitchell `11625`, Q. Johnston `9754`) pelas portas canônicas, 4 dropados pulados por decisão do owner, idempotência provada no re-check; **smoke visual do owner APROVADO** (página do Mitchell: Ano 2/4, $1, início 2025, 2 eventos na timeline) e **[[PROC1]] fechado por leitura direta** do hash no Shell (`e7375a8…deaca` = o commit do runner). ⛔ **O item SEGUE 🔲**: falta a F2 (regra da janela no motor), a decisão estrita × lock-aware dos **17 ambíguos** e as caronas | ~~Média~~ **Alta** (agenda: semana pós-auction) | 🔲 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
@@ -634,11 +634,17 @@ Coortes **disjuntas**, provado sid a sid contra o censo do runner do OFF26-32.
    que a mudança não apareça como surpresa. ⛔ Contraste com o [[OFF26-32]], cujo invariante é
    *"mexe na contagem, nunca no dinheiro"*: **aqui o dinheiro mexe, de propósito e em 2 linhas**.
 
-**Smoke visual (página do jogador do Mitchell — "Ano 2/4", $1, início 2025, 2 eventos novos na
-timeline):** ⏳ **PENDENTE de confirmação do owner** na data deste registro. O gate de execução
-está completo pela verificação do próprio runner (releitura in-transação + conferência
-pós-commit por conexão independente + re-check idempotente); o smoke confirma a **superfície de
-exibição**, que é o que motivou o prazo.
+**Smoke visual — ✅ APROVADO pelo owner (19/08/2026).** Página do jogador do **Adonai Mitchell**
+exibindo **"Ano 2/4"**, salário **$1**, início do contrato **2025** e os **dois eventos novos** na
+timeline (correção de contagem + correção de salário). ⭐ É a superfície que motivou o prazo: era
+exatamente esse número que os owners liam para decidir keeper antes do fechamento da janela.
+
+**[[PROC1]] — ✅ FECHADO por leitura DIRETA, não por inferência.** `git log -1` no Render Shell
+devolveu **`e7375a88f393c0c5e3caec97de87fb58e78deaca`** — o mesmo objeto do commit do runner
+(`e7375a8`), conferido byte a byte. ⇒ **o código que rodou em produção é o código ensaiado e
+revisado**, sem depender de convergência de evidência. (⚠️ A leitura foi manual porque o
+[[PROC2]] — surfacear `RENDER_GIT_COMMIT` numa tela administrativa — segue 🔲; este caso é mais
+uma ocorrência do custo de checar isso na mão.)
 
 **RESPOSTAS ÀS QUESTÕES (MAN-WV1-F1 + MAN-WV1-VERIFY-PROD, 19/08/2026 — read-only)**
 
