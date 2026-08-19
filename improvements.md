@@ -164,6 +164,7 @@
 | UX25 | **Hub: excesso de roster invisível — "Slots livres 0" igual para cheio-exato e ESTOURADO** — feedback do owner (19/08): com os rosters inflados pelos 36 rookies, times com jogadores demais não viam obrigação nenhuma de corte antes de 20/08. **F1-rápida (mesma sessão):** truncamento confirmado — `empty_spots = max(0, MAX_ROSTER − N)` em [salary_engine](salary_engine.py) engole o excesso; **limite canônico = `MAX_ROSTER=22` ATIVOS** (regulamento 1.3, IR até 2 **fora da conta** — mesma régua de composição do [[OFF26-16]]; fonte adotada: a constante do engine, zero literal novo; settings do Sleeper corroboram). **F2:** card ganha a faixa **"⚠️ Cortar ≥N jogador(es) até 20/08"** com a contagem visível **"X/22 ativos (+K IR)"** — `cut_needed = max(0, ativos − 22)` como campo NOVO do card ([league.py](routes/league.py)); ⛔ réguas de cap/bid **intocadas** (o `slots` truncado continua o mesmo — teste dedicado prova), cap negativo segue no alerta próprio, time no limite/abaixo = zero ruído. `roster_excess_test.py` (5 — a função de card é pura); smoke na cópia inflada: **3 cards com obrigação (24/22→≥2, 26/22→≥4, 27/22→≥5)** batendo 3/3 com a query; ⭐ **âncora Trust The Process conferida dos DOIS lados: 26 ativos → "cortar ≥4" — e o Sleeper AO VIVO diz os mesmos 26** (MellowBR 22, regular). Gate [[O7]] exit 0 (diff toca league.html + style.css). ⚠️ O literal "até 20/08" morre com a janela — remoção/generalização fica para o pós-cortes. **-b (19/08, MAN-UX25-b): a MESMA obrigação, VIVA no cap projector** — item "Roster" na barra sticky, recalculado **pelo POST `/budget` que já roda a cada toggle** (F10: o servidor conta — ele conhece `is_on_ir` — o JS só exibe; limite vem no payload, zero hardcode): `X/22 ativos (+K IR)` discreto quando regular (✓), **"· cortar ≥N" em alerta** quando o CENÁRIO excede, contando para baixo até regularizar; rookies do cenário **ocupam vaga de ativo**; "Spots vazios" mantido com o significado de auction (0 truncado é verdadeiro; o indicador novo ao lado desambigua — decisão de menor mudança, reportada). Campo `roster` **aditivo** no payload; D9/`budget` intocados (teste prova folha 125 com IR e `empty_spots` seguindo truncado). +4 testes (9 na suíte); smoke Trust na cópia: **26/22 cortar ≥4 → toggla 4 → ✓ → volta → reaparece**; rafaelferreirap `+1 IR` fora da conta; Pitbull 22/22 neutro — MAN-UX-NEXT-REG-F2/**MAN-UX25-b** | **Crítica** (prazo 20/08) | ✅ 19/08/2026 (smoke de prod do owner — Hub com as faixas de obrigação E o indicador vivo no projector; **detalhe no archive**) |
 | UX26 | **Badge PROV em rookies já CONTRATADOS (salário real rotulado de provisório)** — print do owner (19/08): Cooper e Douglas, Ano 1/4, rookie_draft, com PROV no projector. **F1-rápida:** derivação **única** ([salary.py](routes/salary.py) `espn_is_final` do `EspnValueStore` → JS `=== false`), **sem réplica por-jogador** (os outros `tag-prov` são semânticas distintas: table-level da liga, estágio de sheet, "PROTEGIDO"); ⭐ **causa-raiz MEDIDA e é outra que a suspeita do prompt**: não é o clear do passo 5 (o badge lê `EspnValueStore`, não `RookieEspnValue`) — é o **`record_acquisition` → `set_espn_value` com default `is_final=False`** ([models.py:428](models.py#L428)): o reparo OFF26-26 gravou as rows do store carimbadas provisórias mesmo com o valor vindo da tabela definitiva. **F2:** critério semântico verdadeiro — `models.contracted_player_ids(season)` (evidência AuctionLog, família OFF26-29/UX23, fonte única com guarda anti-réplica): **contrato gravado na season corrente NUNCA exibe PROV**; decisão calculada no servidor (`espn_prov` no payload), JS só exibe; `espn_is_final` segue como dado CRU intocado; caso legítimo (provisório sem contrato) preservado. `espn_prov_badge_test.py` (6); smoke nos 12 times da cópia: **0 contratados-2026 com PROV, 241 legítimos preservados** (o 241 é artefato do boot local — em prod a definitiva carimbou os veteranos); âncoras Love/Cooper/Douglas/Price limpas. Gate [[O7]] exit 0; `template_js_test` verde — MAN-UX26-REG-F1F2 | Média | ✅ 19/08/2026 (smoke de prod do owner — Cooper/Douglas/Love sem PROV; **detalhe no archive**) |
 | UX27 | **Renomear exibição "FA Auction" → "Auction Draft"** — ESCOPO ESTRITO DE DISPLAY: telas, banners, painel /offseason, runbooks/docs. ⛔ Identificadores de dado FICAM (`entry_type`/`acquisition_type` `fa_auction`, predicados [[UX23]]/[[OFF26-29]], `salary_engine`) — contratos internos intocados. F1-rápida (grep, 19/08): **~42 ocorrências de exibição** fora do backlog — auction.html (abas, cards, tooltips), admin.html, draft_import.html, offseason, runbooks. ⚠️ Colisão de vocabulário a rotular de forma inambígua: `auction_draft` é o **Startup Auction de 2025** — o nome novo do leilão anual não pode embaralhar os dois — MAN-SESSION-CLOSE-1908 | Média (idealmente antes de dom 24/08) | 🔲 |
+| UX28 | **Arquitetura das superfícies de time: destino do clique no Hub + quantas telas de time precisam existir** — feedback do owner (19/08): ao clicar num time na `/league`, a página mais útil seria o **cap projector daquele time** (a ferramenta de decisão da janela), não o detalhe atual; da chegada, três saídas — voltar ao Hub, propor trade com o time, ver o roster completo. A conversa expôs a questão maior: **três superfícies exibem informação de time** (`/` com `?team=`, `/team/<id>`, `/cap_projector`) com sobreposição crescente entre as duas primeiras — o owner questiona se todas precisam existir e qual o papel de cada uma. ⚠️ **Duas premissas do enunciado já medidas no registro:** (a) `/` **não é** "roster próprio" — aceita `?team=` e renderiza qualquer time ([roster.py:56-73](routes/roster.py#L56-L73)), logo a sobreposição é entre **duas visões de roster por time** (a mesma imprecisão que a F1 do [[UX17]] já anotou); (b) o projector **não é deep-linkável por time** — a página ignora `request.args` e pré-seleciona só `current_user.team_rel` ([salary.py:59-70](routes/salary.py#L59-L70)), com troca por `<select>` ([cap_projector.html:23](templates/cap_projector.html#L23)); a **API** já é por time (`/api/cap_projector/<team_name>`), então falta um parâmetro de página — pequeno, mas é código, não troca de `href`. **F1 = inventário das três superfícies** (o que cada uma mostra, quem a usa, o que só existe nela); **desenho-alvo é decisão do owner pós-F1** (⛔ manter × aposentar não arbitrado aqui). ⚠️ **Gate de calendário: F2 só depois de 24/08** — janela de auction/trades em curso e o projector recebeu **três** mudanças em 19/08 ([[UX23]], [[UX25]]-b, [[UX26]]) — MAN-UX28-REG | Média | 🔲 |
 | OFF26-23 | **Ano de contrato do rookie 2026 × rollover × passo 5** — pergunta do owner a 7 dias do draft: o rookie entra e PERMANECE Ano 1? **F1 10/08 (MAN-OFF26-23-REG-F1):** a ordem segura existe mas **não é imposta por código** — o `draft_import` não tem gate de `rollover_done`; importar o draft ANTES do rollover incrementaria todo rookie p/ Ano 2 (varredura cega, `offseason.py:686`). **Roteiro seguro da semana entregue na seção** (rollover 18/08 ANTES do import do draft; passo 5 só pós-24/08 — validado: nada o lê além da UI, e o clear precoce zeraria os salários do próprio import). Gainwell = mesma manifestação, raiz distinta (canal, não ordem) — MAN-OFF26-23-REG-F1/-F2/**-FIX** (SyntaxError no JS da /offseason pego pelo smoke do owner — string quebrada na edição gerada; fix de 1 linha + `template_js_test.py` como guarda permanente) | Alta (semana 17→24/08) | ⚠️ 10/08/2026 (**gates + fix no ar — smoke prod pendente**, gate [[PROC1]]) |
 | OFF26-24 | **Script de população do board da liga fantasma** — decisão do owner 10/08 (reverte o adiamento p/ 2027): Playwright headed na máquina do owner, perfil dedicado logado, ⛔ guarda de nascença `league_id 1389725099556372481` + ⛔ API interna vetada (a descoberta do `draft_id` usa a API PÚBLICA da liga, a mesma do OFF26-4). **Cowork segue plano A** até o critério: 12/12 em ensaio + auditoria OFF26-4 zerada + zero intervenção + RESET exercido, **até 19/08** — sem isso, 2026 roda Cowork e o script vai a 2027. F1 10/08 (sheet JSON sem sid → export do `build_sheet`); **ensaio 11/08** (spec de seletores; achado: o cliente MENTE — comando via DOM, **verdade via API**); **F2a 11/08 (MAN-OFF26-24-F2a):** `tools/phantom_board/` — núcleo puro + guardas de nascença + `validate` read-only + `designate` ponta a ponta + endpoint `keeper_sheet_export`; 30→35 testes; **-F2a-FIX 11/08**: guarda de identidade refeita POR CONSTRUÇÃO (URL×draft_id derivado — a página do draft não exibe o nome da liga) + espera de login na 1ª vida do perfil (JOIN DRAFT proibido); `validate` já VERDE em execução real (18/18, $176) — MAN-OFF26-24-REG-F1/**-F2a (FECHADA: Cam Ward assentado via API; validate 19/19)/-F2b** (populate por time + --all retomável; idempotência PRIMEIRO — a lição da F2a; bloqueado_teto = resultado; auditoria OFF26-4 como juiz; **FIX8: assentamento ASSÍNCRONO** — lag real da API >5min (Josh Allen) matou o poll bloqueante; reconciliação por time c/ teto 300s + reload no meio (hipótese do cache por visita, telemetria decide) + `assentado_local_api_atrasada`; 87 testes) (**FIX9 12/08:** campanha real — abort de time deixava o MODAL aberto → TimeoutError cru no time seguinte; higiene de estado em TODO abort + verificação defensiva pré-clique + populate sem traceback cru (abort padrão de time E de campanha); anti-homônimo passou a exigir NOME — a busca do Sleeper é fuzzy: "Malik Willis" devolvia Malik Williams ×2 + Hajj-Malik Williams QB, FAs de sigla vazia = linhas REAIS, não artefato; critério 0/2+ intacto; 104 testes) (**FIX10 12/08:** campanha 12/12 — as DUAS caras do teto: além da recusa síncrona §B.3.2, o input CLAMPA silenciosamente ao max bid (digitou 6/4/3/2, gravou 5/1/1/1 = $196 sem aviso); modelo verificado ao dólar `max_bid = 200 − gasto − $1×vagas restantes`; fix = READ-BACK do input pré-SET → clampou = bloqueado_teto DO KEEPER, nada gravado, sheet canônica; conferência aponta divergentes por nome; telemetria: lag puro 8–121s, zero reload — contra a hipótese do cache; **Travis Hunter = único two-way (DB+WR) dos 237 da sheet** → pendência OFF26-24-HUNTER c/ micro-probe manual; 121 testes) (**FIX11 12/08:** probe do owner FECHOU a HUNTER — ele está no pool (rank 167, tabs All+WR, "+" habilitado), rótulo "DB,WR"; o abort real foi a eleição exigindo igualdade de posição; fix = pertencimento (`position_matches`, fonte única): "WR" ∈ "DB,WR", "QB" segue não casando; parse devolve o rótulo íntegro; anti-homônimo intacto; 134 testes) (**GO 12/08:** **critério de 19/08 CUMPRIDO com 7 dias de antecedência** — ciclo limpo: RESET → campanha oficial `185453Z` 12/12, 235 designados + 2 bloqueados declarados (AlexTheDawg; Croskey entrou a $4 de sheet pelo grão do FIX10), 0 falhas, zero intervenção, Hunter designado → auditoria = SÓ os 2 bloqueados, zero salário divergente → RESET final provado, validate 0 picks/237 sheet/3º draft_id derivado; **alocação de owners em Draft Settings→DRAFT ORDER é PERMANENTE** (sobrevive ao RESET; mapa via `draft_order`); ⛔ RANDOMIZE e RESET BUDGETS proibidos junto do START DRAFT; telemetria: 382 assentamentos, zero reload = lag puro; **script = PLANO A de 22/08, Cowork = plano B**) (âncora no #modal[role=alertdialog] real; header “Make Manual Pick for Team N” como identidade; fallback logado) (busca/linhas/preço escopados ao MODAL — a lista de fundo vazava; filtro conferido antes do matching) (parser do anti-homônimo lê o DOM real — newlines/sigla duplicada/injury; critério intacto) (célula por COLUNA do slot, nunca nth global; “Change Player” proibido; handler sem crash) (mapa slot↔owner: cadeia draft_order → slot_to_roster_id×rosters → picks; validate passou a conferir owner de verdade) (hCaptcha recusa o Chromium de teste → launch pelo Chrome real via channel; captcha é resolvido pelo HUMANO, nunca burlado) | Alta (uso real 22/08) | 🔲 (**critério de 19/08 ✅ CUMPRIDO 12/08 — script = PLANO A de 22/08, Cowork = plano B**; fecha ✅ e migra ao archive após a população real de 22/08) |
 | OFF26-25 | ⛔ **O rollover não tem gate MECÂNICO de tabela ESPN definitiva** — o passo 4 destrava com `espn_values_updated`, flag **manual** escrita só por `confirm_espn` ([offseason.py:653](routes/offseason.py#L653)) e **agnóstica a QUAL tabela está no banco**; o import ESPN nunca a escreve. ⇒ o rollover **roda sobre a provisória sem recusa**, e como é **once-only** (`rollover_done`) a tabela definitiva que chegasse depois **não corrigiria** os 244 contratos — só a restauração do backup. Achado de auditoria da MAN-DP-PREFLIGHT-1808 (14/08); a **diagnose já existia** ([[OFF26-9]] ✅, archive: *"o rollover pode rodar sobre ESPN preliminar… o gate é satisfeito por um checkbox do admin"*) — o que **não** existe é o poka-yoke. Mesma família do [[OFF26-23]] e mesma diretriz do owner (*ponto de não-retorno não se protege com runbook*): hoje a defesa são **dois `confirm()`** ([offseason.html:735](templates/offseason.html#L735)), que é disciplina. Fix candidato: `_get_step_statuses` exigir `ESPNImportLog(season=current+1, status='final')` no passo 4 (a mesma verdade que a `/league` já lê para o selo PROV). ⚠️ **Não é bloqueador de 18/08** — backup + preview do rollover cobrem operacionalmente — MAN-DP-PREFLIGHT-1808/**MAN-OFF26-25** | Alta (18/08) | ⚠️ **IMPLEMENTADO 14/08/2026 — falta o ciclo real.** **Dupla condição** no passo 4: a flag manual (passo 3, intacta) **E** `models.espn_final_import(current+1)`. ⭐ **O predicado é o import MAIS RECENTE, não "existe algum final"** — reimportar provisória depois da definitiva devolve `espn_ref_value` ao estado provisório e a linha final antiga ficaria no log: *trava que mente é pior que trava nenhuma*. **Recusa dura server-side** (409 `blocked_by="espn_nao_definitiva"`, citando status + data **UTC** + o caminho: reimportar com o checkbox); **once-only tem precedência** na ordem das checagens. Preview do `/admin` passa a exibir a tabela candidata (season/status/data) — último ponto de detecção. **Fonte única**: a consulta saiu de 2 cópias inline da `/league` e serve 5 consumidores; guarda estática anti-réplica + anti-season-literal (por AST). **33 testes novos** (`espn_gate_test.py`) + fixture do `late_drop_test` ajustada (3 testes provavam a urna e passariam a provar o gate errado). ⭐ **Smoke em navegador REAL, bidirecional** (app servindo sobre cópia, sessão por cookie assinado): **17/17 recusando** (passo 4 bloqueado **com a flag true** — a célula exata do item) × **6/6 aceitando** com a definitiva no log. **588 testes verdes**; gate [[O7]] exit 0 |
@@ -184,6 +185,9 @@
 | MAN-AUTH2 | **`next` morto no callback OAuth (cheiro de open redirect se populado) + deep link descartado no `unauthorized_handler`** — dois comportamentos da mesma cadeia: (1) [auth.py:36](routes/auth.py#L36) redireciona o anônimo a `/login` **sem preservar o destino** ⇒ quem abre um link profundo cai na home depois de logar (**medido na F1**: `GET /team/1` → `Location: /login`, sem `next`); (2) [auth.py:88](routes/auth.py#L88) lê `request.args.get("next", ...)` no callback, mas **o redirect do Google não carrega esse parâmetro** — o `next` **nunca chega populado** pelo fluxo real ⇒ **código morto**, e se algum dia passasse a chegar seria `next` **não validado** (destino externo aceito sem checagem — cheiro de **open redirect**). ⚠️ **Natureza dupla, e as duas metades são independentes:** limpeza de código morto **com validação defensiva** (higiene, não muda comportamento observável) × **decisão de produto opcional** — restaurar o deep link ponta a ponta **ou** assumir a home como destino fixo e apagar o resto. Achado de **carona da [[MAN-AUTH1]]-F1** (seção *achados fora do escopo*), não registrado na hora por restrição daquele prompt. ⛔ **Nenhuma direção arbitrada** — MAN-AUTH2-REG | Baixa | 🔲 |
 | OPS2 | **Freeze administrativo de sync (janela de operação manual no Sleeper)** — durante operação manual nos rosters (caso de estreia: draft replay do OFF26-30, 18/08), um sync fotografaria o estado transitório (36 como dropados) — sujeira em folha/keeper sheet na semana de cortes. Lição [[OFF26-23]]: **o sistema recusa, não depende da disciplina dos 3 admins**. Flag `sync_frozen` (AppConfig, molde das season flags) + `POST /api/admin/sync_freeze` (admin, liga/desliga manual — **sem TTL, sem auto-destrave**, por decisão de escopo) + **guarda-helper única** `sync_freeze_reason()` consultada pelas DUAS entradas de motor: `run_sync` (recusa **antes de qualquer I/O** — zero rede, zero SyncLog) e `_sync_trades` (o backfill chama direto, sem passar pelo run_sync — mapeado e coberto pelo mesmo helper, nenhuma réplica por porta). Botão da navbar recebe **409 com mensagem acionável** (o banner existente a exibe); card do `/admin` ganha estado 🧊 + toggle. Boot do app degrada gracioso (payload com zeros). `sync_freeze_test.py` (6: recusa pré-I/O com sentinela de rede, 2ª entrada, destravado-passa, toggle, 409 da porta, 403 sem admin); smoke real: congelar → botão 409 + backfill frozen → destravar → sync roda. Gate [[O7]] exit 0 (diff toca admin.html). ⚠️ **ID: o prompt veio MAN-OPS1-*, mas OPS1 é a higiene do working tree (14/08)** — nasceu OPS2, colisão registrada — MAN-OPS1-REG-F2 | Alta | ⚠️ **no ar — smoke de prod = primeiro uso real no leilão de 24/08** (decisão 19/08; a operação de 18/08 correu sem expor janela de sync) |
 | O6 | Split do backlog por campanha: `improvements_off26.md` receberia as seções OFF26-* verbatim (pertencimento por prefixo), Status Rápido segue ÚNICO no ativo, auditor valida a união — **rota CANDIDATA, não decidida**. F1 read-only 13/08: família OFF26 = **49,9% do ativo** (236,3 KB / 13 seções, 8🔲/5⚠️, zero ✅); partição por prefixo tem 3 classes de resíduo; ~97% da família tem fechamento previsto 18–24/08 → **recomendação: NÃO executar agora; re-medir pós-26/08** (sunset natural) e decidir com números; **decisões do owner 13/08 (MAN-O6-REFINE):** split adiado (gate = re-medição pós-26/08) · **B implementada** (leitura seletiva no CLAUDE.md — motivação: consumo de token do Code, não navegação humana) · **D aceita** (OFF27 nasce em arquivo de campanha próprio + retrofit do auditor, 1ª sessão pós-campanha) — MAN-O6-REG/MAN-O6-F1/MAN-O6-REFINE | Média | 🔲 (gate: re-medição pós-26/08) |
+| UX29 | **Fusão do roster principal com o detalhe de time numa superfície única** (Opção 3 da F1 do [[UX28]]) — uma só tela de time, com "Meu Roster" virando o caso particular do time do usuário; o cap projector fica como **ferramenta separada** de chegada parametrizada. A Opção 1 (decidida no [[UX28]]) é **subconjunto aproveitado integralmente** por este item: a chegada por parâmetro e as três saídas continuam válidas — só o destino de "roster completo" muda, passando a ser a superfície fundida. **Absorção dos itens de paridade (medida, não assumida):** [[UX17]] **dissolve** (sem duas telas não há pergunta de paridade); [[UX24]] **NÃO desaparece** — o rótulo "Proj `current+1`" segue errado pós-rollover independentemente de quantas telas o exibem, e a fusão só reduz o trabalho de 2 sítios para 1 (⚠️ correção da própria F1, que dizia "absorvidos ou descartados" para os dois). **Questão aberta do item: id × nome na URL canônica** (o `/team/<id>` é por id, o `?team=` do roster é por nome — ver refutação 5 da F1). Custo **alto**: converge 7 entradas de uma superfície + 4 da outra, mexe em redirect de login, páginas de erro e navbar. Risco declarado: **perda de informação por silêncio** (lição do [[UX4]]-b) — a F1 lista o que é exclusivo de cada tela — MAN-UX28-REG-DECISOES | Baixa | 🔲 |
+| UX30 | **Cenário de rookies do cap projector não é reiniciado ao trocar de time pelo seletor** — colateral medido na F1 do [[UX28]]: `scenario` (Set de sids) e `keepState` são estado de módulo e `loadTeam()` não os limpa ([cap_projector.html:111-131](templates/cap_projector.html#L111-L131)); o `refreshScenario` seguinte posta os `rookie_sids` do time ANTERIOR no `/budget` do time novo, inflando folha e "cortar ≥N" de um time que não escolheu aqueles rookies. O board é global (`/api/cap_projector/rookies` não tem parâmetro de time). ⭐ **Chegada por URL não sofre** (load limpo) — logo o fix é **independente** da F2 do [[UX28]] e não a bloqueia. Reachable hoje: **287 rookies `in_class` na season 2026** (contagem no banco local; o clear do passo 5 ainda não rodou). Fix candidato: limpar `scenario`/`keepState` no `loadTeam` — ⛔ não arbitrado (há leitura alternativa de que o cenário de cortes seja estado do usuário, não do time) — MAN-UX28-REG-DECISOES | Baixa | 🔲 |
+| OPS3 | **CSS morto do antigo layout de cap do detalhe de time** — colateral da F1 do [[UX28]]: `.team-detail-cap-layout` (+ media query + 2 regras descendentes), `.cap-breakdown-grid`, `.cap-breakdown-stat` (+ 2 overrides escopados) e `.cap-by-pos-table` **não têm consumidor em nenhum template** — foram substituídos pela status bar do [[UX4]]-c e sobreviveram só na citação de um comentário. Faixa medida: ~34 linhas em [style.css:2176-2209](static/style.css#L2176-L2209). ⛔ **Escopo estrito: só o que JÁ está morto hoje**; as ~150 linhas de `.team-detail-*`/`.team-status-bar`/`.pos-chip*`/`.team-cap-progress` estão **VIVAS** (a Opção 1 do [[UX28]] mantém o detalhe de time) e só órfãm sob o [[UX29]] — anotadas como dependentes dele, fora deste escopo. ⚠️ Toca `static/style.css` ⇒ o **gate visual do [[O7]]** se aplica (`tools/visual_probe/cli.py` exit 0 antes do push). Globais `.stat-num`/`.stat-label` **não** entram (usados em admin, espn_import, league, lottery_audit) — MAN-UX28-REG-DECISOES | Baixa | 🔲 |
 
 ---
 
@@ -370,7 +374,9 @@ server-side sem `teams.find`/`loadCapChip`. `salary_engine_test.py` 48/48.
 ---
 
 ### WV1 — Salário de aquisição via waiver sem drop tratado como FA
-🔲 **Pendente** — Prioridade **Média** — prompt MAN-WV1-REG (novo: 1º item da série WV/waiver)
+🔲 **Pendente** — Prioridade ~~Média~~ **Alta** (agenda: semana pós-auction; promovido em
+19/08/2026 pelo caso Cam Little — forense [[OFF26-31]]) — MAN-WV1-REG → **MAN-WV1-REG-JANELA**
+(19/08/2026: emenda da **janela de waiver**, abaixo — o item passa a cobrir o predicado COMPLETO)
 
 **CONTEXTO**
 Regra de aquisição emergida em discussão de 08/06/2026 (durante o MAN-M18). A liga
@@ -422,6 +428,113 @@ implementada.
   tipo é inferido?
 - Esta regra de salário tem ou terá réplica (JS do cap projector, preview de draft
   import)?
+
+**EMENDA — A JANELA DE WAIVER COMO DISCRIMINADOR DO CANAL (19/08/2026, MAN-WV1-REG-JANELA)**
+
+Discussão da liga em 19/08/2026 (owner + Rafa + Michel, co-admins) trouxe a **segunda face do
+mesmo predicado**. O item nasceu cobrindo só um lado; passa a cobrir o critério completo:
+
+| Face | Situação | Por que o contrato anterior não vale |
+|---|---|---|
+| **1 (já registrada)** | waiver de jogador **nunca dropado** (caso **Puka**) | não existe contrato anterior a carregar |
+| **2 (nova)** | waiver **fora da janela** aberta pelo drop daquele jogador (caso **AD Mitchell**) | o contrato anterior **já morreu** quando a janela do drop fechou |
+
+**Regra candidata (a F1 confirma, o owner decide):** o claim de waiver só carrega o contrato
+anterior quando **VENCE O PRIMEIRO PROCESSAMENTO DE WAIVER APÓS O DROP daquele jogador**.
+Qualquer claim posterior é **aquisição nova**.
+
+**O regulamento já contém o discriminador — é texto, não invenção nossa:**
+- **6.8** fecha dizendo que o jogador só segue a valorização/**6.6** se *"virar Free Agent (ou
+  seja, passar pelos waivers sem nenhum bid)"*;
+- **7.1.3** lista as três situações em que um jogador **volta** a ser waiver — incluindo *"quando
+  seu time da NFL joga"*;
+- **7.1.6**: após o processamento, os disponíveis viram Free Agents e **voltam a ser waiver na
+  rodada seguinte**.
+⇒ **Existem waivers que NÃO são o waiver do drop**, e o regulamento os trata como aquisição
+nova. **O código nunca representou essa distinção temporal** (confirmado na análise abaixo).
+
+⚠️ **Relação com a arbitragem de 05/08/2026 ([[OFF26-20]]-F1C) — refina, NÃO reabre.** A decisão
+vigente é *"a identidade do time é irrelevante; o que decide é o CANAL"*, com o waiver descrito
+como *"quem vence leva o jogador com o contrato que ele tinha, para qualquer time"*. Esta emenda
+**não toca** a parte da identidade do time. Mas ⛔ **ela acrescenta uma condição que a
+arbitragem não enunciou**: o "quem vence leva o contrato" passa a valer **só no primeiro
+processamento após o drop**. Formulado em 05/08 de modo categórico, o enunciado agora ganha
+recorte temporal — **o owner precisa confirmar que isto é refinamento, não reversão** (é a
+primeira coisa que a F1 deve pôr na mesa).
+
+**CASO ÂNCORA — AD Mitchell (WR, NYJ)**
+⚠️ **Valores lidos da transaction history na TELA do Sleeper — a F1 deve reconferir contra a
+API/banco antes de qualquer conclusão** (mesma ressalva de fonte da F1C-VERIFY do [[OFF26-20]]).
+
+| Data | Evento | Time | Valor |
+|---|---|---|---|
+| 26/08/2024 | DRAFTED | rafaelferreirap | $3 |
+| 04/08/2025 | DROPPED to waivers | rafaelferreirap | — |
+| 31/08/2025 | DRAFTED (leilão FA 2025) | fernandomxf | $2 |
+| 14/10/2025 | DROPPED to waivers | fernandomxf | — |
+| **04/11/2025** | **ADDED from waivers** | **michelzela** | **bid $18** |
+
+**Intervalo drop → add: 21 dias.** O claim de 04/11 é waiver de **virada de rodada** (7.1.3.c),
+não o waiver do drop de 14/10. Observação a confirmar na F1: **14/10 e 04/11 caem os dois numa
+terça-feira**, o que é consistente com processamento semanal de waiver renderizado em outro fuso
+— reforço (não prova) de que são eventos de processamento, e não adds avulsos.
+
+**SETTINGS DA LIGA NO SLEEPER** (print de 19/08/2026): tempo em waivers após drop = **2 dias**;
+processamento às **quartas-feiras**. ⚠️ **O horário/fuso do processamento veio truncado no
+prompt de registro** — a F1 precisa lê-lo direto das settings.
+⛔ **Nota:** a opção "proxy fixa de 72h" citada como alternativa **não corresponde** ao que as
+settings dizem (2 dias = 48h). A proxy, se escolhida, é uma decisão de simplificação **contra**
+o dado, não um espelho dele — a F1 deve apresentá-la assim.
+
+**ANÁLISE PRÉ-EXECUÇÃO DESTE REGISTRO (19/08, read-only — evidência, não decisão):**
+
+1. **Identificação de CANAL está correta hoje e vem da API → CONFIRMADO.**
+   [sync_sleeper.py:946-950](sync_sleeper.py#L946-L950): `type_map` traduz `tx["type"]` —
+   `waiver → fa_waiver`, `free_agent → free_agent`, `commissioner → commissioner` — e o rótulo
+   sobrevive em `PlayerHistory.event_type`. É o achado T1 da F1C do [[OFF26-20]], reconferido.
+   O `fa_waiver` **já entrou** em `_WAIVER_TYPES` ([salary_engine.py:51](salary_engine.py#L51)),
+   que hoje agrupa `waiver / free_agent / fa / fa_waiver` — o agrupamento que o [[REG1]] põe em
+   pauta.
+2. **Nenhum qualificador temporal ligando claim → drop, em nenhuma superfície → CONFIRMADO**, e
+   mais forte do que a premissa supunha: **`PlayerHistory` não tem coluna de instante do
+   evento**. O `created_at` é a hora da **escrita da linha**; o `tx["created"]` da API é usado
+   só para **ordenar** durante o rebuild e é **descartado** na gravação
+   ([sync_sleeper.py:1186-1195](sync_sleeper.py#L1186-L1195)).
+3. **O que sobra de temporal no banco** (insumo real da F1, medido):
+   - a **leg (semana da NFL)** vive no texto de `notes` — `"fa_waiver (leg 12, tx <id>)"` — não
+     estruturada, mas presente; e a leg é **granularidade semanal**, que é a cadência do
+     processamento de waiver;
+   - `sleeper_event_ref` = `tx:<transaction_id>` ⇒ o instante é **recuperável pela API** a
+     qualquer momento.
+   ⇒ a pergunta "há timestamp confiável?" tem resposta **medida**: **não no banco; sim na API**,
+   com um proxy semanal já persistido em texto.
+4. **FAAB:** não capturado pelo sync — mas ⛔ **"perdido" é falso**: a VERIFY do [[OFF26-20]] já
+   leu bids reais na API (Dike $8, Gadsden $16, Shough $18, Tucker $66, Stafford $35). Aplicar o
+   *"sem nenhum bid"* da **6.8** ao pé da letra é **viável**, ao custo de uma leitura de API —
+   não é bloqueio de dado.
+
+**QUESTÕES EM ABERTO DA EMENDA — a F1 instrui, o OWNER decide (⛔ nada arbitrado aqui):**
+
+- **Q-A — Critério temporal.** Proxy fixa (72h? 48h?) **×** derivação das settings da liga
+  (janela após drop + dia/hora de processamento). Qual corresponde ao texto da **6.8** e qual é
+  **operacionalmente robusto** (settings mudam entre temporadas; proxy não acompanha).
+- **Q-B — Direção do impacto.** ⛔ **Não assumir que tratar como FA é sempre mais barato:** o ano
+  2 de FA é **0,8 × ESPN ajustado**, que pode **superar** a valorização sobre o contrato
+  carregado. O sinal do delta é **por jogador** e precisa ser medido, não presumido.
+- **Q-C — Retroatividade.** O rollover de **17/08/2026** já escreveu os salários de 2026 da
+  coorte afetada. Há reparo histórico? Com que prazo? (Precedentes de runner one-shot pela porta
+  canônica: [[OFF26-32]], [[OFF26-20]]-FIX.)
+- **Q-D — Dado disponível.** Ver itens 3 e 4 da análise acima: a F1 decide se opera por **leg**
+  (já no banco, texto), por **re-leitura da API** (instante exato + FAAB) ou por **coluna nova**
+  de timestamp — e o custo de cada caminho.
+- **Q-E — Réplicas.** Onde o critério, uma vez implementado, teria cópia além do motor de
+  salário: JS do **cap projector**, **preview do import de draft**, **calculadora de aquisição**.
+  Mesma disciplina do [[F10]] — se a régua nascer replicada, nasce errada.
+
+**Terceira face já registrada na linha do Status Rápido (19/08, forense [[OFF26-31]]):** o
+**re-add de dropado** mantém o salário do contrato morto — o gerador dos híbridos que o rollover
+seguinte achata. As três faces são o **mesmo predicado**: *quando o waiver NÃO carrega o
+contrato anterior*.
 
 **DEPENDÊNCIAS**
 - Depende de: lógica de aquisição / pacote offseason (criação de contrato fora de
@@ -7014,6 +7127,14 @@ escrita**.
 distinguir, a régua precisa de dois ramos (e vira item de código); se não, o agrupamento atual é
 a regra e nada muda. ⛔ Nenhuma direção arbitrada — o registro existe para a pauta não se perder.
 
+**Nota de ocorrência (19/08/2026, MAN-WV1-REG-JANELA):** a discussão da liga do mesmo dia
+(owner + Rafa + Michel) traz **evidência de que a liga distingue os canais na renovação** — e a
+**6.8** oferece o discriminador **em texto**, ao condicionar a valorização a *"virar Free Agent
+(ou seja, passar pelos waivers sem nenhum bid)"*. O caso âncora registrado no [[WV1]] (AD
+Mitchell, claim 21 dias depois do drop, bid $18) é matéria-prima desta pauta. ⛔ **Nada
+arbitrado: o item segue 🔲 e segue sendo pauta da liga** — a nota existe para a discussão de
+19/08 não se perder até a reunião.
+
 **Relações:** [[OFF26-31]] (o caso), [[OFF26-20]] (a decisão vigente), [[WV1]] (o mecanismo que
 gera os híbridos que a régua achata).
 
@@ -7193,5 +7314,447 @@ prova é que a correção **não muda salário nenhum**, o que vale sob qualquer
 **Runbook de prod (quinta 20/08, pós-lock):** `sqlite3 /data/dynasty.db ".backup
 '/data/pre_off26_32_fix.db'"` → conferir o arquivo → `python off26_32_fix.py --check` → `--apply
 --backup /data/pre_off26_32_fix.db`. ⚠️ O deploy precisa levar o runner ao servidor antes.
+
+---
+
+### UX28 — Arquitetura das superfícies de time: destino do clique no Hub + quantas telas precisam existir
+🔲 **Registrado 19/08/2026 (MAN-UX28-REG — docs-only, zero código)** — Prioridade **Média** —
+⚠️ **F2 SOMENTE APÓS 24/08** (gate de calendário, abaixo). Nasce como **investigação de
+arquitetura de navegação**, não como troca de link.
+
+**Motivação do owner (19/08/2026):** ao clicar num time no League Hub, a página mais útil de
+destino seria o **cap projector daquele time** — a ferramenta onde a decisão da janela (cortes,
+bid, cenário) é de fato simulada — e não o detalhe de time atual. Da página de chegada, o owner
+quer **três saídas**: (1) voltar ao Hub, (2) propor trade com aquele time, (3) ver o roster
+completo do time.
+
+**A questão maior que a conversa expôs — e que é o item de verdade.** Hoje existem **três
+superfícies** que exibem informação de time:
+
+| Superfície | Rota | Papel declarado hoje |
+|---|---|---|
+| Roster | `/` (`?team=`) | tabela de elenco + barra de cap; **a tela que o owner mais abre** |
+| Detalhe de time | `/team/<id>` | roster + picks + quebra de cap + projeção ([[L1]]) |
+| Cap projector | `/cap_projector` | simulação keep/corte + board de rookies + bid |
+
+O owner questiona **se todas precisam existir** e **qual o papel de cada uma** — inclusive a
+possível **aposentadoria do detalhe de time**, cuja sobreposição com o roster vem crescendo a cada
+item de paridade. ⛔ **Este registro não arbitra o desenho-alvo**: manter, fundir ou aposentar é
+decisão do owner **depois** da F1 de inventário.
+
+**⚠️ Premissas do enunciado × código (medidas no registro, não assumidas):**
+
+1. *"roster principal = tela do próprio roster"* → **imprecisa.** O `/` já aceita `?team=` e
+   renderiza **qualquer** time, com fallback para o time do usuário
+   ([roster.py:56-73](routes/roster.py#L56-L73)). Logo a sobreposição não é "meu time × outros
+   times": são **duas visões de roster por time**. A F1 do [[UX17]] já havia anotado exatamente
+   essa imprecisão (item (e) do confronto premissas × código) — **ocorrência repetida, e é parte
+   do sintoma que este item investiga**.
+2. *"hub → cap projector daquele time"* pressupõe projector **deep-linkável por time** → **hoje
+   não é.** `cap_projector_page` ignora `request.args` e pré-seleciona só `current_user.team_rel`
+   ([salary.py:59-70](routes/salary.py#L59-L70)); a troca de time é um `<select id="proj-team">`
+   client-side ([cap_projector.html:23](templates/cap_projector.html#L23)). A **camada de API já é
+   por time** (`/api/cap_projector/<team_name>`, `/budget`, `/rookies`), então falta apenas o
+   parâmetro de página + pré-seleção. Pequeno — mas é **código**, não troca de `href`, o que
+   **confirma** a leitura do owner de que o item não é trivial (por um motivo diferente do
+   enunciado).
+3. *"o cap projector acabou de receber o fix de fase da janela"* → **verdadeiro e subdimensionado**:
+   o projector recebeu **três** mudanças em 19/08 — [[UX23]] (fase/`planning_target_season`),
+   [[UX25]]-b (obrigação de corte viva na barra sticky) e [[UX26]] (badge PROV por contrato
+   gravado). É esse acúmulo, e não uma mudança só, que sustenta o gate de calendário.
+
+**F1 — inventário (read-only, sem desenho):** para cada uma das três superfícies, medir
+(a) **o que exibe** e quais grandezas são exclusivas dela; (b) **quem a usa** e por qual porta se
+chega (Hub, navbar, perfil de jogador, `?team=`, dropdown do projector); (c) **o que se perderia**
+se ela deixasse de existir; (d) o **custo de query** de cada uma (a F1 do [[UX17]] já mediu: `/`
+= 15, `/team/<id>` = 20, `/league` = 19); (e) o que as **três saídas** pedidas custam em cada
+destino candidato (voltar ao Hub · propor trade — precedente [[M14]]/[[UX15]] de pré-seleção por
+query param · ver roster completo). Saída da F1 = **mapa + opções com trade-offs**, para o owner
+escolher o desenho-alvo.
+
+**⚠️ Conflito de fila a declarar (não resolvido aqui):** [[UX17]] 🔲 (paridade da barra de status
+`/` × `/team/<id>`, **com F1 já feita**) e [[UX24]] 🔲 (paridade das colunas "Proj") são
+**investimentos em duas superfícies cuja coexistência este item põe em questão**. Se a F1 do UX28
+levar à aposentadoria de uma delas, o escopo do UX17/UX24 muda ou desaparece. **Parecer de
+sequenciamento (não arbitragem):** rodar a F1 do UX28 **antes** de gastar F2 em UX17/UX24.
+
+**⚠️ Gate de calendário — F2 somente após 24/08.** A janela de auction/trades está em curso
+(cortes 20/08, urna 22/08, leilão 24/08) e as três telas envolvidas são exatamente as que os
+owners estão usando para decidir. Mexer em navegação no meio disso troca o chão sob o pé de quem
+está operando. **A F1 (read-only) pode rodar a qualquer momento.**
+
+---
+
+**F1 (19/08/2026, MAN-UX28-F1 — read-only; nenhuma escrita em código, template, CSS,
+runbook ou banco). Inventário das três superfícies. ⛔ Nenhum desenho-alvo arbitrado.**
+
+#### 0. REFUTAÇÃO DE PREMISSAS
+
+**CONFIRMADAS (com adendo material em todas):**
+- *"o cap projector pré-seleciona o time do usuário logado"* → **CONFIRMADA**
+  ([salary.py:63-66](routes/salary.py#L63-L66): `my_team = current_user.team_rel`; a option
+  recebe `selected` em [cap_projector.html:23-27](templates/cap_projector.html#L23-L27)).
+  ⚠️ **Adendo não previsto:** com usuário **sem time vinculado** o servidor manda vazio,
+  **nenhuma** option fica marcada, e a última linha do script
+  (`loadTeam(document.getElementById('proj-team').value)`) carrega o **primeiro time da
+  ordem alfabética**. O projector é a única das três telas **sem estado neutro** — o `/` cai
+  em "Sem dados" e o `/team/<id>` exige id explícito. Divergência da convenção [[M17]],
+  medida e **não corrigida** (fora do escopo read-only).
+- *"o roster principal aceita visualizar qualquer time por parâmetro"* → **CONFIRMADA**
+  ([roster.py:56-73](routes/roster.py#L56-L73), com fallback robusto e match por nome **ou**
+  `owner_name`). ⚠️ **Adendo que muda o peso do achado:** **nenhum link do app emite
+  `/?team=`**. O único produtor é o dropdown da própria página
+  ([roster.html:153](templates/roster.html#L153)). A capacidade multi-time do `/` existe e é
+  **inalcançável de fora da tela** — o que explica por que ela se lê como "meu roster".
+- *"o cap projector não recebe time por URL"* → **CONFIRMADA por ausência**: `request.args`
+  **não aparece** em `cap_projector_page`; as três ocorrências em `routes/salary.py`
+  (linhas 321-323) pertencem ao `salary_history_data`.
+
+**REFUTADA — a dicotomia da pergunta 3 do enunciado** (*"a seleção de time existe na UI ou
+só como pré-seleção fixa?"*): **nem uma nem outra — as duas metades da alternativa são
+falsas.** Existe seletor na UI (`select#proj-team` com os **12** times) **e** a pré-seleção
+**não é fixa** — deriva do usuário logado desde o [[M17]]. O que falta é exclusivamente a
+**porta de URL**.
+
+**REFUTADA — a analogia com o `/trades` como padrão seguro** (o enunciado a propõe como
+"padrão análogo ao de pré-seleção do `/trades`"): o [[M14]] pré-seleciona por **nome de
+time** ([trades.py:71-72](routes/trades.py#L71-L72)) — e o projector inteiro também é
+**keyed por nome** (`/api/cap_projector/<path:team_name>`; os `value` do select são nomes).
+⚠️ Copiar o padrão literalmente cria um link **identidade-por-string** — exatamente a classe
+que o [[S3]] eliminou das picks e que o [[S4]] ainda registra como dívida aberta. O Hub, em
+contraste, já linka por **id** ([league.html:45](templates/league.html#L45)). **A escolha
+id × nome é decisão de F2, e não é neutra.**
+
+**QUALIFICADA (não refutada):** "três superfícies" está correto como contagem de **telas de
+time**, mas não esgota os consumidores do dado de roster — ver item 4.
+
+#### 1. Inventário campo a campo
+
+`A` = `/` ([roster.py:52](routes/roster.py#L52) · `roster.html`) ·
+`B` = `/team/<id>` ([league.py:171](routes/league.py#L171) · `team_detail.html`) ·
+`C` = `/cap_projector` ([salary.py:59](routes/salary.py#L59) · `cap_projector.html` + 3 APIs)
+
+| Informação exibida | A | B | C | Exclusivo de |
+|---|:--:|:--:|:--:|---|
+| Avatar + nome do owner | sim | sim | não | — |
+| Nome do time no cabeçalho | sim | sim | só no select e no rótulo do board | — |
+| Marcador "é o meu time" | 🏆 | tag EU | implícito na pré-seleção | — |
+| Troféu campeão / vice | não | sim | não | **B** |
+| Record W-L da temporada | não | sim | não | **B** (Hub também) |
+| **Points for + Rank** | não | sim | não | **B — único no app** (fora do editor admin do `/offseason`) |
+| Folha usada / cap | sim | sim | sim | — |
+| Restante | sim | sim | sim | — |
+| % do cap em texto + 3 níveis de cor | sim | só barra + tooltip | só barra | **A** (os 3 níveis) |
+| Barra de progresso do cap | sim | sim | sim | — |
+| Cap projetado + selo PROV | não | sim (gated) | sim (é a tela) | — |
+| **Cap por posição (chips $)** | não | sim | não | **B** |
+| **Dynasty total do time** | não | sim | não | **B** (Hub também) |
+| Contagem Ativos / IR | por posição | sim | não | — |
+| Nomes de quem está no IR | alerta | tooltip | não | — |
+| **Bid máximo · budget bruto · spots vazios** | não | não | sim | **C** (Hub também) |
+| **Roster X/22 + "cortar ≥N" vivo** | não | não | sim | **C** (Hub tem o estático) |
+| **Banner de cap estourado do PRÓPRIO time** ([[M1]]) | sim | não | não | **A** |
+| **Lista clicável de Ano 4 (renovar ou cortar)** | sim | não | não | **A** |
+| **Lista clicável de `needs_review`** | sim | não | não | **A** |
+| **Banner de status da tabela ESPN** | não | não | sim | **C** |
+| **Avisos over-cap / budget insuficiente / cenário inviável** | não | não | sim | **C** |
+| Tabela de roster (9 colunas, macro compartilhada) | sim | sim | tabela própria | — |
+| — dynasty por jogador | sim | sim | não | — |
+| — aquisição em PT-BR | sim | sim | tipo **cru** | — |
+| — agrupamento e contagem por posição | sim | sim | só ordenação | — |
+| **— toggle Keep/Cortar + "manter/cortar todos"** | não | não | sim | **C** |
+| **— salário projetado por jogador + Δ** | coluna Proj | coluna Proj | sim + Δ | **C** (o Δ) |
+| **— selo PROV por jogador** | não | não | sim | **C** |
+| **Picks do time por season (origem + via trade)** | não | sim | não | **B** (⚠️ `/picks` já filtra por time — item 6) |
+| **Botão "Propor Trade" pré-preenchido** | não | sim | não | **B** (o perfil do jogador também tem) |
+| **Botão "← League Hub"** | não | sim | não | **B** |
+| **Board de rookies (adicionar ao cenário, busca, filtro)** | não | não | sim | **C** |
+| Trocar de time dentro da tela | busca por nome **ou owner** | não | select simples | — |
+| Link para a página do jogador | sim | sim | sim | — |
+
+**Leitura direta:** se **B** morresse hoje, sumiriam do app **points_for/rank**, **cap por
+posição**, **dynasty total do time**, **picks do time com origem** e as **duas saídas**
+(Propor Trade pré-preenchido · voltar ao Hub). Se **A** morresse, sumiriam os **três alertas
+de ação** (cap estourado do próprio time, Ano 4, needs_review) e a busca de time **por
+owner**. **C não substitui nenhuma das duas:** não tem dynasty, nem picks, nem standings,
+nem aquisição em PT-BR.
+
+#### 2. Pontos de entrada (contagem por superfície)
+
+| Superfície | Entradas | Quais |
+|---|:--:|---|
+| **A** `/` | **7** | navbar desktop "Meu Roster" · navbar mobile · logo `nav-brand` · "← Voltar ao Roster" do perfil · redirect de login (2 sítios em `auth.py`) · páginas de erro 404/500/error · o próprio dropdown (`/?team=`) |
+| **B** `/team/<id>` | **4** | navbar desktop "Times ▾" (12 itens) · navbar mobile seção "Times" (12 itens) · **card do Hub** · nome do time no perfil do jogador |
+| **C** `/cap_projector` | **2** | navbar desktop "Ferramentas ▾" · navbar mobile |
+
+- **Se B perder a porta do Hub, restam 3 entradas** — e as duas mais fortes (navbar desktop e
+  mobile) continuam listando os 12 times, então a tela **não fica órfã**.
+- **Nenhum `redirect()` do app aponta para B ou C** — só links.
+- ⭐ **C é a superfície mais pobre em entradas do app** (2, ambas de navbar) e a única sem
+  nenhum link vindo de contexto (Hub, perfil de jogador, time). É coerente com o pedido do
+  owner: a ferramenta de decisão é a mais difícil de alcançar a partir de onde a decisão
+  nasce.
+
+#### 3. Chegada com time escolhido — **NÃO**
+
+`cap_projector_page` ([salary.py:59-70](routes/salary.py#L59-L70)) **não lê `request.args`**;
+devolve `teams` (nomes) + `my_team` + `target_season`/`mode`. O seletor **existe na UI** (12
+opções) e a troca é **client-side** (`loadTeam(value)` → `fetch('/api/cap_projector/' +
+nome)`). **Falta apenas** ler um parâmetro na rota de página e usá-lo no lugar de `my_team` —
+a camada de dados **já é por time** e **já é acessível a qualquer usuário logado** (as 3 APIs
+são `@login_required`, **sem checagem de posse**). ⚠️ A decisão embutida é **id × nome** (ver
+refutação acima): o Hub tem `id`, o projector fala `nome`.
+
+#### 4. Réplicas de render
+
+- **Macro compartilhada A+B:** `player_roster_row` + `player_roster_colgroup`
+  ([_macros.html](templates/_macros.html)) — **exatamente 2 consumidores**, com as **mesmas 9
+  colunas**. O parâmetro `context` já é **quase vestigial** (o próprio comentário do macro diz
+  que não afeta o colgroup e que só muda a classe de renewal). Aposentar B **não deixa render
+  órfão** — deixa a macro com 1 consumidor.
+- **C não é réplica:** monta a tabela em JS com **colunas diferentes**
+  ([cap_projector.html:148-180](templates/cap_projector.html#L148-L180)). Não substitui A/B.
+- **Gêmeos JS de peça de jogador:** `renderPlayerPhoto`/`renderPlayerNameLink` vivem em
+  `base.html` e servem **5** telas (admin, cap_projector, salary_history, trades, busca da
+  navbar/modal de trade). Fora do escopo de qualquer aposentadoria aqui.
+- **Consumidores do roster que NÃO são telas de time:** `/api/roster/<id>` e
+  `/api/roster/by_name` servem `trades.html`, `cuts.html` e `late_drop.html` — são **listas de
+  escolha**, não visões de time; nenhum quebra se A, B ou C mudarem.
+- **CSS que ficaria órfão se B fosse aposentada:** `.team-detail-*`, `.team-status-bar`,
+  `.status-item/-label/-value`, `.pos-chip*`, `.team-cap-progress` — **usados só por
+  `team_detail.html`** (verificado por grep em `templates/`), aproximadamente
+  [style.css:2154-2300](static/style.css#L2154-L2300).
+- ⭐ **Achado colateral — CSS já morto hoje:** `.team-detail-cap-layout`
+  ([style.css:2177-2189](static/style.css#L2177-L2189)), `.cap-breakdown-grid`
+  ([style.css:2191](static/style.css#L2191)) e `.cap-by-pos-table`
+  ([style.css:2209](static/style.css#L2209)) **não são usados por nenhum template** — foram
+  substituídos pela status bar do [[UX4]]-c e sobreviveram só na citação de um comentário.
+  Registrado como observação; **nenhuma remoção feita**.
+
+#### 5. Interação com a fase — nenhuma divergência por time
+
+`planning_target_season()` (models.py) decide o modo a partir de `rollover_done` + evidência
+de `AuctionLog` da season — **grandezas de LIGA, sem nenhum parâmetro de time**. Idem
+`_projection_open()`, o gate de A/B. ⇒ **chegar com o time X não muda fase, modo, colunas nem
+banner**; o mesmo vale para permissões (as 3 APIs do projector são `@login_required`, **sem
+`@admin_required` e sem checagem de posse** — qualquer owner já pode simular qualquer time
+hoje, só não tem link para isso).
+
+⚠️ **Duas divergências medidas — comportamento, não fase:**
+1. **O cenário de rookies NÃO é reiniciado ao trocar de time.** `scenario` (Set de sids) e
+   `keepState` são estado de módulo; `loadTeam()` não os limpa
+   ([cap_projector.html:111-131](templates/cap_projector.html#L111-L131)) e o
+   `refreshScenario` seguinte posta os `rookie_sids` do time anterior no budget do time novo.
+   O board de rookies é **global** (`/api/cap_projector/rookies` não tem parâmetro de time).
+   Chegar por URL **não** sofre disso (load limpo); a **troca pelo seletor** sofre.
+2. **Sem time vinculado, o projector abre no primeiro time alfabético** (item 0).
+
+Ambas são **observação medida** — sem correção, sem item novo; a arbitragem é do owner.
+
+#### 6. Desenhos-alvo possíveis (⛔ sem recomendação)
+
+**Opção 1 — Hub aponta para o projector; detalhe permanece como parada secundária.**
+O card do Hub passa a linkar o projector do time; o detalhe segue vivo pela navbar (2×) e pelo
+perfil do jogador. *Custo:* **baixo** — parâmetro de chegada na rota de página do projector, o
+`href` do card e as 3 saídas na tela de chegada (voltar ao Hub · Propor Trade, que hoje só
+existe em B e no perfil · roster completo). *Prós:* entrega o pedido do owner sem perder
+informação; reversível. *Contras:* as três superfícies continuam existindo e a sobreposição
+A×B fica **intacta**; B perde sua entrada mais natural e passa a acumular informação exclusiva
+(points_for/rank, cap por posição, picks) numa tela menos visitada.
+
+**Opção 2 — Detalhe aposentado, com realocação explícita.**
+Realocar: picks → `/picks` (**já tem filtro por time**, hoje só client-side, sem porta de
+URL); standings → card do Hub ou `/league`; cap por posição + dynasty total → A ou C; Propor
+Trade → A e/ou Hub (o perfil já tem). *Custo:* **médio-alto** — toca `league.html`,
+`base.html` (24 links de navbar), `player_detail.html`, `/picks` (para ganhar porta de URL),
+mais o CSS órfão (~150 linhas). *Prós:* elimina de vez a duplicidade A×B; **[[UX17]] e
+[[UX24]] deixam de existir como trabalho**. *Contras:* é a opção que **perde informação por
+silêncio** se a realocação não for completa — exatamente a lição do [[UX4]]-b; e exige decidir
+onde vivem standings de time, que hoje não têm outra casa.
+
+**Opção 3 — Fusão A+B numa superfície única de time; projector como ferramenta separada.**
+Uma só tela de time (identidade única de URL), com "Meu Roster" virando o caso particular do
+time do usuário; o projector ganha chegada por parâmetro e vira a ferramenta de decisão.
+*Custo:* **alto** — converge 7 entradas de A + 4 de B, mexe em redirect de login, páginas de
+erro e navbar; exige decidir **id × nome** na URL canônica. *Prós:* fecha a réplica na raiz
+(uma definição de "tela de time"), absorve UX17/UX24 num trabalho só e resolve a anomalia de o
+`/?team=` existir sem nenhum link que o produza. *Contras:* maior diff da família, e a tela
+fundida precisa carregar os **três alertas de ação** de A **e** o conteúdo exclusivo de B sem
+virar uma página longa demais.
+
+**Sequenciamento que a F1 mediu (não é recomendação de desenho):** [[UX17]] e [[UX24]]
+investem em paridade **entre A e B**. Nas opções 2 e 3 esse investimento é descartado ou
+absorvido; só na opção 1 ele continua de pé como está.
+
+---
+
+#### 7. DECISÕES DO OWNER (19/08/2026, MAN-UX28-REG-DECISOES — docs-only)
+
+⛔ **Decisões tomadas. Não se reabrem** — o que sobra é execução, sob os gates abaixo.
+
+**D1 — Desenho escolhido: Opção 1 da F1.** O card do Hub passa a levar ao **cap projector
+daquele time**; o **detalhe de time PERMANECE**, como parada secundária (navbar desktop,
+navbar mobile e nome do time no perfil do jogador — as 3 entradas que a F1 mediu que sobram).
+⛔ **Nenhuma superfície é aposentada nesta decisão.**
+
+**Escopo da futura F2 (aditivo, com uma exceção declarada):**
+1. **Chegada com time no projector** — parâmetro de URL na rota de página, usado no lugar da
+   pré-seleção pelo usuário logado. A camada de dados já é por time e já é aberta a qualquer
+   usuário logado (F1, item 3): o trabalho é a **porta**, não a permissão.
+2. **Três saídas na tela de chegada** — voltar ao Hub · propor trade com o time (o padrão
+   pré-preenchido que hoje só existe em `/team/<id>` e no perfil do jogador) · **roster
+   completo apontando para o detalhe de time**, que segue vivo.
+3. **`href` do card do Hub** → projector.
+⚠️ **O item 3 NÃO é aditivo** — substitui o destino atual do card. Consequência já medida na
+F1: o detalhe de time cai de **4 para 3 entradas**. Registrado para que a F2 não descubra isso
+como surpresa; as duas entradas de navbar (12 times cada) permanecem intactas.
+
+**D2 — A chave do vínculo Hub→projector é o `id` do time, nunca o nome.** Fundamento: a
+**refutação 5** desta F1 — o projector inteiro é keyed por nome e o padrão do [[M14]] também,
+mas copiar isso criaria um link **identidade-por-string**, a mesma classe que o [[S3]] eliminou
+das picks (rename de time no Sleeper quebrava o match) e que o [[S4]] ainda registra como
+dívida aberta. O Hub já tem o `id` em mãos ([league.html:45](templates/league.html#L45)).
+⚠️ Consequência para a F2: ou a rota de página traduz `id → nome` antes de entregar ao JS
+(mudança mínima, o `<select>` continua falando nomes), ou a camada de dados ganha uma porta por
+id — **decisão de implementação, não de desenho**; o que está decidido é que **a URL carrega
+id**.
+
+**D3 — Gate TRIPLO da F2, todos obrigatórios:**
+1. **Pós-24/08** — a janela de cortes (20/08), urna (22/08) e auction (24/08) está em curso, e
+   as três telas são as que os owners estão usando para decidir;
+2. **Mockup aprovado pelo owner** antes de qualquer código;
+3. **Parecer pré-execução** ([[MAN-METH-2]] — F2 em superfície de caminho crítico).
+
+**Derivados registrados na mesma sessão:** [[UX29]] (desenho-alvo futuro — a fusão da Opção 3,
+que **aproveita integralmente** o que a Opção 1 entregar), [[UX30]] (colateral: cenário de
+rookies não reinicia ao trocar de time — **não bloqueia** esta F2, porque chegada por URL tem
+load limpo) e [[OPS3]] (colateral: CSS já morto hoje; ⛔ as ~150 linhas do detalhe seguem
+**vivas** sob a Opção 1).
+
+**Cross-refs:** [[L1]] (criou o League Hub **e** o detalhe de time — é a decisão de arquitetura
+que este item reabre), [[L3]] (levou cap projetado e bid ao card do Hub e ao `/team/<id>`, o que
+aproximou as superfícies), [[UX4]]/[[UX4-b]]…[[UX4-e]] (a **tabela** de roster já foi
+deliberadamente convergida entre `/` e `/team/<id>` — precedente de que a sobreposição foi
+construída, não acidental), [[UX17]] e [[UX24]] (paridade — ver conflito de fila acima),
+[[UX23]]/[[UX25]]/[[UX26]] (as três mudanças de 19/08 no projector), [[M14]] e [[UX15]]
+(pré-seleção por query param — o molde técnico das "saídas" pedidas), [[M17]] (a derivação
+canônica do "time do usuário", que é o que o projector pré-seleciona hoje).
+
+---
+
+### UX29 — Fusão do roster principal com o detalhe de time numa superfície única de time
+🔲 **Registrado 19/08/2026 (MAN-UX28-REG-DECISOES — docs-only)** — Prioridade **Baixa** —
+desenho-alvo **futuro**: é a **Opção 3** da F1 do [[UX28]], preservada como item próprio depois
+que o owner escolheu a Opção 1 para agora.
+
+**O desenho:** uma só tela de time (identidade única de URL), com **"Meu Roster" virando o caso
+particular** do time do usuário; o **cap projector** permanece como ferramenta separada, com
+chegada parametrizada. Hoje existem duas visões de roster por time — `/` (que aceita `?team=` e
+renderiza qualquer time) e `/team/<id>` — e a sobreposição entre elas foi **construída de
+propósito**, item a item ([[UX4]] convergiu a tabela; [[L3]] levou cap projetado às duas).
+
+**Relação com a Opção 1 (decidida no [[UX28]]):** ⭐ **subconjunto aproveitado integralmente.**
+A chegada por parâmetro no projector, as três saídas e a chave por `id` continuam válidas — o
+único ajuste é o **destino da saída "roster completo"**, que passa a apontar para a superfície
+fundida em vez do detalhe de time. Nada do trabalho da Opção 1 é jogado fora se este item
+executar depois.
+
+**Itens de paridade — o que acontece com cada um (medido, não assumido):**
+- [[UX17]] (paridade da barra de status `/` × `/team/<id>`, 🔲 com F1 já feita) → **DISSOLVE.**
+  Sem duas telas não existe pergunta de paridade; o trabalho vira "a tela fundida mostra as
+  grandezas ricas", que é parte do próprio item.
+- [[UX24]] (colunas "Proj `current+1`" pós-rollover, 🔲) → ⚠️ **NÃO desaparece.** O rótulo está
+  errado independentemente de quantas telas o exibem; a fusão só reduz o conserto de **2 sítios
+  para 1**. ⛔ **Correção da própria F1 do [[UX28]]**, que agrupou os dois como "absorvidos ou
+  descartados" — vale para o UX17, não para o UX24.
+
+**Questão aberta do item — `id` × nome na URL canônica.** `/team/<id>` fala **id**; o `?team=`
+do roster e o projector inteiro falam **nome** (`/api/cap_projector/<path:team_name>`, valores
+do `<select>`). A superfície fundida precisa de **uma** identidade, e a escolha não é neutra:
+nome é identidade-por-string, a classe que o [[S3]] eliminou das picks e que o [[S4]] ainda
+registra como dívida. A D2 do [[UX28]] já decidiu **id** para o vínculo Hub→projector; **este
+item precisa decidir para a URL canônica da tela de time.**
+
+**Custo: ALTO** (o maior da família). Converge **7 entradas** do `/` + **4** do `/team/<id>`
+(contagem da F1), e toca redirect de login, páginas de erro 404/500, `nav-brand` e as duas
+listas de navbar com 12 times cada.
+
+**Riscos declarados:**
+- **Perda de informação por silêncio** — a lição do [[UX4]]-b. A tela fundida precisa carregar
+  os **três alertas de ação** exclusivos do `/` (cap estourado do próprio time · Ano 4 ·
+  needs_review) **e** o conteúdo exclusivo do detalhe (points_for/rank — **único no app** —,
+  cap por posição, dynasty total, picks com origem, botão Propor Trade). A tabela de inventário
+  da F1 do [[UX28]] é a checklist.
+- **Página longa demais** — o efeito colateral de somar as duas.
+- Habilita o resto do [[OPS3]] (as ~150 linhas de CSS do detalhe só órfãm aqui).
+
+**Cross-refs:** [[UX28]] (F1 e decisões), [[UX17]], [[UX24]], [[UX4]]/[[UX4-b]], [[L1]],
+[[L3]], [[S3]], [[S4]], [[M17]], [[OPS3]].
+
+---
+
+### UX30 — Cenário de rookies do cap projector não reinicia ao trocar de time no seletor
+🔲 **Registrado 19/08/2026 (MAN-UX28-REG-DECISOES — docs-only)** — Prioridade **Baixa** —
+**bug real**, achado colateral da F1 do [[UX28]]; fix **independente** da F2 daquele item.
+
+**O comportamento medido:** `scenario` (Set de `sleeper_player_id` dos rookies do cenário) e
+`keepState` (toggles keep/corte) são **estado de módulo** do `cap_projector.html`;
+`loadTeam(name)` ([cap_projector.html:111-131](templates/cap_projector.html#L111-L131)) troca o
+`teamData` e re-renderiza, mas **não limpa nenhum dos dois**. O `refreshScenario()` que roda em
+seguida posta `rookie_sids: [...scenario]` — os rookies do time **anterior** — no `/budget` do
+time **novo**.
+
+**Efeito:** folha, Bid Máximo, spots e o indicador **"cortar ≥N"** ([[UX25]]-b) do time recém-
+selecionado saem inflados por rookies que aquele time não escolheu. É **exibição**, não
+escrita: o `/budget` é projeção pura, nenhum contrato é gravado.
+
+**O board é global:** `/api/cap_projector/rookies` não tem parâmetro de time (lista a classe
+entrante menos os já rosterados por **qualquer** time), e `loadRookies()` roda **uma vez** no
+load — por isso o cenário é naturalmente transversal aos times.
+
+⭐ **Chegada por URL NÃO sofre** (load limpo, estado zerado) ⇒ o fix **não bloqueia** a F2 do
+[[UX28]] e vice-versa.
+
+**Reachable hoje, não teórico:** **287 rookies com `in_class=1` na season 2026** (contagem
+read-only no banco **local**; o `clear_rookie_espn_store` do passo 5 ainda não rodou). Menos os
+36 já rosterados pelo reparo do [[OFF26-26]], o board segue populado.
+
+**Fix candidato (⛔ NÃO arbitrado):** limpar `scenario` e `keepState` no `loadTeam`. Há leitura
+alternativa defensável — o cenário de **cortes** (`keepState`) pode ser lido como estado do
+usuário comparando times, e nesse caso só o `scenario` de rookies seria zerado. **Decisão do
+owner na F2 deste item.**
+
+**Cross-refs:** [[UX28]] (F1 que mediu), [[UX25]] (o indicador afetado), [[UX23]] (fase do
+projector), [[DP1]]/[[DP2]] (o board e a cadeia única de planejamento).
+
+---
+
+### OPS3 — CSS morto do antigo layout de cap do detalhe de time
+🔲 **Registrado 19/08/2026 (MAN-UX28-REG-DECISOES — docs-only)** — Prioridade **Baixa** —
+higiene de codebase, **sem efeito de produto**; achado colateral da F1 do [[UX28]].
+
+**O que está morto HOJE** (verificado por grep em `templates/` — zero consumidores):
+`.team-detail-cap-layout` (+ sua media query + as 2 regras descendentes), `.cap-breakdown-grid`,
+`.cap-breakdown-stat` (+ os 2 overrides escopados) e `.cap-by-pos-table`. Faixa medida: **~34
+linhas**, [style.css:2176-2209](static/style.css#L2176-L2209). Foram substituídos pela status
+bar do [[UX4]]-c e sobreviveram apenas na **citação de um comentário** dentro do
+`team_detail.html` — o que explica por que buscas ingênuas os davam como "usados".
+
+⛔ **Fora de escopo — e a distinção é o ponto do item:** `.team-detail-*`, `.team-status-bar`,
+`.status-item/-label/-value`, `.pos-chip*` e `.team-cap-progress` (~150 linhas, aprox.
+[style.css:2154-2300](static/style.css#L2154-L2300)) estão **VIVAS**: são o detalhe de time, que
+a **D1 do [[UX28]] mantém**. Elas só órfãm sob o [[UX29]] (fusão) — ficam anotadas como
+**dependentes dele**, não deste item.
+
+⛔ **Também fora:** as globais `.stat-num` / `.stat-label` — usadas por admin, espn_import,
+league e lottery_audit. Morrem só os **overrides escopados** dentro de `.cap-breakdown-stat`.
+
+⚠️ **Gate:** o item toca `static/style.css` ⇒ o **gate visual do [[O7]]** se aplica
+(`python tools/visual_probe/cli.py` com exit 0 antes do push). Remoção de CSS morto é
+exatamente o caso em que a sonda paga por si: se algo estava vivo e a análise errou, o
+diff de anatomia acusa.
+
+**Cross-refs:** [[UX28]] (F1 que mediu), [[UX29]] (dono do resto), [[UX4]]-c (quem substituiu
+os blocos), [[O7]] (gate), [[OPS1]] (mesma família de higiene).
 
 ---
