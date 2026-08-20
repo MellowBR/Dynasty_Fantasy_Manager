@@ -1,11 +1,11 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 20/08/2026-pt2 (sessão **MAN-UX-IR-SLOTS-REG**, **docs-only — zero código**: nasce **[[UX31]] 🔲 Média** — *cap projector e League Hub contam vaga com IR por réguas DIFERENTES, lado a lado*. No projector "Spots vazios" (IR ocupa) e "Roster X/22 ativos (+K IR)" ([[UX25]]-b, IR fora) aparecem **simultâneos e discordantes**; no Hub a contagem de ativos **só renderiza sob `cut_needed > 0`**, então para time com IR e **sem** excesso o dado de IR fica **invisível** e sobra na tela o número da régua **contrária à regra de liga**. **Regra de liga (20/08):** já em IR no leilão ⇒ não ocupa vaga; lesionado **arrematado** ⇒ ocupa vaga normal — ⭐ discrimina o **estado no momento do leilão**, não a fase do calendário. ⭐ **Fork de desenho registrado EM ABERTO e não arbitrado:** (A) alinhamento nas duas telas × (B) simulador por jogador em IR no projector; Hub anotado como candidato natural a (A) **sem decidir**. ⛔ **Gate: F2 só após mockup comparativo aprovado.** ⛔ **Folha salarial NÃO se move** ([[OFF26-16]]) — distinção nominal ao [[IR-CLEANUP]] (o toggle removido em 04/08 *aparentava* mexer no cap; ocupação é só composição). ⛔ **Keeper sheet fora de escopo** (Bid Máximo é número oficial dos 12 owners). ⚠️ **Divergência regra × plataforma DEFERIDA pelo owner** (draft fake de 20/08: o Sleeper conta keeper em IR como ocupante normal do board) — registrada como contexto medido, item separado. **Namespace:** UX29/UX30 já ocupados → **UX31** (5ª vez que o ID sugerido no prompt colidiria — [[MAN-METH-REG]]); nasce como **um item**, com **condição de split declarada** para a F2 se o fork sair em (B). 173→174 rows, 72→73 seções; auditor exit 0. Gate [[O7]] não dispara (nenhum .css/.html no diff). **F1/F2 não iniciadas — aguardando o owner.**)
 > Atualizado em: 20/08/2026 (sessão **MAN-OFF26-12-REG-F1**, **docs-only + diagnose read-only** sobre **[[OFF26-12]] 🔲 → Alta (prazo 24/08)** — *IR não consome vaga de roster*. **REG:** a liga DECIDIU em 20/08 — IR conta no cap **e** não consome vaga ⇒ **leitura (b)**; o item muda de natureza (decisão de regra pendente → execução com decisão fechada) e é repriorizado **Baixa→Alta** pelo owner. **F1 (read-only, ao vivo 20/08 13:07 UTC):** ⭐ **zero réplica no cliente** — `empty_spots` e o `cut_needed` do [[UX25]]-b vêm AMBOS do servidor, o JS só exibe (invariante [[F10]] honrado), logo um fix na porta canônica `draft_budget` fecha o problema; **`empty_spots` é a ÚNICA grandeza de ocupação ainda na leitura (a)** — premissa do enunciado **confirmada**. **Impacto medido ao vivo:** só **2 times com IR hoje** (Miller Time! e rafaelferreirap, 1 IR cada — ⚠️ **os "3 times" de 03/08 e o time 20+2 NÃO existem mais**, os cortes de 20/08 mudaram a composição), delta **+1 vaga / −$1 de bid** em cada; os outros 10 times são **idênticos** nas duas leituras. ⭐ **Efeito de sinal candidato:** `cannot_fill_roster` de Miller Time! vira **True** sob (b) — vira aviso na auditoria [[OFF26-4]] (⛔ **não bloqueante**, é `warnings`) e alerta vermelho no Hub/projector; flip **knife-edge** (folha exatamente 196), a confirmar contra o banco VIVO. **Divergência com o Sleeper:** sob (b) o Manager fica **$1 mais restritivo** que a plataforma nos 2 times; a auditoria **não compara ocupação como divergência** (as 4 classes são de designação/salário) → **sem risco de bloqueio de abertura em 24/08**. **Propagação ao [[OFF26-13]]:** sob (b), 22 ativos + 2 IR passa a ser roster **legal E completo**, exigindo 24 designações num board de 22 — a decisão **legitima** a composição que o [[OFF26-13]] identifica como impossível de transcrever, e remove o último sinal indireto que o app dava contra ela (achado, **remédio não arbitrado**). ⚠️ **Limite declarado da medição:** composição/IR vieram do **Sleeper AO VIVO** (autoridade), mas os **salários são reconstruídos do banco local** (último sync 06/08 + 35 rookies reconstruídos por `year1_salary`) — **não houve leitura do banco de produção**; os **deltas são exatos e independentes de salário**, os **níveis absolutos são indicativos**. ⛔ Read-only absoluto: zero escrita em banco, código, template ou Sleeper. Auditor exit 0; **F2 não iniciada — aguardando o owner**, inclusive sobre a janela de aplicação antes × depois de 24/08.)
 > Atualizado em: 18/08/2026-pt5 (sessão **MAN-OFF26-25-REG → MAN-OFF26-32-F1 → -F2 → -DOCS**, arco de um dia sobre **[[OFF26-32]] 🔲 Média** — *contagem de contrato herdada do pré-drop nos `fa_auction`*. **REG:** o ID 25 do prompt já era o gate ESPN do rollover → nasceu **32** (4ª colisão de namespace da leva; ocorrência nova do [[MAN-METH-REG]]). **F1 (read-only):** alvo **3→2** (o rollover de 17/08 incrementou o número errado), lista revalidada **24 → 20 vivos** (4 drops em agosto, confirmados transação a transação), invariante salarial sustentado por 4 verificações independentes, display de fonte única, **zero** consumo de `contract_year` nas superfícies da janela 20-24/08; impacto real = renovação em 2028 em vez de 2029. **F2 (código, `96a2c46`):** runner `off26_32_fix.py` no molde do OFF26-20-FIX consumindo a porta canônica **sem alterá-la**; ⭐ **lista de alvos DERIVADA AO VIVO, nunca congelada — inversão explícita do precedente [[OFF26-11]]**, porque em 20/08 o banco estará atrasado *de propósito* (cortes direto no Sleeper + freeze [[OPS2]]); ensaio 20/20 em cópia pós-rollover, idempotência provada por hash, 34 testes novos, gate [[O7]] exit 0; **carona [[UX13]] → ⚠️** (rótulo PT-BR + badge nos 2 templates, verificado em render real). ⚠️ **Anomalia de datas apurada:** as 4 entradas abaixo rotuladas *19/08* e o commit `MAN-SESSION-CLOSE-1908` foram criados em **18/08** (git author date, 09:10→11:10) — o rótulo corre um dia à frente do calendário real; **não reescritas**, por decisão do owner. Execução em prod = quinta **20/08**, pelo owner, pós-lock da janela. Auditor exit 0.)
 > Atualizado em: 19/08/2026-pt4 (sessão **MAN-SESSION-CLOSE-1908**, **docs-only — fechamento da leva 18-19/08**: **6 itens ✅ por smoke de prod do owner** — [[UX22]] (inventário de picks, `aac4e97`), [[UX23]] (projector modo corrente, `296f166`), [[UX25]]+arco -b (obrigação de corte Hub+projector, `d3cfceb`/`752a4a6`), [[UX26]] (PROV blindado por contrato, `2a2d94f`), [[OFF26-29]] (picks consumidas ocultas, `bfcbd61`, smoke pelo print do board) e [[OFF26-27]] (linha 304 do sync — fechado pela combinação fix+guarda AST+smoke real+ausência de recorrência; o caso natural segue como observação). **2 novos ✅ direto no archive:** [[OFF26-30]] (draft replay manual do co-admin em 18/08 — 36 picks, `complete` conferido na API, ⭐ o ensaio da F1 nunca foi necessário) e [[OFF26-31]] (forense Cam Little — ⛔ premissa "sem trilha" REFUTADA: a linha do rollover É a trilha e **sem trilha estava o $3**; regra correta sobre híbrido herdado, coorte = 1, **zero reparo**; raiz = [[WV1]]). [[OPS2]] segue ⚠️ (smoke = leilão de 24/08). **Fila:** [[WV1]] **promovido a Alta** (porta canônica no re-add + 3 caronas), [[REG1]] 🔲 (pauta: FA add × waiver claim), [[UX27]] 🔲 (display "FA Auction"→"Auction Draft", ~42 ocorrências, ⚠️ sem embaralhar com o Startup Auction), [[OFF26-28]] **rebaixado** Alta→Média (leilão confirmado na FANTASMA — decisão 19/08). ⭐ **Nota metodológica registrada no [[MAN-METH-REG]]** (3 colisões de namespace numa leva ⇒ regra candidata: prompt REG confirma o ID livre contra a tabela, nunca assume). 6 seções migradas verbatim ao archive ([[O3]]); auditor exit 0; zero código.)
 > Atualizado em: 19/08/2026-pt3 (sessão **MAN-UX26-REG-F1F2**, código: **[[UX26]] ⚠️ Média** — *badge PROV em rookies já contratados*. Cooper/Douglas (Ano 1/4, rookie_draft, contrato do reparo) apareciam com PROV no projector. **F1-rápida:** derivação única, sem réplica por-jogador; ⭐ **causa-raiz medida — e é outra que a suspeita do prompt**: o clear do passo 5 é irrelevante (o badge lê `EspnValueStore`, não `RookieEspnValue`) — a raiz é o **`record_acquisition` → `set_espn_value` com default `is_final=False`**, que carimbou as rows dos 36 como provisórias mesmo com valores da tabela definitiva. **F2:** `models.contracted_player_ids(season)` (evidência AuctionLog, família OFF26-29/UX23, fonte única + guarda) — **contrato gravado na season corrente nunca exibe PROV**; decisão no servidor (`espn_prov`), JS só exibe (guarda falha se voltar a decidir pelo dado cru); `espn_is_final` segue no payload como dado cru; caso legítimo preservado. ⚠️ Nota de dado registrada: o default do `set_espn_value` **não** foi mudado (porta canônica, fora do escopo — e o critério novo blinda qualquer estado do store). `espn_prov_badge_test.py` (6); smoke 12 times: **0 contratados-2026 com PROV, 241 legítimos preservados** (artefato do boot local já documentado no UX23 — em prod sobra ~zero); âncoras limpas. Gate [[O7]] exit 0; `template_js_test` verde. Auditor exit 0.)
-> Atualizado em: 19/08/2026-pt2 (sessão **MAN-UX25-b**, código: **a obrigação de corte do [[UX25]] agora é VIVA no cap projector** — a tela onde a decisão de corte é de fato simulada. Item "Roster" na barra sticky, recalculado **pelo POST `/budget` que já roda a cada toggle** (F10 honrado: o servidor conta — ele conhece `is_on_ir`; o JS só exibe; o limite vem no payload = `MAX_ROSTER` do engine, **zero hardcode** no cliente): `X/22 ativos (+K IR) ✓` discreto quando regular, **"· cortar ≥N" em alerta** quando o cenário excede, **contando para baixo** até regularizar; **rookies do cenário ocupam vaga de ativo**; "Spots vazios" mantido com o significado de auction (0 truncado é verdadeiro — o indicador novo desambigua; decisão de menor mudança reportada). Campo `roster` aditivo; **D9/`budget` intocados** (teste prova folha $125 COM o IR e `empty_spots` seguindo truncado). +4 testes (`roster_excess_test` 5→9); smoke na cópia de prod: **Trust 26/22 "cortar ≥4" → toggla 4 → ✓ → volta → reaparece**, rafaelferreirap `+1 IR` fora da conta, Pitbull 22/22 neutro. `template_js_test` obrigatório verde; gate [[O7]] exit 0. [[UX25]] segue ⚠️ — agora Hub + projector fecham juntos no mesmo smoke de prod. Auditor exit 0.)
 > 📁 Entradas anteriores em **`improvements_sessions.md`** (101 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
@@ -189,6 +189,7 @@
 | UX30 | **Cenário de rookies do cap projector não é reiniciado ao trocar de time pelo seletor** — colateral medido na F1 do [[UX28]]: `scenario` (Set de sids) e `keepState` são estado de módulo e `loadTeam()` não os limpa ([cap_projector.html:111-131](templates/cap_projector.html#L111-L131)); o `refreshScenario` seguinte posta os `rookie_sids` do time ANTERIOR no `/budget` do time novo, inflando folha e "cortar ≥N" de um time que não escolheu aqueles rookies. O board é global (`/api/cap_projector/rookies` não tem parâmetro de time). ⭐ **Chegada por URL não sofre** (load limpo) — logo o fix é **independente** da F2 do [[UX28]] e não a bloqueia. Reachable hoje: **287 rookies `in_class` na season 2026** (contagem no banco local; o clear do passo 5 ainda não rodou). Fix candidato: limpar `scenario`/`keepState` no `loadTeam` — ⛔ não arbitrado (há leitura alternativa de que o cenário de cortes seja estado do usuário, não do time) — MAN-UX28-REG-DECISOES | Baixa | 🔲 |
 | OPS3 | **CSS morto do antigo layout de cap do detalhe de time** — colateral da F1 do [[UX28]]: `.team-detail-cap-layout` (+ media query + 2 regras descendentes), `.cap-breakdown-grid`, `.cap-breakdown-stat` (+ 2 overrides escopados) e `.cap-by-pos-table` **não têm consumidor em nenhum template** — foram substituídos pela status bar do [[UX4]]-c e sobreviveram só na citação de um comentário. Faixa medida: ~34 linhas em [style.css:2176-2209](static/style.css#L2176-L2209). ⛔ **Escopo estrito: só o que JÁ está morto hoje**; as ~150 linhas de `.team-detail-*`/`.team-status-bar`/`.pos-chip*`/`.team-cap-progress` estão **VIVAS** (a Opção 1 do [[UX28]] mantém o detalhe de time) e só órfãm sob o [[UX29]] — anotadas como dependentes dele, fora deste escopo. ⚠️ Toca `static/style.css` ⇒ o **gate visual do [[O7]]** se aplica (`tools/visual_probe/cli.py` exit 0 antes do push). Globais `.stat-num`/`.stat-label` **não** entram (usados em admin, espn_import, league, lottery_audit) — MAN-UX28-REG-DECISOES | Baixa | 🔲 |
 | OFF26-33 | **Membros INVISÍVEIS do censo do [[OFF26-32]]** — jogador adquirido em `fa_auction` e depois **claimado por waiver** teve o canal **reescrito pelo passo 6 do rebuild [[F8]]** (último evento ativo vence: `fa_auction` → `fa_waiver`) e **saiu do filtro do censo** — logo o runner de 20/08 **não o corrige**. ⭐ **Caso provado: AD Mitchell (sid 11625)** — contrato do leilão FA de 31/08/2025 deveria dar `cy=2` em 2026, e a sonda **MAN-WV1-VERIFY-PROD confirmou `cy=3` no banco VIVO**; achado colateral da F1 do [[WV1]]. ⛔ **O defeito de contagem existe sob QUALQUER regra de janela** — é independente da decisão estrita × lock-aware. Escopo: **F1 própria** para dimensionar a subcoorte (varredura pelo **histórico de eventos**, ⛔ nunca por `acquisition_type`, que é justamente o campo reescrito) + correção pela **mesma porta canônica** do [[OFF26-32]]. Sem urgência de cap (o caso âncora está a $2; efeito é na renovação) — MAN-WV1-DOCS-F1 | Média (sugerida) | 🔲 |
+| UX31 | **Contagem de vaga com IR: cap projector e League Hub usam réguas DIFERENTES lado a lado** — pedido do owner (20/08/2026, após a discussão de liga sobre IR). No **projector**, "Spots vazios" (`empty_spots`, IR **ocupa**) e "Roster X/22 ativos (+K IR)" ([[UX25]]-b, IR **fora**) aparecem **simultaneamente na mesma barra sticky** e se contradizem para time com IR. No **Hub**, "Slots livres" conta o IR como ocupante e a contagem de ativos que o desconta **só renderiza sob `cut_needed > 0`** — para time com IR e **sem** excesso o dado de IR fica **invisível** e o número exibido é o da régua **contrária à regra de liga**. **Regra de liga (20/08):** já em IR no leilão ⇒ **não** ocupa vaga; lesionado **arrematado** no leilão ⇒ ocupa vaga normal, IR só depois (discrimina o **estado no momento do leilão**, não a fase do calendário). ⭐ **FORK DE DESENHO EM ABERTO, não arbitrado:** (A) **alinhamento** — as duas telas descontam o IR, uma régua só; (B) **simulador** — controle por jogador em IR no projector alternando ocupa-vaga × não-ocupa dentro do cenário, exibindo os dois resultados sem afirmar um como verdade. ⛔ **Gate: nenhuma F2 começa antes de mockup comparativo aprovado pelo owner.** ⛔ **Fronteira dura: a folha salarial NÃO se move** ([[OFF26-16]]) — nem no Hub, nem em cenário; é o que separa este item do [[IR-CLEANUP]]. ⛔ **Keeper sheet FORA de escopo** (o Bid Máximo dela é número oficial dos 12 owners e não pode depender de cenário de ninguém). ⚠️ **Divergência regra × plataforma DEFERIDA pelo owner** (draft fake de 20/08: o Sleeper trata keeper em IR como ocupante normal do board) — contexto medido, **item separado**. **Hoje 2 times com 1 IR cada, ambos com elenco folgado → erro não visível no Hub** — MAN-UX-IR-SLOTS-REG | Média | 🔲 |
 
 ---
 
@@ -8275,3 +8276,88 @@ que achou), [[F8]] (o passo 6 que reescreve o canal), [[OFF26-20]] (origem do ce
 canal), [[S4]] (mesma classe de erosão de identidade no histórico).
 
 ---
+### UX31 — Contagem de vaga com IR: cap projector e League Hub usam réguas diferentes
+🔲 **Pendente** — Prioridade **Média** — pedido do owner em **20/08/2026**, após a discussão de
+liga sobre IR (`MAN-UX-IR-SLOTS-REG`, docs-only — zero código nesta entrada)
+
+**1. O sintoma, por tela.**
+
+| tela | indicador | o que conta hoje | visibilidade |
+|---|---|---|---|
+| **Cap projector** (barra sticky) | "Spots vazios" | `empty_spots` — **IR ocupa vaga** | sempre |
+| **Cap projector** (barra sticky) | "Roster X/22 ativos (+K IR)" | ativos, **IR fora** ([[UX25]]-b) | sempre |
+| **League Hub** (card) | "Slots livres" | `empty_spots` — **IR ocupa vaga** | sempre |
+| **League Hub** (card) | "X/22 ativos (+K IR)" | ativos, **IR fora** ([[UX25]]) | **só sob `cut_needed > 0`** |
+
+- No **projector** a contradição é **direta e simultânea**: os dois números ficam lado a lado, sem
+  condicional, e para time com IR eles **discordam** (ex.: 17 ativos +1 IR ao lado de "Spots vazios 4",
+  quando 22 − 17 = 5).
+- No **Hub** a contradição é **latente e pior**: para time com IR e **sem** excesso a contagem de ativos
+  **não renderiza**, então o único número na tela é o "Slots livres" — que segue a régua **contrária à
+  regra de liga** — e **nada sinaliza que há IR no elenco**. O usuário não tem como perceber.
+
+**2. A regra de liga (20/08/2026).** Jogador **já em IR** no momento do leilão **não ocupa vaga**;
+jogador **lesionado arrematado no leilão** ocupa vaga **normal** e só vai para o IR depois. ⭐ **O que
+discrimina é o ESTADO NO MOMENTO DO LEILÃO, não a fase do calendário** — registrar assim importa: uma
+implementação que gateasse por fase (pré/pós-leilão) daria o resultado certo por acidente e o errado no
+primeiro caso de borda.
+
+**3. Medição de plataforma (contexto, NÃO conclusão de desenho).** No **draft fake conduzido pelo owner
+em 20/08/2026**, o Sleeper **não** trata o keeper em IR de forma diferente no board: ele ocupa lugar
+**normal** de roster durante o draft. ⚠️ **O tratamento a dar a essa divergência entre a regra de liga e
+a plataforma está DEFERIDO por decisão do owner e NÃO faz parte deste item** — está aqui como contexto
+medido e datado, jamais como argumento de desenho.
+
+⭐ **4. O FORK DE DESENHO — EM ABERTO, NÃO ARBITRADO.**
+
+> **(A) Alinhamento.** As duas telas passam a descontar o IR da ocupação — **uma régua só**, coerente com
+> a regra de liga. Elimina a contradição na origem.
+>
+> **(B) Simulador.** No **cap projector**, controle **por jogador em IR** que alterna **ocupa-vaga ×
+> não-ocupa** dentro do cenário, **exibindo os dois resultados sem afirmar um como verdade**. Foi o
+> desenho originalmente proposto pelo owner.
+
+Registro adicional, **sem decidir**: o **League Hub é panorama de 12 times** e, por isso, candidato
+natural a **alinhamento simples** mesmo que o projector receba o **simulador** — as duas telas podem
+divergir de desenho-alvo sem incoerência. ⛔ Nenhuma das opções está escolhida, recomendada ou
+preferida aqui; a posição **default** de qualquer controle e o **layout** também ficam em aberto.
+
+**Item único × irmãos — decisão registrada:** nasce como **UM item** cobrindo as duas telas, porque o
+que resolve o item é **uma única decisão de fork** que atravessa as duas. Dois IDs hoje **duplicariam o
+fork** em ambas as rows e criariam risco de dedupe divergente. ⚠️ **Condição de split declarada:** se o
+owner escolher **(B)** para o projector, os desenhos-alvo divergem e o item **deve** se dividir em dois
+irmãos no momento da F2 — não antes, porque splitar agora já seria arbitrar o fork.
+
+⛔ **5. Gate de mockup (pré-condição do item).** **Nenhuma F2 começa antes de mockup comparativo
+aprovado pelo owner.** É decisão de leitura de tela, não de cálculo: as duas opções precisam ser vistas
+lado a lado antes de qualquer linha de código.
+
+⛔ **6. Fronteira dura — a folha salarial NÃO se move.** Nem no Hub, nem em cenário do projector, sob
+nenhuma das duas opções. A régua única de folha ([[OFF26-16]], `roster_salary`, IR **incluso**) e sua
+guarda anti-réplica seguem intocadas. **Distinção nominal, que é o motivo de este parágrafo existir:
+este item NÃO é o [[IR-CLEANUP]]** — o seletor manual de IR removido em **04/08/2026** *aparentava*
+mexer no cap (com o IR contando no cap, o toggle virava botão de mudar folha), e foi por isso que caiu.
+Aqui não há nada disso: **ocupação é contagem de composição, e só isso muda**. Quem confundir os dois
+itens vai propor exatamente a coisa que foi removida.
+
+⛔ **7. Fronteira de escopo — a keeper sheet fica FORA.** O **Bid Máximo** publicado nela é **número
+oficial que circula para os 12 owners** e **não pode depender do cenário de ninguém**. Qualquer
+simulação vive na tela de quem simula; a sheet permanece com a régua que sempre teve.
+
+**8. Estado de fato hoje (dimensiona a prioridade).** Ao vivo em 20/08/2026: **2 times com IR, 1
+jogador cada, ambos com elenco abaixo do teto**. Como a contagem de ativos do Hub só aparece sob
+obrigação de corte, **o desalinhamento não produz erro visível no Hub neste momento** — daí
+**Média**, e não Alta. ⚠️ A invisibilidade é justamente o que torna o sintoma difícil de flagrar em
+produção: ele reaparece sozinho no primeiro time que ganhar IR **e** excesso ao mesmo tempo.
+
+**Cross-refs:** [[OFF26-12]] (a reserva de $1 com IR — decisão de liga de 20/08 registrada, **ainda sem
+código**; é a mesma regra vista pelo lado do budget, e o fix de lá muda `empty_spots`, que é metade da
+contradição daqui), [[UX25]]/[[UX25]]-b (introduziu a contagem de ativos nas **duas** telas — origem do
+lado (b) do par), [[OFF26-16]] (régua única de folha, a fronteira que não se cruza), [[OFF26-13]]
+(excesso de roster × board da fantasma — o outro lugar onde composição e plataforma discordam),
+[[F10]] (invariante servidor-conta/cliente-exibe, honrado hoje pelas duas telas e que qualquer F2 deve
+preservar), [[IR-CLEANUP]] (o que este item **não** é), [[UX28]] (arquitetura das superfícies de time —
+se o Hub e o projector se reorganizarem, este item viaja junto).
+
+---
+
