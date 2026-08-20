@@ -711,11 +711,29 @@ de um reparo de contrato. O núcleo puro **já é parametrizável** (`triage`, `
 e escreve só ~120 linhas de orquestração + a lista congelada: **zero réplica de regra, zero mutação
 do executado.** `EVENT_REF = "fix:wv1-coorte-b"`, separando a trilha da de 19/08.
 
-**⏰ PRAZO — e ele apertou:** o parecer nasceu em 19/08 para execução **pré-fechamento** da janela
-de cortes. **Hoje é 20/08, o dia do fechamento** — se o reparo ainda vale como insumo da decisão
-de corte, é **manhã de 20/08, antes do lock**; o [[OFF26-32]] segue **pós-lock**, na ida separada
-já planejada. Passado o lock, a coorte B não perde validade (o defeito de contagem continua real e
-o efeito é na renovação) — perde só a função de informar o corte, e volta à fila normal do item.
+**⏰ CALENDÁRIO — decidido em 20/08: execução PÓS-LOCK, na MESMA ida do [[OFF26-32]].** O owner
+preferiu esperar os cortes (é provável que parte da coorte seja dropada), abrindo mão da função de
+informar a decisão de corte. O defeito de contagem continua real e o efeito é na renovação, então
+nada se perde além disso.
+
+⚠️ **CONSEQUÊNCIA DE DESENHO da mudança — o cruzamento ao vivo virou OBRIGATÓRIO.** Pós-lock os
+cortes acontecem **direto no Sleeper** ([[OFF26-1]] ETAPA2) e pode haver **freeze de sync**
+([[OPS2]]) ⇒ o `is_dropped` do banco está **desatualizado de propósito**. No runner A (pré-lock) o
+cruzamento com os rosters era **advisório**; aqui ele **decide**: quem não estiver rosterado ao
+vivo é tratado como dropado e pulado, mesmo que o banco o mostre vivo, e **sem API não há
+escrita** — exatamente o critério do [[OFF26-32]], e pelo mesmo motivo.
+
+**RUNNER ENTREGUE E ENSAIADO (20/08/2026):** `wv1_fix_coorte_b.py` + `wv1_fix_coorte_b_test.py`
+(16 testes). ⛔ **Importa o núcleo de `wv1_fix_coorte` — não o altera** (o A já rodou em prod;
+mudá-lo criaria arquivo cujo comportamento não é mais o executado). `EVENT_REF=fix:wv1-coorte-b`,
+trilha separada da de 19/08. Ensaio em cópia espelhando prod: `--check` **4 elegíveis + 5
+pulados**, `--apply` **4 contagens `cy 3→2`**, 4 linhas alteradas, 4 de trilha, **invariante
+financeiro intacto (nada de dinheiro se move)**, re-`--check` **0 elegíveis / 9 pulados**
+(idempotente) e a trilha da coorte A **não tocada**. ⏳ **Execução em prod pendente.**
+
+⭐ **Sinal ao vivo colhido no ensaio (20/08):** a API devolveu **231 rosterados**, contra **242**
+medidos em 19/08 — **11 cortes já feitos** na janela. Nenhum dos 4 elegíveis caiu (todos ainda
+rosterados no momento do ensaio), mas isso pode mudar até a execução: o `--check` relê ao vivo.
 
 **RESPOSTAS ÀS QUESTÕES (MAN-WV1-F1 + MAN-WV1-VERIFY-PROD, 19/08/2026 — read-only)**
 
