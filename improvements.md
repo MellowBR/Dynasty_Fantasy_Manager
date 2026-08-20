@@ -81,7 +81,7 @@
 | DP1 | Board de planejamento de cap pré-draft: rookies entrantes com `espn_ref_value` + salário projetado `floor(ESPN×1.2)` + simulação de impacto no cap (projeção, não contrato) — lê o **store canônico** — MAN-DP1-REG | A definir | ⚠️ (F2 implementada 10/06; smoke em prod pendente) |
 | DP2 | Cadeia única de planejamento no cap projector: board DP1 parte do cenário keep/corte (não mais roster integral) + summary sticky unificado refletindo cortes + rookies; estende o endpoint canônico do F10 com `rookie_sids` (1 fonte) — MAN-DP2-REG (revisão consciente da base do DP1-F2) | Média | ✅ 15/06/2026 (smoke de prod confirmado) |
 | DP3 | Composição da lista do board de rookie draft: hoje lista `RookieEspnValue` (não-rosterados ESPN-valorados, Top-300) → mostra veteranos/rookies de classes antigas e omite rookies fora do Top-300; owner decidiu listar só rookies da classe entrante (D1) via pool global do Sleeper, ESPN quando houver e $1 quando não (D2), só status ativo NFL (D3), snapshot materializado (D4), tela alt. A (D5) — MAN-DP3-REG/F1/REFINE/F2/CLOSE | Alta | ✅ 31/07/2026 (smoke prod OK sobre hash `e12fdef`: captura idempotente 148→0, board ordenado, não-rookies fora, busca/filtro sem reload, cenário na barra fixa; **ressalva**: board mostra classe do snapshot de junho — completude depende do **F13**; detalhe no archive) |
-| WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG; **PROMOVIDO 19/08 (caso Cam Little — forense [[OFF26-31]])**: o re-add de dropado mantém o salário do contrato morto (o gerador de híbridos) e o rollover seguinte o achata pela régua do canal; a F2 abre contrato ano-1 pela **porta canônica** no re-add. Caronas da F2: (a) baseline de SalaryHistory p/ híbridos e jogadores sem NENHUMA linha; (b) revisar o default `is_final=False` do `record_acquisition` (nota do [[UX26]]); (c) conferir o lance real do Little na API do auction 2025 e alinhar a Timeline ($3 registrado × $2 lembrado). ⭐ **SUB-ARCO FIX-COORTE EXECUTADO EM PROD 19/08** (runner `wv1_fix_coorte.py`, commit `e7375a8`, pré-lock da janela de cortes): **14 contagens `cy 3→2` + 2 salários `$2→$1`** (Mitchell `11625`, Q. Johnston `9754`) pelas portas canônicas, 4 dropados pulados por decisão do owner, idempotência provada no re-check; **smoke visual do owner APROVADO** (página do Mitchell: Ano 2/4, $1, início 2025, 2 eventos na timeline) e **[[PROC1]] fechado por leitura direta** do hash no Shell (`e7375a8…deaca` = o commit do runner). ⛔ **O item SEGUE 🔲**: falta a F2 (regra da janela no motor), a decisão estrita × lock-aware dos **17 ambíguos** e as caronas | ~~Média~~ **Alta** (agenda: semana pós-auction) | 🔲 |
+| WV1 | Salário de aquisição via waiver sem drop tratado como FA (waiver de jogador nunca dropado → regra de salário de FA); toca `record_acquisition` + histórico — MAN-WV1-REG; **PROMOVIDO 19/08 (caso Cam Little — forense [[OFF26-31]])**: o re-add de dropado mantém o salário do contrato morto (o gerador de híbridos) e o rollover seguinte o achata pela régua do canal; a F2 abre contrato ano-1 pela **porta canônica** no re-add. Caronas da F2: (a) baseline de SalaryHistory p/ híbridos e jogadores sem NENHUMA linha; (b) revisar o default `is_final=False` do `record_acquisition` (nota do [[UX26]]); (c) conferir o lance real do Little na API do auction 2025 e alinhar a Timeline ($3 registrado × $2 lembrado). ⭐ **SUB-ARCO FIX-COORTE EXECUTADO EM PROD 19/08** (runner `wv1_fix_coorte.py`, commit `e7375a8`, pré-lock da janela de cortes): **14 contagens `cy 3→2` + 2 salários `$2→$1`** (Mitchell `11625`, Q. Johnston `9754`) pelas portas canônicas, 4 dropados pulados por decisão do owner, idempotência provada no re-check; **smoke visual do owner APROVADO** (página do Mitchell: Ano 2/4, $1, início 2025, 2 eventos na timeline) e **[[PROC1]] fechado por leitura direta** do hash no Shell (`e7375a8…deaca` = o commit do runner). ⭐ **DECISÃO DO OWNER 19/08: leitura ESTRITA** (fundamento anti-abuso: fora da janela do drop o jogador foi exposto à liga, logo quem o pega faz aquisição nova) — os **17 ambíguos** viram a **coorte B** (parecer entregue: 4 elegíveis, DET fora, Dike já correto; runner ⏳ **não executado**) e a **F2 fica DESTRAVADA** (a regra estrita é computável só com a API de transações). ⛔ **O item SEGUE 🔲**: faltam a F2, a coorte B e as caronas | ~~Média~~ **Alta** (agenda: semana pós-auction) | 🔲 |
 | F6 | Remover "keeper" como acquisition_type (migrar → auction_draft) | Média | ✅ 22/04/2026 |
 | F8-RESTORE-GAP | /restore deveria chamar backfill_trades automaticamente | Baixa | ✅ 22/04/2026 |
 | M5 | Ordenação por posição em todas as telas de roster | Baixa | ✅ 02/04/2026 |
@@ -646,6 +646,77 @@ revisado**, sem depender de convergência de evidência. (⚠️ A leitura foi m
 [[PROC2]] — surfacear `RENDER_GIT_COMMIT` numa tela administrativa — segue 🔲; este caso é mais
 uma ocorrência do custo de checar isso na mão.)
 
+**SUB-ARCO FIX-COORTE-B — PARECER ENTREGUE 19/08/2026, ⏳ AGUARDANDO EXECUÇÃO**
+
+⚠️ **Estado em 20/08/2026: o runner NÃO foi escrito nem executado.** Este bloco preserva o
+**parecer pré-execução** ([[MAN-METH-2]]) para que os achados não se percam — foi exatamente
+assim que o [[OFF26-33]] nasceu, de um achado que ninguém escreveu.
+
+**O que a coorte B é:** os **17 claims ambíguos** (48-168h, batch de quarta, 1º evento pós-drop)
+que a decisão estrita converteu em **aquisição nova**. Carregam o mesmo defeito reparado na
+coorte A em 19/08 — `cy=3` onde o devido é `cy=2`.
+
+**⛔ TRÊS DIVERGÊNCIAS MEDIDAS contra a lista de partida — uma delas impediria a execução:**
+
+1. **DET (Detroit Lions) NÃO pertence à coorte — e incluí-lo ABORTA tudo.** Cadeia real na API:
+   `free_agent DROP 21/09` → `waiver ADD 24/09 ($12)` → `free_agent DROP 22/10` → **`free_agent
+   ADD 26/10`**. A aquisição que **governa** é o pickup `free_agent` posterior, não o claim; o
+   banco concorda (`acquisition_type=free_agent`, `cy=1`, dropado). Como a guarda exige
+   `acq=fa_waiver`, ele dispararia o **abort** da política de 19/08 e **nenhuma** das linhas
+   necessárias seria escrita.
+2. **Chimere Dike (`12540`) já está CORRETO — e por mérito, não por coincidência.** Cadeia:
+   `waiver ADD 22/10 ($0, sem drop prévio = face 1)` → `free_agent DROP 13/11` → `waiver ADD
+   19/11 ($8, o claim ambíguo)`. Sob a estrita, o de 19/11 é aquisição nova ⇒ ano 1 = 2025 ⇒
+   **`cy=2` em 2026**, que é o que ele já marca. ⭐ **Contraste com o caso Wilson** da coorte A,
+   cujo `cy=2` era o valor de 2025 **congelado pelo drop pré-rollover** (coincidência): aqui as
+   **duas rotas possíveis** dão ano 1 em 2025. O `--check` deve reportá-lo como *"já é 2 — nada a
+   fazer"*.
+3. **São 6 churn sem row em `Player`**, não 5 — `9506`, `CAR`, `5955`, `8122`, `11789`, `8123`.
+   Com 5, a conta fechava em 16 dos 17 claims.
+
+**Composição final da coorte B (lista congelada de 9 sids + 2 exclusões documentadas):**
+
+| sid | Jogador | Estado em prod (19/08) | Destino |
+|---|---|---|---|
+| `3451` | Ka'imi Fairbairn | cy=3, ativo | **ELEGÍVEL** |
+| `8259` | Cameron Dicker | cy=3, ativo | **ELEGÍVEL** |
+| `11626` | Xavier Legette | cy=3, ativo | **ELEGÍVEL** |
+| `NE` | New England Patriots | cy=3, ativo | **ELEGÍVEL** |
+| `12540` | Chimere Dike | cy=2, ativo | pulado — já correto (divergência 2) |
+| `TB` | Tampa Bay Buccaneers | cy=3, DROPADO | pulado (decisão de 19/08) |
+| `BAL` | Baltimore Ravens | cy=2, DROPADO, **$2** | pulado (decisão de 19/08) |
+| `9504` | Kayshon Boutte | cy=3, DROPADO | pulado (decisão de 19/08) |
+| `3678` | Wil Lutz | cy=3, DROPADO | pulado (decisão de 19/08) |
+| `DET` | Detroit Lions | free_agent, cy=1 | ⛔ **EXCLUÍDO** — divergência 1 |
+| `9228` | Bryce Young | reparado na coorte A | ⛔ **EXCLUÍDO** — duplicata |
+
+⇒ **4 elegíveis**, 5 pulados, 2 exclusões (num mapa documentado, molde do `DROPPED_2026` do
+[[OFF26-32]], impresso no `--check` — exclusão **auditável**, nunca silenciosa).
+
+**⭐ Nenhum dinheiro se move:** os 4 elegíveis estão todos a **$1** ⇒ `SALARY_FIXES` vazio e o
+invariante volta a ser o do [[OFF26-32]] (*"mexe na contagem, nunca no dinheiro"*), ao contrário
+da coorte A. ⚠️ Ressalva: **BAL é o único da coorte B com salário $2** — está dropado, logo
+pulado; se os dropados forem reabertos algum dia, ele tem componente de salário além da contagem.
+
+**Verificações do gate, todas verdes:** interseção com o censo do [[OFF26-32]] **VAZIA**
+(reconferida sid a sid contra o runner real); interseção com a coorte A = **só `9228`** (por isso
+excluído); a **guarda de 19/08 serve sem alteração** (`cy=3`, `css=2025`, `acq=fa_waiver`,
+`needs_review=False`, `is_dropped=False`).
+
+**Forma recomendada (e o porquê):** arquivo novo **`wv1_fix_coorte_b.py` importando o núcleo de
+`wv1_fix_coorte`** — ⛔ **não** estender o runner A por flag. O A **já rodou em produção**; alterá-lo
+depois cria um arquivo cujo comportamento não é mais o que foi executado, o que corrói a auditoria
+de um reparo de contrato. O núcleo puro **já é parametrizável** (`triage`, `select_salary_fixes` e
+`expected_money_after` recebem cohort/expected/fixes por argumento), então o B reusa toda a lógica
+e escreve só ~120 linhas de orquestração + a lista congelada: **zero réplica de regra, zero mutação
+do executado.** `EVENT_REF = "fix:wv1-coorte-b"`, separando a trilha da de 19/08.
+
+**⏰ PRAZO — e ele apertou:** o parecer nasceu em 19/08 para execução **pré-fechamento** da janela
+de cortes. **Hoje é 20/08, o dia do fechamento** — se o reparo ainda vale como insumo da decisão
+de corte, é **manhã de 20/08, antes do lock**; o [[OFF26-32]] segue **pós-lock**, na ida separada
+já planejada. Passado o lock, a coorte B não perde validade (o defeito de contagem continua real e
+o efeito é na renovação) — perde só a função de informar o corte, e volta à fila normal do item.
+
 **RESPOSTAS ÀS QUESTÕES (MAN-WV1-F1 + MAN-WV1-VERIFY-PROD, 19/08/2026 — read-only)**
 
 Fontes: a **F1** (varredura da temporada 2025 pela API do Sleeper + banco local) e a
@@ -721,8 +792,26 @@ do [[REG1]]).** É o que decide os **17 claims ambíguos** e, com eles, o tamanh
 | **Estrita** | o **texto da 6.8**: se a clearance passou vazia às ~47h, o jogador **virou Free Agent** e o contrato morreu; o claim de quarta é reentrada | os 17 viram **aquisição nova** (coorte 27) |
 | **Lock-aware** | o **entendimento verbal da liga** (19/08): o período de waiver do drop é contínuo até o processamento de quarta quando o time da NFL joga no meio (**7.1.3.c**) | os 17 **carregam** (coorte 18) |
 
-⛔ **Não arbitrada aqui.** Prazo sugerido: **antes da F2 do WV1, semana pós-leilão**. Custo de
-apurar a lock-aware: achar fonte de calendário de jogos NFL (não está no endpoint de liga).
+✅ **DECIDIDA PELO OWNER EM 19/08/2026 (noite): leitura ESTRITA.** A régua é o **tempo entre o
+drop e o add** — o claim só carrega o contrato anterior se **vence a janela do próprio drop**
+(clearance ~47h; `waiver_clear_days=2`); qualquer claim posterior é **aquisição nova**, mesmo que
+o jogador tenha voltado a waivers por lock de jogo (7.1.3.c).
+
+⭐ **Fundamento do owner — ANTI-ABUSO, e é ele que resolve o empate entre as duas leituras:** a
+regra de carregar contrato existe para **impedir reset de contrato via drop-e-readd**. Limitá-la
+à janela do próprio drop impede o movimento inverso — que alguém (tipicamente **o detentor do
+maior FAAB**) **resgate um contrato antigo fora da janela**. Passada a clearance, o jogador foi
+**exposto à liga inteira**; quem o pega faz aquisição nova. A leitura lock-aware premiaria quem
+tem budget para esperar.
+
+**Três consequências imediatas, todas registradas:**
+1. os **17 claims ambíguos** resolvem-se como **aquisição nova** ⇒ nasce a **coorte B**
+   (sub-arco abaixo);
+2. a **F2 está DESTRAVADA** — a regra a implementar no motor é a estrita, e ela é **computável
+   só com a API de transações**: cai a dependência de achar fonte de calendário de jogos NFL, que
+   era o custo da leitura lock-aware;
+3. o **degrau (1º) da hierarquia** fica com a leitura estrita da clearance — e, como a F1 já
+   media, nesse recorte **(1º) e (2º) coincidem**.
 
 **🧱 ACHADO ESTRUTURAL — o histórico do banco NÃO sustenta o snapshot retroativo.** O
 `PlayerHistory` local cobre **66 dos 113 claims (58%)** e **156 das 410 transações com drop
