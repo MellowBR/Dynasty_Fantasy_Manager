@@ -9596,3 +9596,217 @@ revisão do default `is_final` — nota do [[UX26]] —, conferência do lance r
 **Relações:** [[OFF26-20]] (a decisão de canal que a régua aplica), [[WV1]] (a raiz),
 [[OFF26-26]] (inocentado), [[M2]] (a fila de review — inocentada no período), [[F7]]/[[S1]]
 (a Timeline que preservou a cadeia).
+
+### OFF26-12 — Keeper em IR ocupa vaga de roster? (era: "conta na reserva de $1 da 8.3.4?")
+✅ **Encerrado 20/08/2026 (MAN-OFF26-12-UX31-REG-FECHA) — ZERO código** — Prioridade **Alta**
+(a que o owner atribuiu em 20/08 antes do desfecho; preservada como registro do peso que o item teve)
+
+> ## DECISÃO FINAL DA LIGA — 20/08/2026: **manter a régua atual. Não mudar nada.**
+>
+> **Jogador em IR ocupa vaga de roster normalmente**, exatamente como a plataforma opera. A régua
+> vigente no cálculo de budget **já é essa** — logo o item **fecha sem produzir uma linha de código**.
+>
+> **Motivação declarada pelo owner:** simplicidade, e **facilitar a execução do script de população
+> da liga fantasma** — o caminho de execução do leilão permanece a liga fantasma com o script
+> ([[OFF26-24]]); a alternativa discutida em liga **não foi adotada**.
+
+**O percurso do dia — três estados, fechando no ponto de partida.** Registrado porque **sem ele a
+decisão parece arbitrária e volta como discussão na próxima intertemporada**:
+
+| # | estado | conteúdo |
+|---|---|---|
+| 1 | **Decisão inicial** (20/08, manhã) | IR conta no cap mas **não** consome vaga — a leitura **(b)** que este item registrava como opção |
+| 2 | **Refinamento** | o discriminante seria o **estado no momento do leilão**: já em IR ⇒ não ocupa; lesionado **arrematado** ⇒ ocupa normalmente |
+| 3 | **Medição de plataforma** (draft fake do owner, 20/08) | o Sleeper **não** distingue o keeper em IR no board — ele ocupa lugar **normal** de roster durante o draft. Jogador verificado: **J. Higgins** |
+| 4 | **Decisão final** | **não mudar nada** — manter a régua como a plataforma opera |
+
+⭐ **O que encerrou a discussão foi a medição, não a deliberação:** a vaga extra que a leitura (b)
+concederia **não é exercível**. O board da fantasma é onde o leilão acontece de fato, e nele o keeper
+em IR ocupa lugar como qualquer outro — conceder a vaga no Manager produziria um número que o owner
+não conseguiria gastar. ⛔ **A divergência regra × plataforma está RESOLVIDA por adoção da régua da
+plataforma** — não é assunto reabrivel por este item.
+
+**Inalterado, e registrado para não reabrir:** o jogador em IR **sempre contou e continua contando na
+folha salarial** ([[OFF26-16]]). A régua única de folha **nunca foi objeto deste item**, em nenhuma das
+três leituras.
+
+**Resíduo que sobrevive ao fechamento:** [[UX31]] — reescrito na mesma sessão, porque a decisão final
+**inverteu o sinal** do sintoma que ele registrava. ⚠️ Sob a régua confirmada, o indicador divergente
+é a **contagem de ativos que desconta o IR** ([[UX25]]/-b), e **não** o contador de vagas.
+
+---
+
+⚠️ **TUDO O QUE SEGUE É REGISTRO SUPERADO PELA DECISÃO FINAL DE 20/08/2026** — preservado
+**verbatim** (decisão intermediária + diagnose F1 completa). Vale como trilha de como se chegou aqui,
+**não como estado**. ⛔ Não citar como regra vigente.
+
+🔲 **Pendente — EXECUÇÃO com decisão fechada** — Prioridade **Alta**, prazo **24/08/2026**
+(repriorizado **Baixa → Alta** pelo owner em 20/08 — a grandeza alimenta o budget do leilão)
+
+> **DECISÃO DE LIGA — 20/08/2026 (fechada).** *Jogador em IR conta no cap salarial, mas **NÃO**
+> consome vaga de roster.* Isto resolve a ambiguidade que este item registrava em aberto desde
+> 03/08: **venceu a leitura (b)** — keeper em IR fica **fora** de `(22 − keepers)` da 8.3.4.
+>
+> **O item muda de natureza:** deixa de ser *decisão de regra de liga pendente* e passa a ser
+> *execução com decisão fechada*. O que falta é implementação, não deliberação.
+>
+> ⛔ **Não toca a régua de folha.** A metade "IR conta no cap" já está **inteiramente resolvida**
+> por [[OFF26-16]] (`salary_engine.roster_salary`, folha única com IR) — e a guarda anti-réplica
+> `cap_regua_test.TestSemReplicaDeFolha` permanece **intocada**, inclusive em recomendação.
+>
+> ⭐ **A metade que falta já está meio-implementada.** A contagem do [[UX25]]/[[UX25]]-b **já aplica
+> a regra decidida** (limite = `MAX_ROSTER` ATIVOS, IR fora da conta, derivada no servidor). Este
+> item é o **fechamento da metade que faltou** — hoje `empty_spots` (leitura (a)) e o indicador de
+> ocupação (leitura (b)) convivem **na mesma barra sticky do cap projector**, contando diferente.
+
+
+**A conferência que originou o item já está feita e fechou o D2:** as contagens de slots
+**coincidem** — regulamento **22** (8.3.4: *"completar as 22 posições do roster … (22 − número de
+keepers)"*), sala **22** (`roster_positions` e `draft.settings.rounds`), Manager **22**
+(`MAX_ROSTER`) — e a fórmula da reserva é a mesma nos três. **Isto aqui é o resíduo.**
+
+**A pergunta que a regra não responde.** O item **1.3** diz que os **2 IR "não são considerados no
+total de 22"**. A **8.3.4** manda reservar $1 para cada `(22 − número de keepers)` e **não diz se
+keeper em IR entra em "keepers"**.
+
+| leitura | reserva p/ time com 20 não-IR + 2 IR | quem faz assim hoje |
+|---|---|---|
+| **(a) IR conta como keeper** | $0 (roster cheio: 22) | **Manager e Sleeper** |
+| **(b) IR não conta como keeper** | **$2** (faltam 2 p/ completar as 22) | leitura literal do 1.3 |
+
+**Magnitude:** **até $2** por time com IR. Hoje **3 times** têm IR preenchido na liga real.
+
+**Causa:** o Manager passa **todos os não-dropados** para `draft_budget`
+(`cuts._team_fa_budget`; `draft_budget` filtra só `is_dropped`), e o Sleeper conta o keeper em IR
+porque **ele é designado no board** e ocupa uma das 22 rodadas.
+
+**Efeito prático sobre a auditoria [[OFF26-4]]: NENHUM — não é relevante para o veredito.** Os dois
+lados que a auditoria compara **concordam entre si**; não há como isto virar divergência falsa nem
+verdadeira no relatório. **É margem entre as plataformas e o regulamento**, não entre os lados
+comparados. Por isso a prioridade é **Baixa** apesar de tocar dinheiro.
+
+**Registro historico de 03/08 - SUPERADO pela decisao de 20/08 (preservado como trilha):**
+
+> *"Decisao em aberto (owner): vale (a) ou (b)? Se (b), o ajuste e descontar os jogadores em IR do
+> `num_keepers` - mexe em `salary_engine.draft_budget`, porta canonica consumida por 3 sites
+> (`cuts`, `draft_import`, `salary`), e exigiria F1 propria. Se (a), basta registrar a interpretacao
+> no regulamento para nao reabrir."*
+>
+> *"Nao fazer nada e uma opcao defensavel: a diferenca e de ate $2 num budget de $200, e o
+> enforcement real do teto e do Sleeper, que ja faz (a)."*
+
+⚠️ **A liga escolheu (b) em 20/08.** A F1 prevista naquele texto é a **MAN-OFF26-12-REG-F1**
+registrada abaixo. ⚠️ **O "3 times com IR" e o time-âncora "20 não-IR + 2 IR" da tabela acima são
+de 03/08 e NÃO valem mais** — a medição ao vivo de 20/08 encontrou **2 times, com 1 IR cada, e
+nenhum time em 22+2** (os cortes de 20/08 mudaram a composição). A tabela fica como ilustração da
+aritmética, não como estado.
+
+#### Diagnose F1 (MAN-OFF26-12-REG-F1, 20/08/2026 — read-only) — inventário, réplicas e impacto
+
+**Insumos e limite declarado.** Composição de elenco e IR vieram do **Sleeper AO VIVO**
+(`/league/{id}/rosters`, leitura às **20/08/2026 13:07 UTC**) — é a autoridade sobre roster e
+`reserve`, e é o que o próximo sync gravará. ⚠️ **Não houve leitura do banco de PRODUÇÃO**
+(`/data/dynasty.db` exige Shell do Render): os **salários** foram reconstruídos do banco local
+(último sync **06/08**) mais **35 jogadores** ausentes dele, reconstruídos por `year1_salary`
+(rookies do draft de 18/08). Consequência metodológica, e ela é favorável: **os deltas entre (a) e
+(b) são EXATOS e independentes de salário** — a folha é idêntica nas duas leituras e cancela na
+subtração — enquanto os **níveis absolutos** de `usable_draft_budget` são **indicativos**.
+
+**1. Inventário de ocupação — qual filtro cada superfície aplica hoje.**
+
+| superfície | grandeza | filtro | origem |
+|---|---|---|---|
+| `salary_engine.draft_budget` | `num_keepers`, `empty_spots`, `min_required_for_spots` | **(a)** — só `is_dropped` | núcleo puro |
+| `routes/cuts._team_budget` / `_team_fa_budget` | Bid Máximo da keeper sheet | **(a)** (herda) | servidor |
+| `routes/salary.compose_budget` | budget do projector, `/league`, `/team/<id>` | **(a)** (herda) | servidor |
+| `POST /budget` → `budget.empty_spots` | "Spots vazios" da barra sticky | **(a)** (herda) | servidor |
+| `POST /budget` → `roster.*` ([[UX25]]-b) | "X/22 ativos (+K IR) · cortar ≥N" | **(b)** — `is_on_ir` fora | servidor |
+| `routes/league._build_team_card` → `slots` | "Slots livres" do card do Hub | **(a)** (herda) | servidor |
+| `routes/league._build_team_card` → `active_count`/`cut_needed` | faixa de obrigação de corte | **(b)** | servidor |
+| `/team/<id>` → `active_count`/`ir_count` | contagem de escalação | **(b)** | servidor |
+| `routes/roster` → `active_players`/`ir_players` | composição da tela de roster | **(b)** | servidor |
+| `routes/cuts._build_keeper_sheet` → `num_keepers`/`num_ir` | sheet (transcrição do board) | **(a)** + IR exibido à parte | servidor |
+| `keeper_audit` → `len(keepers) > rounds` | aviso "não cabem na sala" | **(a)** (herda da sheet) | servidor |
+| `routes/draft_import`, `routes/late_drop` | — | **nenhuma** derivação de ocupação | — |
+
+⭐ **`empty_spots` é a ÚNICA grandeza de ocupação ainda na leitura (a)** — e tudo que é (a) na
+tabela **herda dela**, direta ou indiretamente. Premissa do enunciado **confirmada**.
+
+**2. Réplicas — a pergunta obrigatória, respondida com evidência.** ⭐ **Não há réplica no
+cliente.** `empty_spots` e `cut_needed` chegam **ambos prontos do servidor**; o JS de
+`cap_projector.html` só imprime (`proj-spots` ← `b.empty_spots`; `proj-roster` ← `d.roster`), e o
+card do Hub é Jinja puro sobre campos já calculados. O `MAX_ROSTER` **não é hardcoded em lugar
+nenhum do cliente** — vem no payload (`roster.limit`) ou do contexto. Uma varredura por
+`empty_spots|num_keepers|MAX_ROSTER|cut_needed` em `templates/` e `static/` devolve **só sítios de
+exibição**. **Conclusão: um fix na porta canônica `draft_budget` fecha o problema inteiro** — não
+sobra réplica a perseguir. É o invariante [[F10]] pagando dividendo.
+
+**3. Impacto medido ao vivo (20/08/2026 13:07 UTC) — N = ativos, K = IR.**
+
+| time | N | K | `empty_spots` (a) | reserva (a) | `empty_spots` (b) | reserva (b) | Δ vagas | Δ bid |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| Pitbull do Samba | 22 | 0 | 0 | $0 | 0 | $0 | 0 | $0 |
+| 3 peat… of pain | 16 | 0 | 6 | $5 | 6 | $5 | 0 | $0 |
+| Fazenda Pederasta | 20 | 0 | 2 | $1 | 2 | $1 | 0 | $0 |
+| mongoloides | 24 | 0 | 0 | $0 | 0 | $0 | 0 | $0 |
+| Cangaceiros da Colina | 19 | 0 | 3 | $2 | 3 | $2 | 0 | $0 |
+| **Miller Time!** | 17 | **1** | 4 | $3 | **5** | **$4** | **+1** | **−$1** |
+| AlexTheDawg | 15 | 0 | 7 | $6 | 7 | $6 | 0 | $0 |
+| Trust The Process | 25 | 0 | 0 | $0 | 0 | $0 | 0 | $0 |
+| Tropa do Jarra | 19 | 0 | 3 | $2 | 3 | $2 | 0 | $0 |
+| achane | 18 | 0 | 4 | $3 | 4 | $3 | 0 | $0 |
+| **rafaelferreirap** | 15 | **1** | 6 | $5 | **7** | **$6** | **+1** | **−$1** |
+| ESPN FANTASY LEAGUE | 19 | 0 | 3 | $2 | 3 | $2 | 0 | $0 |
+
+**Impacto total da mudança: 2 times, −$1 de bid em cada.** Os 10 times sem IR são **idênticos** nas
+duas leituras (validação 4 satisfeita). ⚠️ **A magnitude de "$2" registrada em 03/08 não se realiza
+hoje** — dependia de um time com 2 IR, e não existe nenhum. O teto continua sendo $2 por time.
+
+**4. Efeito de sinal candidato — `cannot_fill_roster` do Miller Time!.** Com a folha reconstruída em
+**$196**, a flag `cannot_fill_roster` (`empty_spots > 0 and usable < $1`) sai de **False** sob (a)
+(4 vagas, teto $1) para **True** sob (b) (5 vagas, teto $0). ⚠️ **Flip knife-edge:** ele só ocorre
+com folha **exatamente $196** — sob (a) a flag exige folha > $196, sob (b) folha > $195. Como a
+folha aqui é **reconstruída**, isto é **achado candidato, a confirmar contra o banco vivo**, não
+fato medido. Se confirmado, produz alerta vermelho no Hub e no projector e um **aviso** (não uma
+divergência) na auditoria [[OFF26-4]].
+
+**5. Divergência com o Sleeper e risco de bloqueio em 24/08.** Sob (b) o Manager fica **mais
+restritivo** que a plataforma: o keeper em IR **ocupa** uma das 22 rodadas do board, então o Sleeper
+segue em (a). Divergência hoje: **$1 por time com IR** (2 times); zero nos demais. **A auditoria
+[[OFF26-4]] NÃO compara ocupação:** suas 4 classes são de designação e salário (ausente do board,
+salário divergente, time errado, extra no board), e a única leitura de contagem é o **aviso**
+`len(keepers) > rounds` — que roda sobre a sheet (leitura (a), inalterada por esta decisão) e vive
+em `warnings`, **fora** de `blocking_reasons`. **Veredito: a mudança NÃO produz divergência
+reportada e NÃO é bloqueante de abertura em 24/08.**
+
+**6. Coerência intra-tela — a contradição existe e é visível.** Na **mesma barra sticky** do cap
+projector, para Miller Time!: *"Roster **17/22 ativos +1 IR**"* ao lado de *"Spots vazios: **4**"*
+— 22 − 17 = 5, não 4. Para rafaelferreirap: *"15/22 ativos +1 IR"* ao lado de *"Spots vazios: 6"*.
+São exatamente os 2 times com IR; nos outros 10 os dois indicadores concordam. No card do Hub a
+contradição fica **latente**: a contagem "X/22 ativos" só renderiza quando `cut_needed > 0`, e
+nenhum dos 2 times com IR está estourado hoje.
+
+**7. Propagação ao [[OFF26-13]] (achado — remédio NÃO arbitrado).** Sob (b), **22 ativos + 2 IR
+passa a ser um roster legal E COMPLETO** — o Manager deixaria de mostrar qualquer pressão de corte
+sobre ele (`empty_spots = 0`, `cut_needed = 0`), enquanto o board da fantasma continua comportando
+**22 designações** (`draft.settings.rounds`) e precisaria de **24**. A decisão de 20/08 portanto
+**legitima** a composição que o [[OFF26-13]] identifica como impossível de transcrever, e remove o
+último sinal indireto que o app dava contra ela. ⛔ Nenhum remédio é proposto aqui.
+
+**8. Outros efeitos colaterais candidatos.** Mudam de valor ou de sinal sob (b), todos **derivados
+de `empty_spots`** e portanto cobertos por um fix na porta canônica: `min_required_for_spots`
+(reserva), `usable_draft_budget` (Bid Máximo — **inclusive o publicado na keeper sheet e o oficial
+da auction**), `cannot_fill_roster` (alerta de inviabilidade, item 4), `insufficient_budget`, o
+"Spots vazios" da barra sticky e o "Slots livres" do card. ⛔ **Não mudam:** folha/cap
+([[OFF26-16]], intocada), `over_cap`, `cut_needed`/`active_count` (já em (b)), o aviso de sala da
+auditoria e qualquer gate de salário, contrato ou aquisição.
+
+**Decisões em aberto para o owner (F1 não escolhe nenhuma):** (i) **janela de aplicação — antes ou
+depois do leilão de 24/08**, sabendo que o Bid Máximo publicado na keeper sheet mudaria para 2
+times se entrar antes; (ii) se o fix vai na porta canônica `draft_budget` (a assinatura passa a
+precisar distinguir ocupação de folha) ou numa camada acima; (iii) o que fazer com a divergência
+permanente Manager × Sleeper de $1/time, que a decisão cria por desenho; (iv) confirmar o flip do
+`cannot_fill_roster` do Miller Time! contra o banco vivo antes de qualquer F2; (v) o remédio do
+[[OFF26-13]], agora que (b) legitima 22+2.
+
+---
