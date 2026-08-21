@@ -25,10 +25,10 @@ from pathlib import Path
 from . import config
 from .core import (ALREADY, ASSENTADO_LOCAL, BLOQUEADO_TETO, SETTLED,
                    choose_menu_item, is_budget_block, league_guard,
-                   modal_header_check, parse_price_value, parse_result_row,
-                   post_teto_decision, price_readback_decision,
-                   search_filter_check, select_candidate_rows_named,
-                   split_settled, url_guard)
+                   menu_label_matches, menu_labels_seen, modal_header_check,
+                   parse_price_value, parse_result_row, post_teto_decision,
+                   price_readback_decision, search_filter_check,
+                   select_candidate_rows_named, split_settled, url_guard)
 from .sleeper_api import fetch_draft, fetch_draft_id, fetch_picks
 
 
@@ -149,22 +149,38 @@ def probe(page):
     page.pause()
 
 
-def _open_set_player_menu(page, team_slot: int):
+def _open_set_player_menu(page, team_slot: int, owner_handle: str = "",
+                          log: list = None):
     """FIX4 — navega POR COLUNA, nunca por índice global de célula (o call log real:
     nth(1) de células caiu numa célula PREENCHIDA do MellowBR e o menu "Change
     Player" interceptou tudo). A coluna do slot N é a N-ésima `.team-column`;
     dentro dela, a primeira célula VAZIA (sem `.drafted`). A ordem é CANDIDATA —
-    quem decide é o menu: "Manually set a player for Team {N}" com o N esperado,
-    julgado pelo núcleo puro (`choose_menu_item`). Qualquer outra coisa → Escape e
-    aborto barulhento. Nada de varrer células tentando."""
-    # FIX9 — verificação defensiva: um #modal residual de abort anterior intercepta
-    # QUALQUER clique (o crash real de 12/08: a célula do time seguinte ficou 30s
-    # inatingível sob o SET PLAYER aberto do abort do Malik Willis). Estado sujo
-    # detectado → Escape até limpar; não limpou → abort barulhento, NUNCA clicar
-    # através.
+    quem decide é o menu, julgado pelo núcleo puro (`choose_menu_item`).
+
+    FIX12 — a prova de identidade da coluna é o RÓTULO do item de designação:
+    o HANDLE do owner do slot (âncora primária — o que a fantasma exibe desde
+    `show_team_names: "0"`) ou o genérico "Team {N}". Casamento EXATO nos dois; o
+    rótulo observado vai ao log SEMPRE (formato novo aparece no relatório em vez
+    de virar abort mudo). Qualquer outra coisa → menu fechado e aborto barulhento.
+    Nada de varrer células tentando."""
+    # FIX9/FIX12 — verificação defensiva: um #modal residual OU um menu de contexto
+    # preso de abort anterior interceptam QUALQUER clique (12/08: SET PLAYER aberto
+    # comeu 30s do time seguinte; 21/08: o menu do slot 1 derrubou os slots 2-5 em
+    # cascata). Estado sujo detectado → limpar; não limpou → abort barulhento,
+    # NUNCA clicar através.
     if _is_modal_open(page) and not _dismiss_modal(page):
         raise BoardAbort(f"Slot {team_slot}: estado SUJO — #modal residual aberto "
                          f"e o Escape não o fechou. Nada clicado.")
+    if _is_context_menu_open(page) and not _dismiss_context_menu(page):
+        # ⛔ NÃO aborta: um underlay que não fecha é hipótese de leitura errada do
+        # DOM, e abortar aqui bloquearia os 12 times por precaução. Fica no log e o
+        # clique segue NORMAL (sem force) — se o overlay for real, o Playwright
+        # recusa o clique e o time cai sozinho, sem risco de designar na coluna
+        # errada (a identidade continua provada pelo rótulo, adiante).
+        if log is not None:
+            log.append({"event": "menu_residual_nao_fechou", "slot": team_slot})
+        print(f"  ⚠️ slot {team_slot}: underlay de menu ainda visível após a "
+              f"limpeza — seguindo com clique normal (nunca forçado).")
     cols = page.locator(config.SEL_TEAM_COLUMN)
     ncols = cols.count()
     if ncols == 0:
@@ -190,25 +206,43 @@ def _open_set_player_menu(page, team_slot: int):
     action, detail = choose_menu_item(
         texts, team_slot, set_title=config.MENU_TITLE_SET_PLAYER,
         change_title=config.MENU_TITLE_CHANGE,
-        desc_prefix=config.MENU_DESC_PREFIX)
+        desc_prefix=config.MENU_DESC_PREFIX, owner_handle=owner_handle,
+        reset_marker=config.MENU_DESC_RESET_PREFIX)
+    # FIX12 — o rótulo observado é REPORTADO sempre (sucesso inclusive): é assim
+    # que uma mudança de formato do Sleeper vira linha de log em vez de mistério.
+    rotulos = menu_labels_seen(texts, config.MENU_DESC_PREFIX,
+                               config.MENU_DESC_RESET_PREFIX)
+    esperados = [h for h in [(owner_handle or "").strip()] if h] + \
+                [f"Team {team_slot}"]
+    if log is not None:
+        log.append({"event": "menu_rotulo", "slot": team_slot,
+                    "rotulos_observados": rotulos, "esperados": esperados,
+                    "ancora": (menu_label_matches(rotulos[0], team_slot,
+                                                  owner_handle)
+                               if rotulos else None),
+                    "decisao": action if action == "click" else detail})
     if action == "click":
         assert_allowed_click(texts[detail])
         menu.nth(detail).click()
         return
-    page.keyboard.press("Escape")         # fecha o menu ANTES de abortar
-    page.wait_for_timeout(300)
+    _dismiss_context_menu(page)           # FIX12: fecha o menu ANTES de abortar
     motivo = {
         "change_player": (f"menu 'Change Player' — a célula está PREENCHIDA "
                           f"(célula errada; a lista de proibições cobre o rótulo)"),
         "wrong_team": (f"o menu é de OUTRO time — a correspondência coluna↔slot "
-                       f"quebrou (esperado 'for Team {team_slot}')"),
+                       f"quebrou (esperado {esperados}, visto {rotulos})"),
+        "ambiguous": (f"mais de um item nomeia a coluna esperada {esperados} "
+                      f"(visto {rotulos}) — ambiguidade não se resolve no chute"),
+        "unreadable_label": (f"item de designação com rótulo ILEGÍVEL (visto "
+                             f"{rotulos}) — o formato do rótulo mudou; conferir o "
+                             f"DOM com `probe` antes de reabrir"),
         "no_menu": "nenhum item reconhecível no menu",
     }[detail]
     raise BoardAbort(f"Slot {team_slot}: {motivo}. Itens vistos: {texts}. "
                      f"Nada designado — parando barulhento.")
 
 
-def _modal(page, team_slot=None, wait_open=False, log=None):
+def _modal(page, team_slot=None, wait_open=False, log=None, owner_handle=""):
     """FIX7 — o container REAL do manual pick é `#modal[role=alertdialog]`
     (screenshot do abort: header "Make Manual Pick for Team N" dentro dele; a
     página de FUNDO duplica input/lista/botão — a heurística de ancestral do FIX6
@@ -234,13 +268,18 @@ def _modal(page, team_slot=None, wait_open=False, log=None):
         m = modal.first
         if team_slot is not None:
             texto = (m.inner_text() or "")
+            # FIX12: o header nomeia a coluna com o MESMO rótulo do menu — handle
+            # do owner ou "Team N". A âncora dupla vale aqui pela mesma razão.
             veredito = modal_header_check(texto, team_slot,
-                                          config.MODAL_HEADER_PREFIX)
+                                          config.MODAL_HEADER_PREFIX,
+                                          owner_handle=owner_handle)
             if veredito == "wrong_team":
                 page.keyboard.press("Escape")
-                raise BoardAbort(f"O modal aberto é de OUTRO time (esperado "
-                                 f"'{config.MODAL_HEADER_PREFIX}{team_slot}'). "
-                                 f"Nada designado.")
+                esperado = [f"{config.MODAL_HEADER_PREFIX}{h}" for h in
+                            ([owner_handle.strip()] if (owner_handle or "").strip()
+                             else []) + [f"Team {team_slot}"]]
+                raise BoardAbort(f"O modal aberto é de OUTRO time (esperado um de "
+                                 f"{esperado}). Nada designado.")
             if veredito == "unexpected":
                 page.keyboard.press("Escape")
                 page.wait_for_timeout(300)
@@ -266,6 +305,47 @@ def _modal(page, team_slot=None, wait_open=False, log=None):
     if log is not None:
         log.append({"event": "modal_ancorado", "ancora": "ancestral_fallback"})
     return anc.first
+
+
+def _is_context_menu_open(page) -> bool:
+    """FIX12 — o menu de contexto está aberto? A pergunta é feita ao UNDERLAY, não
+    ao `div.item`: o underlay é o que de fato intercepta o clique do time seguinte
+    (o dano medido em 21/08), e `div.item` é classe genérica demais para servir de
+    sinal — um falso positivo aqui bloquearia os 12 times. Instantâneo."""
+    try:
+        loc = page.locator(config.SEL_MENU_UNDERLAY).first
+        return loc.count() > 0 and loc.is_visible()
+    except Exception:
+        return False
+
+
+def _dismiss_context_menu(page) -> bool:
+    """FIX12 — fecha o menu de contexto. ⛔ Escape NÃO o fecha: os 5 screenshots de
+    abort de 21/08 mostram o MESMO menu do slot 1 ainda aberto durante os slots
+    2-5, e o `context-menu-underlay` interceptando cada clique (TimeoutError de 30s
+    por time, por uma causa que não era deles). Quem fecha é o clique no PRÓPRIO
+    underlay — elemento sem rótulo e sem ação, o dismissal que a UI oferece.
+    Escape fica como último recurso. Melhor esforço, nunca levanta."""
+    for _ in range(3):
+        if not _is_context_menu_open(page):
+            return True
+        try:
+            und = page.locator(config.SEL_MENU_UNDERLAY).first
+            if und.count() > 0:
+                # ⛔ o underlay não tem texto: nada aqui pode cair num rótulo
+                # proibido (a lista segue valendo para todo clique com rótulo).
+                assert_allowed_click(und.inner_text() or "")
+                und.click(timeout=2_000, force=True)
+            else:
+                page.keyboard.press("Escape")
+            page.wait_for_timeout(300)
+        except Exception:
+            try:
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(300)
+            except Exception:
+                break
+    return not _is_context_menu_open(page)
 
 
 def _is_modal_open(page) -> bool:
@@ -295,14 +375,15 @@ def _dismiss_modal(page) -> bool:
 
 
 def _pick_search_result(page, team_slot: int, player_name: str, position: str,
-                        nfl_team: str, log: list = None):
+                        nfl_team: str, log: list = None, owner_handle: str = ""):
     """Digita a busca NO MODAL e elege a linha pelo DOM do MODAL (FIX6 — nenhum
     locator global sobrevive: a página de fundo tem a mesma lista). Antes de
     qualquer matching, a digitação tem de ter FILTRADO (núcleo:
     `search_filter_check` — 57 linhas = fundo, abort). Critério do anti-homônimo
     intacto: posição exata; 0 ou 2+ candidatos abortam; sigla logada. ⛔ O "+"
     clicado é o da linha ELEITA."""
-    modal = _modal(page, team_slot=team_slot, wait_open=True, log=log)
+    modal = _modal(page, team_slot=team_slot, wait_open=True, log=log,
+                   owner_handle=owner_handle)
     search = modal.locator(config.SEL_SEARCH_INPUT).first
     search.click()
     search.press("Control+a")
@@ -417,7 +498,7 @@ def _visible_toast_text(page) -> str:
 
 def command_pick(page, team_slot: int, player_name: str, position: str,
                  nfl_team: str, price: int, sid: str, log: list,
-                 expected_max: int = None) -> str:
+                 expected_max: int = None, owner_handle: str = "") -> str:
     """FIX8 — envia UM comando (menu→busca→+→preço→SET PLAYER) e retorna SEM
     poll: o assentamento é ASSÍNCRONO (lag real medido: 3s a >5min — o board
     local preenchendo a célula é feedback suficiente para seguir). O TETO tem
@@ -427,19 +508,22 @@ def command_pick(page, team_slot: int, player_name: str, position: str,
     BLOQUEADO_TETO. EmptySearchResult propaga — o chamador decide (recheck da
     API / board local / estado da própria run)."""
     try:
-        _open_set_player_menu(page, team_slot)
+        _open_set_player_menu(page, team_slot, owner_handle=owner_handle, log=log)
         warn = _pick_search_result(page, team_slot, player_name, position,
-                                   nfl_team, log)
+                                   nfl_team, log, owner_handle=owner_handle)
         if warn:
             log.append({"sid": sid, "warning": warn})
         r = _set_price_and_confirm(page, price, sid=sid, log=log,
                                    expected_max=expected_max)
     except Exception:
-        # FIX9 — NENHUM caminho de erro sai do comando com menu/modal aberto:
-        # o abort do anti-homônimo (12/08) deixou o SET PLAYER aberto e o time
-        # seguinte clicou através dele (TimeoutError cru de 30s). Melhor esforço;
-        # o próximo _open_set_player_menu re-confere de qualquer jeito.
+        # FIX9/FIX12 — NENHUM caminho de erro sai do comando com menu/modal
+        # aberto: o abort do anti-homônimo (12/08) deixou o SET PLAYER aberto e o
+        # time seguinte clicou através dele (TimeoutError cru de 30s); o abort da
+        # âncora (21/08) deixou o MENU DE CONTEXTO aberto e derrubou 4 times em
+        # cascata. Melhor esforço nos DOIS; o próximo _open_set_player_menu
+        # re-confere de qualquer jeito.
         _dismiss_modal(page)
+        _dismiss_context_menu(page)
         raise
     if r == BLOQUEADO_TETO:               # FIX10: clamp detectado — nada gravado
         return BLOQUEADO_TETO
@@ -536,7 +620,8 @@ def settle_pendentes(page, draft_id: str, pendentes: list, log: list) -> dict:
                 try:
                     r = command_pick(page, item["slot"], item["name"],
                                      item.get("position", ""), "",
-                                     item["price"], item["sid"], log)
+                                     item["price"], item["sid"], log,
+                                     owner_handle=item.get("handle", ""))
                 except EmptySearchResult:
                     # sumiu da busca logo após o próprio comando desta run →
                     # sinal de sucesso LOCAL (tarefa 5), não mistério
@@ -571,7 +656,7 @@ def settle_pendentes(page, draft_id: str, pendentes: list, log: list) -> dict:
 
 def designate(page, draft_id: str, team_slot: int, player_name: str,
               position: str, nfl_team: str, price: int, sid: str,
-              log: list) -> str:
+              log: list, owner_handle: str = "") -> str:
     """Uma designação (o comando único do CLI): comando assíncrono + os MESMOS
     fecho e decisão pós-teto da campanha. Verdade continua sendo a API."""
     before = {str(p.get("player_id")) for p in fetch_picks(draft_id)}
@@ -580,7 +665,7 @@ def designate(page, draft_id: str, team_slot: int, player_name: str,
         return ALREADY
     try:
         r = command_pick(page, team_slot, player_name, position, nfl_team,
-                         price, sid, log)
+                         price, sid, log, owner_handle=owner_handle)
     except EmptySearchResult as e:
         now = {str(p.get("player_id")) for p in fetch_picks(draft_id)}
         if sid in now:
@@ -593,7 +678,8 @@ def designate(page, draft_id: str, team_slot: int, player_name: str,
     if r == BLOQUEADO_TETO:
         return BLOQUEADO_TETO
     pend = [{"sid": sid, "name": player_name, "slot": team_slot,
-             "price": price, "position": position, "cmd_at": time.monotonic()}]
+             "price": price, "position": position, "handle": owner_handle,
+             "cmd_at": time.monotonic()}]
     placar = settle_pendentes(page, draft_id, pend, log)
     if placar["falhas"]:
         raise BoardAbort(f"'{player_name}' não assentou: {placar['falhas']}")

@@ -31,7 +31,23 @@ FORBIDDEN_CLICK_LABELS = ("START DRAFT", "RESET DRAFT", "JOIN DRAFT",
 # principal, sem iframe; 264 células no DOM, sem virtualização).
 SEL_MENU_ITEM = "div.item"                      # menu de contexto da célula
 MENU_TITLE_SET_PLAYER = "Set Player"
-MENU_DESC_PREFIX = "Manually set a player for Team "   # o N confirma o time
+# FIX12 (21/08): o rótulo da coluna tem DOIS formatos e a liga alternou sem aviso —
+# o genérico "Team {N}" e o NOME DO OWNER ("...for rafadgil"), que é o que a fantasma
+# exibe desde que o metadata do draft ganhou `show_team_names: "0"` (12/12 times;
+# screenshots runs/abort_slot1..5.png). O prefixo abaixo é COMUM aos dois; o rótulo
+# esperado (handle do owner OU "Team N") é julgado no núcleo puro, com casamento
+# EXATO — ⛔ nunca "contém".
+MENU_DESC_PREFIX = "Manually set a player for "
+# ⛔ O item de RESET DE NOMINAÇÃO carrega o MESMO nome de owner ("Reset Nomination /
+# Change nominator to rafadgil") — marcador próprio para que jamais seja lido como
+# item de designação.
+MENU_TITLE_RESET = "Reset Nomination"
+MENU_DESC_RESET_PREFIX = "Change nominator to"
+# FIX12: o menu de contexto do Sleeper NÃO fecha com Escape (evidência: os 5
+# screenshots de abort de 21/08 mostram o MESMO menu do slot 1 aberto durante os
+# slots 2-5). Quem fecha é o clique no próprio underlay — o elemento que aparece
+# no erro do Playwright interceptando os cliques dos times seguintes.
+SEL_MENU_UNDERLAY = ".context-menu-underlay"
 SEL_SEARCH_INPUT = 'input[placeholder="Find player Ctrl + U"]'  # há 3 — usar o do modal
 SEL_RESULT_ROW = ".player-rank-item2"           # linha de resultado da busca
 SEL_ROW_POSITION = ".position"                  # anti-homônimo: pelo DOM, nunca pixel
@@ -48,7 +64,9 @@ SEARCH_MAX_RESULTS = 8
 # de FUNDO duplica input/lista/botão (a heurística de ancestral do FIX6 achou o
 # trio do fundo). A âncora é o #modal; a heurística vira FALLBACK logado.
 SEL_MODAL = '#modal, [role="alertdialog"]'
-MODAL_HEADER_PREFIX = "Make Manual Pick for Team "
+# FIX12: o header nomeia a coluna com o MESMO rótulo do menu (handle do owner ou
+# "Team N") — prefixo comum aos dois, rótulo julgado no núcleo puro.
+MODAL_HEADER_PREFIX = "Make Manual Pick for "
 
 # FIX4 (11/08, do call log do 1º designate): a navegação até a célula é POR COLUNA,
 # nunca por índice global — a ordem do DOM das células não corresponde a colunas

@@ -182,30 +182,127 @@ def team_totals(report: dict, team_name: str) -> dict:
             "total": sum(m["sheet_salary"] for m in rows)}
 
 
+# ── Âncora de identidade da coluna (FIX12) ────────────────────────────────────
+# O rótulo da coluna no menu de contexto tem DOIS formatos e a liga alterna entre
+# eles sem aviso: o genérico por número ("Team 7") e o NOME DO OWNER ("rafadgil"),
+# que é o que a fantasma exibe desde que o `metadata` do draft ganhou
+# `show_team_names: "0"` (21/08 — screenshots runs/abort_slot1..5.png). A âncora
+# primária é o HANDLE do owner (já disponível no mapa slot↔owner, sem chamada
+# nova); o número segue aceito como rede para uma temporada futura.
+#
+# ⛔ O casamento é EXATO (aparado, case-insensitive) — nunca "contém". Frouxidão
+# aqui designa elenco na coluna de outro time, que é exatamente o que a guarda
+# existe para impedir.
+
+def menu_target_label(text: str, desc_prefix: str = "Manually set a player for ",
+                      reset_marker: str = "Change nominator to"):
+    """FIX12 — o RÓTULO da coluna que um item de menu nomeia, ou None se o item
+    não for de DESIGNAÇÃO. Puro.
+
+    ⛔ O item de reset de nominação ("Reset Nomination / Change nominator to
+    rafadgil") carrega o MESMO nome de owner e é descartado ANTES de qualquer
+    leitura de rótulo — os dois nunca se confundem."""
+    t = text or ""
+    if reset_marker and reset_marker.lower() in t.lower():
+        return None
+    p = (desc_prefix or "").strip().lower()
+    if not p:
+        return None
+    for line in t.splitlines():
+        low = line.lower()
+        i = low.find(p)
+        if i >= 0:
+            return line[i + len(p):].strip()
+    return None
+
+
+def menu_labels_seen(menu_texts: list,
+                     desc_prefix: str = "Manually set a player for ",
+                     reset_marker: str = "Change nominator to"):
+    """FIX12 — os rótulos de designação vistos no menu, para o RELATÓRIO: uma
+    mudança futura de formato aparece no log em vez de virar abort mudo."""
+    return [lbl for lbl in
+            (menu_target_label(t, desc_prefix, reset_marker)
+             for t in (menu_texts or []))
+            if lbl is not None]
+
+
+def menu_label_matches(label, team_slot: int, owner_handle: str = ""):
+    """FIX12 — a âncora que reconheceu o rótulo: "handle" · "numero" · None.
+    Casamento EXATO após aparar (case-insensitive) — jamais substring."""
+    if label is None:
+        return None
+    lbl = str(label).strip().lower()
+    if not lbl:
+        return None
+    handle = (owner_handle or "").strip().lower()
+    if handle and lbl == handle:
+        return "handle"
+    if lbl == f"team {int(team_slot)}":
+        return "numero"
+    return None
+
+
+def duplicate_handles(slot_map: dict) -> set:
+    """FIX12 — handles que aparecem em MAIS DE UM slot: nesses, o nome do owner
+    no rótulo não PROVA coluna nenhuma. Quem chama recusa o time antes de tocar
+    o board (a prova por número continua valendo se a liga voltar a exibi-lo)."""
+    vistos, dups = {}, set()
+    for slot, v in (slot_map or {}).items():
+        h = ((v or {}).get("handle") or "").strip().lower()
+        if not h:
+            continue
+        if h in vistos and vistos[h] != slot:
+            dups.add(h)
+        vistos.setdefault(h, slot)
+    return dups
+
+
 def choose_menu_item(menu_texts: list, team_slot: int,
                      set_title: str = "Set Player",
                      change_title: str = "Change Player",
-                     desc_prefix: str = "Manually set a player for Team "):
-    """FIX4 — decisão PURA sobre o menu de contexto aberto. Retorna (ação, detalhe):
-    - ("click", i): o item i é "Set Player ... for Team {N}" com o N esperado
-      (o N casa por FRONTEIRA — "for Team 1" não casa slot 10 nem vice-versa);
+                     desc_prefix: str = "Manually set a player for ",
+                     owner_handle: str = "",
+                     reset_marker: str = "Change nominator to"):
+    """FIX4 + FIX12 — decisão PURA sobre o menu de contexto aberto. Retorna
+    (ação, detalhe):
+    - ("click", i): o item i é o "Set Player" da coluna esperada — rótulo igual ao
+      HANDLE do owner do slot (âncora primária) ou ao genérico "Team {N}" (o N casa
+      por FRONTEIRA: "Team 1" não casa slot 10 nem vice-versa);
     - ("abort", "change_player"): menu de célula PREENCHIDA — célula errada, NUNCA
       prosseguir (o call log real: "Change Player" interceptou 30s de retries);
+    - ("abort", "ambiguous"): mais de um item nomeia a coluna esperada — nada de
+      escolher o primeiro (FIX12);
     - ("abort", "wrong_team"): Set Player de OUTRO time — a correspondência
       coluna↔slot quebrou; fechar e abortar (nada de tentar a próxima);
+    - ("abort", "unreadable_label"): item de designação cujo rótulo não se lê (o
+      formato do rótulo mudou de novo) — abort barulhento, jamais designar às
+      cegas (FIX12);
     - ("abort", "no_menu"): nenhum item reconhecível."""
-    import re as _re
-    pat = _re.compile(_re.escape(f"{desc_prefix}{team_slot}") + r"(?!\d)")
-    wrong_team = False
+    casados, designacao, ilegivel = [], False, False
     for i, text in enumerate(menu_texts or []):
         t = text or ""
         if change_title.lower() in t.lower():
             return ("abort", "change_player")
-        if pat.search(t):
-            return ("click", i)
-        if set_title.lower() in t.lower():
-            wrong_team = True
-    return ("abort", "wrong_team" if wrong_team else "no_menu")
+        label = menu_target_label(t, desc_prefix, reset_marker)
+        e_designacao = label is not None or (
+            set_title.lower() in t.lower()
+            and (not reset_marker or reset_marker.lower() not in t.lower()))
+        if not e_designacao:
+            continue
+        designacao = True
+        if label is None or not label.strip():
+            ilegivel = True
+            continue
+        if menu_label_matches(label, team_slot, owner_handle):
+            casados.append(i)
+    if len(casados) == 1:
+        return ("click", casados[0])
+    if len(casados) > 1:
+        return ("abort", "ambiguous")
+    if designacao:
+        return ("abort", "unreadable_label" if ilegivel else "wrong_team")
+    return ("abort", "no_menu")
 
 
 # ── Anti-homônimo: parser do DOM real da linha de resultado (FIX5) ─────────────
@@ -254,14 +351,21 @@ TEN TEN'). Tokeniza por whitespace: posição = 1º token do vocabulário
 
 
 def modal_header_check(modal_text: str, team_slot: int,
-                       prefix: str = "Make Manual Pick for Team "):
-    """FIX7 — o header do #modal é a prova de que o dialog aberto é o manual pick
-    DO TIME CERTO. Retorna: "ok" · "wrong_team" (header presente, N de outro time
-    — fronteira: 'Team 1' não casa slot 10) · "unexpected" (dialog sem o header —
-    residual/aviso; quem chama fecha via Esc e aborta nomeando o conteúdo)."""
+                       prefix: str = "Make Manual Pick for ",
+                       owner_handle: str = ""):
+    """FIX7 + FIX12 — o header do #modal é a prova de que o dialog aberto é o
+    manual pick DO TIME CERTO. Mesma âncora dupla do menu (o header nomeia a
+    coluna do MESMO jeito): handle do owner OU "Team {N}". Retorna: "ok" ·
+    "wrong_team" (header presente nomeando outra coluna — fronteira: 'Team 1' não
+    casa slot 10) · "unexpected" (dialog sem o header — residual/aviso; quem chama
+    fecha via Esc e aborta nomeando o conteúdo)."""
     import re as _re
     t = modal_text or ""
-    if _re.search(_re.escape(f"{prefix}{team_slot}") + r"(?!\d)", t):
+    handle = (owner_handle or "").strip()
+    if handle and _re.search(
+            _re.escape(f"{prefix}{handle}") + r"(?!\S)", t, _re.IGNORECASE):
+        return "ok"
+    if _re.search(_re.escape(f"{prefix}Team {team_slot}") + r"(?!\d)", t):
         return "ok"
     if prefix in t:
         return "wrong_team"

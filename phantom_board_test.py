@@ -18,9 +18,10 @@ from tools.phantom_board.core import (
     ALREADY, PENDING, SETTLED, TIMEOUT,
     BLOQUEADO_TETO, CONFLITO, DESIGNAR, JA_ASSENTADO,
     build_slot_map, campaign_summary, choose_menu_item, conference_report,
-    draft_budget_slots, flatten_sheet,
+    draft_budget_slots, duplicate_handles, flatten_sheet,
     idempotency_decision, is_budget_block, league_guard, match_picks_to_sheet,
-    max_bid, modal_header_check, parse_pick, parse_price_value,
+    max_bid, menu_label_matches, menu_labels_seen, menu_target_label,
+    modal_header_check, parse_pick, parse_price_value,
     parse_result_row, position_matches, price_readback_decision, resolve_slot_map,
     row_matches_name, search_filter_check, select_candidate_rows,
     select_candidate_rows_named, settlement_decision,
@@ -300,6 +301,132 @@ class TestChooseMenuItem(unittest.TestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 4b-bis. FIX12 — âncora de identidade da coluna: o NOME DO OWNER (21/08)
+#
+# Fixture de CAMPO (corrida real de 21/08, slot 1 de `rafadgil`): o menu devolveu
+# o nome do owner no lugar do rótulo genérico — a liga ganhou `show_team_names:
+# "0"` e os 12 times passaram a exibir username. A guarda de então recusou
+# designar (acerto: a coluna era a certa, o RECONHECIMENTO é que falhou).
+# ══════════════════════════════════════════════════════════════════════════════
+
+MENU_CAMPO_21_08 = ["Set Player\nManually set a player for rafadgil",
+                    "Reset Nomination\nChange nominator to rafadgil"]
+
+
+class TestAncoraDeColuna(unittest.TestCase):
+
+    def test_caso_real_do_log_rafadgil_no_slot_1(self):
+        """O caso de campo, nominal: com o handle do slot, o item 0 é clicado."""
+        self.assertEqual(choose_menu_item(MENU_CAMPO_21_08, 1,
+                                          owner_handle="rafadgil"), ("click", 0))
+
+    def test_formato_por_numero_preservado(self):
+        """A liga pode voltar a exibir 'Team N' — o caminho por número sobrevive,
+        inclusive quando o handle esperado é outro."""
+        texts = ["Set Player\nManually set a player for Team 7"]
+        self.assertEqual(choose_menu_item(texts, 7, owner_handle="rafadgil"),
+                         ("click", 0))
+        self.assertEqual(choose_menu_item(texts, 7), ("click", 0))
+
+    def test_owner_de_outro_time_aborta(self):
+        """Coluna errada continua sendo recusa — o nome tem de ser O DO SLOT."""
+        self.assertEqual(choose_menu_item(MENU_CAMPO_21_08, 1,
+                                          owner_handle="michelzela"),
+                         ("abort", "wrong_team"))
+
+    def test_handle_desconhecido_nao_designa_as_cegas(self):
+        """Sem handle (mapa sem display_name), o rótulo de nome não casa nada:
+        abort barulhento, jamais designação silenciosa."""
+        self.assertEqual(choose_menu_item(MENU_CAMPO_21_08, 1),
+                         ("abort", "wrong_team"))
+
+    def test_casamento_e_exato_nunca_substring(self):
+        """⛔ Frouxidão aqui designa elenco na coluna errada: 'rafadgil' não pode
+        casar 'rafadgil2' nem 'rafa', em nenhuma direção."""
+        texts = ["Set Player\nManually set a player for rafadgil2"]
+        self.assertEqual(choose_menu_item(texts, 1, owner_handle="rafadgil"),
+                         ("abort", "wrong_team"))
+        self.assertEqual(choose_menu_item(MENU_CAMPO_21_08, 1,
+                                          owner_handle="rafadgil2"),
+                         ("abort", "wrong_team"))
+
+    def test_ambiguidade_aborta(self):
+        """Dois itens nomeando a coluna esperada não se resolvem no chute."""
+        texts = ["Set Player\nManually set a player for rafadgil",
+                 "Set Player\nManually set a player for rafadgil"]
+        self.assertEqual(choose_menu_item(texts, 1, owner_handle="rafadgil"),
+                         ("abort", "ambiguous"))
+
+    def test_rotulo_ilegivel_aborta_barulhento(self):
+        """Formato mudou de novo (item de designação sem rótulo legível) → abort
+        próprio, nunca designar às cegas."""
+        texts = ["Set Player"]
+        self.assertEqual(choose_menu_item(texts, 1, owner_handle="rafadgil"),
+                         ("abort", "unreadable_label"))
+        texts = ["Set Player\nManually set a player for   "]
+        self.assertEqual(choose_menu_item(texts, 1, owner_handle="rafadgil"),
+                         ("abort", "unreadable_label"))
+
+    def test_reset_de_nominacao_nunca_e_item_de_designacao(self):
+        """⛔ Os dois itens carregam o MESMO nome de owner: o de reset não pode
+        ser lido como designação nem sozinho no menu."""
+        self.assertIsNone(menu_target_label(
+            "Reset Nomination\nChange nominator to rafadgil"))
+        so_reset = ["Reset Nomination\nChange nominator to rafadgil"]
+        self.assertEqual(choose_menu_item(so_reset, 1, owner_handle="rafadgil"),
+                         ("abort", "no_menu"))
+
+    def test_indice_clicado_e_o_do_set_player_nao_o_do_reset(self):
+        """Menu na ordem invertida: o índice devolvido segue sendo o do Set Player."""
+        texts = ["Reset Nomination\nChange nominator to rafadgil",
+                 "Set Player\nManually set a player for rafadgil"]
+        self.assertEqual(choose_menu_item(texts, 1, owner_handle="rafadgil"),
+                         ("click", 1))
+
+    def test_username_com_o_literal_team_nao_confunde(self):
+        """Username 'Team 3' no slot 5: casa como NOME (é o handle do slot), e o
+        mesmo rótulo no slot 3 com outro handle segue casando por número — mas
+        'Team 3' num slot que não é o 3 nem tem esse handle é recusado."""
+        texts = ["Set Player\nManually set a player for Team 3"]
+        self.assertEqual(choose_menu_item(texts, 5, owner_handle="Team 3"),
+                         ("click", 0))
+        self.assertEqual(choose_menu_item(texts, 3, owner_handle="outro"),
+                         ("click", 0))
+        self.assertEqual(choose_menu_item(texts, 5, owner_handle="outro"),
+                         ("abort", "wrong_team"))
+
+    def test_rotulo_tolera_espaco_e_caixa(self):
+        """O DOM é a autoridade sobre o formato: aparar e ignorar caixa é
+        tolerância de RENDERIZAÇÃO, não afrouxamento do casamento."""
+        texts = ["Set Player\n  Manually set a player for   RafaDGil  "]
+        self.assertEqual(choose_menu_item(texts, 1, owner_handle="rafadgil"),
+                         ("click", 0))
+
+    def test_ancora_reconhecida_e_reportavel(self):
+        """Item 5 da tarefa: o rótulo observado sai do núcleo para o relatório —
+        mudança futura de formato vira linha de log, não abort mudo."""
+        self.assertEqual(menu_labels_seen(MENU_CAMPO_21_08), ["rafadgil"])
+        self.assertEqual(menu_label_matches("rafadgil", 1, "rafadgil"), "handle")
+        self.assertEqual(menu_label_matches("Team 1", 1, "rafadgil"), "numero")
+        self.assertIsNone(menu_label_matches("Team 2", 1, "rafadgil"))
+        self.assertIsNone(menu_label_matches(None, 1, "rafadgil"))
+
+    def test_handle_repetido_nao_prova_coluna(self):
+        """Handles iguais em 2+ slots: o nome deixa de ser prova (quem chama
+        desliga a âncora por nome e sobra a prova por número)."""
+        mapa = {1: {"user_id": "a", "handle": "rafa"},
+                2: {"user_id": "b", "handle": "rafa"},
+                3: {"user_id": "c", "handle": "michelzela"},
+                4: {"user_id": "d", "handle": ""}}
+        self.assertEqual(duplicate_handles(mapa), {"rafa"})
+        self.assertEqual(duplicate_handles(ENSAIO_MAPA_SLOTS), set())
+
+
+ENSAIO_MAPA_SLOTS = {s: {"user_id": str(s), "handle": h}
+                     for s, h in ENSAIO_SLOTS.items()}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 4c. Anti-homônimo: o parser do DOM real (FIX5 — o abort de 11/08 é a fixture)
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -369,6 +496,20 @@ class TestModalHeaderCheck(unittest.TestCase):
         """Dialog residual/aviso sem o header → Esc + abort nomeado (driver)."""
         self.assertEqual(modal_header_check("Draft not started", 10), "unexpected")
         self.assertEqual(modal_header_check("", 10), "unexpected")
+
+    def test_fix12_header_por_nome_de_owner(self):
+        """FIX12 — o header nomeia a coluna com o MESMO rótulo do menu: se o board
+        exibe username, o header também exibe. A âncora dupla vale nos dois."""
+        txt = "Make Manual Pick for rafadgil Assign a player"
+        self.assertEqual(modal_header_check(txt, 1, owner_handle="rafadgil"), "ok")
+        self.assertEqual(modal_header_check(txt, 1, owner_handle="michelzela"),
+                         "wrong_team")
+        self.assertEqual(modal_header_check(txt, 1), "wrong_team")
+
+    def test_fix12_header_nome_casa_por_fronteira(self):
+        """⛔ 'rafadgil' não pode casar 'rafadgil2' — nome é casamento exato."""
+        self.assertEqual(modal_header_check("Make Manual Pick for rafadgil2", 1,
+                                            owner_handle="rafadgil"), "wrong_team")
 
 
 class TestIdempotencyDecision(unittest.TestCase):
@@ -913,6 +1054,35 @@ class TestGuardasEstaticas(unittest.TestCase):
         self.assertIn("CELL_DRAFTED_CLASS", corpo)
         self.assertIn("choose_menu_item", corpo)       # decisão no núcleo puro
         self.assertNotIn("BOARD_CELL_SELECTOR", self.board)
+
+    def test_fix12_ancora_por_owner_chega_ao_menu(self):
+        """FIX12: o handle do slot (que o mapa já tem — sem chamada nova de API)
+        atravessa cli → command_pick → _open_set_player_menu, e a decisão continua
+        no núcleo puro. O rótulo observado é LOGADO sempre."""
+        corpo = self.board.split("def _open_set_player_menu")[1].split("\ndef ")[0]
+        self.assertIn("owner_handle=owner_handle", corpo)
+        self.assertIn("menu_labels_seen", corpo)
+        self.assertIn("menu_rotulo", corpo)            # evento no relatório
+        cmd = self.board.split("def command_pick")[1].split("\ndef ")[0]
+        self.assertIn("owner_handle=owner_handle", cmd)
+        pop = self.cli.split("def cmd_populate")[1].split("def main")[0]
+        self.assertIn("owner_handle=ancora", pop)
+        self.assertIn("duplicate_handles", pop)        # handle repetido não prova
+
+    def test_fix12_abort_de_time_nao_contamina_o_seguinte(self):
+        """FIX12: o menu de contexto NÃO fecha com Escape (5 screenshots de
+        21/08) — o abort fecha pelo underlay, e a abertura do time seguinte
+        re-confere o estado antes de qualquer clique."""
+        # o underlay que aparece no erro do Playwright interceptando os cliques
+        self.assertIn("context-menu-underlay", config.SEL_MENU_UNDERLAY)
+        self.assertIn("def _dismiss_context_menu", self.board)
+        abre = self.board.split("def _open_set_player_menu")[1].split("\ndef ")[0]
+        self.assertIn("_is_context_menu_open(page)", abre)   # guarda de entrada
+        self.assertIn("_dismiss_context_menu(page)", abre)   # e no abort
+        self.assertLess(abre.index("_dismiss_context_menu(page)"),
+                        abre.index("raise BoardAbort(f\"Slot {team_slot}: {motivo}"))
+        cmd = self.board.split("def command_pick")[1].split("\ndef ")[0]
+        self.assertIn("_dismiss_context_menu(page)", cmd)    # e em erro cru
 
     def test_plus_clicado_e_o_da_linha_eleita(self):
         """FIX5: o "+" vem de rows.nth(idx) — a linha que o matcher elegeu, nunca

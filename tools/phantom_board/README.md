@@ -133,6 +133,25 @@ O modal de manual pick é localizado por estrutura: o menor ancestral do botão
 rode o `probe`, abra o menu Set Player numa célula manualmente, e no Inspector examine o
 ancestral comum do input de busca e do botão — ajuste o xpath em `board._modal` se preciso.
 
+## Se o abort disser "o menu é de OUTRO time" (FIX12, 21/08)
+
+O menu de contexto nomeia a coluna de **duas** formas, e a liga alterna entre elas sem
+aviso: o genérico `Manually set a player for Team {N}` e o **nome do owner**
+(`...for rafadgil`), que é o que a fantasma exibe desde que o `metadata` do draft ganhou
+`show_team_names: "0"`. O script aceita os dois, com **casamento exato** contra o handle do
+slot (o mesmo do `draft_order`) ou contra `Team {N}` — ⛔ nunca substring.
+
+O abort traz **o rótulo visto × os esperados**, e toda designação registra o evento
+`menu_rotulo` no relatório JSON. Se o formato mudar de novo, é ali que aparece: compare
+`rotulos_observados` com `esperados` antes de mexer em qualquer seletor. O item
+`Reset Nomination / Change nominator to <owner>` carrega o mesmo nome e **nunca** é lido
+como designação.
+
+⛔ **Escape não fecha o menu de contexto do Sleeper.** Quem fecha é o clique no
+`.context-menu-underlay` — sem isso, o menu de um abort intercepta os cliques dos times
+seguintes e derruba a campanha em cascata (medido em 21/08: 4 times com `TimeoutError` de
+30s por uma causa que não era deles).
+
 ## Falhas
 
 Qualquer mismatch **aborta barulhento**: screenshot + trace (`runs/abort.png`,

@@ -20,9 +20,9 @@ from pathlib import Path
 from . import config
 from .core import (ASSENTADO_LOCAL, BLOQUEADO_TETO, CONFLITO, JA_ASSENTADO,
                    campaign_summary, classify_team_keepers, conference_report,
-                   draft_budget_slots, flatten_sheet, idempotency_decision,
-                   league_guard, match_picks_to_sheet, max_bid,
-                   resolve_slot_map, team_totals)
+                   draft_budget_slots, duplicate_handles, flatten_sheet,
+                   idempotency_decision, league_guard, match_picks_to_sheet,
+                   max_bid, resolve_slot_map, team_totals)
 from .sleeper_api import (fetch_draft, fetch_draft_id, fetch_picks,
                           fetch_rosters, fetch_users)
 
@@ -150,10 +150,19 @@ def cmd_designate(args):
                 f"draft_order (null em pre_draft), slot_to_roster_id×rosters e picks "
                 f"não cobrem o owner-alvo. Último recurso: --team-slot N (o menu do "
                 f"DOM confirma o N antes de designar).")
+        # FIX12: a âncora de identidade da coluna é o HANDLE do slot (do mesmo
+        # mapa, sem chamada nova); handle repetido em 2+ slots não prova nada e é
+        # desligado — sobra a prova por número, e o abort barulhento se ela falhar.
+        handle = (slot_map.get(int(team_slot)) or {}).get("handle", "")
+        if (handle or "").strip().lower() in duplicate_handles(slot_map):
+            print(f"⚠️ handle '{handle}' aparece em mais de um slot — âncora por "
+                  f"nome DESLIGADA para esta designação (sobra 'Team {team_slot}').")
+            handle = ""
         log.append({"event": "slot_resolvido", "team_slot": int(team_slot),
-                    "source": slot_source})
+                    "source": slot_source, "handle": handle})
         verdict = designate(page, draft_id, int(team_slot), alvo["name"],
-                            alvo["position"], "", price, alvo["sid"], log)
+                            alvo["position"], "", price, alvo["sid"], log,
+                            owner_handle=handle)
         print(f"\n✅ {alvo['name']} → Team {team_slot} (${price}): {verdict} "
               f"(confirmado na API, não no board)")
         ok = True
@@ -229,9 +238,18 @@ def cmd_populate(args):
         print(f"Mapa slot↔owner: {len(slot_map)} slots via {slot_source}")
         slots = sorted(slot_map) if args.all else [int(args.team_slot)]
 
+        # FIX12: handle repetido em 2+ slots não PROVA coluna nenhuma — nesse caso
+        # a âncora por nome é retirada (sobra a prova por número) e o evento vai ao
+        # relatório. ⛔ Nada de aceitar um nome ambíguo como prova.
+        dups = duplicate_handles(slot_map)
+        if dups:
+            print(f"⚠️ handles repetidos no mapa ({sorted(dups)}) — nesses times a "
+                  f"âncora por nome do owner NÃO prova a coluna e fica desligada.")
+
         for slot in slots:
             owner = slot_map[slot]["user_id"]
             handle = slot_map[slot]["handle"]
+            ancora = "" if (handle or "").strip().lower() in dups else handle
             team_rows = [r for r in rows if r["owner_id"] == owner]
             res = {"slot": slot, "handle": handle,
                    "team_name": team_rows[0]["team_name"] if team_rows else "?",
@@ -278,7 +296,8 @@ def cmd_populate(args):
                                                r["sid"], res["eventos"],
                                                expected_max=max_bid(
                                                    budget, gasto, picks_feitos,
-                                                   total_slots))
+                                                   total_slots),
+                                               owner_handle=ancora)
                     except EmptySearchResult:
                         # tarefa 5: comandado NESTA run? sinal de sucesso local.
                         if any(pd["sid"] == r["sid"] for pd in pendentes):
@@ -337,6 +356,7 @@ def cmd_populate(args):
                     pendentes.append({"sid": r["sid"], "name": r["name"],
                                       "slot": slot, "price": r["salary"],
                                       "position": r["position"],
+                                      "handle": ancora,
                                       "cmd_at": _time.monotonic()})
                     gasto += r["salary"]
                     picks_feitos += 1
