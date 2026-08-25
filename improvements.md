@@ -1,11 +1,11 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 25/08/2026 (sessão **MAN-OFF26-IMPORT-CLASSIF-REG-F1**, **docs-only — zero código**: nascem **[[OFF26-34]] 🔲 Média** e **[[OFF26-35]] 🔲 Média** de observação de campo do owner logo após o import do FA auction, com **diagnose F1 medida no banco VIVO** (`/data/dynasty.db`, somente-leitura). ⭐ **A reconciliação fecha e soma:** draft `1396615822058721280` = **264 picks** = **212 keepers excluídos** + **52 arremates**; dos 52, **37 reativações** de `Player` existente e **15 criados** (ids **315-329**, `created_at 02:05:36`) — e os **15 criados SÃO exatamente a fila Cat B** aprovada pelo owner; dos 15, **11 com sid numérico** e **4 defesas sem sid**. **37+15=52 · 11+4=15 · 212+52=264.** ⭐ **Achado estrutural que explica tudo:** `find_player_by_sleeper_id` filtra `is_dropped=False` e **num leilão de FA todo arrematado é dropado** — logo **nenhum arremate pode cair em `matched`**, e os 52 passaram pela via de resolução manual. O "48 com match · 4 sem match" lido na tela era **preview RE-EXECUTADO** depois do import, com as 4 defesas ainda sem sid. **DOIS vereditos categóricos:** **(1) tipo de aquisição = DADO errado, não rótulo** — gravado `auction_draft` (**52** contratos ano 1), mas o vocabulário canônico do rebuild [[F8]] reserva `auction_draft` ao **Startup Auction de 2025** (`rounds>=20` + 1ª liga da cadeia) e manda `fa_auction` para qualquer outro leilão; o rótulo "Startup Auction" está **certo para o valor gravado**. Efeito em salário/contrato/rollover: **NENHUM** (`_AUCTION_TYPES` é **código morto**); efeito real em **censo por coorte** ([[OFF26-32]]/[[OFF26-33]] filtram por `fa_auction` e não achariam os 52). **(2) posição/time NFL = buraco de DADO, ⛔ NÃO de exibição** — `record_acquisition` aceita `position=` e **nenhum dos 6 sítios de chamada o passa**, `nfl_team` nem parâmetro tem; foto sai só de `sleeper_player_id` (por isso Ferguson tinha foto e `?`). ⭐ **O sync #119 (03:49:43) fechou os achados 2 e 3 sozinho** — casou as 4 defesas por nome normalizado (o pool deriva `"Carolina Panthers"` etc., idêntico ao que o import gravou), `players_added=0`, **zero duplicatas**; estado final **0 sem posição · 0 sem sid · fila 0 · 264 em roster**. ⚠️ **As causas no código permanecem** e reproduzem na próxima aquisição. ⚠️ **Premissa do prompt REFUTADA:** Smack/Okonkwo/Claiborne/Lloyd **não** eram anteriores ao leilão — `created_at 02:05:36`, nascidos no próprio import; **não há defeito anterior a 2026**. ⚠️ **Achado lateral medido, candidato a item próprio (não arbitrado):** o contador do sync **sub-reporta** — `players_updated` só incrementa em troca de time e a lógica de drop não tem contador, então o #119 exibiu "0 atualizados, 0 novos" tendo escrito 12+ linhas. 176→178 rows · 75→77 seções; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff. **F2 não iniciada — aguardando o owner.**)
 > Atualizado em: 24/08/2026 (sessão **MAN-UX-PAINEL-OFFSEASON-REG**, **docs-only — zero código**: nascem **[[UX32]] 🔲 Alta** e **[[UX33]] 🔲 Baixa** de uma observação de campo do owner no **Painel de Intertemporada, horas antes do FA auction** — o único momento em que o painel é exercitado de verdade. ⭐ **Três achados, DOIS itens: o critério foi o remédio, não a tela.** **[[UX32]] (Alta, consequência de DADO):** o passo 7 (FA Auction) oferece "Ir para Auction Log" → `/auction` e **nenhum caminho** ao `/draft_import` — o painel **conduz à rota defeituosa num passo que grava contrato e salário**. Risco nomeado em duas camadas: season **2025 fixa** ([[OFF26-28]], ABERTO) **e** ausência da lista de exclusão no `/auction` — o keeper recomprado na pré-rodada viraria **contrato ano 1** ([[OFF26-11]]). ⚠️ **Dois achados que a observação do owner não alcançou:** o **passo 5 aponta para a MESMA tela** (mesma exposição, próxima temporada) e **`/draft_import` não tem porta em lugar nenhum da UI** além do `/cuts/keeper_sheet` — nem no dropdown Admin (8 itens) nem no `/admin`. **[[UX33]] (Baixa, fidelidade):** (a) passo 6 exibido **Pendente** com o fluxo inteiro concluído — ⭐ a causa medida é que a detecção automática **existe e está ligada ao artefato ERRADO** (`CutWindowAudit` da janela selada **aposentada** em 07/08, [[OFF26-1]]; quem a urna produz é `LateDropAudit`), e é o único passo sem ação manual de conclusão; (b) "Checklist sequencial" com 3/4/5 ✅ e 1 Pendente / 2 Bloqueada — o mecanismo real tem só **duas** travas (2←1, 4←2+3) e `done` vence `locked`. ⚠️ Adendo estrutural: o modelo de conclusão é **MISTO** (1/2/6 derivados de estado × 3/4/5/7 flags de AppConfig) e a tela não distingue os dois. **As duas perguntas de desenho ficam ABERTAS, não arbitradas** (conclusão do passo 6: automática religada × manual; sequencialidade: afrouxar × reordenar × dependências mal declaradas). Contexto que tornou tudo visível: o FA auction **migrou da fantasma para a liga REAL** e a diagnose **MAN-OFF26-IMPORT-LIGA-REAL-F1** provou em campo que o import **aceita draft de qualquer liga** (deriva a liga do `draft_id`, sem validação de origem). Cross-ref **recíproco** mínimo no [[OFF26-28]] (status, prioridade e texto restantes **intocados**). 174→176 rows · 73→75 seções; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff. **F1/F2 não iniciadas — aguardando o owner.**)
 > Atualizado em: 21/08/2026 (sessão **MAN-OFF26-24-FIX-ANCORA**, **código**: destrava a população do board da fantasma para o leilão de 24/08. **Defeito:** a guarda de identidade da coluna reconhecia só o rótulo genérico `for Team {N}`; o `metadata` do draft ganhou `show_team_names: "0"` e o Sleeper passou a exibir **nome do owner** — **12/12 confirmado no DOM real** (`Manually set a player for rafadgil`). ⭐ **A guarda acertou ao abortar** (a coluna ERA a certa; falhou o reconhecimento, não a correspondência). **FIX12:** âncora primária = **handle do owner**, já disponível no mapa `draft_order` (⛔ zero chamada nova de API); `Team {N}` preservado como rede; casamento **EXATO** (aparado, case-insensitive) — ⛔ nunca substring; ambiguidade, rótulo ilegível e coluna errada abortam barulhento, cada um com detalhe próprio; handle repetido em 2+ slots **desliga a âncora por nome** (não prova coluna). ⚠️ **Adendo material medido, fora das premissas do prompt:** o **header do modal** usa o MESMO rótulo (`Make Manual Pick for MellowBR`) — sem estendê-lo, o fix só adiaria o bloqueio um passo; `modal_header_check` ganhou a mesma âncora dupla. **Cascata (slots 2-5 com TimeoutError de 30s):** ⛔ **Escape NÃO fecha o menu de contexto do Sleeper** (os 5 screenshots de abort mostram o MESMO menu do slot 1 aberto) — quem fecha é o clique no `.context-menu-underlay`; abort de time agora limpa a página, e a entrada re-confere sem abortar (falso positivo bloquearia os 12 times). Rótulo observado vai ao relatório em **toda** designação (`menu_rotulo`) — mudança futura de formato vira log, não abort mudo. **Ensaio real:** `designate` ponta a ponta, Eli Raridon → slot 5 (MellowBR) $1, **assentado e conferido na API** (30,4s), pick única no board. 134→151 testes (17 novos); suítes vizinhas verdes; gate [[O7]] não dispara (zero CSS/template). [[OFF26-24]] segue 🔲 até a população real.)
 > Atualizado em: 20/08/2026-pt4 (sessão **MAN-OFF26-12-UX31-REG-REVERTE**, **docs-only — zero código**: ↩️ **REVERTE o encerramento prematuro da sessão -pt3.** [[OFF26-12]] volta a 🔲 (**decisão de liga EM REVISÃO**) e [[UX31]] volta a **EM ANÁLISE**, com sintoma e **fork restaurados verbatim**. **Erro 1:** o owner havia instruído, **antes** da -pt3, que com a regra de IR em revisão os dois itens ficam em análise — o prompt executado era **anterior à instrução e a contrariou**. **Erro 2 — salto de superfície:** a -pt3 promoveu a medição do **draft fake** (colhida no **board do leilão**) a **régua universal**, e a generalização entrou no prompt **como premissa, não como pergunta**. ⭐ **Registrado agora como PERGUNTA ABERTA:** *a régua do board do leilão e a régua do limite de roster na temporada podem ser legitimamente diferentes, e a medição disponível cobre apenas a primeira* — board **medido** (J. Higgins), temporada **sem medição** (Sleeper tem slots de IR próprios; **regulamento 1.3** diz que não integram o total). Se confirmar, **a contagem de ativos NÃO está errada** — são duas superfícies, não uma régua invertida. **Via de verificação do owner:** a **configuração da liga real** — ⭐ **consulta, não experimento**, não toca board. ✅ **Fora da suspensão:** o achado de visibilidade do Hub segue **FIRME** (card sem sinal algum de IR quando não há obrigação de corte) — defeito sob **qualquer** régua, pode avançar sem a decisão de liga. **Medição do draft fake preservada como fato, com escopo BOARD declarado.** Histórico **íntegro e verificado por script** — 68/68 linhas do UX31 original restauradas, e a seção do OFF26-12 reintegrada do archive com o encerramento rotulado **REVERTIDO** + decisão intermediária + diagnose F1 verbatim. ⭐ **Lição de método registrada no [[UX31]]** p/ o [[MAN-METH-REG]]: **compatível não é discriminante — testar contra a superfície real**; e o **vetor** — a generalização chegou redigida como premissa no prompt e o gate de refutação **a aceitou sem testar a 2ª superfície**. Mantidos: gate de mockup, folha imóvel ([[OFF26-16]]), keeper sheet fora. **Nenhum ID novo; prioridades inalteradas** (Alta / Média). 174 rows (estável) · 72→73 seções (OFF26-12 volta do archive); auditor exit 0, **0 avisos**. ⛔ **As 3 sessões de IR de 20/08 foram docs-only — o código está exatamente onde estava.** Encerra o arco de IR; **próximo prompt: liga fantasma.**)
 > Atualizado em: 20/08/2026-pt3 (sessão **MAN-OFF26-12-UX31-REG-FECHA**, **docs-only — zero código**: **[[OFF26-12]] ✅ ENCERRADO SEM CÓDIGO** e **[[UX31]] reescrito com o sinal invertido**. A discussão de liga sobre IR percorreu **três estados em 20/08 e fechou no ponto de partida** — (1) leitura (b) *IR não consome vaga*; (2) refinamento pelo *estado no momento do leilão*; (3) ⭐ **medição que encerrou a deliberação**: no **draft fake do owner** (J. Higgins) o Sleeper **não distingue** keeper em IR no board ⇒ **a vaga extra da (b) NÃO É EXERCÍVEL**; (4) **decisão final: não mudar nada**, manter a régua da plataforma — motivação declarada = simplicidade e facilidade de rodar o script da fantasma ([[OFF26-24]]). A régua vigente **já era** a decidida (`draft_budget` filtra só `is_dropped`), então **zero código**; folha intocada ([[OFF26-16]]). Encerramento pela convenção do [[OFF26-31]] (19/08): **✅ + seção migrada verbatim ao archive** ([[O3]]), com a decisão intermediária e a diagnose F1 dos 12 times **preservadas e rotuladas SUPERADAS**. ⚠️ **[[UX31]] precisou de reescrita, não de nota:** a decisão final **matou o fork de desenho** e pôs o defeito **do outro lado** — ✅ o contador de vagas está CERTO; ❌ quem diverge é a **contagem de ativos do [[UX25]]/-b** (desconta o IR). ⭐ Sintoma reescrito como **falso negativo SILENCIOSO de obrigação**: 22 ativos + 1 IR exibe "22/22 regular" com 23 ocupantes. ⭐ **Achado novo da reescrita: os dois defeitos se escondem mutuamente** — o caso 22+1 é justamente um caso **sem** `cut_needed`, e a condicional do Hub esconde a linha inteira. Prioridade **Média mantida com justificativa** (classe piorou, mas a janela de 20/08 fechou e o leilão de 24/08 não depende desta contagem) + **gatilho de reescalada declarado**. Mantidos: gate de mockup, folha imóvel, keeper sheet fora. ⚠️ Nota factual registrada para o mockup: a plataforma tem **dois** comportamentos (board do draft × 2 slots de reserva em temporada) — tensão do [[OFF26-13]], **sem remédio arbitrado**. **Nenhum ID novo.** 174 rows (estável) · 73→72 seções (a do OFF26-12 saiu para o archive); auditor exit 0; gate [[O7]] não dispara. **F1/F2 não iniciadas — aguardando o owner.**)
-> Atualizado em: 20/08/2026-pt2 (sessão **MAN-UX-IR-SLOTS-REG**, **docs-only — zero código**: nasce **[[UX31]] 🔲 Média** — *cap projector e League Hub contam vaga com IR por réguas DIFERENTES, lado a lado*. No projector "Spots vazios" (IR ocupa) e "Roster X/22 ativos (+K IR)" ([[UX25]]-b, IR fora) aparecem **simultâneos e discordantes**; no Hub a contagem de ativos **só renderiza sob `cut_needed > 0`**, então para time com IR e **sem** excesso o dado de IR fica **invisível** e sobra na tela o número da régua **contrária à regra de liga**. **Regra de liga (20/08):** já em IR no leilão ⇒ não ocupa vaga; lesionado **arrematado** ⇒ ocupa vaga normal — ⭐ discrimina o **estado no momento do leilão**, não a fase do calendário. ⭐ **Fork de desenho registrado EM ABERTO e não arbitrado:** (A) alinhamento nas duas telas × (B) simulador por jogador em IR no projector; Hub anotado como candidato natural a (A) **sem decidir**. ⛔ **Gate: F2 só após mockup comparativo aprovado.** ⛔ **Folha salarial NÃO se move** ([[OFF26-16]]) — distinção nominal ao [[IR-CLEANUP]] (o toggle removido em 04/08 *aparentava* mexer no cap; ocupação é só composição). ⛔ **Keeper sheet fora de escopo** (Bid Máximo é número oficial dos 12 owners). ⚠️ **Divergência regra × plataforma DEFERIDA pelo owner** (draft fake de 20/08: o Sleeper conta keeper em IR como ocupante normal do board) — registrada como contexto medido, item separado. **Namespace:** UX29/UX30 já ocupados → **UX31** (5ª vez que o ID sugerido no prompt colidiria — [[MAN-METH-REG]]); nasce como **um item**, com **condição de split declarada** para a F2 se o fork sair em (B). 173→174 rows, 72→73 seções; auditor exit 0. Gate [[O7]] não dispara (nenhum .css/.html no diff). **F1/F2 não iniciadas — aguardando o owner.**)
 > 📁 Entradas anteriores em **`improvements_sessions.md`** (101 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
@@ -192,6 +192,8 @@
 | UX31 | **Contagem de vaga com IR: cap projector e League Hub usam réguas DIFERENTES lado a lado** — 🔲 **EM ANÁLISE, suspenso até a liga definir a regra de IR** ([[OFF26-12]] reaberto). ↩️ **Reescrita da sessão `...-FECHA` REVERTIDA:** o sintoma volta a ser **contradição entre dois indicadores** (e não "sinal invertido") e o **fork de desenho está restaurado — congelado, não morto** ((A) alinhamento × (B) simulador; ⛔ escolher exige saber qual régua vale). ⭐ **PERGUNTA ABERTA registrada:** *a régua do board do leilão e a régua do limite de roster na temporada podem ser legitimamente diferentes, e a medição disponível cobre apenas a primeira* — board **medido** (draft fake, J. Higgins: IR ocupa), temporada **sem medição** (Sleeper tem slots de IR próprios; regulamento 1.3 diz que não integram o total). Se confirmar, **a contagem de ativos NÃO está errada** — são duas superfícies, não uma régua invertida. **Via de verificação (owner):** a **configuração da liga real** informa se o slot de IR conta no limite em temporada — ⭐ **consulta, não experimento**; não toca board. ✅ **FORA da suspensão — achado do Hub FIRME:** para time com IR e sem obrigação de corte o card **não dá sinal algum de que há IR** (o `{% if cut_needed > 0 %}` esconde a linha inteira) — **defeito sob QUALQUER régua, pode avançar sem a decisão de liga**. ⭐ **Lição de método registrada** (reincidência do padrão de superfície, p/ o [[MAN-METH-REG]]): **compatível não é discriminante — testar contra a superfície real**; a generalização chegou **redigida como premissa no prompt** e o gate de refutação a aceitou sem testar a 2ª superfície. ⛔ Mantidos: gate de mockup, folha imóvel ([[OFF26-16]], ≠ [[IR-CLEANUP]]), keeper sheet fora de escopo — MAN-UX-IR-SLOTS-REG/MAN-OFF26-12-UX31-REG-FECHA/**MAN-OFF26-12-UX31-REG-REVERTE** | Média | 🔲 |
 | UX32 | ⭐ **Painel de Intertemporada CONDUZ ao caminho defeituoso no passo que grava contrato** — observado pelo owner em **24/08/2026, horas antes do FA auction**, usando o painel na operação real da janela. O passo 7 (FA Auction) oferece **"📝 Ir para Auction Log" → `/auction`** ([offseason.html:320](templates/offseason.html#L320)) e **não oferece caminho nenhum** para `/draft_import`, que é a porta correta em 2026 (aplica a **lista de exclusão congelada** e grava contrato ano 1 pela porta canônica `record_acquisition`). ⛔ **Não é usabilidade — é consequência de DADO:** `/auction` carrega o defeito ABERTO do [[OFF26-28]] (season **2025 fixa no cliente**), então quem seguir o painel faz nascer contrato com `contract_start_season`, `SalaryHistory.season` e `AuctionLog.season` **errados**; e o `/auction` **não aplica a lista de exclusão nem o discriminador keeper × arremate**, então um keeper recomprado na pré-rodada viraria **contrato ano 1** (o dano que o [[OFF26-11]] existe para impedir). ⚠️ **Achado NÃO observado pelo owner:** o **passo 5 (Rookie Draft) aponta para a MESMA tela** ([offseason.html:278](templates/offseason.html#L278)) — mesma exposição, próxima temporada (em 2026 o rookie draft correu fora do board e foi reparado pelo one-shot do [[OFF26-26]]). ⚠️ **Segundo achado de navegação:** `/draft_import` **não tem porta em lugar nenhum da UI** além de `/cuts/keeper_sheet` — não está no dropdown Admin (8 itens, [base.html:60-69](templates/base.html#L60-L69)) nem no `/admin`. Contexto que tornou o achado visível: o FA auction **migrou da liga fantasma para a liga REAL** (23-24/08) e o import foi validado em campo aceitando draft de **qualquer** liga (deriva a liga do próprio `draft_id`, **sem validação de origem** — MAN-OFF26-IMPORT-LIGA-REAL-F1). ⛔ Registro apenas; desenho não arbitrado — MAN-UX-PAINEL-OFFSEASON-REG | **Alta** (consequência de dado num passo de escrita; a gravidade cai se o [[OFF26-28]] fechar antes) | 🔲 |
 | UX33 | **Painel de Intertemporada: o modelo do fluxo divergiu do fluxo real de 2026** (dois achados de fidelidade, mesmo sítio de remédio — `_get_step_statuses`) — observado na mesma passada de 24/08/2026. **(a) Passo 6 (Definir Keepers / Cortes) exibido PENDENTE com tudo concluído na prática:** o fluxo de 2026 rodou inteiro (cortes no Sleeper → sync → sheet provisória → urna do late drop → execução manual → sync final → **sheet DEFINITIVA, 212 keepers** + **lista de exclusão congelada 22/08 09:02**), mas a conclusão do passo é **derivada** de `CutWindowAudit(season, is_canonical=True)` ([offseason.py:193-195](routes/offseason.py#L193-L195)) — o snapshot da **janela selada APOSENTADA** ([[OFF26-1]] ETAPA2). ⭐ **A detecção automática existe e está ligada ao artefato ERRADO:** a urna produz `LateDropAudit`, não `CutWindowAudit`. E o passo 6 é o único sem ação de conclusão manual (só links), enquanto 5 e 7 têm "✅ Marcar como concluído". **(b) Sequencialidade declarada que o processo não segue:** o painel se anuncia "**Checklist sequencial — complete cada etapa em ordem**" ([offseason.html:7](templates/offseason.html#L7)), mas hoje 3/4/5 estão ✅ com **1 pendente** (standings vazios) e **2 bloqueada por dependência da 1**; o mecanismo real tem só **duas** travas (2 ← 1; 4 ← 2+3) e `done` tem precedência sobre `locked`. ⚠️ **Modelo de conclusão MISTO, não uniforme:** 1/2/6 derivam de estado do sistema; 3/4/5/7 são flags de `AppConfig` — o painel não distingue os dois na tela. **Perguntas abertas, não arbitradas:** (1) o passo 6 deve concluir por **detecção automática** (religada ao artefato certo) ou por **ação manual** como o 7 — as duas têm precedente na própria tela? (2) a sequencialidade deve ser **afrouxada**, **reordenada**, ou o que está mal declarado são as **dependências entre etapas**? — MAN-UX-PAINEL-OFFSEASON-REG | Baixa (fidelidade do painel; zero consequência de dado — nenhum dos dois altera o que é gravado) | 🔲 |
+| OFF26-34 | ⭐ **O import do FA auction 2026 gravou classificação e identidade erradas nos 52 arremates** — observado pelo owner em **24-25/08/2026** e **medido no banco vivo** na mesma sessão. ⛔ **Cap, salário e contrato ano 1 CORRETOS**; o defeito é de classificação e identidade. **Reconciliação medida (soma verificável):** o draft `1396615822058721280` tem **264 picks** = **212 keepers excluídos** + **52 arremates**, e os 52 foram ingeridos (`auction_log`, token `[ref:draft:…]`). ⭐ **Os 52 passaram pela via "sem match" — e isso é ESTRUTURAL, não acidente:** `find_player_by_sleeper_id` filtra `is_dropped=False` ([player_lookup.py](player_lookup.py)), e num **leilão de FA todo arrematado é, por definição, dropado** — logo **nenhum** arremate pode cair em `matched`, nunca. Dos 52: **37 resolvidos sobre `Player` existente** (o caso canônico "dropado e recomprado", `_dropped_by_sid`) e **15 criados novos** (ids **315-329** contíguos, `created_at 2026-08-25 02:05:36`) — **os 15 criados SÃO exatamente a fila de revisão Cat B** que o owner aprovou. Destes 15: **11 com sid numérico** (foto renderiza, posição vazia) e **4 defesas sem sid** (`CAR`/`LAC`/`KC`/`MIN`). ⚠️ **Premissa REFUTADA:** Trey Smack, Chig Okonkwo, Demond Claiborne e MarShawn Lloyd **não** eram anteriores ao leilão — os quatro têm `created_at 02:05:36`, nascidos **no próprio import**. Não há defeito anterior a 2026. **Três achados, um remédio (mesmo sítio de escrita):** **(1) tipo = DADO errado, não rótulo — ÚNICO ACHADO AINDA VIVO:** [draft_import.py:155](routes/draft_import.py#L155) grava `auction_draft` para qualquer leilão, mas o vocabulário canônico é o do rebuild [[F8]] ([sync_sleeper.py:867-882](sync_sleeper.py#L867-L882)): `rounds >= 20` **e** primeira liga da cadeia = `auction_draft` (**o Startup Auction de 2025**), **qualquer outro leilão = `fa_auction`**. O rótulo "Startup Auction" ([roster.py:374](routes/roster.py#L374)) está **correto para o valor gravado**. **Medido: 52 contratos ano 1 com `auction_draft`.** **(2) posição e time NFL nascem vazios — DADO FECHADO, CAUSA ABERTA:** `record_acquisition` aceita `position=` e **nenhum dos 6 sítios de chamada o passa**; `nfl_team` **nem parâmetro tem** ([models.py:382-412](models.py#L382-L412)). ⛔ **NÃO é defeito de exibição** — a coluna estava vazia (`created_at 02:05` × `updated_at 03:49`, e o sync é o único escritor do campo); a macro renderizou `?` com fidelidade ([_macros.html:51,59](templates/_macros.html#L51-L59)). **(3) 4 defesas sem sid — DADO FECHADO, CAUSA ABERTA:** o confirm só grava id numérico ([draft_import.py:410](routes/draft_import.py#L410)) e DEF é sigla ([[OFF26-4]]); enquanto durou, **travaria o congelamento da lista de exclusão de 2027** ([keeper_exclusion.py:239-245](keeper_exclusion.py#L239-L245)). ⭐ **O sync #119 (25/08 03:49:43) fechou os achados 2 e 3 sozinho** — casou as 4 defesas por nome normalizado, preencheu sid/posição/time NFL e criou **0** duplicatas; hoje o banco tem **0 sem posição, 0 sem sid, fila de revisão 0**. ⚠️ **As causas no código permanecem e reproduzem na próxima aquisição** — MAN-OFF26-IMPORT-CLASSIF-REG-F1 | **Média** (zero efeito em cap/salário/rollover — `_AUCTION_TYPES` do `salary_engine` é **código morto**; o efeito é em **censo por coorte**, [[OFF26-32]]/[[OFF26-33]]) | 🔲 |
+| OFF26-35 | **Nada impede a segunda ingestão dos mesmos 52 arremates a partir do draft paralelo da liga oficial** — na madrugada de **25/08/2026** o co-admin replicou o resultado do leilão **na liga oficial**, forçando cada designação pelo valor exato do lance ("Commish forced winning offer"); os valores conferem com os do Manager (Garrett Wilson $42, Marvin Harrison $42, Chig Okonkwo $2, MarShawn Lloyd $2, Baltimore Ravens $3). Existe, portanto, um **segundo draft completo com os mesmos picks**. ⛔ **A idempotência do importador é por `draft:<draft_id>:<pick_no>`** ([draft_import.py:191](routes/draft_import.py#L191)) — **`draft_id` diferente ⇒ token diferente ⇒ ingestão nova** — e não há validação de origem da liga (provado em campo por **MAN-OFF26-IMPORT-LIGA-REAL-F1**, ver [[UX32]]: o import pede só o `draft_id` e **deriva** a liga dele). Nada foi importado do draft paralelo; o registro existe para que a armadilha **não dependa da memória de quem operou**. ⚠️ **Dano medido, não presumido:** os 52 hoje têm `sleeper_player_id` e estão em roster, então o re-import cairia de novo na via de resolução e o owner **teria de resolver pick a pick** — o dano não seria silencioso, mas um "reativar" repetido duplicaria `SalaryHistory` + `AuctionLog` da mesma season e reporia `contract_year=1`. ⭐ **Contrapartida a considerar antes de decidir:** o sync **#119** encontrou os 52 já nos rosters oficiais (`players_added=0`), isto é, **a replicação completou**; com o leilão de 2026 agora na cadeia da liga real, um rebuild [[F8]] futuro o classificaria como `fa_auction` — **o mesmo evento que cria o risco de dupla ingestão é o que faria o [[OFF26-34]] se auto-corrigir**. As duas coisas precisam ser decididas juntas. ⛔ Remédio **não arbitrado** (guarda de origem × guarda por conjunto × só runbook) — MAN-OFF26-IMPORT-CLASSIF-REG-F1 | **Média** (nada quebrado hoje; é armadilha armada) | 🔲 |
 
 ---
 
@@ -8690,3 +8692,291 @@ provisória × definitiva).
 
 ---
 
+
+### OFF26-34 — Import do FA auction 2026 grava classificação e identidade erradas nos 52 arremates
+
+🔲 **Registrado em 25/08/2026 (MAN-OFF26-IMPORT-CLASSIF-REG-F1) — registro + diagnose F1
+read-only, medida no banco VIVO, zero código.** Prioridade **Média**. ⛔ Remédio **não arbitrado**;
+reparo dos registros afetados é **escopo próprio, com backup**.
+
+⛔ **Nada aqui é bloqueante.** Cap, salário e **contrato ano 1 conferidos e corretos** em todos os
+casos; o League Hub fecha nos 12 times. O defeito é de **classificação e identidade**.
+
+⚠️ **Leia primeiro o estado:** dos três achados, **só o (1) segue vivo no dado**. Os achados (2) e
+(3) foram **fechados no dado pelo sync #119** (25/08 03:49:43) — mas **as causas no código
+permanecem intactas e reproduzem na próxima aquisição**. O item existe pelas causas, não pelos
+sintomas.
+
+#### A operação e a reconciliação MEDIDA
+
+FA auction de 2026, draft `1396615822058721280`, importado em **25/08/2026 02:05** (UTC) pela porta
+correta (`/draft_import`, modo auction). Medição sobre `/data/dynasty.db` em modo somente-leitura:
+
+| conjunto | n | evidência |
+|----------|---|-----------|
+| picks do draft | **264** | maior `pick_no` no token `[ref:draft:1396615822058721280:264]` |
+| keepers excluídos pela lista congelada | **212** | resumo do import + keeper sheet de 22/08 |
+| **arremates ingeridos** | **52** | `COUNT(auction_log)` com o token do draft |
+| — resolvidos sobre `Player` **existente** (reativação) | **37** | 52 − 15 |
+| — **criados novos** | **15** | ids **315-329** contíguos, `created_at 2026-08-25 02:05:36` |
+| — — criados **com** `sleeper_player_id` numérico | **11** | 15 − 4 |
+| — — criados **sem** `sleeper_player_id` (defesas) | **4** | `CAR`, `LAC`, `KC`, `MIN` |
+| fila de revisão Cat B aprovada pelo owner | **15** | **= exatamente os 15 criados** |
+| fila de revisão Cat A | **0** | — |
+| roster vivo após o import | **264** | `212 + 52` ✓ |
+
+Somas verificáveis: **37 + 15 = 52**; **11 + 4 = 15**; **212 + 52 = 264**.
+
+⭐ **Por que os 52 passaram TODOS pela via "sem match" — é estrutural, não acidente.**
+`find_player_by_sleeper_id` filtra `is_dropped=False`, e num **leilão de FA todo arrematado é, por
+definição, um jogador dropado**. Logo **nenhum arremate de FA auction pode cair em `matched`,
+jamais** — todos caem em `unmatched` e exigem resolução manual pick a pick. Para 37 deles o
+importador ofereceu corretamente a reativação via `_dropped_by_sid`
+([draft_import.py:60-68](routes/draft_import.py#L60-L68), o caso canônico "$50" do [[OFF26-3]]);
+para 15 não havia registro anterior e a resolução foi "criar novo".
+
+⚠️ **O resumo lido na tela ("48 com match · 4 sem match · 48 já importados") era um preview
+RE-EXECUTADO depois do import**, num momento em que as 4 defesas ainda estavam sem sid: os 48
+recém-reativados já apareciam como `matched`+`already_imported`, e as 4 defesas seguiam
+irresolvíveis. Não são 48 + 4 = 52 por coincidência aritmética — são duas leituras do mesmo
+conjunto em instantes diferentes.
+
+⚠️ **Premissa do prompt REFUTADA com carimbo:** Trey Smack, Chig Okonkwo, Demond Claiborne e
+MarShawn Lloyd **não** eram anteriores ao leilão. Os quatro têm `created_at = 2026-08-25 02:05:36`
+e estão dentro da faixa 315-329 — nasceram **no próprio import**, junto de Jalen Nailor, Braelon
+Allen, Cairo Santos e Terrance Ferguson. **Não existe defeito anterior a 2026**; o discriminante
+proposto pelo owner resolve para **mesma causa e mesma ocasião**.
+
+#### Achado 1 — o tipo de aquisição: **DADO errado, não rótulo** (ÚNICO AINDA VIVO)
+
+O importador escolhe o tipo pelo formato do draft, e só por ele
+([draft_import.py:155](routes/draft_import.py#L155)):
+
+```python
+acquisition_type = "rookie_draft" if dtype == "linear" else "auction_draft"
+```
+
+⭐ **Mas o sistema tem vocabulário canônico para isso, e ele é outro.** O rebuild [[F8]] reconstrói
+`Player.acquisition_type` a partir da cadeia de ligas do Sleeper e classifica cada draft em
+[sync_sleeper.py:867-882](sync_sleeper.py#L867-L882):
+
+| draft | classificação canônica |
+|-------|------------------------|
+| `type == "linear"` | `rookie_draft` |
+| `type == "auction"` **e** `rounds >= 20` **e** primeira liga da cadeia | `auction_draft` — **o Startup Auction de 2025** |
+| `type == "auction"` — qualquer outro | **`fa_auction`** |
+
+O rebuild grava esse valor em `Player.acquisition_type`
+([sync_sleeper.py:1249-1269](sync_sleeper.py#L1249-L1269)) — é por isso que existem hoje **duas**
+famílias de leilão no banco. O rótulo **"Startup Auction"** ([roster.py:374](routes/roster.py#L374))
+está portanto **correto para o valor gravado**; errado é o valor. É exatamente a colisão que o
+[[UX27]] havia nomeado ("`auction_draft` é o Startup Auction de 2025"), agora **materializada em
+dado**.
+
+**Medido:** `SELECT acquisition_type, COUNT(*) FROM players WHERE is_dropped=0 AND contract_year=1`
+→ **`auction_draft` 52** · `rookie_draft` 34.
+
+**Efeito de regra: NENHUM em salário, contrato ou rollover.** `_AUCTION_TYPES = {"auction_draft"}`
+([salary_engine.py:52](salary_engine.py#L52)) é **código morto** — definido e **nunca referenciado**
+(grep exaustivo). `year1_salary` decide por `_ROOKIE_TYPES` / `_WAIVER_TYPES` e cai no mesmo `else`
+para os dois tipos de leilão; valorização e exceção waiver ano 2 olham só `_WAIVER_TYPES`.
+
+⚠️ **O efeito real é em SELEÇÃO DE COORTE.** [[OFF26-32]] e [[OFF26-33]] são censos que selecionam
+a safra do leilão FA **por `acquisition_type == "fa_auction"`** — um censo futuro da safra de 2026
+**não encontraria nenhum dos 52**. O [[OFF26-33]] já registra a lição na forma inversa ("⛔ nunca
+por `acquisition_type`, que é justamente o campo reescrito"); este item é a mesma armadilha pela
+outra ponta.
+
+⚠️ **Colateral do desenho da tela de revisão:** o `select` de `/admin/review`
+([admin_review.html:90-95](templates/admin_review.html#L90-L95)) oferece `auction_draft`,
+`rookie_draft`, `free_agent`, `trade`, `unknown` — **`fa_auction` não está na lista**. Mesmo
+querendo, o admin **não consegue** corrigir o tipo por ali.
+
+#### Achado 2 — posição e time da NFL nascem vazios (⛔ NÃO é defeito de exibição)
+
+`record_acquisition` **aceita** `position=` ([models.py:382-412](models.py#L382-L412)) e **nenhum
+dos 6 sítios de chamada o passa** — as 4 portas do `/auction`
+([auction.py:56,97,147,227](routes/auction.py#L56)) e as 2 do importador
+([draft_import.py:370,405](routes/draft_import.py#L370)). `nfl_team` **não é sequer parâmetro**.
+Todo jogador criado pela porta canônica nasce com `position=""` e `nfl_team=""`, e assim permanece
+até que um sync o encontre **em roster do Sleeper**
+([sync_sleeper.py:307-310](sync_sleeper.py#L307-L310)).
+
+⛔ **A leitura "a tela mostrou `?` para dado que estava certo no banco" está REFUTADA pelo
+carimbo:** os 15 criados têm `created_at 02:05:36` e `updated_at 03:49:40`, e o **sync é o único
+escritor** de `position`/`nfl_team`. Entre 02:05 e 03:49 — a janela em que o owner olhou — a coluna
+estava **genuinamente vazia**, e a macro renderizou `?` com fidelidade
+([_macros.html:51,59](templates/_macros.html#L51-L59): `player.position or '?'`,
+`player.nfl_team or '—'`). Era **buraco de dado**, fechado sozinho quase duas horas depois.
+⚠️ Registrar isto como defeito de exibição deixaria a causa aberta.
+
+⭐ **O caso discriminante (Terrance Ferguson: foto renderizada, posição `?`) tem explicação exata:**
+são **duas fontes independentes**, e a porta de aquisição preenche só uma. A foto sai de
+`sleeper_player_id` e **só** dele ([base.html:302-308](templates/base.html#L302-L308)); Ferguson é
+um dos **11 criados com sid numérico**, então a foto renderiza. A posição sai da coluna do banco,
+que a porta nunca escreveu. As **4 defesas** — sem sid — não tinham nem foto nem posição.
+
+⛔ **O dado estava disponível e foi descartado:** o metadata do pick do Sleeper traz `position` (o
+próprio `keeper_audit` o lê em [keeper_audit.py:446](keeper_audit.py#L446)), e o preview do
+importador monta o `base` do pick sem ele
+([draft_import.py:191-199](routes/draft_import.py#L191-L199)).
+
+**Evidência de que o buraco é da porta de aquisição, não do sync:** os três snapshots da keeper
+sheet tirados do banco vivo (`shee_prelatedropt.json` 21/08, `sheet(2).json` / `sheet.json` 22/08)
+trazem **219 e 212 keepers com posição e `sleeper_player_id` em 100% das linhas — zero lacunas**.
+Quem está em roster tem o dado; quem nasce pela porta de aquisição, não.
+
+#### Achado 3 — 4 defesas sem `sleeper_player_id`, com consequência de REGRA
+
+O confirm só grava o id quando ele é numérico
+([draft_import.py:410](routes/draft_import.py#L410)):
+
+```python
+sleeper_player_id=(sid if (player is None and str(sid).isdigit()) else None)
+```
+
+DEF no Sleeper tem `player_id` **sigla** (`"CAR"`, `"LAC"`, `"KC"`, `"MIN"`) — a armadilha que o
+[[OFF26-4]] mediu e documentou ("`player_id` de DEF é sigla — **nunca coagir a inteiro**"). O
+próprio `_classify_missing` **nomeia** a causa ("DST/defesa (id não-numérico)",
+[draft_import.py:72-78](routes/draft_import.py#L72-L78)) — o importador **sabe** o que está
+acontecendo e mesmo assim descarta o id. ⭐ **A coluna aceita sigla sem problema:** as 11 defesas já
+rosteradas na sheet de 22/08 carregam `NE`, `DEN`, `CHI`, `LAR`, `CLE`, `PIT`, `NO`, `SEA`, `HOU`,
+`JAX`, `PHI` como `sleeper_player_id`, gravadas pelo sync. A restrição é **só** do confirm.
+
+⚠️ **Passivo enquanto durou:** `freeze_exclusion_list` **recusa congelar** a lista de exclusão
+havendo keeper sem `sleeper_player_id`
+([keeper_exclusion.py:239-245](keeper_exclusion.py#L239-L245), `state="sem_identidade"`), e o
+congelamento é **pré-requisito duro** do import do leilão seguinte ([[OFF26-11]]). O congelamento
+de **2027** teria ficado travado.
+
+#### ⭐ O sync #119 fechou os achados 2 e 3 sozinho — e o mecanismo importa
+
+Sync **#119, 25/08/2026 03:49:43**, `players_added = 0`. O que ele fez: para jogador **sem** sid, o
+sync casa por **nome normalizado** ([sync_sleeper.py:239-248,289-296](sync_sleeper.py#L239-L248)) e
+**vincula o id**. O pool do Sleeper deriva os nomes de DEF de `first_name + last_name` —
+`"Carolina Panthers"`, `"Los Angeles Chargers"`, `"Kansas City Chiefs"`, `"Minnesota Vikings"` —
+**exatamente** as strings que o importador gravou (ele monta `pname` da mesma forma,
+[draft_import.py:191](routes/draft_import.py#L191)). O casamento era determinístico.
+
+**Estado medido depois:** `0` jogadores sem posição (inclusive dropados), `0` sem
+`sleeper_player_id`, fila de revisão `0`, roster vivo `264`, `sync_frozen=false`,
+`current_season=2026`.
+
+⚠️ **Achado lateral MEDIDO — o contador do sync sub-reporta.** O #119 exibiu *"0 jogadores
+atualizados. 0 novos"* enquanto escrevia posição, time NFL e sid em pelo menos 12 linhas
+(`updated_at 03:49:40`). A causa: `summary["players_updated"]` só incrementa em **troca de time**
+([sync_sleeper.py:312-317](sync_sleeper.py#L312-L317)), nunca em atualização de campo — e a **lógica
+de drop** (passo 8) **não tem contador nenhum**. Quem olha o painel do `/admin` conclui que o sync
+não fez nada. ⛔ **Candidato a item próprio — NÃO arbitrado aqui**, registrado como decisão em
+aberto para o owner.
+
+#### Réplicas — resposta medida
+
+- **Posição / time NFL:** **fonte única, exibição inline.** A pergunta já fora respondida pela Q1 da
+  F1 do [[UX12]] (arquivo): `Player.nfl_team` é **1 coluna, 8 sítios de exibição**, e **nenhum
+  deriva por conta própria**. O mesmo vale para `position`: a macro `player_roster_row` serve `/`
+  **e** `/team/<id>`; os demais sítios (`admin_review.html`, `cap_projector.html`,
+  `espn_review.html`, busca do [[M10]]) leem a mesma coluna via `to_dict()` / `to_search_dict()`.
+  **Um fix na origem fecha todas as telas.**
+- **Rótulo de aquisição:** **1 definição, 3 consumidores** — `_ACQ_LABELS`
+  ([roster.py:373-386](routes/roster.py#L373-L386)), importado por
+  [league.py:181](routes/league.py#L181) e usado em [roster.py:86,427](routes/roster.py#L86).
+  ⚠️ **Sobra UMA réplica da string, em vocabulário vizinho:** o mapa de rótulos de **evento** de
+  `PlayerHistory` ([roster.py:213-224](routes/roster.py#L213-L224)) traduz `auction_draft` para o
+  mesmo "Startup Auction" na timeline do `/salary_history`. Um fix só no `_ACQ_LABELS` deixa a
+  timeline dizendo o contrário do roster.
+- ⚠️ **Terceira família, não um rótulo:** `cap_projector.html:179`, `admin_review.html:91-95` e
+  `draft_import.html:199` renderizam o **enum cru**. É o escopo do [[UX2]].
+
+#### Superfícies que estiveram afetadas na janela 02:05 → 03:49
+
+`/` e `/team/<id>` (posição `?`, time `—`, e o jogador caindo no balde **"Outros"** do agrupamento
+por posição — [roster.py:29-33](routes/roster.py#L29-L33)); `/team/<id>` também no **breakdown de
+cap por posição**, onde `p.position or "OTHER"` ([league.py:205](routes/league.py#L205)) joga o
+salário num bucket "OTHER"; `/player/<id>`; a **busca** do [[M10]] (a linha perde posição e time
+NFL, que são justamente os desambiguadores de homônimo); `/admin/review`; a **keeper sheet** e seu
+**CSV** ([cuts.py:481,544](routes/cuts.py#L481)); o `/cap_projector`; e a **auditoria [[OFF26-4]]**,
+que compara posição do board com a da sheet. **Todas voltaram ao normal com o sync #119** — e todas
+voltam a exibir o buraco na próxima aquisição enquanto a causa existir.
+
+⚠️ **Buraco lateral, registrado sem arbitrar:** `record_acquisition` grava `SalaryHistory` +
+`AuctionLog` e **não grava `PlayerHistory`** — a timeline do `/salary_history` não recebe o evento
+de aquisição do leilão. Quem preenche `PlayerHistory` é o rebuild [[F8]] (ou o `/admin`), não a
+porta canônica.
+
+**Cross-refs:** [[OFF26-3]] (o importador e o caso canônico da reativação), [[OFF26-11]] (o
+congelamento que o achado 3 travaria), [[OFF26-4]] (a armadilha do id de DEF, medida um ano antes),
+[[F8]] (o classificador canônico de draft), [[UX27]] (a colisão de vocabulário, agora com dado),
+[[UX2]] (enums crus na UI), [[OFF26-32]] / [[OFF26-33]] (censos por `acquisition_type` que não
+encontrariam a safra de 2026), [[UX12]] (a Q1 que já respondera a pergunta de réplica),
+[[OFF26-35]] (o draft paralelo), [[UX32]] (o import aceita draft de qualquer liga),
+[[OPS2]] (o freeze de sync que cobriu a operação manual).
+
+---
+
+### OFF26-35 — Draft paralelo na liga oficial: nada impede a segunda ingestão dos mesmos 52
+
+🔲 **Registrado em 25/08/2026 (MAN-OFF26-IMPORT-CLASSIF-REG-F1) — registro + diagnose F1
+read-only, zero código.** Prioridade **Média**. ⛔ Remédio **não arbitrado**.
+
+Separado do [[OFF26-34]] de propósito: **natureza distinta**. Lá há dado gravado errado a reparar;
+aqui **nada está quebrado** — é armadilha armada, cujo remédio é **guarda ou runbook**, não reparo.
+
+#### O fato
+
+Na madrugada de **25/08/2026**, com esta sessão em curso, o co-admin passou a **replicar o resultado
+do leilão na liga oficial**, com sala de draft aberta lá, forçando cada designação pelo valor exato
+do lance (mecanismo "Commish forced winning offer"). Exemplos observados nas notificações: Garrett
+Wilson $42 e Marvin Harrison $42 (MellowBR); Chig Okonkwo $2, MarShawn Lloyd $2, Baltimore Ravens
+$3 (gabrieldiinis). **Os valores conferem com os do Manager.** Existe, portanto, um **segundo draft
+completo, na liga oficial, com os mesmos picks**.
+
+#### Por que o sistema não se defende
+
+A idempotência do importador é por **token de evento** `draft:<draft_id>:<pick_no>`
+([draft_import.py:191](routes/draft_import.py#L191), gravado em `AuctionLog.notes` e conferido por
+`acquisition_already_recorded`). **`draft_id` diferente ⇒ token diferente ⇒ ingestão nova.** Não há,
+em ponto nenhum, verificação de que o conjunto de jogadores já foi ingerido, nem validação da liga
+de origem — fato **já provado em campo** pela diagnose **MAN-OFF26-IMPORT-LIGA-REAL-F1** e
+registrado no [[UX32]]: o import pede só o `draft_id` e **deriva** a liga dele. A proteção efetiva
+hoje é **disciplina do operador**.
+
+#### Dano medido, não presumido
+
+Os 52 hoje estão **em roster** (`is_dropped=0`) e **com sid**. Num re-import a partir do draft
+paralelo, `find_player_by_sleeper_id` **os encontraria** e eles cairiam em `matched` — a via
+silenciosa, que **não** pede resolução pick a pick. `record_acquisition` rodaria de novo sobre o
+mesmo jogador: `SalaryHistory` e `AuctionLog` **duplicados** para a mesma season, `contract_year`
+reposto em **1** e `contract_start_season` regravado. Com lances idênticos o salário não muda — o
+dano é de **histórico e de idade de contrato**, não de cap. ⛔ **Não haveria alerta**: o gate de
+"unmatched não resolvido" não dispara para quem casa.
+
+#### ⭐ Contrapartida a considerar antes de decidir
+
+O sync **#119** encontrou os 52 **já nos rosters oficiais** (`players_added = 0`) — isto é, a
+replicação **completou**. Com o leilão de 2026 agora presente na cadeia da liga real, um rebuild
+[[F8]] futuro passaria a **enxergá-lo** e o classificaria como `fa_auction`
+([sync_sleeper.py:867-882](sync_sleeper.py#L867-L882): auction, `rounds < 20` ou fora da primeira
+liga da cadeia), reescrevendo `Player.acquisition_type` dos 52
+([sync_sleeper.py:1249-1269](sync_sleeper.py#L1249-L1269)). ⭐ **O mesmo evento que cria o risco de
+dupla ingestão é o que faria o [[OFF26-34]] se auto-corrigir.** As duas coisas precisam ser
+decididas juntas. ⚠️ O [[OFF26-33]] é o lembrete de que essa reescrita tem o outro gume: ela
+**apaga** o canal anterior de quem tiver evento posterior.
+
+#### Remédios possíveis — ⛔ NÃO arbitrados
+
+1. **Guarda de origem:** o import de auction só aceita draft cuja liga seja a esperada
+   (`phantom_league_id` do [[OFF26-4]] ou a liga real, conforme a decisão do [[UX32]]).
+2. **Guarda por conjunto:** recusar (ou exigir `force` explícito) quando ≥ N dos picks já têm
+   contrato ano 1 na mesma season pela porta canônica — independe de `draft_id`.
+3. **Só runbook:** aceitar que a proteção é do operador e documentá-la no runbook do leilão.
+
+⚠️ A lição do [[OFF26-23]] pesa contra a opção 3: *"o sistema RECUSA, não depende de disciplina dos
+3 admins"*.
+
+**Cross-refs:** [[OFF26-34]] (os 52 e sua classificação), [[UX32]] (o import aceita draft de
+qualquer liga — provado em campo), [[OFF26-3]] (a idempotência por `event_ref`), [[OFF26-23]] (o
+precedente de poka-yoke sobre disciplina), [[F8]] (o rebuild que reclassificaria), [[OPS2]] (o
+freeze de sync que cobriu a operação manual).
+
+---
