@@ -120,6 +120,43 @@ class TestConfiguracaoDoRunner(unittest.TestCase):
     def test_excluidos_sao_subconjunto_do_censo(self):
         self.assertTrue(set(fix.DROPPED_2026) <= {sid for sid, _ in fix.CENSUS})
 
+    # ── MAN-OFF26-32-F1B (25/08/2026): a 5ª exclusão ──────────────────────────
+
+    def test_exclusao_congelada_tem_cinco_entradas(self):
+        """4 drops de agosto + Goedert (drop 20/08 na janela de cortes)."""
+        self.assertEqual(len(fix.DROPPED_2026), 5)
+
+    def test_goedert_esta_na_exclusao_congelada(self):
+        self.assertIn("5022", fix.DROPPED_2026)
+
+    def test_motivo_do_goedert_cita_drop_e_leilao(self):
+        """A exclusão é auditável: o motivo impresso no relatório nomeia os dois eventos."""
+        motivo = fix.DROPPED_2026["5022"]
+        self.assertIn("20/08", motivo)
+        self.assertIn("24/08", motivo)
+
+    def test_censo_segue_com_goedert_dentro(self):
+        """⛔ O censo NÃO muda: Goedert pertence ao grupo do OFF26-20; o que mudou é ele
+        ser EXCLUÍDO da correção. Editar o censo apagaria a pertinência, não a exclusão."""
+        self.assertIn(("5022", "Dallas Goedert"), fix.CENSUS)
+        self.assertEqual(len(fix.CENSUS), 24)
+
+    def test_goedert_sai_mesmo_rosterado_ao_vivo(self):
+        """O caso medido em prod: dropado 20/08, arrematado 24/08, HOJE rosterado.
+        A derivação ao vivo o aprovaria por estar em roster — quem o barra é a exclusão."""
+        todos = {sid for sid, _ in fix.CENSUS}
+        targets, out = fix.derive_targets(fix.CENSUS, todos, fix.DROPPED_2026)
+        self.assertNotIn("5022", [sid for sid, _ in targets])
+        motivo = next(o["reason"] for o in out if o["sleeper_player_id"] == "5022")
+        self.assertIn("contrato NOVO", motivo)
+
+    def test_alvos_sao_19_com_o_censo_inteiro_rosterado(self):
+        """Teto determinístico da lista do dia: 24 do censo − 5 excluídos = 19."""
+        todos = {sid for sid, _ in fix.CENSUS}
+        targets, out = fix.derive_targets(fix.CENSUS, todos, fix.DROPPED_2026)
+        self.assertEqual(len(targets), 19)
+        self.assertEqual(len(out), 5)
+
     def test_guarda_e_o_estado_pos_rollover(self):
         """A diferença para o runner do OFF26-20: lá a guarda esperava o estado PRÉ-rollover."""
         self.assertEqual(fix.EXPECTED["contract_year"], 3)

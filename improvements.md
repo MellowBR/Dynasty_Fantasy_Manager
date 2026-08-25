@@ -7916,6 +7916,28 @@ quem entrou por `fa_auction` em 2025 e depois foi claimado teve o canal reescrit
 **não invalida** o runner (o que ele corrige, corrige certo); é **cobertura faltante**, registrada
 como [[OFF26-33]].
 
+**⭐ Revalidação pré-execução (MAN-OFF26-32-F1B, 25/08/2026) — 5ª exclusão congelada, alvos 20 → 19.**
+O runner ficou **pronto e nunca executado** (zero eventos `fix:off26-32` em prod; a execução de
+20/08 ficou pelo caminho na janela de cortes). A revalidação contra prod + API confirmou o runner
+**correto como estava, com uma exceção**: **Dallas Goedert (sid 5022)** foi **dropado em 20/08
+22:38 UTC** (janela de cortes) e **arrematado no leilão de 24/08 por $3** — ausente da keeper sheet
+congelada de 22/08, o que prova arremate e não keeper. Hoje em prod: `cy=1 · css=2026 ·
+auction_draft · $3`, **contrato novo e correto**. Entrou no `DROPPED_2026` (**dado + teste, zero
+lógica**; 34 → **40** testes). ⚠️ **O dano não se consumaria** — a derivação ao vivo o aprovaria
+(está rosterado), mas a guarda da porta canônica o pularia (não satisfaz `cy=3`/`css=2025`/
+`fa_auction`): defesa em profundidade. O custo era **execução suja** — `--check` em exit 1
+("19 elegíveis ≠ 20 alvos"). ⛔ **O censo dos 24 NÃO mudou** (Goedert segue pertencendo ao grupo; o
+que mudou é ser excluído da correção). **A tabela do ensaio acima é registro histórico de 18/08 e
+fica intacta** — o esperado da execução em prod passa a ser **19/19**. Achado colateral que
+**reforça** a segunda porta: os 4 já congelados **reapareceram todos rosterados** (Kupp/Mixon/
+Coleman recomprados a $1 no leilão; Aiyuk por re-add em 25/08 04:21) — a regra "fora mesmo se
+reaparecerem" foi exercida 5 vezes. ⚠️ **Dois vizinhos medidos na F1B, FORA deste artefato** (guardas
+diferentes): o **contrato-fantasma do Aiyuk** (dropado 12/08 → rollover pulou dropados → voltou por
+re-add pós-sync com `cy=2 · css=2025 · $8`, contrato morto) e a **coorte B do [[WV1]], que nunca
+rodou** (só existem `fix:off26-20`=22 e `fix:wv1-coorte`=14 em prod). A subcoorte invisível do
+[[OFF26-33]] foi dimensionada: **restam ZERO** (3 já corrigidos pelo runner A do WV1, incluindo o
+caso âncora AD Mitchell, hoje `cy=2`).
+
 **Runbook de prod (quinta 20/08, pós-lock):** `sqlite3 /data/dynasty.db ".backup
 '/data/pre_off26_32_fix.db'"` → conferir o arquivo → `python off26_32_fix.py --check` → `--apply
 --backup /data/pre_off26_32_fix.db`. ⚠️ O deploy precisa levar o runner ao servidor antes.

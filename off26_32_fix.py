@@ -82,6 +82,14 @@ DROPPED_2026 = {
     "11637": "Keon Coleman (drop 07/08)",
     "6803": "Brandon Aiyuk (drop 12/08)",
     "4039": "Cooper Kupp (drop 18/08)",
+    # MAN-OFF26-32-F1B (25/08/2026): 5ª entrada, medida na revalidação pré-execução. Dropado na
+    # JANELA DE CORTES (20/08 22:38 UTC, transação free_agent na liga real) e **arrematado no
+    # leilão de 24/08 por $3** — ausente da keeper sheet congelada de 22/08, o que prova arremate
+    # e não keeper. Hoje em prod: cy=1 · css=2026 · auction_draft · $3, contrato NOVO e correto.
+    # Sem esta linha o --check sairia exit 1 ("19 elegíveis ≠ 20 alvos"): a derivação ao vivo o
+    # aprovaria (está rosterado) e só a guarda da porta canônica o pularia — defesa em
+    # profundidade funcionando, mas execução suja. A exclusão é auditável, nunca silenciosa.
+    "5022": "Dallas Goedert (drop 20/08, arrematado no leilão 24/08 por $3)",
 }
 
 # Guarda pré-escrita: o estado esperado PÓS-rollover de 17/08 (o do OFF26-20-FIX esperava o
