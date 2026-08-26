@@ -1,11 +1,11 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 26/08/2026-pt2 (sessão **MAN-CONTRATO-VIVO-F1**, **docs-only — zero código, zero escrita em banco**: parecer **F1 do runner dos 13 alvos** na seção [[OFF26-37]]. ⛔ **Eixo 1 (estado dos 13 no banco vivo) NÃO foi medido — e é estrutural:** o banco alcançável do Code é o **SEED do git** (`./dynasty.db`, mtime 07/08, `current_season=2025`, `rollover_done=false`, **pré-rollover**), não `/data/dynasty.db`; ⛔ o `cy=2` que ele mostra **não contradiz** o registrado, é outro banco em outro momento. Bloco SQL read-only deixado pronto para o owner fechar no Render Shell. **Os outros três eixos fecham sem banco vivo.** ⭐ **Eixo 2 — invariante = 0 violações, e é ANALÍTICO** (`cy=3` e `cy=2` caem ambos no ramo da valorização ⇒ projeção do ano seguinte idêntica **para qualquer ESPN**) — ⚠️ **mas o dinheiro SE MOVE em dois lugares que a frase "nunca no dinheiro" esconde**: no **horizonte 2** (Stafford: renovação $4 × valorização $2) e no **passivo do rollover de 17/08** (Stafford $2→$3, único dos 10 medidos); **Jones fica INDETERMINADO** — ESPN não consta em DADOS nem no handoff, e o limiar medido é `espn_adj >= 2,5`. ⭐ **Eixo 3 — a porta NÃO é uma só: são DUAS**, e com forças de guarda distintas — `record_acquisition` serve o Grupo A mas **não tem guarda de estado**, e `contract_year_correction` (guarda exata, campo a campo) é a do Grupo B; usar uma no lugar da outra escreveria `cy=1`/`css=season` em quem devia manter `css=2025`. ⚠️ **Três armadilhas medidas no caminho do Grupo A**, a maior sendo que **`set_espn_value` ZERA o `espn_ref_value`** se o runner não repassar o valor (a atribuição vem **antes** da guarda, `models.py:764`). **Réplica da REGRA: nenhuma** — varredura `.py`+`.html`+JS inline; o passo 6 do rebuild [[F8]] reescreve `css`/canal mas **não toca `contract_year`**, e `contract_year_correction` **não** está em `_ACTIVE_ACQUISITION_TYPES` (a trilha não vira insumo do rebuild). ⭐ **Eixo 4 — dupla aplicação impossível nas duas ordens**: `off26_32_fix` ∩ 13 = `{6803}` **mas excluído de propósito** (executado ∩ 13 = ∅), `wv1_fix_coorte_b` (nunca executado) ∩ 13 = `{3451, 8259, NE}`, e o `triage` de lá trata `cy` já corrigido como **skip, não abort** — o custo da ordem é **exit 1 no `--check`**, não dado corrompido. ⚠️ **Interseção que o prompt não previu: `off26_20_fix` (executado 06/08, 22 contratos) contém 9486 (Wicks)** — o `cy=2` dele é contrato **mantido corretamente** que morreu no drop de 20/08, não congelamento; muda a narrativa, não o devido. ⚠️ **Dois achados de desenho para a F2:** o Grupo B é de **canal MISTO** (6 `fa_waiver` + 5 `free_agent`) e uma `EXPECTED` única **abortaria** no molde da coorte B; e **a lista TEM de ser congelada** — varredura por estado pegaria **60** jogadores, **48 falso positivo, o Goff entre eles**. [[OFF26-37]] segue **🔲**; Status Rápido **sem row nova**; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff e **nenhum `.db` alterado**.)
 > Atualizado em: 26/08/2026 (sessão **MAN-CONTRATO-VIVO-ARB**, **docs-only — zero código**: **arbitragem da disputa Jones × Goff** na seção [[OFF26-37]], por **medição independente do owner** feita **fora do circuito do Code** (API de transações da liga de 2025, `league_id 1224848075609100288`, **21 semanas**). ⭐ **A lista de alvos do arco FECHA em 13** — **2** (Grupo A) + **11** (Grupo B, agora com Jones) — **superando o 12 do handoff**, com **um a favor e um contra**: **Daniel Jones (5870)** **É ALVO** (drop 03/11/2025 04:45 → último add 06/11 01:54, **Δ 69,2h — FORA** da janela de 48h, margem 21,2h → **caso 3**; `cy` devido **2**, e ⭐ `css` **já correto em 2025** → correção **só de contagem**) e **Jared Goff (3163)** **NÃO é alvo** (drop 10/09 01:11 → claim completo 10/09 13:31, **Δ 12,3h — DENTRO** → **caso 2**; `cy=3` **CORRETO**, ⛔ não tocar). A consequência do Goff para o **D4** (`css` devido = **2024**, produção mostra 2025) entra como **evidência**, ⛔ **não** como correção — o D4 segue 🔲 **gated** no fix do passo 6 do rebuild. ⭐ **Lição de método (candidata a baseline do `DEV_METHODOLOGY`, família MAN-METH-REG):** no feed de transações do Sleeper **tentativa e aquisição ocupam a mesma estrutura** — só o campo `status` as separa; os **3 claims `failed` do Goff** na mesma janela são o que explica a divergência das medições anteriores (**"a API de transações não é discriminante sem o filtro de status"**). ⚠️ **Duas premissas do arco refutadas:** os `tw*.json` **não estavam baixados** (contagem **zero** — a varredura teria sido parcial com aparência de completa) e a alegação B **atribuía ao Jones a cadeia de datas do Goff** (**troca de sujeito, não medição divergente**). Evidência literal do `medir_disputa.py` preservada como bloco na seção, com os 4 timestamps decisivos e as 3 linhas `[IGNORADO]`. [[OFF26-37]] segue **🔲** (F2 do runner **NÃO iniciada**); Status Rápido **sem row nova**; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff.)
 > Atualizado em: 25/08/2026-pt4 (sessão **MAN-CONTRATO-VIVO-REG-F1**, **docs-only — zero código**: nasce **[[OFF26-37]] 🔲 Alta** — a **RÉGUA CANÔNICA de contrato vivo × morto** (decisão de liga, fechada: (1) leilão zera tudo; (2) waiver com contrato vivo mantém; (3) sem contrato vivo = ano 1 novo — **o discriminante é o estado do contrato, não a forma nem a data**) + a única porta que a viola: o **re-add do sync é UMA linha** (`p.is_dropped = False`, sem consultar contrato) que acerta o caso 2 **por acidente** e erra o caso 3; todas as demais portas já passam por `record_acquisition`. ⭐ **Classe medida no banco vivo: EXATAMENTE 2** (varredura 178 rosterados `css<=2025` × sheet × arremates; controle inverso 0) — **Aiyuk** (`cy=2 · css=2025 · fa_auction · $8`; devido ano 1 · 2026 · **$1** — ⚠️ único com **efeito de CAP, −$7** no AlexTheDawg) e **Wicks** (drop 20/08 nos cortes, re-add 25/08; salário do morto já é $1 = devido — dano só cy/css). ⚠️ **Premissa do arco caiu:** "os demais companheiros nasceram limpos" valia para 7 de **8** — e os adds reais eram **9** (o omitido: Malik Davis 8800, limpo); os 7 inexistentes viraram stubs 13:34 (= a fila de revisão inteira). **Computabilidade:** régua computável DAQUI PARA FRENTE com as 3 gravações do [[OFF26-36]]; retrospectivamente NÃO — falta a **data do drop** (booleano sem carimbo; insumo vem da API). Janela de waiver: **nada** no código/config (`waiver_clear_days=2` veio da API na diagnose [[WV1]]). **Decisões do owner registradas** (backfill 2026 + gravar ao vivo + 3 portas + drop com fato+fase) e **desenho das 3 gravações + backfill proposto na F1** (refs imunes ao rebuild: `rollover:2026`, `draft:…`, `syncdrop:…`; 222 SalaryHistory bastam, ressalva team_name dos 7 trocados pós-rollover; 52 do leilão e drops de agosto reconstruíveis). **Reparo da classe = F2** via `record_acquisition` (molde `wv1_fix_coorte_b`). ⚠️ Pergunta à liga: **vaivém de comissário** (equalização) conta como drop/add? Arrumação recomendada: F2 daqui e do [[OFF26-36]] são **o mesmo diff**. 179→180 rows · 78→79 seções; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff. **F2 não iniciada — aguardando o owner.**)
 > Atualizado em: 25/08/2026-pt2 (sessão **MAN-OFF26-ROLLOVER-HIST-REG-F1**, **docs-only — zero código**: nasce **[[OFF26-36]] 🔲 Média** de observação de campo do owner nas páginas de jogador, com **diagnose F1 medida no banco VIVO**. **Veredito: OMISSÃO DE NASCENÇA, não regressão** — `do_rollover` grava só `SalaryHistory` desde a v1.0 (`git log -S "PlayerHistory"` no arquivo = vazio; a rota admin aposentada pelo [[F11]] era idêntica) e **nunca houve rollover ao vivo antes de 17/08/2026** (o app nasceu em março com `current_season=2025`). **Lacuna medida: 222/222 — 100%** dos contratos avançados em 17/08 (190 valorização + 32 waiver ano 2 + **0** renovações pós-ano 4, tudo carimbado 21:34 num único minuto) **sem evento de timeline**; por time, 15–23 cada, soma 222; dos 222, 194 seguem em roster. **Os 219 eventos S2025 existentes NÃO vieram de rollover nenhum:** todos com `created_at 2026-03-25 18:49` = reconstrução one-shot do backfill legacy (Entry 3, season = início + ano − 1), nota da limpeza F7b, ref `rollover:2025` da migração F8a — a hipótese do owner acertou a conclusão e errou a origem. **Fannin resolvido sem resíduo** (ano 1 no backfill → sem evento reconstruído; avançado em 17/08 → sem evento gravado). ⭐ **Achado de método: TRÊS portas vivas mutam contrato/estado sem gravar timeline** — rollover (este item), `record_acquisition` ([[OFF26-34]]) e o **passo 8 do sync** (drop sem evento; os 258 `drop` do banco são todos do rebuild [[F8]]). ⚠️ **Contrato de sobrevivência:** o F8 deleta rows sem ref — evento futuro de rollover precisa nascer com `rollover:<season>`. **Consequência: só exibição** (nada calcula de `PlayerHistory`; o step 6 do F8 exclui `rollover` do filtro). ⚠️ **Adendo material:** o "Ano 3/4" do **Caleb Williams é o [[OFF26-32]] visível em campo** (sid 11560 no censo congelado dos 24; drop 2025 + `fa_auction` 2025 na timeline; correção 3→2 pendente) — o rollover foi fiel a insumo errado; premissa "contratos corretos" vale para Odunze e Fannin. ⚠️ Lateral: `salary_history` só tem rows de season 2026 — salário pré-2026 vive apenas nos 219 eventos do backfill, o que encarece reconstrução retroativa. 178→179 rows · 77→78 seções; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff. **F2 não iniciada — aguardando o owner.**)
 > Atualizado em: 25/08/2026 (sessão **MAN-OFF26-IMPORT-CLASSIF-REG-F1**, **docs-only — zero código**: nascem **[[OFF26-34]] 🔲 Média** e **[[OFF26-35]] 🔲 Média** de observação de campo do owner logo após o import do FA auction, com **diagnose F1 medida no banco VIVO** (`/data/dynasty.db`, somente-leitura). ⭐ **A reconciliação fecha e soma:** draft `1396615822058721280` = **264 picks** = **212 keepers excluídos** + **52 arremates**; dos 52, **37 reativações** de `Player` existente e **15 criados** (ids **315-329**, `created_at 02:05:36`) — e os **15 criados SÃO exatamente a fila Cat B** aprovada pelo owner; dos 15, **11 com sid numérico** e **4 defesas sem sid**. **37+15=52 · 11+4=15 · 212+52=264.** ⭐ **Achado estrutural que explica tudo:** `find_player_by_sleeper_id` filtra `is_dropped=False` e **num leilão de FA todo arrematado é dropado** — logo **nenhum arremate pode cair em `matched`**, e os 52 passaram pela via de resolução manual. O "48 com match · 4 sem match" lido na tela era **preview RE-EXECUTADO** depois do import, com as 4 defesas ainda sem sid. **DOIS vereditos categóricos:** **(1) tipo de aquisição = DADO errado, não rótulo** — gravado `auction_draft` (**52** contratos ano 1), mas o vocabulário canônico do rebuild [[F8]] reserva `auction_draft` ao **Startup Auction de 2025** (`rounds>=20` + 1ª liga da cadeia) e manda `fa_auction` para qualquer outro leilão; o rótulo "Startup Auction" está **certo para o valor gravado**. Efeito em salário/contrato/rollover: **NENHUM** (`_AUCTION_TYPES` é **código morto**); efeito real em **censo por coorte** ([[OFF26-32]]/[[OFF26-33]] filtram por `fa_auction` e não achariam os 52). **(2) posição/time NFL = buraco de DADO, ⛔ NÃO de exibição** — `record_acquisition` aceita `position=` e **nenhum dos 6 sítios de chamada o passa**, `nfl_team` nem parâmetro tem; foto sai só de `sleeper_player_id` (por isso Ferguson tinha foto e `?`). ⭐ **O sync #119 (03:49:43) fechou os achados 2 e 3 sozinho** — casou as 4 defesas por nome normalizado (o pool deriva `"Carolina Panthers"` etc., idêntico ao que o import gravou), `players_added=0`, **zero duplicatas**; estado final **0 sem posição · 0 sem sid · fila 0 · 264 em roster**. ⚠️ **As causas no código permanecem** e reproduzem na próxima aquisição. ⚠️ **Premissa do prompt REFUTADA:** Smack/Okonkwo/Claiborne/Lloyd **não** eram anteriores ao leilão — `created_at 02:05:36`, nascidos no próprio import; **não há defeito anterior a 2026**. ⚠️ **Achado lateral medido, candidato a item próprio (não arbitrado):** o contador do sync **sub-reporta** — `players_updated` só incrementa em troca de time e a lógica de drop não tem contador, então o #119 exibiu "0 atualizados, 0 novos" tendo escrito 12+ linhas. 176→178 rows · 75→77 seções; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff. **F2 não iniciada — aguardando o owner.**)
-> Atualizado em: 24/08/2026 (sessão **MAN-UX-PAINEL-OFFSEASON-REG**, **docs-only — zero código**: nascem **[[UX32]] 🔲 Alta** e **[[UX33]] 🔲 Baixa** de uma observação de campo do owner no **Painel de Intertemporada, horas antes do FA auction** — o único momento em que o painel é exercitado de verdade. ⭐ **Três achados, DOIS itens: o critério foi o remédio, não a tela.** **[[UX32]] (Alta, consequência de DADO):** o passo 7 (FA Auction) oferece "Ir para Auction Log" → `/auction` e **nenhum caminho** ao `/draft_import` — o painel **conduz à rota defeituosa num passo que grava contrato e salário**. Risco nomeado em duas camadas: season **2025 fixa** ([[OFF26-28]], ABERTO) **e** ausência da lista de exclusão no `/auction` — o keeper recomprado na pré-rodada viraria **contrato ano 1** ([[OFF26-11]]). ⚠️ **Dois achados que a observação do owner não alcançou:** o **passo 5 aponta para a MESMA tela** (mesma exposição, próxima temporada) e **`/draft_import` não tem porta em lugar nenhum da UI** além do `/cuts/keeper_sheet` — nem no dropdown Admin (8 itens) nem no `/admin`. **[[UX33]] (Baixa, fidelidade):** (a) passo 6 exibido **Pendente** com o fluxo inteiro concluído — ⭐ a causa medida é que a detecção automática **existe e está ligada ao artefato ERRADO** (`CutWindowAudit` da janela selada **aposentada** em 07/08, [[OFF26-1]]; quem a urna produz é `LateDropAudit`), e é o único passo sem ação manual de conclusão; (b) "Checklist sequencial" com 3/4/5 ✅ e 1 Pendente / 2 Bloqueada — o mecanismo real tem só **duas** travas (2←1, 4←2+3) e `done` vence `locked`. ⚠️ Adendo estrutural: o modelo de conclusão é **MISTO** (1/2/6 derivados de estado × 3/4/5/7 flags de AppConfig) e a tela não distingue os dois. **As duas perguntas de desenho ficam ABERTAS, não arbitradas** (conclusão do passo 6: automática religada × manual; sequencialidade: afrouxar × reordenar × dependências mal declaradas). Contexto que tornou tudo visível: o FA auction **migrou da fantasma para a liga REAL** e a diagnose **MAN-OFF26-IMPORT-LIGA-REAL-F1** provou em campo que o import **aceita draft de qualquer liga** (deriva a liga do `draft_id`, sem validação de origem). Cross-ref **recíproco** mínimo no [[OFF26-28]] (status, prioridade e texto restantes **intocados**). 174→176 rows · 73→75 seções; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff. **F1/F2 não iniciadas — aguardando o owner.**)
 > 📁 Entradas anteriores em **`improvements_sessions.md`** (101 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
@@ -9372,5 +9372,128 @@ operacional invisível?**
 AuctionLog e a porta de aquisição), [[OFF26-35]] (o draft paralelo × backfill do leilão),
 [[WV1]]/[[OFF26-20]] (a família waiver e a decisão estrita que antecipou o caso 3),
 [[OFF26-32]] (o reparo-irmão executado), [[OFF26-33]] (a subcoorte invisível, dimensionada zero).
+
+
+#### 🔎 PARECER F1 do runner dos 13 (26/08/2026, MAN-CONTRATO-VIVO-F1) — read-only, zero escrita
+
+⛔ **Eixo 1 NÃO foi medido nesta sessão — e a razão é estrutural, não omissão.** O banco alcançável
+do Code é `./dynasty.db` = **o SEED do git** (mtime **07/08**, `current_season=2025`,
+`rollover_done=false`), **não** `/data/dynasty.db`. Ele é **pré-rollover**: mostra os 13 em `cy=2`
+porque o incremento de 17/08 ainda não aconteceu ali. ⛔ **Isso NÃO contradiz o registrado** — é
+outro banco em outro momento. A medição de produção é do owner, no Render Shell; o bloco read-only
+está no fim deste parecer. Os eixos 2, 3 e 4 **não dependem do banco vivo** (são código e listas
+congeladas) e estão **fechados** abaixo.
+
+##### Eixo 2 — invariante salarial sobre os 11 do Grupo B: **0 violações**, e é ANALÍTICO
+
+Rodado com o motor real (`salary_engine.project_next_salary`): `cy=3` e `cy=2` caem **ambos** no
+ramo da valorização (`next_yr` nem é 2, nem passa de 4) ⇒ a projeção do **ano seguinte** é idêntica
+**para qualquer ESPN** — não é resultado de dado, é da forma da regra. **Violações = 0** (11/11,
+testado também contra ESPN raw × ajustado).
+
+⚠️ **Mas o dinheiro SE MOVE — em dois lugares que a frase "mexe na contagem, nunca no dinheiro"
+esconde:**
+
+| onde | quem move | de → para |
+|---|---|---|
+| **Horizonte 2** (a temporada DEPOIS da seguinte) | **Stafford (421)**, 1/11 | `cy=3` → ano 5 = **renovação** `floor(ESPN)=$4`; `cy=2` → ano 4 = valorização **$2**. Robusto a raw × ajustado |
+| **Passivo do rollover de 17/08** (ano 2 de waiver/FA devido = `floor(0,8×ESPN)`) | **Stafford (421)**, 1/11 medido | **$2 → $3**. Os outros 9 medidos: `floor(0,8×ESPN)` = $1 = atual, **não movem** |
+
+⚠️ **Jones (5870) é INDETERMINADO — e é o buraco de dado do eixo 2.** Nem os DADOS do prompt nem o
+handoff trazem o ESPN dele. Limiar medido: **move se e somente se `espn_adj >= 2,5`**
+(`floor(0,8 × 2,4)=$1` · `floor(0,8 × 2,5)=$2`). O seed diz `espn_ref_value=1.2` (⇒ não moveria),
+**mas o seed é de 07/08 e a tabela definitiva de 2026 entrou depois** — o número que decide é o de
+produção.
+
+##### Eixo 3 — a porta **NÃO é uma só**: são duas, com forças de guarda diferentes
+
+| grupo | porta | escreve | guarda pré-escrita | idempotência |
+|---|---|---|---|---|
+| **A** (2) — reset ano 1 | `models.record_acquisition` ([models.py:382](models.py#L382)) | `salary` (via `year1_salary`) · `contract_year=1` · `contract_start_season` · `acquisition_type` · `is_dropped=False` + `SalaryHistory` + `AuctionLog` | ⛔ **NENHUMA** — não confere estado esperado | só o token `[ref:…]` em `AuctionLog.notes`, **e a checagem é do CHAMADOR** (`acquisition_already_recorded`) |
+| **B** (11) — contagem 3→2 | `contract_year_correction.apply_contract_year_correction` | **só** `contract_year` + `PlayerHistory` | ✅ **exata, campo a campo** (`guard_mismatches`) — linha que não casa é pulada, nunca forçada | guarda (cy já = 2 ⇒ pulado) + UNIQUE `uq_player_history_event` |
+
+⭐ **`record_acquisition` é errada para o Grupo B** (forçaria `cy=1` e `css=season`, quando o devido
+é `cy=2` com `css=2025` preservado), e `contract_year_correction` é **insuficiente** para o Grupo A
+(não toca `css`, canal nem salário). **O fix nasce em dois caminhos, ou nasce errado.**
+
+⚠️ **Três armadilhas medidas no caminho do Grupo A:**
+
+1. ⛔ **`set_espn_value` ZERA o ESPN se o runner não passar o valor.** `record_acquisition` chama
+   `set_espn_value(player, season, espn_adjusted)` e a **primeira linha** dele é
+   `player.espn_ref_value = adjusted`, **antes** da guarda `if not adjusted: return`
+   ([models.py:764](models.py#L764)) — com o default `espn_adjusted=0.0` o valor é apagado, e todo
+   projetado futuro passa a cair no piso. **O runner tem de reler e repassar o ESPN corrente.**
+2. **A porta não grava `PlayerHistory`** — é a lacuna já registrada do [[OFF26-34]]/[[OFF26-36]].
+   O Grupo A sai **sem evento de timeline**, ao contrário do Grupo B.
+3. Rótulos off-label conhecidos: `AuctionLog.entry_type="fa_auction"` e
+   `SalaryHistory.rule_applied = "FA Auction: $1 (bid)"` para um add de free agent (vizinho do
+   [[OFF26-34]]).
+
+**Réplica da lógica de escrita de contrato — varredura `.py` + `.html` + JS inline:** ⭐ **nenhuma
+réplica da REGRA.** Escrevem campo de contrato, fora das duas portas: `import_csv.py:125-128`
+(bootstrap one-shot do CSV), `routes/offseason.py:764-766` (`do_rollover`), `routes/admin.py`
+(approve do M2 — **gated em `needs_review=True`**, e os 13 têm `needs_review=0`),
+`routes/admin.py:598` (rollback do F8) e ⚠️ **`sync_sleeper.py:1268-1269` — o passo 6 do rebuild
+[[F8]]**, que reescreve `contract_start_season` e `acquisition_type` a partir da cadeia da API.
+**Medido:** o passo 6 **não toca `contract_year`** (a correção do Grupo B é imune a ele) e
+`"contract_year_correction"` **não pertence** a `_ACTIVE_ACQUISITION_TYPES`
+([sync_sleeper.py:836](sync_sleeper.py#L836)) — a trilha da correção **não** vira insumo do
+rebuild. Em JS/template a única coisa parecida é `cap_projector.html:160`
+(`const isRenewal = p.contract_year >= 4`) — **exibição**, coerente com a fronteira do motor, não
+escreve. ⛔ Nenhum fator `0.5` / `0.8` / `1.2` em template nenhum.
+
+##### Eixo 4 — interseção com o executado e com o pendente
+
+| runner | estado | ∩ com os 13 | consequência |
+|---|---|---|---|
+| `off26_32_fix.py` (19 contratos, 25/08) | ✅ executado | **censo** ∩ 13 = `{6803}`; **executado** ∩ 13 = **∅** | Aiyuk está em `DROPPED_2026` — excluído **de propósito**, com o motivo já escrito lá: *"um re-add em 2026 abre contrato NOVO … quem os readquirir entra por `record_acquisition`, não por aqui"*. ⭐ A doutrina do Grupo A **já estava escrita** no runner anterior |
+| `off26_20_fix.py` (22 contratos, 06/08) | ✅ executado | `{9486}` | ⚠️ **Interseção que o prompt não previu.** Wicks teve `cy 2→1` em 06/08 (`fix:off26-20`) e o rollover de 17/08 o levou a `cy=2` — o `cy=2` dele é **contrato mantido corretamente que depois morreu no drop de 20/08**, não congelamento. Muda a narrativa, **não** o devido |
+| `wv1_fix_coorte.py` coorte A (19/08) | ✅ executado | **∅** | sem interação |
+| `wv1_fix_coorte_b.py` | 🔲 **nunca executado** | `{3451, 8259, NE}` | confirmado — exatamente os 3 do handoff |
+
+⭐ **Dupla aplicação: IMPOSSÍVEL nas duas ordens, e por mecanismos diferentes.**
+`wv1_fix_coorte.triage` trata `cy == new_year` como **`skipped`** ("já é 2 — nada a fazer"),
+**não** como abort: se este runner corrigir os 3 primeiro, a coorte B ainda escreve os outros 6.
+Na ordem inversa, a guarda de `contract_year_correction` pula os 3 por divergência. ⚠️ **O custo da
+ordem é operacional, não de dado:** `--check` sai **exit 1** quando `elegíveis ≠ alvos`
+([off26_32_fix.py:295-297](off26_32_fix.py#L295)), então quem rodar depois **precisa da exclusão
+documentada** — molde `DROPPED_2026`, exatamente o que o commit `7eaa2aa` fez com o Goedert.
+
+##### ⚠️ Dois achados de desenho que a F2 herda
+
+1. **O Grupo B é de canal MISTO — uma `EXPECTED` única não serve.** Medido: **6 `fa_waiver`**
+   (Dicker, CHI, CLE, Fairbairn, NE, Jones) + **5 `free_agent`** (Robinson, Bates, Stafford,
+   Bigsby, Tucker). ⛔ O molde `wv1_fix_coorte.triage` **ABORTA a execução inteira** com
+   `acquisition_type` divergente; o molde `off26_32_fix`/`plan_correction` apenas **pula**. ⇒ ou
+   **dois lotes por canal**, ou `acquisition_type` **fora** da guarda (que a enfraquece).
+   ⚠️ Divergência registrada: o handoff dá o add do **CHI** como `free_agent` (05/11) e o banco
+   grava `fa_waiver` — provável herança do claim de 12/11 que **só preservou**. Não muda salário
+   (ambos em `_WAIVER_TYPES`); muda a guarda.
+2. ⭐ **A lista TEM de ser congelada — varredura por query pegaria o Goff.** Medido no seed: **60**
+   jogadores no mesmo estado (`cy` do grupo · `css=2025` · canal waiver/FA · vivo), dos quais **12**
+   são dos 13 e **48 seriam falso positivo** — **Goff entre eles**. ⛔ Nenhum critério de estado
+   distingue alvo de não-alvo: o discriminante é a **cadeia da API**, que o banco não carrega. A
+   lista dos 13 é congelada, como o censo do [[OFF26-32]].
+
+##### Bloco read-only para o owner fechar o eixo 1 (Render Shell, `/data/dynasty.db`)
+
+```sql
+-- os 13, por sid; identidade de time por sleeper_owner_id (nunca por nome)
+SELECT p.sleeper_player_id, p.name, p.contract_year, p.contract_start_season,
+       p.acquisition_type, p.salary, p.espn_ref_value, p.is_dropped, p.needs_review,
+       t.sleeper_owner_id, t.name
+  FROM players p LEFT JOIN teams t ON t.id = p.team_id
+ WHERE p.sleeper_player_id IN ('6803','9486','8154','8259','CHI','CLE','11539',
+                               '3451','421','NE','9225','10213','5870')
+ ORDER BY p.sleeper_player_id;
+
+-- controle negativo: 3163 (Goff) NAO e alvo; se entrar em qualquer lista, e falso positivo
+SELECT sleeper_player_id, contract_year, contract_start_season, acquisition_type, salary
+  FROM players WHERE sleeper_player_id = '3163';
+```
+
+**O que essa saída fecha:** (a) o estado dos quatro campos alvo a alvo; (b) o **ESPN do Jones**, que
+decide o único indeterminado do eixo 2; (c) se algum dos 13 está `is_dropped=1` ou `needs_review=1`
+em prod (qualquer um dos dois **pula ou aborta** a guarda).
 
 ---
