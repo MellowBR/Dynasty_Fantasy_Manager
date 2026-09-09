@@ -94,6 +94,18 @@
 </div>
 {% endif %}
 
+{# OFF26-42: pendência de arbitragem de contrato — o contrato fica INTOCADO até o
+   admin arbitrar (comissário: real × manobra; sinais divergentes: vivo × morto). #}
+{% if summary.pendency_players %}
+<div class="alert alert-warn">
+  ⚖️ <strong>{{ summary.pendency_players | length }} jogador(es) com contrato em arbitragem</strong>
+  (o sync não altera o contrato até o veredito do admin):
+  {% for p in summary.pendency_players %}
+    <a href="{{ url_for('roster.player_detail', player_id=p.id) }}" class="tag tag-review">{{ p.name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
 {# Roster grouped by position — IR players inline at end of each group #}
 {# OFF26-16: informativo de ESCALAÇÃO — quem está no IR e quantos. Sem aritmética
    paralela: o salário deles já está no "Salary usado" acima, como o de todo mundo. #}

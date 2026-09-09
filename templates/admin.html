@@ -19,6 +19,10 @@
          title="Abrir tela de revisão">
         <span class="stat-num">{{ g_review_count }}</span><span class="stat-label">Revisão pendente</span>
       </a>
+      <a href="/admin/arbitragem" class="stat-item stat-item-link {{ 'stat-warn' if arb_count and arb_count > 0 else '' }}"
+         title="Fila de arbitragem de contrato (OFF26-42): comissário e sinais divergentes">
+        <span class="stat-num">{{ arb_count or 0 }}</span><span class="stat-label">Arbitragem</span>
+      </a>
       <div class="stat-item"><span class="stat-num">{{ current_season or g_current_season }}</span><span class="stat-label">Temporada atual</span></div>
     </div>
   </div>

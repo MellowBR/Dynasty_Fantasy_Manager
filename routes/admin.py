@@ -19,9 +19,12 @@ def admin_page():
     playoffs = get_config("playoffs_started", "false") == "true"
     f8_rebuilt = get_config("f8_rebuilt", "false") == "true"
     from board_mirror import get_mirrored_season, build_permutation
+    from models import ContractPendency
     mirrored = get_mirrored_season()
     draft_season = get_current_season() + 1
+    arb_count = ContractPendency.query.filter_by(status="aberta").count()
     return render_template("admin.html",
+                           arb_count=arb_count,
                            last_sync=last_sync,
                            sync_frozen=get_config("sync_frozen", "false") == "true",
                            player_count=player_count,
@@ -1241,6 +1244,79 @@ def review_page():
     cat_b = [p for p in players if _categorize_review_player(p) == "B"]
     return render_template("admin_review.html", cat_a=cat_a, cat_b=cat_b,
                            total=len(players))
+
+
+# ── OFF26-42: arbitragem de contrato (fila irmã da M2) ───────────────────────
+# Pendências que o sync NÃO tem autoridade para decidir: transação de comissário
+# (real × manobra, veredito SUGERIDO pela âncora do congelamento — sempre humano)
+# e sinais divergentes Δ × canal (vivo × morto). A decisão da régua vive em
+# `contract_regua`; a consequência executa por `sync_sleeper.apply_regua_consequence`
+# (executor único — ⛔ nada de record_acquisition direto aqui, guarda AST).
+
+@admin_bp.route("/admin/arbitragem")
+@admin_required
+def arbitragem_page():
+    """OFF26-42 — tela da fila de arbitragem (molde M2: ação unificada + 409)."""
+    from models import ContractPendency
+    abertas = (ContractPendency.query.filter_by(status="aberta")
+               .order_by(ContractPendency.created_at.asc()).all())
+    arbitradas = (ContractPendency.query.filter_by(status="arbitrada")
+                  .order_by(ContractPendency.arbitrated_at.desc()).limit(20).all())
+    return render_template("arbitragem.html",
+                           abertas=[p.to_dict() for p in abertas],
+                           arbitradas=[p.to_dict() for p in arbitradas])
+
+
+@admin_bp.route("/api/admin/contract_pendencies")
+@admin_required
+def contract_pendencies():
+    from models import ContractPendency
+    rows = (ContractPendency.query
+            .order_by(ContractPendency.status.asc(),
+                      ContractPendency.created_at.asc()).all())
+    return jsonify([r.to_dict() for r in rows])
+
+
+@admin_bp.route("/api/admin/contract_pendencies/<int:pid>/arbitrate", methods=["POST"])
+@admin_required
+def arbitrate_pendency(pid):
+    """OFF26-42 — veredito do admin sobre UMA pendência, com race guard (molde M2).
+
+    Body: {verdict}. Vereditos válidos por tipo em `contract_regua.VERDICTS_BY_KIND`
+    (comissário: real|manobra; sinais divergentes: vivo|morto). ⛔ O veredito
+    SUGERIDO nunca é aplicado sem esta ação humana."""
+    from flask_login import current_user
+    from datetime import datetime as _dt
+    from contract_regua import VERDICTS_BY_KIND
+    from sync_sleeper import apply_regua_consequence
+    from models import ContractPendency
+
+    pendency = db.get_or_404(ContractPendency, pid)
+    if pendency.status != "aberta":
+        return jsonify({
+            "error": "Pendência já arbitrada — recarregue a tela.",
+            "verdict": pendency.verdict,
+        }), 409
+
+    data = request.get_json(silent=True) or {}
+    verdict = (data.get("verdict") or "").strip().lower()
+    valid = VERDICTS_BY_KIND.get(pendency.kind, ())
+    if verdict not in valid:
+        return jsonify({"error": f"Veredito inválido para {pendency.kind} — "
+                                 f"use um de: {', '.join(valid)}"}), 400
+
+    result = apply_regua_consequence(pendency, verdict)
+    if result.get("error"):
+        db.session.rollback()
+        return jsonify({"error": result["error"]}), 400
+
+    pendency.status = "arbitrada"
+    pendency.verdict = verdict
+    pendency.arbitrated_by = current_user.id
+    pendency.arbitrated_at = _dt.utcnow()
+    db.session.commit()
+    return jsonify({"success": True, "pendency": pendency.to_dict(),
+                    "consequence": result})
 
 
 # ── Playoffs Flag ────────────────────────────────────────────────────────────

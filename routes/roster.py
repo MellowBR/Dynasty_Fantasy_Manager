@@ -104,6 +104,11 @@ def index():
         if own_salary > SALARY_CAP:
             own_cap_overrun = round(own_salary - SALARY_CAP, 2)
 
+    # OFF26-42: jogadores do time com pendência de arbitragem ABERTA (o contrato
+    # fica intocado até o veredito do admin; a fila vive em /admin/arbitragem).
+    from models import open_pendency_player_ids
+    pendency_ids = open_pendency_player_ids()
+
     summary = {
         "team": selected,
         "players_by_pos": players_by_pos,
@@ -114,6 +119,7 @@ def index():
         "cap_pct": cap_pct,
         "renewal_candidates": [p for p in active_players if p.is_renewal_candidate()],
         "needs_review": [p for p in all_players if p.needs_review],
+        "pendency_players": [p for p in all_players if p.id in pendency_ids],
         "own_cap_overrun": own_cap_overrun,
     }
     return render_template("roster.html", summary=summary, teams=teams,

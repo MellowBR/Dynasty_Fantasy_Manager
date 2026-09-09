@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Arbitragem de Contrato{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">⚖️ Arbitragem de Contrato (OFF26-42)</h1>
+  <p class="text-dim">
+    Decisões que o sync <strong>não tem autoridade</strong> para tomar: transação de
+    <strong>comissário</strong> que toca roster (real × manobra — o veredito sugerido pela
+    âncora do congelamento é só sugestão) e re-add com <strong>sinais divergentes</strong>
+    entre a janela de waiver e o canal (vivo × morto). Enquanto a pendência está aberta,
+    o contrato do jogador fica <strong>intocado</strong> — o resto do sync segue normal.
+  </p>
+</div>
+
+{% if abertas %}
+<section class="card review-section">
+  <div class="review-section-header">
+    <h2 class="card-title">Pendências abertas ({{ abertas|length }})</h2>
+  </div>
+  <div class="review-list">
+    {% for p in abertas %}
+    <div class="player-row review-row" data-pid="{{ p.id }}">
+      <div class="player-info">
+        <a href="{{ url_for('roster.player_detail', player_id=p.player_id) }}"
+           class="player-name">{{ p.player_name }}</a>
+        <span class="player-meta text-dim">
+          {{ p.team_name }} · {{ p.kind }} · tx {{ p.sleeper_transaction_id }}
+          · {{ p.tx_type }} · fase {{ p.phase }}
+          {% if p.suggested_verdict %} · <strong>sugerido: {{ p.suggested_verdict }}</strong>{% endif %}
+        </span>
+        <span class="player-meta text-dim">{{ p.context.motivo }}</span>
+        {% if p.context.sinais %}
+        <span class="player-meta text-dim">sinais: {{ p.context.sinais | join(' · ') }}</span>
+        {% endif %}
+      </div>
+      <div class="player-right">
+        {% if p.kind == 'sinal_divergente' %}
+        <button class="btn-sm btn-secondary" onclick="arbitrate({{ p.id }}, 'vivo', this)">Vivo (mantém)</button>
+        <button class="btn-sm btn-secondary" onclick="arbitrate({{ p.id }}, 'morto', this)">Morto (ano 1)</button>
+        {% else %}
+        <button class="btn-sm btn-secondary" onclick="arbitrate({{ p.id }}, 'real', this)">Real</button>
+        <button class="btn-sm btn-secondary" onclick="arbitrate({{ p.id }}, 'manobra', this)">Manobra</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% else %}
+<section class="card review-section">
+  <p class="review-empty text-dim">Nenhuma pendência aberta. ✅ Fila vazia não bloqueia nada.</p>
+</section>
+{% endif %}
+
+{% if arbitradas %}
+<section class="card review-section">
+  <div class="review-section-header">
+    <h2 class="card-title">Arbitradas recentemente ({{ arbitradas|length }})</h2>
+  </div>
+  <div class="review-list">
+    {% for p in arbitradas %}
+    <div class="player-row review-row">
+      <div class="player-info">
+        <span class="player-name">{{ p.player_name }}</span>
+        <span class="player-meta text-dim">
+          {{ p.team_name }} · {{ p.kind }} · tx {{ p.sleeper_transaction_id }}
+          · veredito: <strong>{{ p.verdict }}</strong> · {{ p.arbitrated_at or '' }}
+        </span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<script>
+async function arbitrate(pid, verdict, btn) {
+  btn.disabled = true;
+  try {
+    const resp = await fetch(`/api/admin/contract_pendencies/${pid}/arbitrate`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({verdict: verdict}),
+    });
+    const data = await resp.json();
+    if (resp.status === 409) {
+      alert(data.error || 'Pendência já arbitrada — recarregue a tela.');
+      window.location.reload();
+      return;
+    }
+    if (!resp.ok) {
+      alert(data.error || 'Erro ao arbitrar.');
+      btn.disabled = false;
+      return;
+    }
+    window.location.reload();
+  } catch (e) {
+    alert('Erro de rede: ' + e);
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}
