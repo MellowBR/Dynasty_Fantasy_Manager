@@ -6018,3 +6018,58 @@ conceito). Observação estrutural: `User.team_id` é **um** time (M12/M17) e n�
 N:N usuário×liga×time — daí a tabela nova; ⛔ não alterar o campo existente.
 
 186→191 rows · 83→88 seções; auditor O5 exit 0. ⛔ Zero `.py`/`.html`/`.css` no diff; zero banco.
+
+### MAN-CLOSE-LOTE-0909-F1 — varredura dos 21 ⚠️: veredito proposto por item, com evidência citável (09/09/2026, Opus 5) · docs-only, read-only
+
+⛔ **Nenhum status alterado, nenhuma migração** — a tabela é para aprovação em lote do owner.
+
+⚠️ **Nota de execução:** os três subagentes de busca de evidência **morreram no limite de sessão
+(429)** antes de devolver qualquer linha; a varredura foi refeita **manualmente** com greps
+dirigidos. Nada do que eles não entregaram foi presumido.
+
+⭐ **O resultado principal é desconfortável e é o ponto:** dos 268,6 KB em ⚠️, só **16,7 KB (1
+item)** têm o comportamento **provado em produção por registro citável**. **213,7 KB (17 itens)**
+dependem de **uma resposta sim/não do owner** — não porque a condição não ocorreu, mas porque
+**ninguém registrou a conferência**. É a mesma classe de dívida que originou a disciplina dos
+relatórios fabricados: "a data passou" nunca foi evidência.
+
+| item | KB | classe | evidência citável **ou** pergunta fechada ao owner |
+|---|---|---|---|
+| **OFF26-11** | 16,7 | **A** | `improvements.md:8809-8825` (F1 do [[OFF26-34]], medição sobre `/data/dynasty.db`): *"FA auction de 2026, draft `1396615822058721280`, importado em 25/08/2026 02:05 (UTC) pela porta correta (`/draft_import`, modo auction)"* + *"keepers excluídos pela lista congelada \| **212**"* + *"Somas verificáveis: … **212 + 52 = 264**"*. O comportamento do item (excluir keepers, ingerir só arremates) está medido em prod |
+| O2 | 14,1 | **C** | O próprio item declara: *"O item NÃO fecha ✅: Batch 2 (stats históricas + schedule) segue pendente"* |
+| OFF26-23 | 17,3 | **C** | ⭐ `manager_devplan.md:5758-5760`: o rookie draft 2026 rodou **fora do board** (WhatsApp) e *"Draft real ficou `pre_draft` — **o importador OFF26-3 nunca teve insumo**"* ⇒ os poka-yokes da ordem **nunca foram exercitados**. Evento futuro nomeado: **import do rookie draft 2027** |
+| OFF26-42 | 6,8 | **C** | O próprio item nomeia o evento: primeiro re-add real pela régua e/ou transação de comissário na fila |
+| OFF26-4 | 65,0 | **B** | Você abriu `/admin/keeper_audit` com a **sheet definitiva** antes do leilão de 24/08 e o veredito bateu com o board? |
+| OFF26-20 | 59,4 | **B** | Você conferiu **na tela**, em produção, o rótulo de aquisição (ENUM) e a coluna **PROJ** do roster depois do deploy? |
+| OFF26-25 | 9,1 | **B** | O rollover de 17/08 rodou com o gate no ar desde 14/08 (caminho de **aceite** exercitado). Você chegou a ver o passo 4 **RECUSAR** (409 `espn_nao_definitiva`) antes do import final? |
+| OPS2 | 2,9 | **B** | ⚠️ Duas citações opostas: `manager_devplan.md:5808-5809` diz que o replay de 18/08 rodou *"sob o freeze OPS2"* (uso real), mas `:5826` diz *"OPS2 segue ⚠️ (smoke = 1º uso real, 24/08)"*. O uso de **18/08** já serve como smoke? |
+| OFF26-22 | 8,0 | **B** | Você viu a auditoria sair com `verdict="nao_qualificada"` sobre sheet **provisória** e liberar com a definitiva? |
+| E2 | 10,0 | **B** | O `wa_draft_2026_fix` usou a âncora *"Tate $12"* (`devplan:5766`), que é o caso-exemplo do E2 — o valor veio **do store**, e a classe 2026 nasceu com os valores certos? |
+| E3 | 3,6 | **B** | O import ESPN de agosto (*"ESPN definitiva → rollover"*, `devplan:5758`) foi feito na tela **sem a opção de URL** e correu normal? |
+| E5 | 9,7 | **B** | No review daquele import, o texto do cabeçalho de "Não Encontrados" apareceu **corrigido** (sem o *"todos receberão \$1"*)? |
+| DP1 | 11,8 | **B** | Você chegou a usar o **board de rookies do cap_projector** em produção nesta intertemporada? (⚠️ o draft real foi por WhatsApp — pode nunca ter sido aberto) |
+| M17 | 8,3 | **B** | Em produção, ao abrir o Manager sem `?team=`, cada owner vê o **próprio** time por padrão? |
+| MAN-AUTH1 | 8,2 | **B** | O Murilo (ou alguém) viu o **seletor de contas** do Google no PC do trabalho, em produção? |
+| UX13 | 2,7 | **B** | Na timeline do jogador, o rótulo de `contract_year_correction` aparece **legível** (não cru) em produção? (`devplan:5896` confirma que seguia ⚠️ em 26/08) |
+| UX19 | 3,6 | **B** | Em 18/08 você observou o selo **PROV** dizendo o certo (não o contrário do que acabara de acontecer)? |
+| F9 | 10,3 | **B** | Alguma aquisição passou pela porta **bulk do `/auction`** em produção desde 16/06? |
+| IR-CLEANUP | 0,4 | **B** | O seletor manual de IR sumiu da tela em produção e não falta mais nada? |
+| OFF26-14 | 0,5 | **B** | O item pode fechar **por absorção** do [[OFF26-16]] (✅), como o próprio stub sugere? |
+| F8 | 0,4 | **B** | Além de F8a/F8b/F8c (**todos ✅** como rows próprias), o guarda-chuva F8 ainda tem escopo aberto? |
+
+**Somas por classe:** **A = 16,7 KB (1 item)** · **B = 213,7 KB (17 itens)** · **C = 38,2 KB (3
+itens)** · total **268,6 KB**, conferido contra a medição de hoje.
+
+#### Bloco `## Offseason 2026 — pacote OFF26` (9,1 KB, invisível ao auditor)
+
+**Proposta: MIGRAR ao archive como contexto de campanha encerrada** — é header `##` sem ID, que
+nem o auditor nem a regra [[O3]] alcançam, e a campanha 2026 acabou (leilão 24/08; temporada
+começou 09/09). ⚠️ **Ressalva verificada antes de propor:** o bloco carrega uma **doutrina viva**
+(a EMENDA de 02/08: *"existe UMA liga fantasma permanente — a da FA auction —, não duas. O rookie
+draft roda na liga real"*), que **já está preservada no `CLAUDE.md`** na linha do blueprint
+`draft_import` (*"rookie linear (roda na liga REAL) / FA auction (roda na liga fantasma
+permanente)"*). Com esse portador confirmado, a migração **não enterra regra viva**. ⛔ Se o owner
+preferir, a alternativa é manter só a EMENDA no ativo e migrar o resto.
+
+Auditor O5 exit 0 (191 rows · 88 seções). ⛔ Zero `.py`/`.html`/`.css`; zero banco; zero status
+alterado.
