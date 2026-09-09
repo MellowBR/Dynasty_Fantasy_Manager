@@ -1,12 +1,12 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 09/09/2026-pt3 (sessão **MAN-SEA26-REG**, **docs-only — zero código**: nasce a **campanha [[SEA26]]** (temporada 2026: pick'em multi-liga + visualização de confrontos), **5 itens 🔲** sob um bloco `##` próprio — [[SEA26-1]] Alta (cadastro de ligas/participantes + ingestão de matchups via Sleeper; **absorve o [[L2]]**, que ⛔ não reabre) · [[SEA26-2]] Alta (pick'em, regras FECHADAS pelo owner em 09/09) · [[SEA26-3]] Média (tela de confrontos do podcast, que alimenta o palpite) · [[SEA26-4]] Média (probe ESPN, **gate** da liga ESPN) · [[SEA26-5]] Baixa (cruzamento de projeções, fora do caminho crítico). ⭐ **Aritmética dos tetos conferida e fecha — e DERIVA dois parâmetros que o enunciado não declarava**: `89 = 14×6 + 5` fixa a temporada regular do pick'em em **semanas 1–14** (único valor possível: 13→83, 15→95) e `81` = soma exata das 12 eliminações com piso 3 **prova que o Chopp não tem palpite de confronto** (teto geral **259**). ⚠️ **Decisão D do [[O6]] avaliada e NÃO aplicável — medido, não suposto:** o retrofit do auditor (V7/múltiplos arquivos) que a decisão (c) exigia **não existe**, e fixture temporária provou que a **V4 derruba o gate** (`row SEA26-1 sem seção detalhada no ativo`, exit 1) → campanha registrada **no ativo**, com a **pendência de retrofit cobrada pela 1ª vez** na seção do O6 (segundo motivo, independente do split do OFF26). ⚠️ Refinamento registrado no [[SEA26-4]]: **[[E3]] é evidência ADJACENTE, não o mesmo caso** — lá é o **site/PDF** da ESPN bloqueando o IP do Render; aqui é **outro host e outra autenticação** (API de fantasy + cookies SWID/ESPN_S2), logo precedente de risco, ⛔ não veredito. Vãos abertos registrados sem arbitrar: empate no confronto/guilhotina, ausência de palpite no lock, origem do horário do lock (calendário × admin, como na urna), desempate por playoffs **vazio** no Chopp (acaba na semana 12) e o prêmio (não bloqueia). 186→191 rows · 83→88 seções; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff.)
 > Atualizado em: 09/09/2026-pt2 (sessão **MAN-OFF26-36-CLOSE**, **docs-only — zero código, zero escrita em banco pelo Code**: fechamento pelo smoke de PROD do owner (Render Shell, na ordem: backup 761.856 B conferido → `off26_36_backfill --check` 222 → `--apply` **222 criados**, pós-escrita 0→222, ref em todos → `off26_37_a_fix --check` **0 elegíveis**; deploy `d115949` no `/admin`; sync 11:28 limpo). ✅ **[[OFF26-36]] FECHADO** — seção migrada verbatim p/ o archive ([[O3]]), **com achado do fechamento registrado: a conta 17×7 da reconstrução de team_name FECHA** (7 da F1 corretos por hora de TRANSAÇÃO + 8 trades de 05-06/09 + **2 falso-positivos Hill/Mitchell** — ⭐ raiz: o runner usa `created_at` do SYNC como proxy da hora da trade, e a trade deles foi às 16:39 UTC, ANTES do rollover de 21:34 → **2 dos 222 em prod com team_name anacrônico**, só exibição, SQL de correção opcional na seção arquivada). **[[OFF26-42]] segue ⚠️ com pendência ÚNICA nomeada** (primeiro caso REAL de re-add/comissário) e a fila vazia de 09/09 explicada **pelo desenho**: pendência nasce de TRANSIÇÃO observada no sync, não de varredura retroativa — as 37 commissioner de 18/08 fora da fila é conforto, não achado. Nasce **[[OFF26-43]] 🔲 Média** (o painel não sabe que a temporada começou: `offseason_mode` sem porta de desligar + passo 6 preso ao `CutWindowAudit` aposentado; direção do owner: derivar do `LateDropAudit`/lista congelada + ação "encerrar intertemporada"; [[M1-FOLLOWUP]] e [[UX33]](a) fecham por absorção, cross-refs recíprocos plantados; medida provisória = UPDATE manual documentado, conferido contra o schema real). Auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff.)
 > Atualizado em: 09/09/2026 (sessão **MAN-OFF26-36**, código + docs — **zero banco de prod; ensaios só em CÓPIA**: F2 das Partes 1–4 do arco contrato-vivo, sob as 8 decisões do owner do mesmo dia. ⭐ Nasce **[[OFF26-42]] ⚠️ Alta** — a régua vivo × morto NO SYNC (transição dropado→rosterado capturada; decisão no helper ÚNICO `contract_regua.decide_readd`; janela `waiver_clear_days`×24h da API, sem literal) + **arbitragem de comissário** (fila `ContractPendency` aditiva, molde M2 c/ race guard 409, `/admin/arbitragem`, veredito sugerido pela âncora do congelamento [[OFF26-11]], SEMPRE humana) + badge no roster. **[[OFF26-36]] → ⚠️**: as 3 portas gravam timeline AO VIVO (rollover `rollover:<season>`; drop do sync com FATO da API + FASE por `season_start_date` do `/state/nfl` — offseason_mode só log; `record_acquisition` com ref nunca-NULL e **canal real** no AuctionLog, off-label [[OFF26-34]] fechado p/ chamadores novos) + runner `off26_36_backfill.py` **ensaiado em cópia** (222 → 2ª execução 0 → rebuild F8 simulado preserva; team_name da ÉPOCA reconstruído pelos trades do S1). ⚠️ **Refutação MEDIDA da decisão 8** (a conferência que ela mesma mandou): `status_updated` inverteria vereditos arbitrados em prod (Goff 12,3h→53,1h; Jones 69,2h→47,2h) — implementado `created` nos dois lados (único que reproduz o precedente canônico da decisão 5), ponto único — **ratificado pelo owner na mesma data (MAN-OFF26-42-RATIFICA)**. Medições ao vivo: leg 0 VAZIA (intertemporada inteira na leg 1, 208 txs), `season_start_date=2026-09-09`, `waiver_clear_days=2`. Verificação ex-Parte 5: `off26_37_a_fix.py --check` → **0 elegíveis** ("já registrado" nos 2) ✓. 38 testes novos (`contract_regua_test.py`, incl. guardas AST da validação 8 e precedente Jones×Goff em timestamps reais) + 8 (`off26_36_backfill_test.py`); **29 suítes pré-existentes verdes** (incl. `off26_37_a_fix_test` 40/40); gate O7 verde (24s, 0 achados); auditor exit 0. Commits `b06cf36` (P1+P3) · `38cccdb` (P2) · `e7b3dc8` (P4). ⛔ **Prod pendente**: backfill (backup → --check → --apply no Render Shell) + smoke do 1º sync da temporada.)
 > Atualizado em: 26/08/2026-pt3 (sessão **MAN-CONTRATO-VIVO-CLOSE**, **docs-only — zero código, zero banco**: ✅ **[[OFF26-37]] FECHADO** — o arco da régua canônica de contrato vivo × morto foi **executado em produção em 26/08/2026, em DUAS etapas**, cada uma com **hash conferido pelo owner antes** e **backup com `ls -la` antes da escrita**: **Grupo B** (`32e4cc0`, `off26_37_b_fix.py`, suíte 40 verde, backup 737.280 B) — **11 contratos `cy 3→2`**, `css`/canal/salário preservados, trilha `fix:off26-37-b`; **Grupo A** (`2374f4e`, `off26_37_a_fix.py`, suíte 40 verde, backup 741.376 B) — **2 resetados ao caso 3** (`cy=1 · css=2026 · free_agent · $1`), **ESPN preservado**, trilha `fix:off26-37-a` + 2 no `auction_log`, **−$7** de folha no AlexTheDawg (Aiyuk `$8→$1`; Wicks delta zero). **Verificação independente por consulta read-only** após ambas + **smoke web** confirmado pelo owner = critério de fechamento. ⛔ **Nenhuma etapa aceita por relato** — o precedente dos **relatórios fabricados deste próprio arco** (`4c19a2e`/`a3f81c9`, inexistentes) é a origem da disciplina. ⭐ **LIÇÃO DE MÉTODO, registrada com destaque: o resultado certo dependeu de NÃO corrigir o Goff** — ele tinha estado **idêntico** ao dos 11 no banco (**48** jogadores no mesmo perfil), e ⛔ **nenhuma consulta de estado o distinguiria**; o que o separou foi a **cadeia da API** (claim **12,3h** dentro da janela de 48h × **69,2h** do Jones), medida **fora do circuito automático** pelo owner, que **refutou** a alegação de um prompt anterior — a qual **atribuía ao Jones a cadeia do Goff** (troca de sujeito, não medição divergente). Nascem 4 itens **da execução**: **[[OFF26-38]]** 🔲 Baixa (passivo do **Stafford** `$2→$3` — raiz distinta: o rollover aplicou valorização onde devia ano 2 de waiver/FA; ⭐ único dos 11 que se move, e **Jones verificado NÃO move**, limiar `espn_adj ≥ 2,5`), **[[OFF26-39]]** 🔲 **Alta** (⭐ **família de armadilhas de `record_acquisition`**: o token `[ref:]` **decepado** pelo truncamento em 200 — falha **silenciosa** de idempotência em porta que escreve salário, pega **por teste em flagrante** — e o **`espn_ref_value` zerado** pelo default 0.0, com a atribuição vindo **antes** da guarda; ⛔ porta **não** alterada, os runners **contornam**, com teste que prova cada armadilha viva), **[[OFF26-40]]** 🔲 Baixa (caminho de banco **relativo** cria banco vazio em `instance/`; corrigido **só no runner novo** — ⛔ artefatos já executados **não** tocados) e **[[OFF26-41]]** 🔲 Baixa (a suíte do motor roda **62** testes, não as **54** do `CLAUDE.md` — ⛔ registrado, **não corrigido**: redação do `CLAUDE.md` é decisão do owner; a classe é maior que o número — **14 suítes** com contagem fixada e nada as verifica). Emenda no **[[WV1]]**: 3 dos 9 candidatos da coorte B saem como `skipped` (sem abortar), `--check` sairá **exit 1** e exigirá **exclusão documentada** no molde do Goedert. Seção do [[OFF26-37]] migrada **verbatim** (431 linhas) para o `improvements_archive.md`, conforme o [[O3]]. 180→184 rows · 79→82 seções; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff e **nenhum `.db` tocado**.)
 > Atualizado em: 26/08/2026-pt2 (sessão **MAN-CONTRATO-VIVO-F1**, **docs-only — zero código, zero escrita em banco**: parecer **F1 do runner dos 13 alvos** na seção [[OFF26-37]]. ⛔ **Eixo 1 (estado dos 13 no banco vivo) NÃO foi medido — e é estrutural:** o banco alcançável do Code é o **SEED do git** (`./dynasty.db`, mtime 07/08, `current_season=2025`, `rollover_done=false`, **pré-rollover**), não `/data/dynasty.db`; ⛔ o `cy=2` que ele mostra **não contradiz** o registrado, é outro banco em outro momento. Bloco SQL read-only deixado pronto para o owner fechar no Render Shell. **Os outros três eixos fecham sem banco vivo.** ⭐ **Eixo 2 — invariante = 0 violações, e é ANALÍTICO** (`cy=3` e `cy=2` caem ambos no ramo da valorização ⇒ projeção do ano seguinte idêntica **para qualquer ESPN**) — ⚠️ **mas o dinheiro SE MOVE em dois lugares que a frase "nunca no dinheiro" esconde**: no **horizonte 2** (Stafford: renovação $4 × valorização $2) e no **passivo do rollover de 17/08** (Stafford $2→$3, único dos 10 medidos); **Jones fica INDETERMINADO** — ESPN não consta em DADOS nem no handoff, e o limiar medido é `espn_adj >= 2,5`. ⭐ **Eixo 3 — a porta NÃO é uma só: são DUAS**, e com forças de guarda distintas — `record_acquisition` serve o Grupo A mas **não tem guarda de estado**, e `contract_year_correction` (guarda exata, campo a campo) é a do Grupo B; usar uma no lugar da outra escreveria `cy=1`/`css=season` em quem devia manter `css=2025`. ⚠️ **Três armadilhas medidas no caminho do Grupo A**, a maior sendo que **`set_espn_value` ZERA o `espn_ref_value`** se o runner não repassar o valor (a atribuição vem **antes** da guarda, `models.py:764`). **Réplica da REGRA: nenhuma** — varredura `.py`+`.html`+JS inline; o passo 6 do rebuild [[F8]] reescreve `css`/canal mas **não toca `contract_year`**, e `contract_year_correction` **não** está em `_ACTIVE_ACQUISITION_TYPES` (a trilha não vira insumo do rebuild). ⭐ **Eixo 4 — dupla aplicação impossível nas duas ordens**: `off26_32_fix` ∩ 13 = `{6803}` **mas excluído de propósito** (executado ∩ 13 = ∅), `wv1_fix_coorte_b` (nunca executado) ∩ 13 = `{3451, 8259, NE}`, e o `triage` de lá trata `cy` já corrigido como **skip, não abort** — o custo da ordem é **exit 1 no `--check`**, não dado corrompido. ⚠️ **Interseção que o prompt não previu: `off26_20_fix` (executado 06/08, 22 contratos) contém 9486 (Wicks)** — o `cy=2` dele é contrato **mantido corretamente** que morreu no drop de 20/08, não congelamento; muda a narrativa, não o devido. ⚠️ **Dois achados de desenho para a F2:** o Grupo B é de **canal MISTO** (6 `fa_waiver` + 5 `free_agent`) e uma `EXPECTED` única **abortaria** no molde da coorte B; e **a lista TEM de ser congelada** — varredura por estado pegaria **60** jogadores, **48 falso positivo, o Goff entre eles**. [[OFF26-37]] segue **🔲**; Status Rápido **sem row nova**; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff e **nenhum `.db` alterado**.)
-> Atualizado em: 26/08/2026 (sessão **MAN-CONTRATO-VIVO-ARB**, **docs-only — zero código**: **arbitragem da disputa Jones × Goff** na seção [[OFF26-37]], por **medição independente do owner** feita **fora do circuito do Code** (API de transações da liga de 2025, `league_id 1224848075609100288`, **21 semanas**). ⭐ **A lista de alvos do arco FECHA em 13** — **2** (Grupo A) + **11** (Grupo B, agora com Jones) — **superando o 12 do handoff**, com **um a favor e um contra**: **Daniel Jones (5870)** **É ALVO** (drop 03/11/2025 04:45 → último add 06/11 01:54, **Δ 69,2h — FORA** da janela de 48h, margem 21,2h → **caso 3**; `cy` devido **2**, e ⭐ `css` **já correto em 2025** → correção **só de contagem**) e **Jared Goff (3163)** **NÃO é alvo** (drop 10/09 01:11 → claim completo 10/09 13:31, **Δ 12,3h — DENTRO** → **caso 2**; `cy=3` **CORRETO**, ⛔ não tocar). A consequência do Goff para o **D4** (`css` devido = **2024**, produção mostra 2025) entra como **evidência**, ⛔ **não** como correção — o D4 segue 🔲 **gated** no fix do passo 6 do rebuild. ⭐ **Lição de método (candidata a baseline do `DEV_METHODOLOGY`, família MAN-METH-REG):** no feed de transações do Sleeper **tentativa e aquisição ocupam a mesma estrutura** — só o campo `status` as separa; os **3 claims `failed` do Goff** na mesma janela são o que explica a divergência das medições anteriores (**"a API de transações não é discriminante sem o filtro de status"**). ⚠️ **Duas premissas do arco refutadas:** os `tw*.json` **não estavam baixados** (contagem **zero** — a varredura teria sido parcial com aparência de completa) e a alegação B **atribuía ao Jones a cadeia de datas do Goff** (**troca de sujeito, não medição divergente**). Evidência literal do `medir_disputa.py` preservada como bloco na seção, com os 4 timestamps decisivos e as 3 linhas `[IGNORADO]`. [[OFF26-37]] segue **🔲** (F2 do runner **NÃO iniciada**); Status Rápido **sem row nova**; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff.)
-> 📁 Entradas anteriores em **`improvements_sessions.md`** (103 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
+> 📁 Entradas anteriores em **`improvements_sessions.md`** (104 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
@@ -101,7 +101,7 @@
 | O1 | Linkificar nomes de jogadores em todas as telas | Média | ✅ 23/04/2026 |
 | O2 | Enriquecer página do jogador: contexto NFL (time + **link do time da liga** + **idade** + depth chart — 7 dimensões pós-roteamento (b) do [[UX12]]) + stats históricas + ECR/ADP + schedule — MAN-O2-F1/MAN-UX12-REFINE/MAN-O2-F2-B1/**MAN-O2-B1-DONE** | Média | ⚠️ **Batch 1 VALIDADO EM PROD 08/08/2026** (PROC1: hash `2ed0b4a` live; DJ Moore completo, link cruzado Gainwell → franquia dele, validação do Michel; `nfl_context.py` núcleo puro + 19 testes, página nunca faz rede, idade derivada. Ressalva: degradação fora-do-pool **não exercida em prod** — pool de prod mais fresco que o local; coberta por unit test) — **Batch 2 (stats + schedule) pendente** |
 | L1 | League Hub: visão geral da liga + detalhe por time | Alta | ✅ 23/04/2026 |
-| L2 | League Hub season mode: matchups, schedule, standings | Baixa | 🔲 |
+| L2 | League Hub season mode: matchups, schedule, standings. **→ ABSORVIDO pelo [[SEA26-1]]** (09/09/2026): a ingestão de matchups da campanha [[SEA26]] é a mesma que este item previa — ⛔ não reabrir como item separado; fecha por absorção quando o SEA26-1 fechar | Baixa | 🔲 |
 | L4 | **Qual evento reabre a exibição de projeção no ciclo seguinte?** O gate do [[L3]] fecha quando `rollover_done` vira `"true"` — e **nenhum sítio grava `"false"` de volta** (medido na MAN-L3-FIX-F1): `_seed_app_config` só insere chave ausente, o `--reset` do ensaio não toca a flag. Hoje a projeção some no rollover e **não volta sozinha** na intertemporada seguinte. Design pequeno, mas toca `app_config` — **contrato externo consumido pelo Optimizer** — então a decisão (que evento zera: fechar a season? abrir o passo 1? flag própria de exibição?) é do owner — MAN-L3-FIX | Baixa | 🔲 |
 | L3 | Projeção de cap por time na `/league` **e no `/team/<id>`** (agregado da season seguinte via valorização × ESPN, antes só no cap_projector time a time) — MAN-L3-F1/MAN-L3/MAN-L3-FIX-F1/MAN-L3-FIX/MAN-L3-FIX-UX/**MAN-L3-FIX-UX2** | A definir | ✅ 13/08/2026 (**smoke visual do owner aprovado** na `/league` e no `/team/<id>`; prod no hash `7883cd9`, [[PROC1]] por artefato servido. Arco de 6 sessões num dia: composição extraída p/ helper único (`compose_budget`, refactor puro provado por medição) → card reorientado a planejamento (3 zonas) → 2 fixes de layout. **Detalhe no archive**, incl. as **3 gerações do instrumento de validação** e as lições que originaram o [[O7]]. Resíduos: [[L4]] · [[UX16]] · [[UX17]]) |
 | N1 | Redesign navbar: estrutura com dropdowns + acesso rápido aos times | Média | ✅ 23/04/2026 |
@@ -202,6 +202,11 @@
 | OFF26-41 | **Deriva de documentação: o `CLAUDE.md` registra 54 testes do motor salarial e a suíte roda 62** — medido em 26/08/2026 (`python salary_engine_test.py` → `Ran 62 tests ... OK`). ⛔ **Registrado como item, não corrigido por conta própria**: a redação do `CLAUDE.md` é decisão do owner (restrição explícita da sessão MAN-CONTRATO-VIVO-CLOSE). ⚠️ **A classe importa mais que o número:** o bloco de comandos do `CLAUDE.md` fixa contagens de **14 suítes** e nada as verifica — cada uma pode ter derivado do mesmo jeito, silenciosamente, e a contagem citada é o que uma sessão futura usa para decidir se uma suíte "está verde na contagem vigente". Candidato natural a carona no [[O5]] (o auditor poka-yoke já existe e é read-only) — MAN-CONTRATO-VIVO-CLOSE | Baixa | 🔲 |
 | OFF26-42 | ⭐ **Régua vivo × morto NO SYNC + arbitragem de comissário + fila de pendências** — fecha a porta que o [[OFF26-37]] mediu e deixou aberta (`is_dropped = False` sem consultar contrato): a transição dropado→rosterado agora passa por `contract_regua.decide_readd` (helper ÚNICO — janela `waiver_clear_days` da API ×24h, `created` nos DOIS lados; ⚠️ **refutação MEDIDA da decisão 8 do owner**: `status_updated` no add daria Goff Δ53,1h e INVERTERIA o veredito arbitrado em prod, e nos dois lados inverteria Jones Δ47,2h — só `created` reproduz o precedente canônico 69,2h/12,3h; **✅ `created` RATIFICADO pelo owner em 09/09/2026**). Caso 2 mantém + evento; caso 3 = ano 1 via `record_acquisition` com **canal real** (off-label [[OFF26-34]] fechado p/ chamadores novos); **comissário NUNCA muda contrato no sync** → pendência na fila `/admin/arbitragem` (tabela ADITIVA `ContractPendency`, molde M2 com race guard 409; veredito SUGERIDO pela âncora do congelamento [[OFF26-11]], degrada sem âncora; arbitragem SEMPRE humana: real×manobra / vivo×morto p/ sinais divergentes Δ×canal); pendência bloqueia SÓ o jogador dela, badge no roster. Decisão 7: varredura completa legs 0-18 (`status=complete` obrigatório; leg 0 medida VAZIA, intertemporada inteira na leg 1) — sem drop na varredura = morto por dedução; falha de API = nada muda + reporte. Fase pela DATA da tx × `season_start_date` do `/state/nfl` (offseason_mode NÃO é fonte, divergência só log). 38 testes novos (`contract_regua_test.py`, incl. guardas AST) — MAN-OFF26-36 (09/09/2026, decisão do owner sobre comissário do mesmo dia) | Alta | ⚠️ **implementado 09/09/2026; deploy `d115949` no ar e sync pós-deploy limpo (0 transições, fila vazia — CONFORME O DESENHO: a fila nasce de transições observadas, não de varredura retroativa). Pendência ÚNICA E NOMEADA: o primeiro caso REAL** — re-add pela régua (waiver de terça) e/ou transação de comissário na fila — a arbitragem só se prova com dado real |
 | OFF26-43 | **O painel de intertemporada não sabe que a temporada começou** — junta [[M1-FOLLOWUP]] e o achado (a) do [[UX33]] numa raiz só: `offseason_mode` é setada `"true"` SÓ no rollover e **nunca revertida por código** (F1 do [[OFF26-9]]; medido de novo em 09/09 — `true` com a temporada em curso, e o sync da régua [[OFF26-42]] loga a divergência a cada execução), e o **passo 6** exibe Pendente para sempre por derivar de `CutWindowAudit`, artefato **aposentado em 07/08** ([[OFF26-1]] ETAPA2). **Direção do owner (09/09/2026):** passo 6 passa a derivar do artefato que o fluxo de 2026 realmente produz (`LateDropAudit` da urna e/ou lista de exclusão congelada [[OFF26-11]]) e o painel ganha ação explícita **"encerrar intertemporada"** que desliga `offseason_mode`; [[M1-FOLLOWUP]] e [[UX33]](a) **fecham por absorção** quando este fechar; UX33(b) segue separado. Medida provisória (UPDATE manual no Render Shell) documentada na seção — MAN-OFF26-36-CLOSE | Média | 🔲 |
+| SEA26-1 | **Cadastro de ligas/participantes + ingestão de confrontos via Sleeper** — base da campanha [[SEA26]]: ligas configuráveis (id, plataforma, tipo **confrontos × guilhotina**, semanas de playoff e formato da chave), **mapa usuário↔time POR LIGA** (⚠️ os participantes diferem entre ligas, e o `User.team_id` de hoje é **um** time só — [[M12]]/[[M17]]), leitura de matchups por semana + resultado (quem venceu; quem foi eliminado). **Só Sleeper** (Dynasty e Chopp); ESPN entra pelo gate do [[SEA26-4]]. Tabelas **aditivas** — ⛔ zero efeito em cap/contrato/salário e no `dynasty.db` que o Optimizer lê. **Absorve [[L2]]** — MAN-SEA26-REG | Alta | 🔲 |
+| SEA26-2 | **Pick'em semanal (as 3 ligas)** — regras **fechadas pelo owner em 09/09/2026** e transcritas na seção: palpite no vencedor de cada confronto (6/semana; playoffs 15–17 só chave de cima, 2+2+1) e, no Chopp, no **eliminado** (semanas 1–12); 1 ponto por confronto; Chopp vale nº de sobreviventes com **mínimo 3**; tetos **89/89/81**. ⭐ **Aritmética conferida nesta sessão — fecha, e DERIVA dois fatos que o enunciado não declarava**: temporada regular = **semanas 1–14** (único valor que dá 89) e **Chopp não tem palpite de confronto** (81 = só eliminações). Lock único no **kickoff do 1º jogo da semana** (molde da urna [[OFF26-10]]: lock por horário, sem revelação antes do lock); ranking por liga + geral (soma das 3, teto **259**, só quem joga as três, sem prêmio); desempate: acertos em playoffs → acertos na semana mais recente; backfill manual da semana 1 marcado como backfill. Depende do [[SEA26-1]] — MAN-SEA26-REG | Alta | 🔲 |
+| SEA26-3 | **Tela de confrontos para o podcast** — escalações lado a lado por confronto, pontos reais e **projeção da própria plataforma** (Sleeper), legível em desktop; a MESMA tela alimenta o palpite do [[SEA26-2]] (uma superfície, dois usos). Depende do [[SEA26-1]] — MAN-SEA26-REG | Média | 🔲 |
+| SEA26-4 | **Probe ESPN (op, read-only)** — a API de fantasy da ESPN responde **a partir do Render**? Via biblioteca `espn-api` (cwendt94), cookies **SWID/ESPN_S2** de liga privada em **variável de ambiente, ⛔ nunca no repo**. Veredito esperado: viável no servidor × exige coleta local + rota de ingestão. ⚠️ **[[E3]] é evidência ADJACENTE, não o mesmo caso**: lá o bloqueio é do **site/PDF** da ESPN ao IP de datacenter; aqui é **outro host e outra autenticação** — precedente de risco, não conclusão. **GATE** da inclusão da liga ESPN em [[SEA26-1]]/[[SEA26-2]]/[[SEA26-3]] — MAN-SEA26-REG | Média | 🔲 |
+| SEA26-5 | **Cruzamento de fontes de projeção** (Sleeper × ESPN × externa) na tela do [[SEA26-3]] — ⛔ **explicitamente FORA do caminho crítico do pick'em**. Depende do [[SEA26-3]] e do [[SEA26-4]] — MAN-SEA26-REG | Baixa | 🔲 |
 
 ---
 
@@ -2322,6 +2327,24 @@ dominante for o padrão de campanhas futuras, a alternativa D entrega isso sem m
 - **(c) Alternativa D aceita como decisão:** OFF27 nasce em **arquivo de campanha próprio**;
   execução na **primeira sessão pós-campanha 2026**, junto com o retrofit do auditor para
   múltiplos arquivos (invariante V7) — fora de janela crítica.
+
+#### ⚠️ PENDÊNCIA DE RETROFIT — cobrada pela primeira vez em 09/09/2026 (MAN-SEA26-REG)
+
+A decisão (c) chegou ao primeiro teste real **antes do previsto**: a campanha **[[SEA26]]**
+(temporada 2026) nasceu em 09/09 e deveria, pela decisão D, morar em arquivo próprio. **Não pôde
+— e a razão foi MEDIDA, não suposta:** o retrofit do auditor (V7 + descoberta de múltiplos
+arquivos) **não existe**, e sem ele a **V4** derruba o gate — fixture temporária com a row no
+ativo e a seção fora produziu `V4 ... row SEA26-1 do Status Rápido (🔲) sem seção detalhada no
+ativo`, **exit 1**. Seriam 5 violações, uma por item.
+
+**Consequência registrada:** a SEA26 ficou **no ativo**, sob um bloco `##` próprio e com prefixo
+único — de propósito, para que o split, quando o retrofit existir, seja **mecânico** (move-se o
+bloco inteiro; nenhum dos 5 resíduos que a F1 mediu na família OFF26 se aplica a ela).
+
+⭐ **O que isto muda no gate deste item:** a decisão (a) amarrava o O6 à re-medição da família
+OFF26 pós-26/08. Agora há um **segundo motivo, independente**, para o retrofit — uma campanha
+nova já esbarrou nele. ⛔ Segue **não arbitrado** se o retrofit vem antes, junto ou depois do
+split do OFF26: é decisão do owner.
 - **(d) Motivação registrada:** o incômodo é **consumo silencioso de tokens pelo Code**, não
   navegação humana (resposta à Q5 — é o que seleciona a B como resposta imediata e esvazia a
   urgência do split).
@@ -4964,6 +4987,13 @@ Q2 da UX12-F1 (08/08) as re-conferiu no cache local e elas **batem** (depth char
 - Na vista `/league`: adicionar coluna de record e pontos totais.
 - Na vista `/team/<id>`: adicionar aba "Temporada" com schedule semanal e pontuações.
 - **Pré-requisito:** L1 concluído. Implementar quando a temporada 2026 começar.
+
+**→ ABSORVIDO pelo [[SEA26-1]] (09/09/2026, MAN-SEA26-REG):** a temporada começou, e a ingestão
+de matchups que este item previa (mesmo endpoint) é exatamente a base da campanha [[SEA26]] —
+que a exige para **três** ligas, não uma. ⛔ **Não reabrir como item separado:** este fecha por
+absorção quando o [[SEA26-1]] fechar. O que era escopo próprio do L2 (as vistas `/league` e
+`/team/<id>` ganharem record/schedule) segue registrado aqui como **superfície a servir** com o
+dado que o SEA26-1 passará a ingerir.
 
 ---
 
@@ -9334,5 +9364,221 @@ normalmente. O passo 6, porém, continua Pendente até a F2 religar a derivaçã
 lá), [[OFF26-9]] (a F1 que mediu a flag sem porta), [[OFF26-1]]/[[OFF26-10]]/[[OFF26-11]] (o
 artefato aposentado × os que existem), [[OFF26-42]] (o log de divergência a cada sync), [[M1]]
 (o banner que vira ruído).
+
+---
+
+## Temporada 2026 — campanha SEA26 (pick'em multi-liga + confrontos)
+🔲 **Registrada em 09/09/2026 — MAN-SEA26-REG (registro apenas; zero código, zero decisão de
+implementação).** A temporada começou em **09/09/2026**; a aposta semanal de palpites do grupo
+vive hoje **fora de qualquer sistema**, e a campanha a traz para o Manager — que já tem
+**identidade** (OAuth, [[M12]]/[[M17]]) e **ingestão do Sleeper**. O mesmo dado serve a uma tela
+de confrontos para o **podcast semanal**.
+
+⛔ **Nada nesta campanha toca cap, contrato, salário, `salary_engine`, sync de rosters ou o
+schema existente — só tabelas ADITIVAS.** O `dynasty.db` é contrato externo lido pelo
+`fantasy_optimizer` e pelo `predictor`: a campanha acrescenta tabelas, não altera as que eles
+leem.
+
+**As três ligas, em duas plataformas:**
+
+| liga | plataforma | times | tipo | pick'em |
+|---|---|---|---|---|
+| **Dynasty SB** | Sleeper | 12 | confrontos (playoffs 15–17) | vencedor de cada confronto |
+| **Chopp** | Sleeper | 13 | **guilhotina** (12 eliminações, semanas 1–12) | **time eliminado** |
+| **ESPN** | ESPN | 12 | confrontos (playoffs 15–17) | vencedor de cada confronto — **gated pelo [[SEA26-4]]** |
+
+**Dependências:** [[SEA26-1]] → [[SEA26-2]]; [[SEA26-1]] → [[SEA26-3]]; [[SEA26-4]] é **gate**
+da liga ESPN nos três; [[SEA26-5]] depende de [[SEA26-3]] + [[SEA26-4]] e está **fora do caminho
+crítico**.
+
+#### ⚠️ Onde esta campanha MORA — a decisão D do [[O6]] foi avaliada e NÃO pôde ser aplicada
+
+A decisão (c) do [[O6]] (13/08/2026) diz que campanha nova nasce em **arquivo próprio**, mas
+condiciona: *"junto com o retrofit do auditor para múltiplos arquivos (invariante V7)"*. **O
+retrofit não foi feito** — e a consequência foi **medida nesta sessão, não suposta**: com a row
+no Status Rápido do ativo e a seção em arquivo separado, `tools/backlog_audit.py` falha com
+`V4 ... row SEA26-1 do Status Rápido (🔲) sem seção detalhada no ativo` (**exit 1**, reproduzido
+em fixture temporária). Seriam **5 violações**, uma por item.
+
+**Portanto: campanha registrada NO ATIVO**, com a pendência de retrofit anotada no [[O6]]. Este
+bloco `##` existe para que o split futuro seja **mecânico** — move-se o bloco inteiro, sem
+julgamento caso a caso (o resíduo que a F1 do O6 mediu na família OFF26 **não** se repete aqui:
+nasceu tudo sob um header só, com prefixo único).
+
+---
+
+### SEA26-1 — Cadastro de ligas/participantes + ingestão de confrontos via Sleeper
+
+🔲 **Registrado em 09/09/2026 (MAN-SEA26-REG)** — Prioridade **Alta** (é a base: [[SEA26-2]] e
+[[SEA26-3]] dependem dela). **Absorve o [[L2]]** — ⛔ o L2 não é reaberto como item separado;
+fecha por absorção quando este fechar.
+
+**Escopo declarado pelo owner:**
+
+- **Ligas configuráveis**, não constantes de código: `id` da liga, **plataforma**, **tipo**
+  (`confrontos` × `guilhotina`), **semanas de playoff** e **formato da chave**. ⭐ O tipo é o
+  discriminante que faz a mesma base servir a Dynasty/ESPN e ao Chopp — e é o que o [[SEA26-2]]
+  lê para saber **o que** se palpita em cada liga.
+- **Mapa usuário↔time POR LIGA.** ⚠️ **Observação estrutural (medida, e é a razão de a tabela ser
+  nova):** o `User` de hoje tem **um** `team_id` — vínculo de liga única, montado no [[M12]] e
+  consumido pelo [[M17]] (`inject_user_team`, time padrão do `/`). Os participantes **diferem
+  entre as três ligas**, então o vínculo da campanha é **N:N (usuário × liga × time)** e não cabe
+  em `User.team_id`. ⛔ **Não alterar `User.team_id`** — ele segue sendo o vínculo da Dynasty que
+  as telas de cap usam.
+- **Ingestão de matchups por semana e o resultado**: quem venceu (ligas de confronto) e **quem
+  foi eliminado** (guilhotina). Fonte: `/league/<id>/matchups/<week>` do Sleeper — o endpoint que
+  o [[L2]] já previa.
+- **Só Sleeper nesta fatia** (Dynasty e Chopp). A liga ESPN entra **se e quando** o [[SEA26-4]]
+  disser como.
+
+**Questões em aberto (⛔ não arbitradas aqui):**
+
+1. **Eliminação na guilhotina é derivada ou lida?** O Sleeper não tem conceito de "eliminado" —
+   deriva-se do menor score da semana, ou lê-se do estado do roster? O critério precisa ser
+   **único e auditável**, porque é o gabarito do palpite do Chopp.
+2. **Empate de pontuação** — na guilhotina (quem cai) e no confronto (quem vence): o Sleeper
+   permite empate. O gabarito precisa de regra; ver a mesma questão no [[SEA26-2]].
+3. **Cadência da ingestão**: junto do sync de rosters existente (reflexivo e frequente) ou job
+   próprio por semana? ⛔ O sync atual **não** pode ganhar dependência nova sem revisar o freeze
+   administrativo e a régua de contrato ([[OFF26-42]]) que já vivem nele.
+
+**Cross-refs:** [[L2]] (absorvido), [[M12]]/[[M17]] (identidade existente, que NÃO serve sozinha),
+[[SEA26-2]]/[[SEA26-3]] (dependentes), [[SEA26-4]] (gate da ESPN).
+
+---
+
+### SEA26-2 — Pick'em semanal das três ligas
+
+🔲 **Registrado em 09/09/2026 (MAN-SEA26-REG)** — Prioridade **Alta**. Depende do [[SEA26-1]].
+⭐ **As regras abaixo foram FECHADAS pelo owner em 09/09/2026** — a F1/F2 executa, não rediscute.
+Em aberto **só o prêmio**, que ⛔ **não bloqueia** a implementação.
+
+#### O que se palpita
+
+| liga | palpite | semanas | pontuação |
+|---|---|---|---|
+| Dynasty · ESPN | **vencedor de cada confronto** (6/semana) | 1–14 regulares + 15–17 playoffs | **1 ponto** por confronto acertado |
+| Chopp | **time eliminado** | **1–12** | **nº de sobreviventes da semana, mínimo 3** |
+
+**Playoffs (Dynasty/ESPN):** semanas 15–17, **só a chave de cima**, **2+2+1 = 5 confrontos**.
+
+**Chopp, semana a semana:** 12 · 11 · 10 · 9 · 8 · 7 · 6 · 5 · 4 · **3 · 3 · 3** (o piso de 3
+segura as semanas 10–12, quando sobram 3, 2 e 1).
+
+#### ⭐ Conferência aritmética dos tetos (feita nesta sessão) — fecha, e DERIVA dois fatos
+
+Os tetos declarados pelo owner (**89 / 89 / 81**) foram recalculados a partir das regras, e o
+resultado **confirma as regras E fixa dois parâmetros que o enunciado não declarava**:
+
+- **Dynasty/ESPN = 89** ⇒ `14 × 6 + 5`. ⭐ **A temporada regular do pick'em é de semanas 1–14** —
+  é o **único** número de semanas que produz 89 (13 dariam 83; 15 dariam 95). Fica pinado aqui
+  para a implementação não ter que adivinhar.
+- **Chopp = 81** ⇒ soma exata das 12 eliminações com o piso de 3. ⭐ **Logo o Chopp NÃO tem
+  palpite de confronto** — se tivesse, o teto seria maior que 81. (Coerente com a guilhotina: 13
+  times é ímpar e não há confronto direto.)
+- **Ranking geral = teto 259** (`89 + 89 + 81`).
+
+⛔ Esta conferência **não altera regra nenhuma** — ela existe para que a spec seja
+**auto-verificável** e para que qualquer divergência futura entre teto e regra apareça como
+**erro**, não como interpretação.
+
+#### Lock, ranking e desempate
+
+- **Lock único no kickoff do primeiro jogo da semana.** Molde da **urna** ([[OFF26-10]]): lock por
+  horário, **sem revelação antes do lock** — nenhum participante vê palpite alheio enquanto a
+  janela está aberta. ⚠️ **Diferença do molde a decidir (aberta):** na urna o horário era **posto
+  pelo admin**; aqui o kickoff é **fato do calendário da NFL** — derivar automaticamente ou manter
+  o horário administrado? A urna prova que o mecanismo funciona nas duas formas; a escolha é de
+  operação.
+- **Ranking por liga** + **ranking geral** somando as três, **só para quem participa das três**.
+  **Sem prêmio** definido (em aberto; não bloqueia).
+- **Desempate:** (1) mais acertos em **playoffs**; (2) mais acertos na **semana mais recente**.
+  ⚠️ **Vão aberto registrado:** o Chopp **não tem playoffs** (acaba na semana 12), então o
+  critério (1) é **vazio** no ranking isolado dele — lá o desempate cai direto no (2). Não é
+  objeção: é o caso que a implementação precisa tratar sem inventar regra.
+
+#### Backfill da semana 1
+
+Os palpites da semana 1 foram coletados **fora do sistema** (a temporada começou antes de a
+campanha existir). Entram por **entrada manual do admin**, **marcados como backfill** — o marcador
+é o que preserva a auditoria: distingue palpite selado pelo mecanismo de palpite transcrito por
+humano, para sempre.
+
+#### Questões em aberto (⛔ não arbitradas)
+
+1. **Empate no confronto** (o Sleeper permite): o palpite vira acerto, erro ou anulado (ninguém
+   pontua)? Mesma questão do gabarito no [[SEA26-1]].
+2. **Ausência de palpite** no lock: zero pontos (silêncio = erro) ou o participante fica fora da
+   semana? Afeta o ranking geral, não só a semana.
+3. **Prêmio** — em aberto por decisão do owner; ⛔ não bloqueia.
+
+**Cross-refs:** [[SEA26-1]] (a base e o gabarito), [[SEA26-3]] (a tela que alimenta o palpite),
+[[OFF26-10]] (o molde de lock/revelação, já provado em produção), [[M17]] (identidade do
+participante logado).
+
+---
+
+### SEA26-3 — Tela de confrontos para o podcast
+
+🔲 **Registrado em 09/09/2026 (MAN-SEA26-REG)** — Prioridade **Média**. Depende do [[SEA26-1]].
+
+**Escopo:** por confronto, **escalações lado a lado**, **pontos reais** e a **projeção da própria
+plataforma** (Sleeper — não projeção nossa). Alvo de leitura: **desktop**, porque o uso é o
+**podcast semanal** (tela compartilhada, lida ao vivo).
+
+⭐ **A mesma tela alimenta o palpite do [[SEA26-2]]** — uma superfície, dois usos: quem vai
+palpitar já está olhando exatamente a informação que fundamenta o palpite. É o que evita construir
+duas telas com o mesmo dado.
+
+**Questões em aberto (⛔ não arbitradas):** de onde vem a projeção por jogador na leitura semanal
+(campo do matchup × endpoint separado) e o que a tela mostra **depois do lock** — os palpites de
+todos (revelação, molde urna) ou só o próprio.
+
+**Cross-refs:** [[SEA26-1]] (dependência), [[SEA26-2]] (o palpite que ela alimenta), [[SEA26-5]]
+(o cruzamento de projeções que ela receberia depois), [[L1]]/[[L3]] (precedentes de tela de liga).
+
+---
+
+### SEA26-4 — Probe ESPN: a API de fantasy responde a partir do Render?
+
+🔲 **Registrado em 09/09/2026 (MAN-SEA26-REG)** — Prioridade **Média**; natureza **operacional,
+read-only**. É **GATE**: decide se a liga ESPN entra em [[SEA26-1]]/[[SEA26-2]]/[[SEA26-3]].
+
+**O que medir:** se a **API de fantasy da ESPN** responde **a partir do ambiente do Render**,
+usando a biblioteca **`espn-api`** (github.com/cwendt94/espn-api). Liga privada exige os cookies
+**SWID** e **ESPN_S2** — ⛔ **em variável de ambiente, NUNCA no repo** (mesma disciplina de
+`SECRET_KEY`/`GOOGLE_CLIENT_SECRET`, já estabelecida no deploy).
+
+**Veredito esperado (binário, e é o que o gate consome):**
+**(a) viável no servidor** → a ingestão da ESPN nasce como a do Sleeper; ou
+**(b) exige coleta local + rota de ingestão** → o dado é colhido fora e entra por porta própria,
+como já se faz com o PDF da ESPN no import de valores.
+
+⚠️ **[[E3]] é evidência ADJACENTE, não o mesmo caso — e a distinção importa para não prometer nem
+condenar cedo demais.** O que o [[E1]]/[[E3]] mediram é o **site da ESPN bloqueando o IP de
+datacenter do Render** ao baixar o **PDF** de valores (anti-bot em página pública). Aqui a
+superfície é **outra**: host de API de fantasy, autenticação por **cookie de sessão** e biblioteca
+cliente. O precedente é **motivo para medir antes de prometer** — não é resultado já conhecido.
+⛔ Nenhuma promessa de ESPN nos outros itens antes deste probe.
+
+**Cross-refs:** [[E3]]/[[E1]] (o precedente adjacente, superfície distinta), [[SEA26-1]] (quem
+consome o veredito), [[SEA26-5]] (que também depende dele).
+
+---
+
+### SEA26-5 — Cruzamento de fontes de projeção na tela de confrontos
+
+🔲 **Registrado em 09/09/2026 (MAN-SEA26-REG)** — Prioridade **Baixa**. Depende do [[SEA26-3]]
+(a tela) e do [[SEA26-4]] (o acesso à ESPN). ⛔ **Explicitamente FORA do caminho crítico do
+pick'em** — registrado pelo owner como melhoria da tela, não como requisito do jogo.
+
+**Escopo:** exibir, lado a lado na tela do [[SEA26-3]], a projeção de **Sleeper × ESPN × fonte
+externa**, para leitura comparativa durante o podcast.
+
+**Questão em aberto (⛔ não arbitrada):** qual é a **fonte externa** e sob que licença/limite de
+uso — decisão do owner. Enquanto o [[SEA26-4]] não fechar, a coluna ESPN deste item é hipotética.
+
+**Cross-refs:** [[SEA26-3]] (a tela hospedeira), [[SEA26-4]] (o gate do acesso ESPN),
+[[T2]] (precedente de fonte externa cacheada — dynasty values do FantasyCalc).
 
 ---

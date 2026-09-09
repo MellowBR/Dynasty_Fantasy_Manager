@@ -5972,3 +5972,49 @@ documentada e conferida contra o schema real (`app_config(key,value)`).
 
 Auditor O5 exit 0 (186 rows · 83 seções). ⛔ Zero `.py`/`.html`/`.css`; zero escrita em banco
 pelo Code (o UPDATE provisório é comando reportado ao owner, não executado).
+
+### MAN-SEA26-REG — registro da campanha de temporada 2026: pick'em multi-liga + confrontos (09/09/2026, Opus 5) · docs-only
+
+**Campanha SEA26 registrada** (5 itens 🔲, todos sob um bloco `##` próprio no ativo): SEA26-1
+Alta (cadastro de ligas/participantes + ingestão de matchups via Sleeper; **absorve o L2**),
+SEA26-2 Alta (pick'em), SEA26-3 Média (tela de confrontos do podcast), SEA26-4 Média (probe
+ESPN, gate), SEA26-5 Baixa (cruzamento de projeções, fora do caminho crítico). Prefixo SEA26
+conferido contra os quatro `.md`: **zero colisões**.
+
+**Decisões de regra do owner (09/09/2026), transcritas na seção SEA26-2 e não rediscutidas:**
+palpite no vencedor de cada confronto (6/semana; playoffs 15–17 só chave de cima, 2+2+1) e, no
+Chopp, no time eliminado (semanas 1–12); 1 ponto por confronto; Chopp vale o nº de sobreviventes
+com mínimo 3; tetos 89/89/81; lock único no kickoff do 1º jogo da semana (molde da urna
+OFF26-10, sem revelação antes do lock); ranking por liga + geral somando as três (só quem joga
+as três, sem prêmio); desempate por acertos em playoffs, depois semana mais recente; backfill
+manual da semana 1 marcado como backfill. Prêmio em aberto, não bloqueia.
+
+⭐ **Conferência aritmética dos tetos (feita antes de transcrever) — fecha e DERIVA dois
+parâmetros que o enunciado não declarava:** `89 = 14×6 + 5` ⇒ a temporada regular do pick'em é de
+**semanas 1–14** (13 dariam 83, 15 dariam 95 — valor único); `81` = soma exata das 12 eliminações
+com piso 3 ⇒ **o Chopp não tem palpite de confronto** (se tivesse, o teto passaria de 81);
+ranking geral = **259**. Registrado como bloco de auto-verificação da spec, não como mudança de
+regra.
+
+⚠️ **Decisão D do O6 avaliada e NÃO aplicável — medido, não suposto.** A decisão (c) do O6
+condiciona "campanha nasce em arquivo próprio" ao retrofit do auditor (V7/múltiplos arquivos),
+que **não foi feito**: fixture temporária com a row no ativo e a seção fora produziu
+`V4 ... row SEA26-1 do Status Rápido (🔲) sem seção detalhada no ativo`, **exit 1** (seriam 5
+violações). Campanha registrada **no ativo**, sob bloco `##` com prefixo único para que o split
+futuro seja mecânico; **pendência de retrofit cobrada pela 1ª vez** na seção do O6, como segundo
+motivo independente do split do OFF26. ⛔ Ordem (retrofit antes/junto/depois) não arbitrada.
+
+⚠️ **Refinamento registrado no SEA26-4:** **E3 é evidência ADJACENTE, não o mesmo caso** — o
+bloqueio medido no E1/E3 é do **site/PDF** da ESPN ao IP de datacenter do Render; o probe é sobre
+**outro host e outra autenticação** (API de fantasy via `espn-api` + cookies SWID/ESPN_S2 em env
+var, nunca no repo). Precedente de risco que **obriga a medir antes de prometer** — não é veredito
+já dado.
+
+**Vãos abertos registrados sem arbitrar:** empate no confronto e na guilhotina (o Sleeper
+permite; o gabarito precisa de regra), ausência de palpite no lock, origem do horário do lock
+(calendário da NFL × horário administrado como na urna), desempate por playoffs **vazio** no
+ranking isolado do Chopp (acaba na semana 12) e como se deriva "eliminado" (o Sleeper não tem o
+conceito). Observação estrutural: `User.team_id` é **um** time (M12/M17) e não comporta o vínculo
+N:N usuário×liga×time — daí a tabela nova; ⛔ não alterar o campo existente.
+
+186→191 rows · 83→88 seções; auditor O5 exit 0. ⛔ Zero `.py`/`.html`/`.css` no diff; zero banco.
