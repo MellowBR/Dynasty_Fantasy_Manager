@@ -5916,8 +5916,9 @@ mudaram o escopo antes de qualquer código:
    `created` em até ~51h) — `status_updated` no add daria **Goff Δ53,1h** (inverteria o veredito
    preservado em prod) e nos dois lados daria **Jones Δ47,2h** (inverteria o morto arbitrado).
    Só `created` nos dois lados reproduz o precedente canônico (69,2h/12,3h) que a decisão 5 fixa.
-   Implementado `created` em ponto único (`contract_regua.tx_timestamp`) — **pendente de
-   ratificação do owner**.
+   Implementado `created` em ponto único (`contract_regua.tx_timestamp`) — ✅ **RATIFICADO pelo
+   owner em 09/09/2026 (MAN-OFF26-42-RATIFICA, docs-only): `created` nos dois lados é a
+   formalização canônica do Δ**; a guarda é o teste do precedente Jones×Goff.
 
 **Decisões do owner (as 8 de 09/09)** executadas como registradas na seção [[OFF26-42]] do
 backlog. Medições ao vivo desta sessão: leg 0 VAZIA (intertemporada inteira na leg 1 — 208 txs
