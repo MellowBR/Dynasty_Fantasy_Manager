@@ -17,7 +17,7 @@ import requests as req
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
 from models import (
-    db, Team, Pick, Player, SalaryHistory, AuctionLog,
+    db, Team, Pick, Player, SalaryHistory, AuctionLog, PlayerHistory,
     SeasonStandings, DraftLotteryResult, AppConfig, LotteryAudit,
     get_config, set_config, get_current_season, is_offseason,
     SALARY_CAP, MY_OWNER_ID, MY_TEAM_NAME, LEAGUE_ID,
@@ -769,6 +769,18 @@ def do_rollover():
             player_id=p.id, season=next_season, salary=new_sal,
             contract_year=new_yr, rule_applied=rule,
             espn_ref_value=p.espn_ref_value or 0.0,
+        ))
+        # OFF26-36: o rollover grava o EVENTO de timeline junto ao SalaryHistory
+        # (lacuna 222/222 medida em 17/08/2026 — omissão de nascença). ref
+        # 'rollover:<season>' = o formato que o rebuild F8 PRESERVA (deleta só
+        # ref NULL); 'renewal' é o vocabulário do backfill legacy p/ pós-ano 4.
+        db.session.add(PlayerHistory(
+            player_id=p.id, season=next_season,
+            team_name=p.fantasy_team or "",
+            event_type="renewal" if new_yr == 1 else "rollover",
+            salary=new_sal, contract_year=new_yr,
+            notes=rule,
+            sleeper_event_ref=f"rollover:{next_season}",
         ))
         applied += 1
 

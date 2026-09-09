@@ -397,10 +397,18 @@ def record_acquisition(*, team, acquisition_type, season, player=None,
                é do chamador, via acquisition_already_recorded().
     Retorna (player, salary).
     """
-    from salary_engine import year1_salary
+    from salary_engine import year1_salary, _WAIVER_TYPES
     salary = year1_salary(acquisition_type, value_paid, espn_adjusted)
-    is_rookie = (acquisition_type or "").lower().strip() == "rookie_draft"
-    entry_type = "rookie_draft" if is_rookie else "fa_auction"
+    acq_norm = (acquisition_type or "").lower().strip()
+    is_rookie = acq_norm == "rookie_draft"
+    # OFF26-42: add de waiver/FA carrega o CANAL REAL no AuctionLog (fecha o off-label
+    # do OFF26-34 para os chamadores novos — leilão/rookie seguem como sempre).
+    if is_rookie:
+        entry_type = "rookie_draft"
+    elif acq_norm in _WAIVER_TYPES:
+        entry_type = acq_norm
+    else:
+        entry_type = "fa_auction"
 
     if player is None:
         player = Player(
@@ -431,6 +439,10 @@ def record_acquisition(*, team, acquisition_type, season, player=None,
         rd = f" Rd{round_num}" if round_num else ""
         rule = f"Rookie Draft{rd}: floor(ESPN×1.2)=${salary}"
         log_value = salary
+    elif acq_norm in _WAIVER_TYPES:
+        # OFF26-42: entrada de waiver/FA (caso 3 da régua) não é lance de leilão.
+        rule = f"Waiver/FA ano 1: ${salary}"
+        log_value = salary
     else:
         rule = f"FA Auction: ${salary} (bid)"
         log_value = value_paid or salary
@@ -445,12 +457,33 @@ def record_acquisition(*, team, acquisition_type, season, player=None,
         tag = f"[ref:{event_ref}]"
         note_full = (note_full + " " + tag).strip()
     note_full = note_full[:200]
-    db.session.add(AuctionLog(
+    auction_log = AuctionLog(
         season=season, player_id=player.id, team_id=team.id,
         player_name=player.name, team_name=team.name, entry_type=entry_type,
         value_paid=log_value, round_num=round_num,
         espn_ref_value_at_time=espn_adjusted, notes=note_full,
-    ))
+    )
+    db.session.add(auction_log)
+
+    # OFF26-42 (Parte 3 do OFF26-36): a porta canônica grava o EVENTO de timeline —
+    # fecha a lacuna do OFF26-34 (52 aquisições de 2026 sem evento não se repetem).
+    # event_type = o acquisition_type gravado (desenho F1 aprovado); ref com prioridade
+    # ao event_ref do chamador (tx:<id> do sync, draft:<id>:<pick> do importador — os
+    # MESMOS formatos que o rebuild F8 emite, para a UNIQUE dedupar nas duas direções);
+    # portas manuais sem ref ganham 'acq:<id do AuctionLog>' — nunca NULL, que o
+    # rebuild F8 deleta (contrato de sobrevivência do OFF26-36).
+    db.session.flush()
+    history_ref = event_ref or f"acq:{auction_log.id}"
+    dup = PlayerHistory.query.filter_by(
+        player_id=player.id, season=season, event_type=acquisition_type,
+        team_name=team.name, sleeper_event_ref=history_ref).first()
+    if not dup:
+        db.session.add(PlayerHistory(
+            player_id=player.id, season=season, team_name=team.name,
+            event_type=acquisition_type, salary=salary, contract_year=1,
+            notes=(f"{rule}" + (f" — {notes}" if notes else ""))[:500],
+            sleeper_event_ref=history_ref,
+        ))
     return player, salary
 
 
@@ -1274,3 +1307,79 @@ class TradeProposal(db.Model):
 
     def is_expired(self) -> bool:
         return datetime.utcnow() > self.expires_at
+
+
+class ContractPendency(db.Model):
+    """OFF26-42 — fila de arbitragem de contrato (molde M2: ação unificada + race
+    guard 409; tabela ADITIVA via create_all, decisão 4 do owner de 09/09/2026).
+
+    Uma pendência = uma decisão de contrato que o sync NÃO tem autoridade para tomar:
+      - transação de COMISSÁRIO que toca roster (drop/add) — arbitragem sempre humana
+        (real × manobra), com veredito SUGERIDO pela âncora do congelamento da lista
+        de exclusão (sugestão degrada para None sem âncora; nunca bloqueia);
+      - SINAIS DIVERGENTES no re-add (Δ da janela × canal da transação discordam) —
+        arbitragem vivo × morto, com os dois sinais citados no contexto.
+
+    Pendência ABERTA bloqueia só a mudança de contrato DAQUELE jogador — nunca o sync
+    inteiro. `context_json` guarda as transações normalizadas (add/drop) para a
+    arbitragem executar a consequência sem nova varredura. A decisão em si vive em
+    `contract_regua.decide_readd` (helper único); aqui é só o estado da fila."""
+    __tablename__ = "contract_pendencies"
+
+    id = db.Column(db.Integer, primary_key=True)
+    season = db.Column(db.Integer, nullable=False)
+    player_id = db.Column(db.Integer, db.ForeignKey("players.id"), nullable=False)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=True)
+    kind = db.Column(db.String(30), nullable=False)   # contract_regua.KIND_*
+    sleeper_transaction_id = db.Column(db.String(50), nullable=False)
+    tx_type = db.Column(db.String(20), default="")    # waiver | free_agent | commissioner
+    tx_timestamp_ms = db.Column(db.BigInteger, default=0)
+    phase = db.Column(db.String(16), default="")      # intertemporada | temporada
+    suggested_verdict = db.Column(db.String(12), nullable=True)
+    context_json = db.Column(db.Text, default="{}")
+    status = db.Column(db.String(12), default="aberta")   # aberta | arbitrada
+    verdict = db.Column(db.String(12), nullable=True)     # real|manobra|vivo|morto
+    arbitrated_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    arbitrated_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    player = db.relationship("Player", foreign_keys=[player_id])
+    team = db.relationship("Team", foreign_keys=[team_id])
+
+    __table_args__ = (
+        db.UniqueConstraint("sleeper_transaction_id", "player_id", "kind",
+                            name="uq_contract_pendency_tx"),
+    )
+
+    def to_dict(self):
+        import json as _json
+        try:
+            ctx = _json.loads(self.context_json or "{}")
+        except ValueError:
+            ctx = {}
+        return {
+            "id": self.id,
+            "season": self.season,
+            "player_id": self.player_id,
+            "player_name": self.player.name if self.player else "",
+            "team_id": self.team_id,
+            "team_name": self.team.name if self.team else "",
+            "kind": self.kind,
+            "sleeper_transaction_id": self.sleeper_transaction_id,
+            "tx_type": self.tx_type,
+            "tx_timestamp_ms": self.tx_timestamp_ms,
+            "phase": self.phase,
+            "suggested_verdict": self.suggested_verdict,
+            "context": ctx,
+            "status": self.status,
+            "verdict": self.verdict,
+            "arbitrated_at": utc_iso(self.arbitrated_at) if self.arbitrated_at else None,
+            "created_at": utc_iso(self.created_at) if self.created_at else None,
+        }
+
+
+def open_pendency_player_ids() -> set:
+    """OFF26-42 — ids de Player com pendência ABERTA (bloqueio de contrato por jogador
+    + badge no roster). Consulta única; consumida pelo sync e pelas telas."""
+    rows = db.session.query(ContractPendency.player_id).filter_by(status="aberta").all()
+    return {r[0] for r in rows}

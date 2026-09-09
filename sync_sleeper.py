@@ -250,6 +250,10 @@ def run_sync() -> dict:
     # Track which sleeper IDs belong to each team (for drop logic)
     team_assigned_sids: dict[int, set] = {}
 
+    # OFF26-42: transições dropado→rosterado observadas NESTE sync (a régua de contrato
+    # decide vivo × morto no passo 8b — ⛔ nenhuma decisão aqui, só a captura).
+    readd_candidates: list = []
+
     # OFF26-24-F1 (raiz do carimbo 2025): stub novo carimbava contract_start_season com a
     # CONSTANTE de módulo (fixa em 2025), que o rollover nunca avança — todo entrante
     # pós-rollover nascia na season errada. A fonte canônica é o AppConfig, lida UMA vez
@@ -317,6 +321,11 @@ def run_sync() -> dict:
                     summary["players_updated"] += 1
 
                 p.is_on_ir = sp_id_str in ir_ids
+                # OFF26-42: a transição dropado→rosterado deixou de ser invisível — o
+                # estado anterior é capturado ANTES do reset e a régua vivo × morto
+                # roda no passo 8b (decisão em contract_regua.decide_readd, nunca aqui).
+                if p.is_dropped:
+                    readd_candidates.append((p, team))
                 p.is_dropped = False  # back on a roster = not dropped
 
             else:
@@ -346,11 +355,21 @@ def run_sync() -> dict:
             team_assigned_sids[team.id].add(sp_id_str)
 
     # 8. Drop logic: players assigned to a team but NOT in that team's Sleeper roster
+    newly_dropped: list = []
     for team_id, assigned_sids in team_assigned_sids.items():
         team_players = Player.query.filter_by(team_id=team_id, is_dropped=False).all()
         for p in team_players:
             if not p.sleeper_player_id or p.sleeper_player_id not in assigned_sids:
                 p.is_dropped = True
+                newly_dropped.append(p)
+
+    # 8b. OFF26-42 + OFF26-36: régua de contrato no re-add + eventos de timeline de
+    # drop (fato = data da transação na API; fase = data × kickoff do state/nfl).
+    # Falha na varredura (decisão 7) → NENHUMA mudança de contrato, só reporte; o
+    # espelhamento de roster acima (autoridade do Sleeper) não é afetado.
+    if readd_candidates or newly_dropped:
+        summary["contract_regua"] = _process_contract_regua(
+            readd_candidates, newly_dropped, league_data)
 
     # 9. Fetch traded picks and derive active seasons
     traded_picks = _get(f"{BASE_URL}/league/{LEAGUE_ID}/traded_picks") or []
@@ -1431,3 +1450,401 @@ def _count_players_to_correct(resolved_events: list, players_by_sid: dict) -> in
         if p.contract_start_season != new_css or p.acquisition_type != new_acq:
             count += 1
     return count
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# OFF26-42 + OFF26-36 — régua de contrato vivo × morto no sync + timeline de drop
+#
+# A DECISÃO vive em `contract_regua.decide_readd` (helper único — guarda AST em
+# `contract_regua_test.py`); aqui é só IO (varredura, âncora, escrita) e EXECUÇÃO
+# das ações que o helper devolve. A arbitragem do admin (routes/admin.py) executa
+# consequências pelo MESMO executor (`apply_regua_consequence`).
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _sweep_transactions(league_id: str):
+    """Varredura COMPLETA das transações da season corrente (legs 0..18).
+
+    Medido em 09/09/2026: leg 0 VAZIA — a intertemporada inteira (208 txs, 08/06 a
+    08/09, incl. os drops de Aiyuk 12/08 e Wicks 20/08) vive na leg 1. A leg 0 fica
+    na varredura por segurança (custo zero quando vazia).
+
+    ⛔ `status == 'complete'` é filtro OBRIGATÓRIO (lição Jones×Goff: os 3 claims
+    `failed` do Goff mudariam a cadeia). type='trade' é do S1. Falha de QUALQUER leg
+    (`_get` → None) invalida a varredura inteira — decisão 7: sem varredura completa,
+    nenhum contrato muda."""
+    import contract_regua as cr
+    index: dict = {}
+    for leg in range(0, 19):
+        txs = _get(f"{BASE_URL}/league/{league_id}/transactions/{leg}")
+        if txs is None:
+            return None, f"transactions leg {leg} indisponivel — varredura incompleta"
+        for tx in txs:
+            if tx.get("status") != "complete":
+                continue
+            ttype = tx.get("type")
+            if ttype == "trade":
+                continue  # S1 (contrato carregado — fora da régua)
+            tx_id = tx.get("transaction_id")
+            if not tx_id:
+                continue
+            rec = {"ts": cr.tx_timestamp(tx), "tx_id": str(tx_id), "type": ttype}
+            adds = tx.get("adds") or {}
+            drops = tx.get("drops") or {}
+            for sid in adds:
+                index.setdefault(str(sid), {"adds": [], "drops": []})["adds"].append(dict(rec))
+            for sid in drops:
+                if sid in adds:
+                    continue  # move intra-tx (mesma convenção do rebuild F8)
+                index.setdefault(str(sid), {"adds": [], "drops": []})["drops"].append(dict(rec))
+    return index, None
+
+
+def _freeze_anchor():
+    """Âncora do veredito sugerido de comissário: carimbo do congelamento da lista de
+    exclusão (OFF26-11) + sids congelados. Lista ausente/limpa → (None, set()) — a
+    sugestão degrada para None; NUNCA bloqueia (decisão do owner, 09/09/2026)."""
+    try:
+        from keeper_exclusion import get_frozen_exclusion
+        frozen = get_frozen_exclusion()
+        if not frozen or not frozen.get("frozen_at"):
+            return None, set()
+        from datetime import timezone
+        raw = str(frozen["frozen_at"]).rstrip("Z")
+        ms = int(datetime.fromisoformat(raw).replace(tzinfo=timezone.utc).timestamp() * 1000)
+        sids = {str(k.get("sleeper_player_id")) for k in (frozen.get("keepers") or [])
+                if k.get("sleeper_player_id")}
+        return ms, sids
+    except Exception:
+        return None, set()
+
+
+def _build_regua_context(league_data: dict):
+    """Insumos da régua, TODOS da API/config — nenhum literal de janela no código:
+    janela = settings.waiver_clear_days da liga; fronteira de fase =
+    season_start_date do /state/nfl (decisão 6 — offseason_mode NÃO é fonte)."""
+    import contract_regua as cr
+    settings = (league_data or {}).get("settings") or {}
+    wcd = settings.get("waiver_clear_days")
+    if wcd is None:
+        return None, "settings.waiver_clear_days ausente na resposta da liga"
+    state = _get(f"{BASE_URL}/state/nfl")
+    if not isinstance(state, dict) or not state.get("season_start_date"):
+        return None, "state/nfl indisponivel — fase nao derivavel"
+    index, err = _sweep_transactions(LEAGUE_ID)
+    if err:
+        return None, err
+    freeze_ms, frozen_sids = _freeze_anchor()
+    return {
+        "window_ms": cr.waiver_window_ms(wcd),
+        "start_ms": cr.season_start_ms(state["season_start_date"]),
+        "index": index,
+        "freeze_ms": freeze_ms,
+        "frozen_sids": frozen_sids,
+    }, None
+
+
+def _fmt_tx_ts(ts_ms) -> str:
+    from datetime import timezone
+    try:
+        return datetime.fromtimestamp(int(ts_ms) / 1000, timezone.utc).strftime(
+            "%d/%m/%Y %H:%M UTC")
+    except (ValueError, TypeError, OSError):
+        return "?"
+
+
+def _write_drop_event(player, rec: dict, ctx: dict, season: int) -> bool:
+    """Evento de drop na timeline: FATO (data da transação na API — nunca a do sync)
+    + FASE (data × kickoff). ref `tx:<id>` = o formato que o rebuild F8 emite para o
+    mesmo drop — a UNIQUE `uq_player_history_event` dedupa nas duas direções.
+    Idempotente por check-before-insert; devolve True se gravou."""
+    import contract_regua as cr
+    from models import PlayerHistory
+    fase = cr.phase_of(rec["ts"], ctx["start_ms"])
+    ref = f"tx:{rec['tx_id']}"
+    team_name = player.fantasy_team or ""
+    dup = PlayerHistory.query.filter_by(
+        player_id=player.id, season=season, event_type="drop",
+        team_name=team_name, sleeper_event_ref=ref).first()
+    if dup:
+        return False
+    db.session.add(PlayerHistory(
+        player_id=player.id, season=season, team_name=team_name,
+        event_type="drop", salary=player.salary, contract_year=player.contract_year,
+        notes=f"drop ({fase}) — {_fmt_tx_ts(rec['ts'])}, tx {rec['tx_id']}",
+        sleeper_event_ref=ref,
+    ))
+    return True
+
+
+def _write_add_event(player, team, add: dict, ctx: dict, season: int,
+                     motivo: str = "") -> bool:
+    """Evento de ADD com contrato MANTIDO (caso 2 / manobra arbitrada). event_type =
+    vocabulário do rebuild F8 (`EVENT_TYPE_BY_TX`), ref `tx:<id>` — dedupe simétrico."""
+    import contract_regua as cr
+    from models import PlayerHistory
+    event_type = cr.EVENT_TYPE_BY_TX.get(add.get("type"), "free_agent")
+    fase = cr.phase_of(add["ts"], ctx["start_ms"])
+    ref = f"tx:{add['tx_id']}"
+    dup = PlayerHistory.query.filter_by(
+        player_id=player.id, season=season, event_type=event_type,
+        team_name=team.name, sleeper_event_ref=ref).first()
+    if dup:
+        return False
+    db.session.add(PlayerHistory(
+        player_id=player.id, season=season, team_name=team.name,
+        event_type=event_type, salary=player.salary,
+        contract_year=player.contract_year,
+        notes=(f"{event_type} ({fase}) — {_fmt_tx_ts(add['ts'])}, tx {add['tx_id']}; "
+               f"contrato mantido (caso 2 da régua)"
+               + (f" — {motivo}" if motivo else ""))[:500],
+        sleeper_event_ref=ref,
+    ))
+    return True
+
+
+def _upsert_pendency(player, team, kind: str, tx_rec: dict, ctx: dict, season: int,
+                     decision: dict, add: dict = None, drop: dict = None):
+    """Cria/atualiza a pendência de arbitragem (UNIQUE por tx+player+kind). Pendência
+    já ARBITRADA nunca renasce; aberta tem o contexto atualizado (ex.: o re-add chegou
+    depois da pendência do drop). Devolve a row."""
+    import contract_regua as cr
+    from models import ContractPendency
+    existing = ContractPendency.query.filter_by(
+        sleeper_transaction_id=tx_rec["tx_id"], player_id=player.id, kind=kind).first()
+    context = {
+        "add": add, "drop": drop,
+        "motivo": decision.get("motivo", ""),
+        "sinais": decision.get("sinais"),
+        "window_ms": ctx["window_ms"], "start_ms": ctx["start_ms"],
+        "team_name": player.fantasy_team or (team.name if team else ""),
+    }
+    if existing:
+        if existing.status == "aberta":
+            existing.context_json = json.dumps(context, ensure_ascii=False)
+        return existing
+    drop_ts = (drop or {}).get("ts") if drop else (
+        tx_rec["ts"] if kind == "comissario_drop" else None)
+    suggested = None
+    if kind in (cr.KIND_COMISSARIO_DROP, cr.KIND_COMISSARIO_ADD):
+        sid = player.sleeper_player_id
+        suggested = cr.suggest_commissioner_verdict(
+            drop_ts, ctx.get("freeze_ms"), sid in (ctx.get("frozen_sids") or set()))
+    row = ContractPendency(
+        season=season, player_id=player.id,
+        team_id=player.team_id, kind=kind,
+        sleeper_transaction_id=tx_rec["tx_id"], tx_type=tx_rec.get("type", ""),
+        tx_timestamp_ms=tx_rec.get("ts") or 0,
+        phase=cr.phase_of(tx_rec.get("ts") or 0, ctx["start_ms"]),
+        suggested_verdict=suggested,
+        context_json=json.dumps(context, ensure_ascii=False),
+        status="aberta",
+    )
+    db.session.add(row)
+    return row
+
+
+def _short_note(note: str, event_ref: str) -> str:
+    """Nota do AuctionLog SEMPRE curta o bastante para o token `[ref:]` sobreviver ao
+    truncamento em 200 da porta (armadilha OFF26-39.1) — corta a NOTA, nunca o token."""
+    tag = f" [ref:{event_ref}]"
+    max_note = 200 - len(tag)
+    return (note or "")[:max_note]
+
+
+def _execute_decision(player, team, decision: dict, ctx: dict, season: int,
+                      out: dict, add: dict = None, drop: dict = None):
+    """Executor ÚNICO das ações de `decide_readd` — usado pelo sync (passo 8b) e pela
+    arbitragem (via `apply_regua_consequence`). ⛔ Nenhuma decisão aqui."""
+    import contract_regua as cr
+    from models import record_acquisition, acquisition_already_recorded
+    acao = decision.get("acao")
+    label = f"{player.name} ({player.sleeper_player_id})"
+
+    if acao == cr.ACAO_MANTER:
+        if add:
+            if _write_add_event(player, team, add, ctx, season,
+                                motivo=decision.get("motivo", "")):
+                out["add_events"] = out.get("add_events", 0) + 1
+        out.setdefault("mantidos", []).append(f"{label}: {decision.get('motivo', '')}")
+        return "manter"
+
+    if acao == cr.ACAO_CONTRATO_NOVO:
+        event_ref = f"tx:{add['tx_id']}" if add else None
+        if event_ref and acquisition_already_recorded(event_ref):
+            out.setdefault("mantidos", []).append(
+                f"{label}: aquisição {event_ref} já registrada — idempotência")
+            return "ja_registrado"
+        espn_atual = player.espn_ref_value or 0.0   # ⛔ armadilha OFF26-39.2: repassar
+        note = _short_note(
+            f"Regua OFF26-42: caso 3 (contrato morto) — {decision.get('motivo', '')}",
+            event_ref or "")
+        record_acquisition(
+            team=team,
+            acquisition_type=decision.get("acq_type", "free_agent"),
+            season=season,
+            player=player,
+            value_paid=0.0,
+            espn_adjusted=espn_atual,
+            sleeper_player_id=player.sleeper_player_id,
+            event_ref=event_ref,
+            notes=note,
+        )
+        out.setdefault("contratos_novos", []).append(
+            f"{label}: ano 1 · {season} · {decision.get('acq_type')} — "
+            f"{decision.get('motivo', '')}")
+        return "contrato_novo"
+
+    if acao == cr.ACAO_PENDENCIA:
+        tx_rec = add if decision.get("kind") != cr.KIND_COMISSARIO_DROP else (drop or add)
+        row = _upsert_pendency(player, team, decision["kind"], tx_rec, ctx, season,
+                               decision, add=add, drop=drop)
+        out.setdefault("pendencias", []).append(
+            f"{label}: {decision.get('kind')} — {decision.get('motivo', '')}"
+            + (f" (sugerido: {row.suggested_verdict})" if row.suggested_verdict else ""))
+        return "pendencia"
+
+    out.setdefault("warnings", []).append(f"{label}: {decision.get('motivo', '')}")
+    return "indeterminado"
+
+
+def _arbitrated_drop_verdict(drop, player):
+    """Veredito ARBITRADO de um drop de comissário (None = aberto/inexistente)."""
+    import contract_regua as cr
+    from models import ContractPendency
+    if not drop or drop.get("type") != "commissioner":
+        return None
+    row = ContractPendency.query.filter_by(
+        sleeper_transaction_id=drop["tx_id"], player_id=player.id,
+        kind=cr.KIND_COMISSARIO_DROP, status="arbitrada").first()
+    return row.verdict if row else None
+
+
+def _process_contract_regua(readds: list, dropped: list, league_data: dict) -> dict:
+    """Passo 8b do sync: aplica a régua aos re-adds e grava os eventos de drop.
+
+    readds: [(Player, Team)] com transição dropado→rosterado observada neste sync.
+    dropped: [Player] recém-marcados is_dropped=True no passo 8.
+    Decisão 7: varredura/insumo indisponível → skipped com motivo, NADA muda."""
+    import contract_regua as cr
+    from models import get_current_season, get_config
+    out = {"mantidos": [], "contratos_novos": [], "pendencias": [],
+           "drop_events": 0, "add_events": 0, "warnings": [], "skipped": None}
+
+    ctx, err = _build_regua_context(league_data)
+    if err:
+        out["skipped"] = err
+        return out
+    season = get_current_season()
+
+    # Decisão 6 (log-only): divergência entre a fase derivada e a flag offseason_mode.
+    flag_off = get_config("offseason_mode", "false") == "true"
+    import time as _time
+    fase_agora = cr.phase_of(int(_time.time() * 1000), ctx["start_ms"])
+    if flag_off and fase_agora == cr.FASE_TEMPORADA:
+        out["warnings"].append(
+            "offseason_mode=true com fase derivada 'temporada' — a flag NÃO é fonte "
+            "de fase (decisão 6); eventos carimbados pela data da transação")
+
+    # Drops: evento com fato + fase; drop de comissário vira pendência (sem evento
+    # até o admin arbitrar 'real').
+    for p in dropped:
+        sid = p.sleeper_player_id
+        entry = ctx["index"].get(sid) or {}
+        rec = cr.latest_before(entry.get("drops"))
+        if not rec:
+            out["warnings"].append(
+                f"drop de {p.name} ({sid}): sem transação na varredura — evento NÃO "
+                f"gravado (sem síntese sem fonte, lição F8)")
+            continue
+        if rec.get("type") == "commissioner":
+            decision = {"acao": cr.ACAO_PENDENCIA, "kind": cr.KIND_COMISSARIO_DROP,
+                        "motivo": "drop por transação de comissário — arbitragem "
+                                  "humana (real × manobra); sem evento até o veredito"}
+            _execute_decision(p, p.team_rel, decision, ctx, season, out, drop=rec)
+            continue
+        if _write_drop_event(p, rec, ctx, season):
+            out["drop_events"] += 1
+
+    # Re-adds: a régua vivo × morto — decisão no helper, execução aqui.
+    for p, team in readds:
+        sid = p.sleeper_player_id
+        entry = ctx["index"].get(sid) or {}
+        add = cr.latest_before(entry.get("adds"))
+        drop = cr.latest_before(entry.get("drops"),
+                                before_ts_ms=add["ts"] if add else None)
+        decision = cr.decide_readd(
+            add=add, drop=drop,
+            window_ms=ctx["window_ms"], start_ms=ctx["start_ms"],
+            drop_verdict=_arbitrated_drop_verdict(drop, p))
+        _execute_decision(p, team, decision, ctx, season, out, add=add, drop=drop)
+
+    return out
+
+
+def apply_regua_consequence(pendency, verdict: str) -> dict:
+    """OFF26-42 — consequência da ARBITRAGEM (chamado só pelo endpoint do admin, depois
+    do race guard; a arbitragem é sempre humana — o sync jamais chama isto).
+
+    comissario_drop: 'real' → evento de drop (fato+fase) e, se o re-add já aconteceu,
+        a régua plena roda agora (drop_verdict='real'); 'manobra' → sem evento de drop,
+        contrato intacto (e o add, se houver, entra na timeline como mantido).
+    comissario_add: 'real' → régua plena com o add valendo; 'manobra' → intacto.
+    sinal_divergente: 'vivo' → mantém (evento de add); 'morto' → ano 1 pela porta.
+    Não faz commit — o chamador decide."""
+    import contract_regua as cr
+    from models import db as _db, Player, get_current_season
+    ctx_stored = json.loads(pendency.context_json or "{}")
+    ctx = {"window_ms": ctx_stored.get("window_ms"),
+           "start_ms": ctx_stored.get("start_ms"),
+           "index": {}, "freeze_ms": None, "frozen_sids": set()}
+    add = ctx_stored.get("add")
+    drop = ctx_stored.get("drop")
+    player = _db.session.get(Player, pendency.player_id)
+    if player is None:
+        return {"error": "jogador da pendência não existe mais"}
+    team = player.team_rel
+    season = get_current_season()
+    out = {"mantidos": [], "contratos_novos": [], "pendencias": [],
+           "drop_events": 0, "add_events": 0, "warnings": []}
+
+    if pendency.kind == cr.KIND_COMISSARIO_DROP:
+        drop_rec = drop or {"ts": pendency.tx_timestamp_ms,
+                            "tx_id": pendency.sleeper_transaction_id,
+                            "type": "commissioner"}
+        if verdict == "real":
+            if _write_drop_event(player, drop_rec, ctx, season):
+                out["drop_events"] += 1
+            if add and team is not None:
+                decision = cr.decide_readd(add=add, drop=drop_rec,
+                                           window_ms=ctx["window_ms"],
+                                           start_ms=ctx["start_ms"],
+                                           drop_verdict="real")
+                _execute_decision(player, team, decision, ctx, season, out,
+                                  add=add, drop=drop_rec)
+        else:  # manobra: contrato intacto, SEM evento de drop
+            if add and team is not None:
+                _write_add_event(player, team, add, ctx, season,
+                                 motivo="drop de comissário arbitrado manobra")
+    elif pendency.kind == cr.KIND_COMISSARIO_ADD:
+        if verdict == "real" and add and team is not None:
+            decision = cr.decide_readd(add=add, drop=drop,
+                                       window_ms=ctx["window_ms"],
+                                       start_ms=ctx["start_ms"],
+                                       drop_verdict=_arbitrated_drop_verdict(drop, player),
+                                       commissioner_add_as_real=True)
+            _execute_decision(player, team, decision, ctx, season, out,
+                              add=add, drop=drop)
+        # manobra: contrato intacto, nada a escrever.
+    elif pendency.kind == cr.KIND_SINAL_DIVERGENTE:
+        if team is not None and add:
+            if verdict == "vivo":
+                decision = {"acao": cr.ACAO_MANTER,
+                            "motivo": "sinais divergentes arbitrados VIVO pelo admin"}
+            else:
+                decision = {"acao": cr.ACAO_CONTRATO_NOVO, "caso": 3,
+                            "acq_type": cr.ACQ_TYPE_BY_TX.get(add.get("type"),
+                                                              "free_agent"),
+                            "motivo": "sinais divergentes arbitrados MORTO pelo admin"}
+            _execute_decision(player, team, decision, ctx, season, out,
+                              add=add, drop=drop)
+    return out
