@@ -5939,3 +5939,36 @@ pré-existentes verdes (incl. `off26_37_a_fix_test` 40/40); gate O7 verde (24s, 
 auditor O5 exit 0. Commits: `b06cf36` (P1+P3) · `38cccdb` (P2) · `e7b3dc8` (P4) + docs.
 **Zero banco de prod** — ensaios só em cópia; execução do backfill em prod é do owner
 (backup → --check → --apply, comandos na seção OFF26-36).
+
+### MAN-OFF26-42-RATIFICA + MAN-OFF26-36-CLOSE — ratificação do `created`, smoke de prod, fechamento do OFF26-36, achado 17×7, OFF26-43 (09/09/2026, Fable 5) · docs-only
+
+**Ratificação (docs-only, `d115949`):** `created` nos dois lados do Δ é a formalização canônica —
+a refutação medida da decisão 8 foi ratificada pelo owner; guarda permanente = teste do
+precedente Jones×Goff.
+
+**Fechamento do OFF26-36 pelo smoke de PROD do owner** (Render Shell, na ordem: backup 761.856 B
+conferido → `--check` 222 → `--apply` 222 criados, 0→222, ref em todos → `off26_37_a_fix
+--check` 0 elegíveis). Seção migrada verbatim para o archive (O3).
+
+⭐ **Achado do fechamento — a conta 17×7 da reconstrução de team_name, medida contra a API ao
+vivo:** os 7 da F1 estavam CORRETOS (por hora de transação); +8 trades de 05–06/09 (Irving,
+Tracy, Skattebo, Hurts, Gainwell, McLaurin, Pollard, Pierce); **+2 falso-positivos
+(Hill 3321 / Mitchell 9511)** — raiz: o runner usa `PlayerHistory.created_at` (hora do SYNC)
+como proxy da hora da trade, e a trade deles ocorreu às **16:39 UTC de 17/08, ANTES do rollover
+(21:34)**; o sync das 22:59 a ingeriu depois. Consequência: **2 dos 222 eventos em prod com
+team_name anacrônico** (Hill gravado Trust↔devido Tropa; Mitchell o inverso) — só exibição;
+SQL de correção opcional registrado na seção arquivada (deriva o devido do próprio banco).
+
+**Fila vazia de 09/09 explicada pelo desenho** (registrado na seção OFF26-42): pendência nasce de
+TRANSIÇÃO observada no sync — a varredura das transações é insumo de decisão, não geradora
+retroativa; as 37 commissioner de 18/08 fora da fila é o comportamento correto. OFF26-42 segue
+⚠️ com pendência única nomeada: o primeiro caso real.
+
+**Nasce OFF26-43** (painel não sabe que a temporada começou): `offseason_mode` sem porta de
+desligar (F1 do OFF26-9, re-medido) + passo 6 preso ao `CutWindowAudit` aposentado. Direção do
+owner: derivar do `LateDropAudit`/lista congelada + ação "encerrar intertemporada";
+M1-FOLLOWUP e UX33(a) fecham por absorção (cross-refs recíprocos plantados). Medida provisória
+documentada e conferida contra o schema real (`app_config(key,value)`).
+
+Auditor O5 exit 0 (186 rows · 83 seções). ⛔ Zero `.py`/`.html`/`.css`; zero escrita em banco
+pelo Code (o UPDATE provisório é comando reportado ao owner, não executado).

@@ -10027,3 +10027,198 @@ Três traços do método, para além do resultado:
 tinha consequência financeira, e ela foi resolvida a favor do correto.
 
 ---
+
+### OFF26-36 — Rollover não grava evento na timeline (omissão de nascença; lacuna 222/222 em 2026)
+
+✅ **CONCLUÍDO em 09/09/2026 (MAN-OFF26-36-CLOSE) — smoke de prod executado pelo owner no Render
+Shell, na ordem:** backup (761.856 B, conferido) → `off26_36_backfill.py --check` (222 a criar,
+0 existentes, total = esperado) → `--apply` (222 criados, verificação pós-escrita 0→222, ref
+presente em todos) → `off26_37_a_fix.py --check` (0 elegíveis; Aiyuk e Wicks "já registrado").
+Deploy do hash `d115949` confirmado no `/admin`; sync manual pós-deploy às 11:28 limpo.
+
+#### ⚠️ Achado do fechamento — a conta 17 × 7 da reconstrução de team_name (medida em 09/09)
+
+O `--check` de prod reconstruiu team_name em **17** jogadores; a F1 de 25/08 falava em **7**. A
+contabilidade fecha assim, medida contra a API ao vivo E o proxy do runner:
+
+- **7 (F1)** = trocados pós-rollover **por hora da TRANSAÇÃO** até 25/08 (Dobbins, Shough,
+  Jones, Murray, Diggs, Tucker, Nix) — a F1 estava **correta**, não incompleta.
+- **+8** = trades novas entre 05–06/09 (Irving, Tracy, Skattebo, Hurts, Gainwell, McLaurin,
+  Pollard, Pierce) → 15 legítimos.
+- **+2 FALSO-POSITIVOS = Hill (3321) e Mitchell (9511).** ⭐ **Raiz: o runner usa
+  `PlayerHistory.created_at` (hora do SYNC) como proxy da hora da trade** — e a trade
+  Hill×Mitchell ocorreu às **16:39 UTC de 17/08, ANTES do rollover (21:34)**; o sync das 22:59 é
+  que a ingeriu depois. Os dois já estavam no time de DESTINO quando o rollover rodou, e o
+  runner os reconstruiu para a ORIGEM: **2 dos 222 eventos aplicados em prod têm `team_name`
+  anacrônico** — Hill gravado "Trust The Process" (devido "Tropa do Jarra  🏆"), Mitchell
+  gravado "Tropa do Jarra  🏆" (devido "Trust The Process"). **Consequência: só exibição**
+  (nada calcula de PlayerHistory). Correção opcional, a decisão do owner (deriva o devido do
+  próprio banco — nenhum dos dois foi trocado de novo depois):
+
+  ```bash
+  sqlite3 /data/dynasty.db "UPDATE player_history SET team_name=(SELECT fantasy_team FROM players WHERE sleeper_player_id='3321') WHERE sleeper_event_ref='rollover:2026' AND player_id=(SELECT id FROM players WHERE sleeper_player_id='3321');"
+  sqlite3 /data/dynasty.db "UPDATE player_history SET team_name=(SELECT fantasy_team FROM players WHERE sleeper_player_id='9511') WHERE sleeper_event_ref='rollover:2026' AND player_id=(SELECT id FROM players WHERE sleeper_player_id='9511');"
+  ```
+
+⚠️ **F2 IMPLEMENTADA em 09/09/2026 (MAN-OFF26-36) — registro da implementação, verbatim.**
+Decisão do owner (09/09): gravar AO VIVO **e** preencher o retroativo — as duas coisas.
+
+- **As 3 portas gravam ao vivo** (commit `b06cf36`): `do_rollover` grava `rollover`/`renewal` com
+  ref `rollover:<season>` junto ao SalaryHistory; o **drop do sync** grava FATO (data da transação
+  na API, nunca a do sync) + FASE (data × `season_start_date` do `/state/nfl` — decisão 6:
+  `offseason_mode` NÃO é fonte, divergência vai só a log) com ref `tx:<id>`;
+  `record_acquisition` grava evento com `event_type = acquisition_type` e ref **nunca NULL**
+  (`event_ref` do chamador, senão `acq:<id do AuctionLog>`) — o contrato de sobrevivência ao
+  rebuild [[F8]] cumprido nas três. Refs `tx:<id>` no MESMO formato do rebuild = dedupe simétrico
+  pela UNIQUE (⚠️ ressalva [[S4]]: `team_name` está na chave — rename entre sync e rebuild quebra
+  o dedupe; registrada, não resolvida).
+- **Backfill dos 222** (`off26_36_backfill.py`, commit `e7b3dc8`): fonte canônica única = as 222
+  rows de SalaryHistory 2026 (`VALORIZ%`/`Waiver Ano 2%`, carimbo derivado das próprias rows);
+  ressalva do team_name EXECUTADA — trocados pós-rollover recebem o time **da época**,
+  reconstruído do lado de origem `(src→dst)` do trade mais antigo do S1 (imparseável → atual COM
+  warning). **Ensaiado em CÓPIA do seed:** `--check` 222 OK · `--apply` criou 222 · 2ª execução 0
+  · rebuild F8 simulado (DELETE ref NULL, 51 rows) preservou os 222. ⛔ **Prod pendente:**
+  backup → `--check` → `--apply` no Render Shell.
+- Drops de agosto/2026 (cortes 20/08, urna, equalização) **seguem sem evento retroativo** — o
+  escopo da Parte 4 foi só o rollover (decisão 1 do owner); reconstruíveis por `tx:<id>` em
+  runner futuro, se o owner pedir.
+- A porta do sync que produzia a lacuna do OFF26-34 (52 aquisições sem evento) fecha de tabela:
+  ver [[OFF26-42]] (a régua no re-add, mesma sessão).
+
+🔲 **Registrado em 25/08/2026 (MAN-OFF26-ROLLOVER-HIST-REG-F1) — registro + diagnose F1
+read-only, medida no banco VIVO, zero código.** Prioridade **Média**. ⛔ Remédio **não arbitrado**
+(gravar na hora × reconstruir depois × ambos); qualquer reparo é escopo próprio, com backup.
+
+⛔ **Os contratos estão corretos** — o rollover de 17/08/2026 avançou os anos como devia (com um
+adendo num caso de campo, abaixo). O que falta é o **registro do evento** na timeline do jogador.
+
+#### Veredito: omissão de nascença, NÃO regressão
+
+`do_rollover` ([offseason.py:753-778](routes/offseason.py#L753-L778)) muta o `Player` e grava
+**só `SalaryHistory`** — nenhum `PlayerHistory`. E sempre foi assim: `git log -S "PlayerHistory"
+-- routes/offseason.py` retorna **vazio** (a string nunca apareceu no arquivo em commit nenhum), e
+a rota admin de rollover aposentada pelo [[F11]] tinha o mesmo corpo na v1.0 — a docstring dizia
+"log history", mas o history que ela logava era o `SalaryHistory`. **Nunca existiu rollover ao
+vivo que gravasse timeline.**
+
+⚠️ E **nunca houve rollover ao vivo antes de 17/08/2026**: o app nasceu em março/2026 com
+`current_season=2025` já em curso. O de 17/08 foi o **primeiro** — e não gravou nada.
+
+#### A origem dos eventos S2025 (a hipótese do owner, corrigida na origem)
+
+Os eventos de renovação que existem hoje — **219, todos S2025, todos ref `rollover:2025`** — têm
+**um único carimbo de criação: 2026-03-25 18:49**, cinco meses antes do rollover. São a
+**reconstrução one-shot** do backfill legacy (`_backfill_player_history`,
+[admin.py:1329-1338](routes/admin.py#L1329-L1338)): para cada jogador com contrato multi-ano na
+época, o Entry 3 fabricava um evento `rollover` por ano intermediário, com
+`season = contract_start + ano − 1`. Para o Odunze (início 2024, ano 2 em 25/03) isso dá
+exatamente o que o owner viu: **"Valorização (Ano 2)" carimbado S2025** — a nota
+"Renovado (VALORIZAÇÃO)" veio da limpeza F7b ([app.py:273](app.py#L273)) e a ref
+`rollover:2025` da migração F8a ([app.py:328-336](app.py#L328-L336)), que carimbou as rows para o
+rebuild [[F8]] não deletá-las.
+
+A hipótese do prompt acertou a conclusão ("o rollover de 2026 não gravou para ninguém") e errou a
+origem: o S2025 **não é o rollover do ano passado** — não houve rollover em 2025; é reconstrução
+retroativa da transição 2024→2025.
+
+#### O caso discriminante — Harold Fannin, resolvido exatamente
+
+Em 25/03 (backfill) Fannin estava em **ano 1** → o loop `range(2, contract_year+1)` do Entry 3 não
+gerava nada para ele. O rollover de 17/08 o avançou — `SalaryHistory` season 2026:
+`VALORIZAÇÃO: MAX($1, floor(0.5×7.0))=$3`, cy=2 — e não gravou timeline. Resultado: a timeline
+dele tem só a aquisição S2025 e o trade S2026, com o roster dizendo Ano 2/4. **A explicação cobre
+o caso sem resíduo.**
+
+#### A lacuna, medida (entrega central)
+
+`SalaryHistory` season 2026 tem **310 rows / 294 jogadores**: **222 do rollover** (190
+`VALORIZAÇÃO` + 32 `Waiver Ano 2` + **0 renovações pós-ano 4** — ninguém chegou ao fim do
+contrato em 2026) + 88 de aquisição (rookies + FA auction). As 222 estão todas carimbadas
+**2026-08-17 21:34**, um único minuto — a execução do rollover.
+
+**Lacuna: 222 avançados, 222 sem evento — 100%.** Por time (atribuição atual; inclui 28 que foram
+dropados depois, na janela de 20/08 — dos 222, **194 seguem em roster**):
+
+| time | avançados sem evento |
+|---|---|
+| 3 peat… of pain 🫠 | 18 |
+| AlexTheDawg | 16 |
+| Cangaceiros da Colina | 15 |
+| ESPN FANTASY LEAGUE | 18 |
+| Haliburton Time! | 21 |
+| Julia Mendes | 19 |
+| Pitbull do Samba | 23 |
+| SAFIEL | 21 |
+| Tropa do Jarra 🏆 | 18 |
+| Trust The Process | 20 |
+| mongoloides | 18 |
+| rafaelferreirap | 15 |
+| **total** | **222** |
+
+**Anos anteriores: 2026 é o único ano afetado.** Só existiu um rollover ao vivo; a transição
+2024→2025 está coberta pelos 219 eventos reconstruídos do backfill. Não há lacuna anterior a
+reparar — mas **cada intertemporada futura sem conserto adiciona ~220 eventos de lacuna**.
+
+#### O que o rollover faz e o que não faz (linguagem operacional)
+
+Para cada jogador não-dropado: calcula salário/ano novos via `apply_season_rollover` (puro), muta
+`salary` + `contract_year` (+ `contract_start_season` se renovação), grava **uma row de
+`SalaryHistory`** (season alvo, regra aplicada) — e avança `current_season`, liga
+`offseason_mode`, marca `rollover_done`. **O que não faz:** nenhuma escrita em `PlayerHistory`.
+O sítio onde o evento deveria nascer é o mesmo loop que já grava o SalaryHistory
+([offseason.py:762-771](routes/offseason.py#L762-L771)).
+
+**Escopo do evento (pergunta 6):** as transições que o rollover produz são duas — valorização
+(ano N→N+1, evento `rollover` no vocabulário existente) e **renovação pós-ano 4** (novo contrato,
+o vocabulário do backfill previa `renewal`, com **zero ocorrências vivas** — em 2026 não houve
+nenhuma, mas em 2028 a classe do startup chega ao ano 4 em massa). Mudança de salário já fica no
+`SalaryHistory`; não há outra transição de estado no rollover.
+
+#### ⭐ Achado de método — TRÊS portas vivas mutam contrato/estado sem gravar timeline
+
+| porta viva | o que muta | grava PlayerHistory? |
+|---|---|---|
+| `do_rollover` (passo 4) | salário + ano de contrato, elenco inteiro | ⛔ **não** — este item |
+| `record_acquisition` (6 chamadores: 4 do `/auction` + 2 do importador) | contrato ano 1 completo | ⛔ **não** — registrado no [[OFF26-34]] |
+| sync, passo 8 (drop) | `is_dropped=True` | ⛔ **não** — os 258 `drop` do banco são todos do rebuild [[F8]] (carimbo 22/04), nenhum do sync ao vivo |
+| sync, `_sync_trades` (S1) | time + `via_trade` | ✅ `trade` |
+| aprovação de revisão (M2) | flags + defaults | ✅ `review_approved` |
+| `correct_player_salary` | salário | ✅ `salary_correction` |
+| runners de correção (one-shot) | ano de contrato | ✅ `contract_year_correction` (36 vivas) |
+| rebuild [[F8]] (sob demanda) | reescreve o histórico da cadeia | ✅ — mas **não produz** eventos de rollover: **preserva** os existentes (`LIKE 'rollover:%'`) e **deleta** rows com ref NULL |
+| backfill legacy (**morto** — gated por `f8_rebuilt`) | — | ✅ era a única fonte de `rollover`/`renewal` que já existiu |
+
+⚠️ **Contrato de sobrevivência a rebuild:** o F8 deleta rows sem `sleeper_event_ref`. Qualquer
+evento de rollover futuro **precisa nascer com ref** (`rollover:<season>`, o formato já documentado
+em [models.py:987](models.py#L987)) — senão o próximo rebuild o apaga. É restrição de desenho para
+a F2, não decisão.
+
+#### Consequência da lacuna: só exibição
+
+Nada calcula a partir de `PlayerHistory`: a reconciliação do F8 (step 6) filtra por
+`_ACTIVE_ACQUISITION_TYPES`, que **exclui** `rollover`; salário e contrato vêm de `Player` +
+`SalaryHistory`; o censo futuro do [[OFF26-33]] varre canais de aquisição. As superfícies
+afetadas são as duas timelines — `/player/<id>` (M13) e `/salary_history` — que exibem o contrato
+avançando sem o evento que explica o avanço. **Nenhuma funcionalidade quebra.**
+
+⚠️ **Lateral medido, registrado sem arbitrar:** `salary_history` (a tabela) só contém rows de
+season **2026** — as aquisições de 2025 nunca a escreveram (pré-[[F9]]/CSV bootstrap). O salário
+histórico pré-2026 vive **apenas** no campo `salary` dos 219 eventos do backfill — o que encarece
+qualquer reconstrução retroativa e pesa na decisão "gravar na hora × reconstruir depois".
+
+#### ⚠️ Adendo material num caso de campo — Caleb Williams é o [[OFF26-32]] visível
+
+A timeline dele mostra **drop 2025 + `fa_auction` 2025** (recomprado no leilão FA de 2025), e ele
+está no **censo CONGELADO dos 24** do [[OFF26-32]] (sid 11560). O "Ano 3/4" que o owner viu é o
+estado que aquele item já reconheceu **errado** (contagem herdada do contrato pré-drop; correção
+3→2 **pendente**, runner `off26_32_fix.py` pronto). O rollover foi **fiel a um insumo errado** —
+a premissa "os contratos estão corretos" vale para Odunze e Fannin; para Caleb, vale o OFF26-32.
+**Não é achado novo e não muda status/prioridade de lá** — é o item existente aparecendo em campo.
+
+**Cross-refs:** [[OFF26-34]] (a segunda porta omissa, mesma semana — padrão, não coincidência),
+[[F8]] (quem preserva/deletaria os eventos; quem NÃO os produz), [[F11]] (a porta única do
+rollover), [[F9]] (o precedente de SalaryHistory ausente), [[OFF26-32]] (o adendo do Caleb),
+[[M13]] (a timeline que exibe a lacuna), [[UX13]] (rótulo cru de `contract_year_correction` na
+mesma timeline).
+
+---
