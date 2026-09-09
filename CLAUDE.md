@@ -61,6 +61,13 @@ python janela_ensaio_test.py
 # Run lista de exclusão do importador (OFF26-11 — 36 testes; núcleo puro + ORM em memória)
 python keeper_exclusion_test.py
 
+# Run régua de contrato vivo × morto no sync + arbitragem (OFF26-42 — 38 testes;
+# núcleo puro + ORM em memória + guardas AST)
+python contract_regua_test.py
+
+# Run backfill dos eventos de rollover 2026 (OFF26-36 Parte 4 — 8 testes)
+python off26_36_backfill_test.py
+
 # Run contexto NFL da página do jogador (O2 Batch 1 — 19 testes; núcleo puro, sem DB/rede/FS)
 python nfl_context_test.py
 
@@ -89,7 +96,37 @@ python seed_users.py --list
 - **Sleeper API** is authoritative for: roster membership, player names/positions/NFL team, IR slots, traded picks
   - **IR é read-only no Manager** (IR-CLEANUP): `Player.is_on_ir` só é escrito pelo sync, a partir do array `reserve` de cada roster. Não existe toggle na UI — mudar IR se faz **no Sleeper**, e reflete aqui no sync seguinte
 - **Local DB (`dynasty.db`)** is authoritative for: salaries, contract years, acquisition types, ESPN ref values
-- **Sleeper sync never overwrites salary/contract data**
+- **Sleeper sync never overwrites salary/contract data** — com UMA exceção canônica (OFF26-42):
+  o **re-add de jogador dropado** passa pela régua vivo × morto e, no caso 3 (contrato morto),
+  abre ano 1 novo **pela porta `record_acquisition`** (nunca escrita direta). Ver a subseção da
+  régua abaixo.
+
+#### Régua de contrato vivo × morto no sync (OFF26-42, 09/09/2026)
+
+A régua canônica da liga (arco OFF26-37, archive): (1) leilão zera tudo; (2) add com contrato
+**VIVO** (drop dentro da janela de waiver) mantém; (3) add com contrato **MORTO** abre ano 1.
+O discriminante é o ESTADO do contrato, não o canal nem o time.
+
+- **Decisão num helper ÚNICO:** `contract_regua.decide_readd` (núcleo puro; guarda AST na suíte).
+  Janela = `settings.waiver_clear_days` da liga na API × 24h — ⛔ **nenhum literal de janela no
+  código**. Timestamps: **`created` nos DOIS lados** (é o que reproduz o precedente arbitrado
+  Jones×Goff; `status_updated` é processamento em lote e inverteria vereditos de prod).
+- **Passo 8b do sync:** transição dropado→rosterado capturada no passo 7; varredura COMPLETA das
+  transações da season (legs 0–18, `status='complete'` obrigatório); sem drop na varredura =
+  morto por dedução; **falha de API em qualquer leg = nenhum contrato muda** + reporte.
+- **Transação de comissário NUNCA muda contrato no sync**: vira pendência em
+  `ContractPendency` → fila `/admin/arbitragem` (molde M2, race guard 409), com veredito
+  **sugerido** pela âncora do congelamento da lista de exclusão (OFF26-11; sem âncora → sem
+  sugestão). Arbitragem é SEMPRE humana: real × manobra (comissário) / vivo × morto (sinais
+  divergentes Δ×canal). Consequência executa só por `sync_sleeper.apply_regua_consequence`.
+  Pendência aberta bloqueia **só o contrato daquele jogador**; badge no roster.
+- **Timeline (OFF26-36):** as 3 portas gravam `PlayerHistory` ao vivo — rollover
+  (`rollover:<season>`), drop do sync (FATO = data da transação na API + FASE derivada de
+  `season_start_date` do `/state/nfl`; ⛔ `offseason_mode` não é fonte de fase) e
+  `record_acquisition` (ref nunca-NULL: `event_ref` ou `acq:<id>`; `AuctionLog.entry_type`
+  carrega o **canal real** para waiver/FA). Refs `tx:<id>` = formato do rebuild F8 (dedupe
+  simétrico pela UNIQUE). Backfill retroativo dos 222 de 2026: `off26_36_backfill.py`
+  (--check/--apply, backup obrigatório).
 
 ### App Startup Sequence (app.py)
 
@@ -125,7 +162,7 @@ Ordem real do boot (verificada contra o código — cada passo cita a âncora em
 | trades | `/trades`, `/trades/proposta/<uuid>` | Trade simulador puro (T1), preview com dynasty + redraft delta-pointing bars (T2/T3), descrição "de/para" 2-colunas, query params pré-seleção (M14), propostas compartilháveis |
 | picks | `/picks`, `/picks/lottery/<season>` | Grid navegável de picks (M9), auditoria pública do lottery (M8), legenda de odds audit-first — pesos do audit canônico, senão config (M15/M15-FIX), projeção do draft: R1 = lottery, R2/R3 = standings invertido (M16) |
 | auction | `/auction` | FA auction & rookie draft registration |
-| admin | `/admin`, `/admin/users`, `/admin/review`, `/admin/keeper_audit` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1), PlayerHistory canonical rebuild (F8), dynasty values refresh (T2), revisão admin auditável Cat A/B (M2), **auditoria de keepers pré-leilão (OFF26-4 — read-only, ver `keeper_audit.py`)** |
+| admin | `/admin`, `/admin/users`, `/admin/review`, `/admin/keeper_audit`, `/admin/arbitragem` | Sleeper sync, ESPN import, season rollover, user↔team management (M12), trade backfill (S1), PlayerHistory canonical rebuild (F8), dynasty values refresh (T2), revisão admin auditável Cat A/B (M2), **auditoria de keepers pré-leilão (OFF26-4 — read-only, ver `keeper_audit.py`)**, **fila de arbitragem de contrato (OFF26-42 — comissário real×manobra e sinais divergentes vivo×morto; molde M2 c/ race guard 409; veredito sugerido nunca se aplica sozinho)** |
 | offseason | `/offseason` | 7-step offseason workflow com lottery auditável (M8), 6 seeds via fonte única (M15), editor de pesos reativo com render single-source JS (M15-FIX) |
 | draft_import | `/draft_import` | OFF26-3: importa drafts via API read-only — **rookie linear (roda na liga REAL)** / **FA auction (roda na liga fantasma permanente)**; preview→confirm, match por sleeper_player_id, idempotente, escreve só via `record_acquisition`. **OFF26-11 ⚠️ (modo auction SÓ):** a keeper sheet **congelada** é **lista de exclusão** — keeper do mesmo time do pick não é ingerido; keeper de **outro** time, pick sem id e roster não mapeado viram **pendência que bloqueia a confirmação**; sheet ausente/provisória/não-congelada **bloqueia o import** (⛔ nunca degradar para "ingerir tudo"). Congelamento: `POST /api/draft_import/exclusion/freeze` (ver `keeper_exclusion.py`). **Modo linear intocado.** Jogador dropado e recomprado resolve-se por *"Reativar (ano 1)"* — nunca "criar novo" |
 | late_drop | `/late_drop` | **OFF26-10: a URNA do late drop (22/08) — única porta de declaração do Manager em 2026.** Um bilhete por time (um jogador do próprio roster **ou** passo), lista de **escolha única**; janela por **horário do admin** (`late_drop_opens_at`/`closes_at`); lock + hash + revelação simultânea reusando `compute_cut_snapshot_hash`; hierarquia owner > admin (recusa seca 409). **Sigilo: o selado é QUEM e O QUÊ** — a contagem agregada "N/12 depositaram" é pública e conta **drop e passo indistintamente** (nem inclinação vaza); `/api/late_drop/state` devolve **números, não times**. ⛔ **Bloqueio mútuo com o rollover** (bilhete é escopado por `current_season`): rollover recusado com urna viva e não revelada; agendamento recusado com `rollover_done` pendente — escape pelo banner de ensaio. A revelação produz a **lista de drops a executar**; ⛔ **a execução é MANUAL no Sleeper**. Flag admin "bloquear rookie de 1ª rodada" nasce **OFF**. ⛔ Nenhum `window.confirm()` no caminho de declaração (`confirmarInline`) |

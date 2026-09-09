@@ -5898,3 +5898,43 @@ segue **🔲** até o smoke; [[UX13]] segue **⚠️** pela mesma razão.
 - Diff docs: improvements.md (F1 + F2 na seção OFF26-32, UX13 row + seção → ⚠️, cabeçalho),
   sessions (rotação da 6ª entrada), devplan (esta entrada). Auditor exit 0. **Zero código nesta
   sessão** — `96a2c46` ficou como está. Zero banco, zero prod.
+
+### MAN-OFF26-36 — Parecer + F2 do arco contrato-vivo: régua no sync, arbitragem de comissário, timeline nas 3 portas, backfill dos 222 (09/09/2026, Fable 5) · código + docs
+
+**Parecer pré-execução (MAN-METH-2) aceito integralmente pelo owner.** Refutações centrais que
+mudaram o escopo antes de qualquer código:
+
+1. **O prompt original estava defasado do backlog**: OFF26-37 já estava ✅ e ARQUIVADO — o reparo
+   Aiyuk/Wicks (Parte 5) fora executado em produção em 26/08 (`2374f4e`/`32e4cc0`, 13 alvos).
+   A Parte 5 virou verificação: `off26_37_a_fix.py --check` → **0 elegíveis** ✓.
+2. **`syncdrop:<tx_id>` era contraditório** (o passo 8 não tem tx id) e colidiria com o rebuild
+   F8 (que emite `tx:<id>`) — owner decidiu `tx:<id>` ao vivo (dedupe simétrico pela UNIQUE).
+3. **A fila M2 não comporta o tipo novo** (boolean por Player, filtra `is_dropped=False`) —
+   nasceu a fila irmã `ContractPendency` (tabela aditiva) com tela/endpoints no molde M2.
+4. ⭐ **Refutação MEDIDA da decisão 8 do owner, pela conferência que ela mesma mandou fazer**:
+   nos `tw*.json` reais, `status_updated` de claim de waiver é processamento em LOTE (difere do
+   `created` em até ~51h) — `status_updated` no add daria **Goff Δ53,1h** (inverteria o veredito
+   preservado em prod) e nos dois lados daria **Jones Δ47,2h** (inverteria o morto arbitrado).
+   Só `created` nos dois lados reproduz o precedente canônico (69,2h/12,3h) que a decisão 5 fixa.
+   Implementado `created` em ponto único (`contract_regua.tx_timestamp`) — **pendente de
+   ratificação do owner**.
+
+**Decisões do owner (as 8 de 09/09)** executadas como registradas na seção [[OFF26-42]] do
+backlog. Medições ao vivo desta sessão: leg 0 VAZIA (intertemporada inteira na leg 1 — 208 txs
+08/06–08/09, incl. drops de Aiyuk 12/08 e Wicks 20/08); `season_start_date=2026-09-09`;
+`waiver_clear_days=2`.
+
+**Entregas:** `contract_regua.py` (núcleo puro, helper único da decisão) + passo 8b do sync
+(varredura completa legs 0–18, `status=complete` obrigatório; decisão 7: falha de API = nada
+muda) + `ContractPendency`/`/admin/arbitragem` (race guard 409; veredito sugerido pela âncora
+do congelamento OFF26-11, arbitragem sempre humana; executor único `apply_regua_consequence`)
++ timeline nas 3 portas (rollover `rollover:<season>`; drop com FATO+FASE; `record_acquisition`
+ref nunca-NULL + canal real no AuctionLog) + `off26_36_backfill.py` (222; ensaiado em cópia:
+apply 222 → 2ª execução 0 → rebuild F8 simulado preserva). Badge de pendência no roster.
+
+**Qualidade:** 38 testes novos (`contract_regua_test.py`, guardas AST da validação 8 +
+precedente Jones×Goff em timestamps reais) + 8 (`off26_36_backfill_test.py`); 29 suítes
+pré-existentes verdes (incl. `off26_37_a_fix_test` 40/40); gate O7 verde (24s, 0 achados);
+auditor O5 exit 0. Commits: `b06cf36` (P1+P3) · `38cccdb` (P2) · `e7b3dc8` (P4) + docs.
+**Zero banco de prod** — ensaios só em cópia; execução do backfill em prod é do owner
+(backup → --check → --apply, comandos na seção OFF26-36).
