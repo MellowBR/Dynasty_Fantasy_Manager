@@ -1,11 +1,11 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 21/09/2026 (sessão **MAN-FLAGS-CICLO-REG-F1**, **docs-only — zero código, zero escrita em banco**: processamento do handoff cruzado do Optimizer (OPT-C12-F1). Nasce **[[OFF26-44]] 🔲 Média** — a CLASSE "flags de ciclo do AppConfig sem evento de reset", com F1 read-only na mesma sessão: **seis** flags na classe (`offseason_mode`, `rollover_done`, `rookie_draft_done`, `auction_done`, `espn_values_updated`, `season_locked`) + duas mortas (`season_closed`, `offseason_step`) + `playoffs_started` sem evento + agenda da urna; escritores/leitores por âncora, réplicas em JS inline/scripts/consumidor externo. ⭐ **Veredito do flip de `offseason_mode` em prod: sem gate funcional interno** (banner, alerta de cap, log do sync e contrato externo) — premissa de 17/06 CONFIRMADA; "nenhum código grava false" CONFIRMADA; "admin desliga manualmente" **REFUTADA** (não há interruptor). [[M1-FOLLOWUP]] repriorizado **Baixa→Média**; cross-refs em [[OFF26-43]]/[[L4]]. Contagem medida: **24 models ↔ 24 tabelas** — `CLAUDE.md` corrigido (23→24, + `ContractPendency`). Adendo no [[OPS1]] (nenhuma F2 executada; lição do VACUUM; cópia de prod na raiz do workspace; histórico git limpo; convenção de cópia SANITIZADA de prod no `dynasty.db` local + ressalva do seed versionado). 191→192 rows · 88→89 seções; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff.)
 > Atualizado em: 09/09/2026-pt3 (sessão **MAN-SEA26-REG**, **docs-only — zero código**: nasce a **campanha [[SEA26]]** (temporada 2026: pick'em multi-liga + visualização de confrontos), **5 itens 🔲** sob um bloco `##` próprio — [[SEA26-1]] Alta (cadastro de ligas/participantes + ingestão de matchups via Sleeper; **absorve o [[L2]]**, que ⛔ não reabre) · [[SEA26-2]] Alta (pick'em, regras FECHADAS pelo owner em 09/09) · [[SEA26-3]] Média (tela de confrontos do podcast, que alimenta o palpite) · [[SEA26-4]] Média (probe ESPN, **gate** da liga ESPN) · [[SEA26-5]] Baixa (cruzamento de projeções, fora do caminho crítico). ⭐ **Aritmética dos tetos conferida e fecha — e DERIVA dois parâmetros que o enunciado não declarava**: `89 = 14×6 + 5` fixa a temporada regular do pick'em em **semanas 1–14** (único valor possível: 13→83, 15→95) e `81` = soma exata das 12 eliminações com piso 3 **prova que o Chopp não tem palpite de confronto** (teto geral **259**). ⚠️ **Decisão D do [[O6]] avaliada e NÃO aplicável — medido, não suposto:** o retrofit do auditor (V7/múltiplos arquivos) que a decisão (c) exigia **não existe**, e fixture temporária provou que a **V4 derruba o gate** (`row SEA26-1 sem seção detalhada no ativo`, exit 1) → campanha registrada **no ativo**, com a **pendência de retrofit cobrada pela 1ª vez** na seção do O6 (segundo motivo, independente do split do OFF26). ⚠️ Refinamento registrado no [[SEA26-4]]: **[[E3]] é evidência ADJACENTE, não o mesmo caso** — lá é o **site/PDF** da ESPN bloqueando o IP do Render; aqui é **outro host e outra autenticação** (API de fantasy + cookies SWID/ESPN_S2), logo precedente de risco, ⛔ não veredito. Vãos abertos registrados sem arbitrar: empate no confronto/guilhotina, ausência de palpite no lock, origem do horário do lock (calendário × admin, como na urna), desempate por playoffs **vazio** no Chopp (acaba na semana 12) e o prêmio (não bloqueia). 186→191 rows · 83→88 seções; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff.)
 > Atualizado em: 09/09/2026-pt2 (sessão **MAN-OFF26-36-CLOSE**, **docs-only — zero código, zero escrita em banco pelo Code**: fechamento pelo smoke de PROD do owner (Render Shell, na ordem: backup 761.856 B conferido → `off26_36_backfill --check` 222 → `--apply` **222 criados**, pós-escrita 0→222, ref em todos → `off26_37_a_fix --check` **0 elegíveis**; deploy `d115949` no `/admin`; sync 11:28 limpo). ✅ **[[OFF26-36]] FECHADO** — seção migrada verbatim p/ o archive ([[O3]]), **com achado do fechamento registrado: a conta 17×7 da reconstrução de team_name FECHA** (7 da F1 corretos por hora de TRANSAÇÃO + 8 trades de 05-06/09 + **2 falso-positivos Hill/Mitchell** — ⭐ raiz: o runner usa `created_at` do SYNC como proxy da hora da trade, e a trade deles foi às 16:39 UTC, ANTES do rollover de 21:34 → **2 dos 222 em prod com team_name anacrônico**, só exibição, SQL de correção opcional na seção arquivada). **[[OFF26-42]] segue ⚠️ com pendência ÚNICA nomeada** (primeiro caso REAL de re-add/comissário) e a fila vazia de 09/09 explicada **pelo desenho**: pendência nasce de TRANSIÇÃO observada no sync, não de varredura retroativa — as 37 commissioner de 18/08 fora da fila é conforto, não achado. Nasce **[[OFF26-43]] 🔲 Média** (o painel não sabe que a temporada começou: `offseason_mode` sem porta de desligar + passo 6 preso ao `CutWindowAudit` aposentado; direção do owner: derivar do `LateDropAudit`/lista congelada + ação "encerrar intertemporada"; [[M1-FOLLOWUP]] e [[UX33]](a) fecham por absorção, cross-refs recíprocos plantados; medida provisória = UPDATE manual documentado, conferido contra o schema real). Auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff.)
 > Atualizado em: 09/09/2026 (sessão **MAN-OFF26-36**, código + docs — **zero banco de prod; ensaios só em CÓPIA**: F2 das Partes 1–4 do arco contrato-vivo, sob as 8 decisões do owner do mesmo dia. ⭐ Nasce **[[OFF26-42]] ⚠️ Alta** — a régua vivo × morto NO SYNC (transição dropado→rosterado capturada; decisão no helper ÚNICO `contract_regua.decide_readd`; janela `waiver_clear_days`×24h da API, sem literal) + **arbitragem de comissário** (fila `ContractPendency` aditiva, molde M2 c/ race guard 409, `/admin/arbitragem`, veredito sugerido pela âncora do congelamento [[OFF26-11]], SEMPRE humana) + badge no roster. **[[OFF26-36]] → ⚠️**: as 3 portas gravam timeline AO VIVO (rollover `rollover:<season>`; drop do sync com FATO da API + FASE por `season_start_date` do `/state/nfl` — offseason_mode só log; `record_acquisition` com ref nunca-NULL e **canal real** no AuctionLog, off-label [[OFF26-34]] fechado p/ chamadores novos) + runner `off26_36_backfill.py` **ensaiado em cópia** (222 → 2ª execução 0 → rebuild F8 simulado preserva; team_name da ÉPOCA reconstruído pelos trades do S1). ⚠️ **Refutação MEDIDA da decisão 8** (a conferência que ela mesma mandou): `status_updated` inverteria vereditos arbitrados em prod (Goff 12,3h→53,1h; Jones 69,2h→47,2h) — implementado `created` nos dois lados (único que reproduz o precedente canônico da decisão 5), ponto único — **ratificado pelo owner na mesma data (MAN-OFF26-42-RATIFICA)**. Medições ao vivo: leg 0 VAZIA (intertemporada inteira na leg 1, 208 txs), `season_start_date=2026-09-09`, `waiver_clear_days=2`. Verificação ex-Parte 5: `off26_37_a_fix.py --check` → **0 elegíveis** ("já registrado" nos 2) ✓. 38 testes novos (`contract_regua_test.py`, incl. guardas AST da validação 8 e precedente Jones×Goff em timestamps reais) + 8 (`off26_36_backfill_test.py`); **29 suítes pré-existentes verdes** (incl. `off26_37_a_fix_test` 40/40); gate O7 verde (24s, 0 achados); auditor exit 0. Commits `b06cf36` (P1+P3) · `38cccdb` (P2) · `e7b3dc8` (P4). ⛔ **Prod pendente**: backfill (backup → --check → --apply no Render Shell) + smoke do 1º sync da temporada.)
 > Atualizado em: 26/08/2026-pt3 (sessão **MAN-CONTRATO-VIVO-CLOSE**, **docs-only — zero código, zero banco**: ✅ **[[OFF26-37]] FECHADO** — o arco da régua canônica de contrato vivo × morto foi **executado em produção em 26/08/2026, em DUAS etapas**, cada uma com **hash conferido pelo owner antes** e **backup com `ls -la` antes da escrita**: **Grupo B** (`32e4cc0`, `off26_37_b_fix.py`, suíte 40 verde, backup 737.280 B) — **11 contratos `cy 3→2`**, `css`/canal/salário preservados, trilha `fix:off26-37-b`; **Grupo A** (`2374f4e`, `off26_37_a_fix.py`, suíte 40 verde, backup 741.376 B) — **2 resetados ao caso 3** (`cy=1 · css=2026 · free_agent · $1`), **ESPN preservado**, trilha `fix:off26-37-a` + 2 no `auction_log`, **−$7** de folha no AlexTheDawg (Aiyuk `$8→$1`; Wicks delta zero). **Verificação independente por consulta read-only** após ambas + **smoke web** confirmado pelo owner = critério de fechamento. ⛔ **Nenhuma etapa aceita por relato** — o precedente dos **relatórios fabricados deste próprio arco** (`4c19a2e`/`a3f81c9`, inexistentes) é a origem da disciplina. ⭐ **LIÇÃO DE MÉTODO, registrada com destaque: o resultado certo dependeu de NÃO corrigir o Goff** — ele tinha estado **idêntico** ao dos 11 no banco (**48** jogadores no mesmo perfil), e ⛔ **nenhuma consulta de estado o distinguiria**; o que o separou foi a **cadeia da API** (claim **12,3h** dentro da janela de 48h × **69,2h** do Jones), medida **fora do circuito automático** pelo owner, que **refutou** a alegação de um prompt anterior — a qual **atribuía ao Jones a cadeia do Goff** (troca de sujeito, não medição divergente). Nascem 4 itens **da execução**: **[[OFF26-38]]** 🔲 Baixa (passivo do **Stafford** `$2→$3` — raiz distinta: o rollover aplicou valorização onde devia ano 2 de waiver/FA; ⭐ único dos 11 que se move, e **Jones verificado NÃO move**, limiar `espn_adj ≥ 2,5`), **[[OFF26-39]]** 🔲 **Alta** (⭐ **família de armadilhas de `record_acquisition`**: o token `[ref:]` **decepado** pelo truncamento em 200 — falha **silenciosa** de idempotência em porta que escreve salário, pega **por teste em flagrante** — e o **`espn_ref_value` zerado** pelo default 0.0, com a atribuição vindo **antes** da guarda; ⛔ porta **não** alterada, os runners **contornam**, com teste que prova cada armadilha viva), **[[OFF26-40]]** 🔲 Baixa (caminho de banco **relativo** cria banco vazio em `instance/`; corrigido **só no runner novo** — ⛔ artefatos já executados **não** tocados) e **[[OFF26-41]]** 🔲 Baixa (a suíte do motor roda **62** testes, não as **54** do `CLAUDE.md` — ⛔ registrado, **não corrigido**: redação do `CLAUDE.md` é decisão do owner; a classe é maior que o número — **14 suítes** com contagem fixada e nada as verifica). Emenda no **[[WV1]]**: 3 dos 9 candidatos da coorte B saem como `skipped` (sem abortar), `--check` sairá **exit 1** e exigirá **exclusão documentada** no molde do Goedert. Seção do [[OFF26-37]] migrada **verbatim** (431 linhas) para o `improvements_archive.md`, conforme o [[O3]]. 180→184 rows · 79→82 seções; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff e **nenhum `.db` tocado**.)
-> Atualizado em: 26/08/2026-pt2 (sessão **MAN-CONTRATO-VIVO-F1**, **docs-only — zero código, zero escrita em banco**: parecer **F1 do runner dos 13 alvos** na seção [[OFF26-37]]. ⛔ **Eixo 1 (estado dos 13 no banco vivo) NÃO foi medido — e é estrutural:** o banco alcançável do Code é o **SEED do git** (`./dynasty.db`, mtime 07/08, `current_season=2025`, `rollover_done=false`, **pré-rollover**), não `/data/dynasty.db`; ⛔ o `cy=2` que ele mostra **não contradiz** o registrado, é outro banco em outro momento. Bloco SQL read-only deixado pronto para o owner fechar no Render Shell. **Os outros três eixos fecham sem banco vivo.** ⭐ **Eixo 2 — invariante = 0 violações, e é ANALÍTICO** (`cy=3` e `cy=2` caem ambos no ramo da valorização ⇒ projeção do ano seguinte idêntica **para qualquer ESPN**) — ⚠️ **mas o dinheiro SE MOVE em dois lugares que a frase "nunca no dinheiro" esconde**: no **horizonte 2** (Stafford: renovação $4 × valorização $2) e no **passivo do rollover de 17/08** (Stafford $2→$3, único dos 10 medidos); **Jones fica INDETERMINADO** — ESPN não consta em DADOS nem no handoff, e o limiar medido é `espn_adj >= 2,5`. ⭐ **Eixo 3 — a porta NÃO é uma só: são DUAS**, e com forças de guarda distintas — `record_acquisition` serve o Grupo A mas **não tem guarda de estado**, e `contract_year_correction` (guarda exata, campo a campo) é a do Grupo B; usar uma no lugar da outra escreveria `cy=1`/`css=season` em quem devia manter `css=2025`. ⚠️ **Três armadilhas medidas no caminho do Grupo A**, a maior sendo que **`set_espn_value` ZERA o `espn_ref_value`** se o runner não repassar o valor (a atribuição vem **antes** da guarda, `models.py:764`). **Réplica da REGRA: nenhuma** — varredura `.py`+`.html`+JS inline; o passo 6 do rebuild [[F8]] reescreve `css`/canal mas **não toca `contract_year`**, e `contract_year_correction` **não** está em `_ACTIVE_ACQUISITION_TYPES` (a trilha não vira insumo do rebuild). ⭐ **Eixo 4 — dupla aplicação impossível nas duas ordens**: `off26_32_fix` ∩ 13 = `{6803}` **mas excluído de propósito** (executado ∩ 13 = ∅), `wv1_fix_coorte_b` (nunca executado) ∩ 13 = `{3451, 8259, NE}`, e o `triage` de lá trata `cy` já corrigido como **skip, não abort** — o custo da ordem é **exit 1 no `--check`**, não dado corrompido. ⚠️ **Interseção que o prompt não previu: `off26_20_fix` (executado 06/08, 22 contratos) contém 9486 (Wicks)** — o `cy=2` dele é contrato **mantido corretamente** que morreu no drop de 20/08, não congelamento; muda a narrativa, não o devido. ⚠️ **Dois achados de desenho para a F2:** o Grupo B é de **canal MISTO** (6 `fa_waiver` + 5 `free_agent`) e uma `EXPECTED` única **abortaria** no molde da coorte B; e **a lista TEM de ser congelada** — varredura por estado pegaria **60** jogadores, **48 falso positivo, o Goff entre eles**. [[OFF26-37]] segue **🔲**; Status Rápido **sem row nova**; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff e **nenhum `.db` alterado**.)
 > 📁 Entradas anteriores em **`improvements_sessions.md`** (104 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
@@ -30,7 +30,7 @@
 | T2 | Integrar valores dynasty FantasyCalc no preview de trade | Média | ✅ 22/04/2026 |
 | Q1 | Script de simulação de temporada (validar salary rollover) | Média | 🔲 |
 | M1 | Alerta de cap estourado pós-S1 (preview escalonado + warnings de sync, banner gated por offseason) | Média | ✅ 27/04/2026 |
-| M1-FOLLOWUP | Avaliar auto-desativação de offseason mode após FA auction concluído (banner M1 persiste como ruído se admin esquecer de desligar manualmente). **→ ABSORVIDO pelo [[OFF26-43]]** (09/09/2026): fecha por absorção quando a ação "encerrar intertemporada" de lá existir | Baixa | 🔲 |
+| M1-FOLLOWUP | Avaliar auto-desativação de offseason mode após FA auction concluído (banner M1 persiste como ruído se admin esquecer de desligar manualmente). **→ ABSORVIDO pelo [[OFF26-43]]** (09/09/2026): fecha por absorção quando a ação "encerrar intertemporada" de lá existir. **Repriorizado 21/09 (Baixa→Média)**: a réplica do Optimizer faz da flag insumo de valoração externo; premissa "admin desliga manualmente" refutada — não há interruptor (classe [[OFF26-44]]) | Média | 🔲 |
 | MAN-S1-FIX | Backfill de previous_league_id reverte estado pós-trades da current league (idempotência cross-season + movimentação cega de Player.team_id em `_sync_trades`) | Alta | ✅ 28/04/2026 |
 | M2 | Tela de aprovação em lote de jogadores `needs_review=True` | Média | ✅ 27/04/2026 |
 | M3 | Exportar dynasty.db em formato legível para os outros owners | Baixa | 🔲 |
@@ -201,7 +201,8 @@
 | OFF26-40 | **Caminho de banco RELATIVO no molde de runner cria banco vazio em `instance/` e a execução lê base sem tabela** — medido na F2A: `_db_path` devolvia o caminho como veio, e com `--db dynasty.db` o Flask-SQLAlchemy reescreve `sqlite:///dynasty.db` para dentro do `instance/` da app, **criando o arquivo lá**; o runner então falha com `sqlite3.OperationalError: no such table: players` — ou, pior, **leria um banco vazio como se fosse o alvo**. ⛔ **Em produção não dispara** (o caminho vem absoluto de `DYNASTY_DB`), o que manteve a armadilha **latente** desde o molde original. **Corrigido só no runner novo** (`.resolve()` em `off26_37_a_fix.py` e `off26_37_b_fix.py`, com o porquê no docstring e teste `test_db_path_e_sempre_absoluto`); ⛔ **`off26_32_fix.py`, `off26_20_fix.py`, `wv1_fix_coorte*.py` NÃO foram tocados — são artefatos já executados em produção**, e alterá-los criaria arquivo cujo comportamento não é mais o que foi executado (a mesma decisão que originou o `wv1_fix_coorte_b.py`). **O que falta:** decidir se o `.resolve()` entra nos runners antigos (contra a regra do artefato congelado) ou se vira só convenção do próximo molde — MAN-CONTRATO-VIVO-F2A/CLOSE | Baixa (só em ensaio local com `--db` relativo; produção imune) | 🔲 |
 | OFF26-41 | **Deriva de documentação: o `CLAUDE.md` registra 54 testes do motor salarial e a suíte roda 62** — medido em 26/08/2026 (`python salary_engine_test.py` → `Ran 62 tests ... OK`). ⛔ **Registrado como item, não corrigido por conta própria**: a redação do `CLAUDE.md` é decisão do owner (restrição explícita da sessão MAN-CONTRATO-VIVO-CLOSE). ⚠️ **A classe importa mais que o número:** o bloco de comandos do `CLAUDE.md` fixa contagens de **14 suítes** e nada as verifica — cada uma pode ter derivado do mesmo jeito, silenciosamente, e a contagem citada é o que uma sessão futura usa para decidir se uma suíte "está verde na contagem vigente". Candidato natural a carona no [[O5]] (o auditor poka-yoke já existe e é read-only) — MAN-CONTRATO-VIVO-CLOSE | Baixa | 🔲 |
 | OFF26-42 | ⭐ **Régua vivo × morto NO SYNC + arbitragem de comissário + fila de pendências** — fecha a porta que o [[OFF26-37]] mediu e deixou aberta (`is_dropped = False` sem consultar contrato): a transição dropado→rosterado agora passa por `contract_regua.decide_readd` (helper ÚNICO — janela `waiver_clear_days` da API ×24h, `created` nos DOIS lados; ⚠️ **refutação MEDIDA da decisão 8 do owner**: `status_updated` no add daria Goff Δ53,1h e INVERTERIA o veredito arbitrado em prod, e nos dois lados inverteria Jones Δ47,2h — só `created` reproduz o precedente canônico 69,2h/12,3h; **✅ `created` RATIFICADO pelo owner em 09/09/2026**). Caso 2 mantém + evento; caso 3 = ano 1 via `record_acquisition` com **canal real** (off-label [[OFF26-34]] fechado p/ chamadores novos); **comissário NUNCA muda contrato no sync** → pendência na fila `/admin/arbitragem` (tabela ADITIVA `ContractPendency`, molde M2 com race guard 409; veredito SUGERIDO pela âncora do congelamento [[OFF26-11]], degrada sem âncora; arbitragem SEMPRE humana: real×manobra / vivo×morto p/ sinais divergentes Δ×canal); pendência bloqueia SÓ o jogador dela, badge no roster. Decisão 7: varredura completa legs 0-18 (`status=complete` obrigatório; leg 0 medida VAZIA, intertemporada inteira na leg 1) — sem drop na varredura = morto por dedução; falha de API = nada muda + reporte. Fase pela DATA da tx × `season_start_date` do `/state/nfl` (offseason_mode NÃO é fonte, divergência só log). 38 testes novos (`contract_regua_test.py`, incl. guardas AST) — MAN-OFF26-36 (09/09/2026, decisão do owner sobre comissário do mesmo dia) | Alta | ⚠️ **implementado 09/09/2026; deploy `d115949` no ar e sync pós-deploy limpo (0 transições, fila vazia — CONFORME O DESENHO: a fila nasce de transições observadas, não de varredura retroativa). Pendência ÚNICA E NOMEADA: o primeiro caso REAL** — re-add pela régua (waiver de terça) e/ou transação de comissário na fila — a arbitragem só se prova com dado real |
-| OFF26-43 | **O painel de intertemporada não sabe que a temporada começou** — junta [[M1-FOLLOWUP]] e o achado (a) do [[UX33]] numa raiz só: `offseason_mode` é setada `"true"` SÓ no rollover e **nunca revertida por código** (F1 do [[OFF26-9]]; medido de novo em 09/09 — `true` com a temporada em curso, e o sync da régua [[OFF26-42]] loga a divergência a cada execução), e o **passo 6** exibe Pendente para sempre por derivar de `CutWindowAudit`, artefato **aposentado em 07/08** ([[OFF26-1]] ETAPA2). **Direção do owner (09/09/2026):** passo 6 passa a derivar do artefato que o fluxo de 2026 realmente produz (`LateDropAudit` da urna e/ou lista de exclusão congelada [[OFF26-11]]) e o painel ganha ação explícita **"encerrar intertemporada"** que desliga `offseason_mode`; [[M1-FOLLOWUP]] e [[UX33]](a) **fecham por absorção** quando este fechar; UX33(b) segue separado. Medida provisória (UPDATE manual no Render Shell) documentada na seção — MAN-OFF26-36-CLOSE | Média | 🔲 |
+| OFF26-43 | **O painel de intertemporada não sabe que a temporada começou** — junta [[M1-FOLLOWUP]] e o achado (a) do [[UX33]] numa raiz só: `offseason_mode` é setada `"true"` SÓ no rollover e **nunca revertida por código** (F1 do [[OFF26-9]]; medido de novo em 09/09 — `true` com a temporada em curso, e o sync da régua [[OFF26-42]] loga a divergência a cada execução), e o **passo 6** exibe Pendente para sempre por derivar de `CutWindowAudit`, artefato **aposentado em 07/08** ([[OFF26-1]] ETAPA2). **Direção do owner (09/09/2026):** passo 6 passa a derivar do artefato que o fluxo de 2026 realmente produz (`LateDropAudit` da urna e/ou lista de exclusão congelada [[OFF26-11]]) e o painel ganha ação explícita **"encerrar intertemporada"** que desliga `offseason_mode`; [[M1-FOLLOWUP]] e [[UX33]](a) **fecham por absorção** quando este fechar; UX33(b) segue separado. Medida provisória (UPDATE manual no Render Shell) documentada na seção — MAN-OFF26-36-CLOSE. Flip re-medido em 21/09 pela F1 do [[OFF26-44]]: sem gate funcional interno | Média | 🔲 |
+| OFF26-44 | **Flags de ciclo do AppConfig sem evento de reset (a classe)** — gravadas uma vez por ciclo, nada as devolve ao estado inicial do ciclo seguinte. F1 (21/09) mediu **seis** na classe: `offseason_mode` ([[OFF26-43]]), `rollover_done` ([[L4]]), `rookie_draft_done`, `auction_done`, `espn_values_updated`, `season_locked`; mais duas mortas (`season_closed`, `offseason_step`), `playoffs_started` sem evento e a agenda da urna. **Motivação nova:** `app_config` é **contrato externo** e a réplica do `dynasty.db` de prod pelo Optimizer faz das flags insumo de valoração (fase decidida por `offseason_mode`). Premissa "admin desliga manualmente" **refutada**: não há interruptor para `offseason_mode` nem `rollover_done`. Escopo: decidir e implementar o evento de reset de cada flag (ou derivá-la por evidência + season, molde [[OFF26-29]]); decisão do owner, flag a flag. [[M1-FOLLOWUP]] repriorizado Baixa→Média — MAN-FLAGS-CICLO-REG-F1 | Média | 🔲 |
 | SEA26-1 | **Cadastro de ligas/participantes + ingestão de confrontos via Sleeper** — base da campanha [[SEA26]]: ligas configuráveis (id, plataforma, tipo **confrontos × guilhotina**, semanas de playoff e formato da chave), **mapa usuário↔time POR LIGA** (⚠️ os participantes diferem entre ligas, e o `User.team_id` de hoje é **um** time só — [[M12]]/[[M17]]), leitura de matchups por semana + resultado (quem venceu; quem foi eliminado). **Só Sleeper** (Dynasty e Chopp); ESPN entra pelo gate do [[SEA26-4]]. Tabelas **aditivas** — ⛔ zero efeito em cap/contrato/salário e no `dynasty.db` que o Optimizer lê. **Absorve [[L2]]** — MAN-SEA26-REG | Alta | 🔲 |
 | SEA26-2 | **Pick'em semanal (as 3 ligas)** — regras **fechadas pelo owner em 09/09/2026** e transcritas na seção: palpite no vencedor de cada confronto (6/semana; playoffs 15–17 só chave de cima, 2+2+1) e, no Chopp, no **eliminado** (semanas 1–12); 1 ponto por confronto; Chopp vale nº de sobreviventes com **mínimo 3**; tetos **89/89/81**. ⭐ **Aritmética conferida nesta sessão — fecha, e DERIVA dois fatos que o enunciado não declarava**: temporada regular = **semanas 1–14** (único valor que dá 89) e **Chopp não tem palpite de confronto** (81 = só eliminações). Lock único no **kickoff do 1º jogo da semana** (molde da urna [[OFF26-10]]: lock por horário, sem revelação antes do lock); ranking por liga + geral (soma das 3, teto **259**, só quem joga as três, sem prêmio); desempate: acertos em playoffs → acertos na semana mais recente; backfill manual da semana 1 marcado como backfill. Depende do [[SEA26-1]] — MAN-SEA26-REG | Alta | 🔲 |
 | SEA26-3 | **Tela de confrontos para o podcast** — escalações lado a lado por confronto, pontos reais e **projeção da própria plataforma** (Sleeper), legível em desktop; a MESMA tela alimenta o palpite do [[SEA26-2]] (uma superfície, dois usos). Depende do [[SEA26-1]] — MAN-SEA26-REG | Média | 🔲 |
@@ -2157,7 +2158,7 @@ Decisão aguarda o owner; **nada implementado nesta fase**.
 ---
 
 ### M1-FOLLOWUP — Auto-desativação do offseason mode pós-FA auction
-🔲 **Pendente** — Prioridade **Baixa** — *stub estrutural criado pelo [[O5]] (13/08/2026): o item
+🔲 **Pendente** — Prioridade **Média** (era Baixa; repriorizado 21/09/2026 — ver abaixo) — *stub estrutural criado pelo [[O5]] (13/08/2026): o item
 sempre viveu só como row do Status Rápido; a seção existe para fechar o invariante "todo 🔲/⚠️ tem
 seção detalhada" do auditor.*
 
@@ -2169,6 +2170,13 @@ Avaliar auto-desativação ao concluir o passo 7 (ou lembrete na tela do admin).
 a ação explícita "encerrar intertemporada" que desliga a flag — este item **fecha por absorção**
 quando o OFF26-43 fechar. Até lá, a medida provisória (UPDATE manual) está documentada na seção
 de lá.
+
+**Repriorização (21/09/2026, MAN-FLAGS-CICLO-REG-F1): Baixa → Média.** Com a réplica do
+`dynasty.db` de produção pelo Optimizer, a flag deixa de ser só ruído de banner e passa a ser
+**insumo de valoração externo**: a fase do Optimizer é decidida por `offseason_mode`. Média é o
+nível do [[OFF26-43]], que absorve este item. ⚠️ **Correção de premissa (F1 do [[OFF26-44]]):** a
+redação "até o admin desligar manualmente" supõe um interruptor que **não existe**. O único
+caminho é o UPDATE no Render Shell. Classe completa: [[OFF26-44]].
 
 ---
 
@@ -5024,6 +5032,13 @@ tem alcance maior que a tela. É decisão do owner, não do implementador.
 gravar `rollover_done="false"` **ou** se a docstring do gate voltar a prometer reabertura
 automática — quando o L4 for implementado, os dois pontos têm de ser atualizados juntos.
 
+**Cross-ref (21/09/2026, MAN-FLAGS-CICLO-REG-F1):** `rollover_done` é um caso da classe
+[[OFF26-44]] (flags de ciclo sem evento de reset). Este item continua próprio e a decisão continua
+do owner. A F1 de lá mapeou **quatro leitores funcionais** além do gate do [[L3]]: o once-only do
+rollover (a flag em `false` com os gates abertos permitiria rodar o rollover de novo sobre a mesma
+season), `planning_target_season`, `rollover_blocks_urn` e o contrato externo do Optimizer.
+Âncora do escritor hoje: [routes/offseason.py:790](routes/offseason.py#L790).
+
 ---
 
 ### C1 — Cap Projector: Modo "Drop Programado"
@@ -7247,6 +7262,48 @@ ver a seção de deployment do `CLAUDE.md`) nem revisão geral de `.gitignore`.
 **Cross-refs:** [[O5]] (de onde vêm os dois backups), [[OFF26-24]] (o `.phantom_board_profile/`),
 [[O3]] (a disciplina de arquivos do backlog, que é o precedente de organização).
 
+**Adendo (21/09/2026, MAN-FLAGS-CICLO-REG-F1) — insumo do handoff cruzado do Optimizer
+(OPT-C12-F1, 21/09):**
+
+*Estado do item em 21/09:* **nenhuma F2 foi executada.** O commit `5707ddc` (`MAN-OPS1-REG-F2`) é
+o [[OPS2]], colisão de ID de 18/08, e não a higiene. `.gitignore` sem mudança, nenhuma pasta de
+archive, convenção não redigida até este adendo. O inventário cresceu: o `git status --porcelain`
+de 21/09 soma aos itens de 14/08 `handoff_cruzado_optimizer_26_08_2026.md`, `medir_disputa.py` e
+**26 JSONs soltos** (`sheet.json`, `sheet(2).json`, `shee_prelatedropt.json`, `t1/t2.json`,
+`tw0`–`tw20.json`, 21-26/08). ⛔ Os JSONs **não foram abertos** pelo Optimizer (as chaves de topo
+podem ser nomes de times), e o destino deles é decisão deste item.
+
+*Lição do VACUUM (medida pelo Optimizer):* **`DELETE` não remove conteúdo do binário SQLite.** O
+`ensaio_local.db` tem `cut_window_audit` **vazia** e `freelist_count = 0`, e mesmo assim os nomes
+de campo do snapshot de corte continuam legíveis no arquivo: o conteúdo apagado fica como resíduo
+**dentro das páginas**, fora da freelist. Só `VACUUM` / `VACUUM INTO` reconstrói o arquivo. Vale
+para qualquer limpeza deste item que envolva banco (backups e ensaios soltos).
+
+*Cópia de prod fora dos repositórios:* `Fantasy/dynasty_prod_26_08_2026.db` (741 KB, na raiz do
+workspace) é adjacente ao inventário e fica fora do escopo formal deste item (não está em nenhum
+repo), mas é uma cópia do estado de prod de 26/08.
+
+*Fato positivo (medido pelo Optimizer, só por existência de linhas):* conteúdo de declaração
+existe **só** no `dynasty.db` local e na cópia da raiz do workspace, e **todo ele é de janela já
+revelada** (late drop 2026, revelado 22/08). O histórico git do `dynasty.db` **nos dois
+repositórios está limpo** (16 blobs aqui, 2 lá).
+
+*Convenção entre projetos para o `dynasty.db` local (aceita pelo planejamento em 21/09):* o
+`dynasty.db` local passa a receber **cópias SANITIZADAS de produção** geradas pelo pipeline do
+Optimizer (C12 de lá, Opção C). Restrições:
+- sanitização **nunca sobre o banco vivo**: sempre sobre a cópia de backup (backup API do SQLite,
+  `.backup`), no Render Shell, antes de o arquivo sair do servidor;
+- depois do `VACUUM`, `PRAGMA integrity_check` e **contagem de tabelas** conferidas **antes** de
+  substituir o local;
+- substituição com **backup pré-restore nomeado** do local e **troca atômica** (arquivo temporário
+  e rename);
+- **evitar réplica com janela de urna aberta.**
+
+⚠️ **Ressalva:** a sanitização remove **só conteúdo não revelado**. A decisão pendente sobre o
+**seed versionado** (o `dynasty.db` do git, repositório **público**) **não fica resolvida** por
+ela: o seed continua levando o que a sanitização preserva (tudo que já foi revelado, e `users`).
+Essa decisão é deste item e do owner.
+
 ---
 
 ### OFF26-25 — O rollover não tem gate mecânico de tabela ESPN definitiva
@@ -9364,6 +9421,118 @@ normalmente. O passo 6, porém, continua Pendente até a F2 religar a derivaçã
 lá), [[OFF26-9]] (a F1 que mediu a flag sem porta), [[OFF26-1]]/[[OFF26-10]]/[[OFF26-11]] (o
 artefato aposentado × os que existem), [[OFF26-42]] (o log de divergência a cada sync), [[M1]]
 (o banner que vira ruído).
+
+**Cross-ref (21/09/2026, MAN-FLAGS-CICLO-REG-F1):** a raiz daqui é **um caso** da classe
+registrada no [[OFF26-44]] (flags de ciclo sem evento de reset). A F1 de lá **re-mediu o flip**
+da medida provisória acima contra o código de 21/09: **nenhum gate funcional interno** — efeito só
+em banner, alerta de cap, log do sync e no contrato externo (a réplica do Optimizer). Âncora
+atualizada do escritor: [routes/offseason.py:789](routes/offseason.py#L789) (a 777 citada acima
+andou).
+
+---
+
+### OFF26-44 — Flags de ciclo do AppConfig sem evento de reset (a classe)
+
+🔲 **Registrado em 21/09/2026 (MAN-FLAGS-CICLO-REG-F1) — F1 read-only FEITA na mesma sessão;
+decisão de desenho do owner pendente.** Prioridade **Média**.
+
+**O que é:** as flags de ciclo/fase do `app_config` são gravadas **uma vez por ciclo** e **nada as
+devolve** ao estado do início do ciclo seguinte. `offseason_mode` ([[OFF26-43]]) e
+`rollover_done` ([[L4]]) são os dois casos já conhecidos — a F1 mostra que são **seis**. O escopo
+deste item é **decidir e implementar qual evento devolve cada flag** ao estado inicial do ciclo
+seguinte (ou substituí-la por derivação de evidência, no molde do [[OFF26-29]]/[[UX23]]). ⛔ A
+decisão é do owner, flag a flag — o alcance difere em cada uma.
+
+**Motivação nova (21/09/2026):** o `app_config` é **contrato externo**. O Optimizer lê sete chaves
+(`offseason_mode, rollover_done, rookie_draft_done, auction_done, playoffs_started, season_week,
+current_season`) direto do arquivo **e** via `GET /api/offseason/season_flags`, e com a réplica do
+`dynasty.db` de produção (Opção C do C12 de lá) essas flags viram **insumo de valoração**. A fase
+é decidida por `offseason_mode` primeiro, então hoje o Optimizer não detecta mais temporada
+regular (C17 de lá). O custo do defeito deixou de ser ruído de banner.
+
+#### F1 — inventário medido no código de 21/09/2026
+
+Critério: flag cujo valor descreve **em que ponto do ciclo a liga está**. Ficam fora da classe
+`current_season` (é o contador do ciclo e o rollover o incrementa corretamente), `cuts_window_open`
+(tem abertura e fechamento: [cuts.py:203/214/292](routes/cuts.py#L203)) e as chaves de operação
+avulsa (`sync_frozen`, `phantom_league_id`, `keeper_exclusion_frozen`…).
+
+| Flag | Escritor (valor · evento) | Leitores (efeito) | Reset? | Interruptor manual? |
+|---|---|---|---|---|
+| `offseason_mode` | `true` · rollover ([offseason.py:789](routes/offseason.py#L789)); `false` só no seed ([app.py:424](app.py#L424), insere chave ausente) | banner de offseason ([base.html:172](templates/base.html#L172), via `g_offseason_mode` em [app.py:89](app.py#L89)) — **rótulo**; alerta de cap estourado ([roster.html:72](templates/roster.html#L72)) — **rótulo**; `/api/offseason/status` ([offseason.py:267](routes/offseason.py#L267)) — sem consumidor interno; log de divergência do sync ([sync_sleeper.py:1740](sync_sleeper.py#L1740)) — **log**; `/api/offseason/season_flags` + arquivo — **contrato externo** (fase do Optimizer) | **não** | **não** |
+| `rollover_done` | `true` · rollover ([offseason.py:790](routes/offseason.py#L790)) | passo 4 `done` + **once-only do rollover** ([offseason.py:188](routes/offseason.py#L188), recusa 400 em [L737](routes/offseason.py#L737)) — **gate funcional**; `_projection_open` ([league.py:39](routes/league.py#L39)) — **gate de exibição**; `planning_target_season` ([models.py:567](models.py#L567)) — **funcional** (alvo do cap_projector); `rollover_blocks_urn` ([late_drop.py:135](routes/late_drop.py#L135)) — **gate funcional** (agenda da urna); runners one-shot `wa_draft_2026_fix.py`/`off26_37_b_fix.py` (pré-condição `true`); `season_flags` + arquivo — **contrato externo** | **não** | **não** |
+| `rookie_draft_done` | `true`/`false` · toggle admin do passo 5 ([offseason.py:835](routes/offseason.py#L835), com `undo`) | passo 5 do painel ([offseason.py:189](routes/offseason.py#L189)) — **rótulo**; botões em [offseason.html:273/279](templates/offseason.html#L273) (JS inline `toggleFlag`); `season_flags` + arquivo — **contrato externo** | **não** | **sim** (undo) |
+| `auction_done` | `true`/`false` · toggle admin do passo 7 ([offseason.py:861](routes/offseason.py#L861), com `undo`) | passo 7 do painel ([offseason.py:190](routes/offseason.py#L190)) — **rótulo**; botões em [offseason.html:315/321](templates/offseason.html#L315); `season_flags` + arquivo — **contrato externo** (⛔ **não** é insumo do `planning_target_season`, que usa evidência de `AuctionLog`) | **não** | **sim** (undo) |
+| `espn_values_updated` | `true` · passo 3 ([offseason.py:661](routes/offseason.py#L661)) | passo 3 `done` e parte do lock do passo 4 ([offseason.py:181/201](routes/offseason.py#L181)) — **gate funcional atenuado**: o [[OFF26-25]] exige também o import `final` da season alvo, derivado por season; `season_flags` (o Optimizer não lê) | **não** | **não** |
+| `season_locked` | `true` · lock do sorteio ([offseason.py:647](routes/offseason.py#L647)) | projeção do board de picks ([picks.py:256](routes/picks.py#L256), `locked` da ordem projetada) — **funcional de exibição**: no ciclo seguinte, sem sorteio da nova season, a ordem projetada por standings ([picks.py:270](routes/picks.py#L270)) sai marcada `locked` antes de o sorteio existir; `season_flags` | **não** | **não** |
+
+**Casos de borda medidos (fora da tabela):**
+- `season_closed`: gravada `true` ([offseason.py:377/406](routes/offseason.py#L377)) e **nunca lida**
+  por lógica. O passo 1 deriva de `SeasonStandings` da season, e a chave só aparece como rótulo
+  `key` e no `season_flags`. É **flag morta**: não tem efeito para resetar, mas vaza no contrato.
+- `offseason_step`: **nenhum escritor em código** (só o seed `"0"`); é lida em
+  [app.py:91](app.py#L91) e [offseason.py:176](routes/offseason.py#L176). Também é flag morta.
+- `playoffs_started`: toggle admin com `undo` ([admin.py:1331](routes/admin.py#L1331)). Ela não fica
+  presa por construção, mas **nenhum evento a liga ou desliga**; depende do admin. O Optimizer a
+  lê (PRE_PLAYOFF).
+- Agenda da urna (`late_drop_opens_at`/`closes_at`): global, sem season, nunca limpa por evento.
+  Ela se autoinvalida por data (`_urn_state` → "encerrada"), mas **bloquearia o rollover do ciclo
+  N+2** se o ciclo N+1 não usasse a urna (`urn_blocks_rollover` vê agenda setada sem revelação).
+  Há escape documentado na própria mensagem de recusa ("limpe a agenda em /late_drop").
+- Os passos 1 e 2 do painel **não pertencem à classe**: derivam de dados por season
+  (`SeasonStandings`, `DraftLotteryResult` da season+1) e "resetam" sozinhos. É o desenho a
+  imitar.
+
+**Réplicas fora do Python de rotas/models (pergunta obrigatória):**
+- **JS inline:** `toggleFlag(...)` em [offseason.html](templates/offseason.html) (passos 5/7) e o
+  `fetch('/api/admin/playoffs_started')` em [admin.html:270](templates/admin.html#L270). **Nenhum
+  JS lê** `offseason_mode`/`rollover_done` — só Jinja server-side (`base.html`, `roster.html`).
+- **Scripts:** `wa_draft_2026_fix.py` e `off26_37_b_fix.py` (pré-condição `rollover_done=true`;
+  runners one-shot já executados); `migration_add_season_flags.py` (seed histórico de três chaves);
+  `ensaio_janela_selada.py` (não toca flag de ciclo).
+- **Consumidores externos:** o Optimizer (arquivo + HTTP `season_flags`, sete chaves). Nenhum no
+  Predictor (varrido).
+- **Comentários sem efeito:** `contract_regua.py:48`, `sync_sleeper.py:1524`, `routes/roster.py:98`,
+  `routes/draft_import.py:124`, `models.py:510/565`.
+
+**Refutação de premissas (21/09/2026):**
+1. *"`offseason_mode` gateia só cosmético"* (F1 do [[OFF26-9]], 17/06): **CONFIRMADA** no código
+   atual, com um acréscimo. Os leitores internos são dois rótulos (banner e alerta de cap) e um log
+   (sync, desde o [[OFF26-42]]), e não há gate funcional: `_get_step_statuses`, `do_rollover`, a
+   urna e a régua do sync **não leem** a flag. O que mudou de categoria foi o **leitor externo**.
+2. *"Nenhum código grava `false`"* (medição do Optimizer): **CONFIRMADA**. O único `false` vem do
+   seed ([app.py:424](app.py#L424)), que só insere chave ausente.
+3. *"Depende de admin desligar manualmente"* (redação do [[M1-FOLLOWUP]]): **REFUTADA**. **Não
+   existe interruptor** de `offseason_mode` na UI nem em rota. O único caminho é o UPDATE manual no
+   Render Shell (medida provisória do [[OFF26-43]]). `rookie_draft_done`, `auction_done` e
+   `playoffs_started` têm `undo`; `offseason_mode` e `rollover_done`, não.
+4. *"23 models, a 24ª tabela seria `contract_pendencies`"* (handoff): **o número está certo, a
+   leitura precisa de ajuste**. Medido no `models.py` de 21/09: **24 classes `db.Model` ↔ 24
+   `__tablename__`**. O `CLAUDE.md` dizia 23 e a lista dele não tinha o `ContractPendency`
+   ([[OFF26-42]], 09/09), que era de fato a 24ª. O banco local tem 23 tabelas porque
+   `contract_pendencies` nasce no boot (`db.create_all`) e o `dynasty.db` local é anterior a ela.
+   `CLAUDE.md` corrigido nesta sessão.
+
+**Opções de desenho (nenhuma decidida):**
+- **Evento único de "abertura de ciclo"** (fechar a season / passo 1) que devolve todas as flags ao
+  estado inicial. É simples, mas acopla flags com alcances diferentes.
+- **Reset por flag no evento natural dela**, que é a direção do [[OFF26-43]] para `offseason_mode`
+  ("encerrar intertemporada").
+- **Derivação por evidência + season**, no molde dos passos 1-2 e do [[OFF26-29]]/[[UX23]]. Elimina
+  a flag, mas quebra o contrato externo se as chaves sumirem: exige manter as chaves como
+  **projeção derivada** ou coordenar com o Optimizer.
+- ⛔ Toda opção que mexe em `rollover_done` tem de atualizar junto a guarda
+  `cap_projetado_test.TestGateSemPromessaFalsa` ([[L4]]) e rever o once-only do rollover. Com a
+  flag em `false` e os gates do passo 4 abertos, o rollover **rodaria de novo sobre a mesma
+  season**.
+
+**Cross-refs:** [[OFF26-43]] (caso `offseason_mode`, com direção do owner), [[L4]] (caso
+`rollover_done` — segue item próprio), [[M1-FOLLOWUP]] (sintoma do banner — segue item próprio,
+absorvido pelo OFF26-43; repriorizado nesta sessão), [[OFF26-9]] (a F1 de 17/06), [[OFF26-25]]
+(gate mecânico que atenua `espn_values_updated`), [[OFF26-29]]/[[UX23]] (predicado por evidência,
+o molde), [[M16]] (projeção de picks que lê `season_locked`).
+
+**Fases:** F1 ✅ (21/09/2026, esta seção) → decisão de desenho do owner (flag a flag) → F2.
 
 ---
 
