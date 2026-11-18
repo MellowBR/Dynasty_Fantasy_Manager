@@ -231,3 +231,113 @@ def decide_readd(*, add: dict | None, drop: dict | None, window_ms: int,
             "sinais": [sinal_delta, sinal_canal],
             "motivo": f"sinais divergentes — {sinal_delta}, mas {sinal_canal}; "
                       f"arbitragem humana (vivo × morto)"}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# OFF26-42 (18/11/2026) — decisão por TRANSAÇÃO: corte, marcadores e a cadeia
+# ══════════════════════════════════════════════════════════════════════════════
+# Até 18/11 o sync só decidia re-add quando OBSERVAVA a transição dropado→rosterado no
+# banco (passo 7). Drop + add inteiros entre dois syncs eram invisíveis (modo A — caso
+# McLaurin) e um 8b pulado consumia a transição (modo B). Agora os candidatos vêm da
+# VARREDURA de transações; a decisão continua sendo `decide_readd` (acima) — o que vem
+# abaixo só ESCOLHE quais adds decidir e em que ordem. Nenhuma régua nova aqui.
+
+# D1 (owner, 18/11/2026): corte ÚNICO e fixo. Antes dele os contratos foram tratados por
+# outros caminhos (arco OFF26-37, runner OFF26-42 de 18/11, refs `fix:`), e os 28 adds de
+# comissário da equalização de agosto ficam fora (como a decisão de 09/09 já previa). É o
+# dia do deploy da régua no sync (`d115949`) e do kickoff de 2026. ⛔ NÃO é "início de cada
+# temporada": por temporada, a intertemporada de 2027 ficaria descoberta.
+TX_FLOOR_DATE = "2026-09-09"
+
+# D2 (owner, 18/11/2026): marcador fixo, sem acento, no molde do token `[ref:tx:]`, gravado
+# nos eventos novos de contrato MANTIDO. A leitura aceita também a frase legada (eventos de
+# 09/09 a 18/11). ⛔ Um evento com ref `tx:<id>` SOZINHO não é marcador: o rebuild F8 emite
+# a mesma ref para todo add.
+MANTER_MARKER_FMT = "[regua:manter:tx:{tx_id}]"
+LEGACY_MANTER_PHRASE = "caso 2 da régua"
+
+# Marcas de um add na cadeia (o que o banco já registra sobre ele):
+MARK_TOKEN = "token"              # contrato novo registrado ([ref:tx:<add>] no auction_log)
+MARK_MANTER = "manter"            # evento de contrato mantido com marcador (ou frase legada)
+MARK_PEND_ABERTA = "pend_aberta"  # pendência aberta ligada ao add
+MARK_PEND_FECHADA = "pend_fechada"  # pendência arbitrada ligada ao add (consequência aplicada)
+MARK_ANCORA = "ancora"            # aquisição canônica registrada DEPOIS do drop (guarda d)
+# Marcas que equivalem a um caso 3 já aplicado (contrato reescrito):
+CASO3_MARKS = {MARK_TOKEN, MARK_ANCORA}
+
+
+def tx_floor_ms() -> int:
+    """O corte D1 em epoch ms UTC (meia-noite de TX_FLOOR_DATE)."""
+    return season_start_ms(TX_FLOOR_DATE)
+
+
+def manter_marker(tx_id) -> str:
+    return MANTER_MARKER_FMT.format(tx_id=tx_id)
+
+
+def notes_mark_manter(notes, tx_id) -> bool:
+    """O evento de timeline registra uma decisão de MANTER para este add? Aceita o
+    marcador novo (D2) e a frase legada — o chamador já filtrou a ref `tx:<tx_id>`."""
+    n = notes or ""
+    return manter_marker(tx_id) in n or LEGACY_MANTER_PHRASE in n
+
+
+def plan_chain(items: list, *, window_ms: int, start_ms: int,
+               orphan_open_pendency: bool = False) -> dict:
+    """Plano para a cadeia de adds de UM jogador — puro, sem efeito colateral.
+
+    items: [{"add": rec, "drop": rec|None, "mark": MARK_*|None, "drop_verdict": str|None}]
+        em ordem cronológica do add. `drop` = último drop do jogador antes do add.
+    orphan_open_pendency: há pendência ABERTA do jogador que não liga a nenhum add da
+        cadeia (tratada como posicionada ANTES de todos).
+
+    Regras (owner, 18/11/2026):
+      * pendentes = adds depois do último add marcado; cada um é decidido por
+        `decide_readd` com o próprio drop (independe do veredito dos anteriores);
+      * L = último caso 3 entre os pendentes → contrato novo nele (um só);
+      * ambíguo ANTES de L: superado, sem escrita (o caso 3 reescreve o contrato);
+      * depois de L (ou desde o início, sem L): caso 2 → evento de manter; o 1º ambíguo →
+        pendência e PARA (os seguintes esperam o veredito);
+      * pendência aberta só BLOQUEIA o jogador quando nenhum caso 3 (aplicado ou a
+        aplicar) vem depois dela.
+
+    Devolve {"bloqueado": str|None, "novo": i|None, "manter": [i], "pendencia": i|None,
+             "superados": [i], "decisions": {i: dict}}.
+    """
+    n = len(items)
+    last_marked = max((i for i, it in enumerate(items) if it.get("mark")), default=-1)
+    pend = list(range(last_marked + 1, n))
+    decisions = {i: decide_readd(add=items[i]["add"], drop=items[i]["drop"],
+                                 window_ms=window_ms, start_ms=start_ms,
+                                 drop_verdict=items[i].get("drop_verdict"))
+                 for i in pend}
+    L = max((i for i in pend if decisions[i]["acao"] == ACAO_CONTRATO_NOVO), default=None)
+
+    def caso3_depois(k):
+        if L is not None and L > k:
+            return True
+        return any(items[j].get("mark") in CASO3_MARKS for j in range(k + 1, n))
+
+    abertas = [i for i, it in enumerate(items) if it.get("mark") == MARK_PEND_ABERTA]
+    if orphan_open_pendency:
+        abertas.append(-1)
+    plan = {"bloqueado": None, "novo": None, "manter": [], "pendencia": None,
+            "superados": [], "decisions": decisions}
+    if not pend:
+        return plan    # nada pendente: não há o que bloquear (a pendência só espera)
+    if any(not caso3_depois(k) for k in abertas):
+        plan["bloqueado"] = ("pendencia aberta sem caso 3 posterior - os adds seguintes "
+                             "esperam o veredito")
+        return plan
+    if L is not None:
+        plan["novo"] = L
+        plan["superados"] = [i for i in pend if i < L]
+    start = (L + 1) if L is not None else (last_marked + 1)
+    for i in range(start, n):
+        acao = decisions[i]["acao"]
+        if acao == ACAO_MANTER:
+            plan["manter"].append(i)
+        elif acao == ACAO_PENDENCIA:
+            plan["pendencia"] = i
+            break
+    return plan

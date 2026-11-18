@@ -253,6 +253,9 @@ def run_sync() -> dict:
     # OFF26-42: transições dropado→rosterado observadas NESTE sync (a régua de contrato
     # decide vivo × morto no passo 8b — ⛔ nenhuma decisão aqui, só a captura).
     readd_candidates: list = []
+    # OFF26-42 (18/11/2026): TODO jogador hoje em roster é candidato — o 8b decide pelas
+    # transações da varredura, não pela transição observada (fecha os modos A e B).
+    rostered_now: list = []
 
     # OFF26-24-F1 (raiz do carimbo 2025): stub novo carimbava contract_start_season com a
     # CONSTANTE de módulo (fixa em 2025), que o rollover nunca avança — todo entrante
@@ -353,6 +356,7 @@ def run_sync() -> dict:
                 summary["new_unknown"].append({"name": full_name, "team": team.name})
 
             team_assigned_sids[team.id].add(sp_id_str)
+            rostered_now.append((p, team))
 
     # 8. Drop logic: players assigned to a team but NOT in that team's Sleeper roster
     newly_dropped: list = []
@@ -367,9 +371,14 @@ def run_sync() -> dict:
     # drop (fato = data da transação na API; fase = data × kickoff do state/nfl).
     # Falha na varredura (decisão 7) → NENHUMA mudança de contrato, só reporte; o
     # espelhamento de roster acima (autoridade do Sleeper) não é afetado.
-    if readd_candidates or newly_dropped:
-        summary["contract_regua"] = _process_contract_regua(
-            readd_candidates, newly_dropped, league_data)
+    # OFF26-42 (18/11/2026): roda em TODO sync — a decisão vem das transações, e um add
+    # não visto (modo A) ou um 8b pulado (modo B) é alcançado no sync seguinte.
+    # ⛔ LIBERAÇÃO CONTROLADA: os rosterados só entram como candidatos com a env
+    # REGUA_POR_TRANSACAO=1 (o push já é deploy; o 1º sync real não pode acontecer antes do
+    # ensaio aprovado). Sem a chave, o 8b decide só os re-adds OBSERVADOS (como até 18/11).
+    summary["contract_regua"] = _process_contract_regua(
+        readd_candidates, newly_dropped, league_data,
+        rostered=rostered_now if regua_por_transacao() else None)
 
     # 9. Fetch traded picks and derive active seasons
     traded_picks = _get(f"{BASE_URL}/league/{LEAGUE_ID}/traded_picks") or []
@@ -569,6 +578,20 @@ def _log_sync(summary: dict, had_errors: bool = False):
         desc_parts.append(f"{summary['trades_imported']} trades novas, {summary['trades_skipped']} já sincronizadas")
     if summary.get("trade_warnings"):
         desc_parts.append(f"⚠️ {len(summary['trade_warnings'])} warning(s) em trades")
+    # OFF26-42 (18/11/2026), complemento: o resultado do passo 8b fica no log do sync —
+    # inclusive quando a etapa é PULADA (antes só ia na resposta HTTP e se perdia).
+    reg = summary.get("contract_regua")
+    if reg is not None:
+        if reg.get("skipped"):
+            desc_parts.append(f"Regua PULADA: {reg['skipped']} (nenhum contrato mudou; "
+                              f"o sync seguinte decide)")
+        else:
+            desc_parts.append(
+                f"Regua: {len(reg.get('contratos_novos') or [])} contrato(s) novo(s), "
+                f"{len(reg.get('mantidos') or [])} mantido(s), "
+                f"{len(reg.get('pendencias') or [])} pendencia(s), "
+                f"{reg.get('drop_events', 0)} drop(s), "
+                f"{len(reg.get('bloqueados') or [])} bloqueado(s)")
     if new_names:
         desc_parts.append(f"Needs review: {new_names}{extra}")
     if summary.get("errors"):
@@ -1490,12 +1513,16 @@ def _sweep_transactions(league_id: str):
             rec = {"ts": cr.tx_timestamp(tx), "tx_id": str(tx_id), "type": ttype}
             adds = tx.get("adds") or {}
             drops = tx.get("drops") or {}
+            # `roster` (OFF26-42, 18/11): o roster que adicionou/dropou — time da trilha
+            # retroativa e nota da classe Gordon (add seguido de trade antes do sync).
             for sid in adds:
-                index.setdefault(str(sid), {"adds": [], "drops": []})["adds"].append(dict(rec))
+                index.setdefault(str(sid), {"adds": [], "drops": []})["adds"].append(
+                    dict(rec, roster=adds[sid]))
             for sid in drops:
                 if sid in adds:
                     continue  # move intra-tx (mesma convenção do rebuild F8)
-                index.setdefault(str(sid), {"adds": [], "drops": []})["drops"].append(dict(rec))
+                index.setdefault(str(sid), {"adds": [], "drops": []})["drops"].append(
+                    dict(rec, roster=drops[sid]))
     return index, None
 
 
@@ -1534,13 +1561,23 @@ def _build_regua_context(league_data: dict):
     if err:
         return None, err
     freeze_ms, frozen_sids = _freeze_anchor()
+    from models import Team
     return {
         "window_ms": cr.waiver_window_ms(wcd),
         "start_ms": cr.season_start_ms(state["season_start_date"]),
         "index": index,
         "freeze_ms": freeze_ms,
         "frozen_sids": frozen_sids,
+        "team_by_roster": {str(t.sleeper_roster_id): t for t in Team.query.all()
+                           if t.sleeper_roster_id},
     }, None
+
+
+def _team_of_roster(ctx: dict, roster):
+    """Time do roster de uma transação (None se desconhecido / ctx sem o mapa)."""
+    if roster is None:
+        return None
+    return (ctx.get("team_by_roster") or {}).get(str(roster))
 
 
 def _fmt_tx_ts(ts_ms) -> str:
@@ -1561,10 +1598,13 @@ def _write_drop_event(player, rec: dict, ctx: dict, season: int) -> bool:
     from models import PlayerHistory
     fase = cr.phase_of(rec["ts"], ctx["start_ms"])
     ref = f"tx:{rec['tx_id']}"
-    team_name = player.fantasy_team or ""
+    drop_team = _team_of_roster(ctx, rec.get("roster"))
+    team_name = (drop_team.name if drop_team else None) or player.fantasy_team or ""
+    # D3 (owner, 18/11/2026): dedupe por (jogador, tipo, ref) — SEM team_name e SEM
+    # season: um evento do rebuild F8 (ou do sync) com o nome de time da época, ou um
+    # time renomeado depois, é o MESMO drop e não pode sair duplicado.
     dup = PlayerHistory.query.filter_by(
-        player_id=player.id, season=season, event_type="drop",
-        team_name=team_name, sleeper_event_ref=ref).first()
+        player_id=player.id, event_type="drop", sleeper_event_ref=ref).first()
     if dup:
         return False
     db.session.add(PlayerHistory(
@@ -1585,17 +1625,26 @@ def _write_add_event(player, team, add: dict, ctx: dict, season: int,
     event_type = cr.EVENT_TYPE_BY_TX.get(add.get("type"), "free_agent")
     fase = cr.phase_of(add["ts"], ctx["start_ms"])
     ref = f"tx:{add['tx_id']}"
+    marker = cr.manter_marker(add["tx_id"])
+    add_team = _team_of_roster(ctx, add.get("roster")) or team
+    # Dedupe por (jogador, tipo, ref), sem team_name: um evento do rebuild F8 para o
+    # mesmo add é o MESMO fato. Se ele ainda não carrega o marcador D2, recebe-o — é o
+    # registro de que a régua decidiu este add (senão o add ficaria "não decidido" para
+    # sempre, e cada sync o reavaliaria).
     dup = PlayerHistory.query.filter_by(
-        player_id=player.id, season=season, event_type=event_type,
-        team_name=team.name, sleeper_event_ref=ref).first()
+        player_id=player.id, event_type=event_type, sleeper_event_ref=ref).first()
     if dup:
-        return False
+        if cr.notes_mark_manter(dup.notes, add["tx_id"]):
+            return False
+        dup.notes = (marker + " " + (dup.notes or ""))[:500]
+        return True
     db.session.add(PlayerHistory(
-        player_id=player.id, season=season, team_name=team.name,
+        player_id=player.id, season=season, team_name=add_team.name,
         event_type=event_type, salary=player.salary,
         contract_year=player.contract_year,
-        notes=(f"{event_type} ({fase}) — {_fmt_tx_ts(add['ts'])}, tx {add['tx_id']}; "
-               f"contrato mantido (caso 2 da régua)"
+        # D2: o marcador vai NO INÍCIO — o corte em 500 nunca o atinge.
+        notes=(f"{marker} {event_type} ({fase}) — {_fmt_tx_ts(add['ts'])}, "
+               f"tx {add['tx_id']}; contrato mantido (caso 2 da régua)"
                + (f" — {motivo}" if motivo else ""))[:500],
         sleeper_event_ref=ref,
     ))
@@ -1675,8 +1724,24 @@ def _execute_decision(player, team, decision: dict, ctx: dict, season: int,
                 f"{label}: aquisição {event_ref} já registrada — idempotência")
             return "ja_registrado"
         espn_atual = player.espn_ref_value or 0.0   # ⛔ armadilha OFF26-39.2: repassar
+        # ⛔ Armadilha OFF26-39.3: a porta chama set_espn_value com is_final=False por
+        # default e REBAIXA a linha do store. Lê (raw, adjusted, is_final) antes e
+        # restaura pelo MESMO helper logo depois (molde do off26_42_fix, 18/11/2026).
+        from models import EspnValueStore, set_espn_value
+        store = (EspnValueStore.query.filter_by(
+            sleeper_player_id=str(player.sleeper_player_id), season=season).first()
+            if player.sleeper_player_id else None)
+        store_orig = (None if store is None else
+                      (store.espn_raw, store.espn_adjusted, bool(store.is_final)))
+        # Classe Gordon: o add foi de OUTRO roster e o jogador chegou ao time atual por
+        # trade antes do sync. A porta grava o time ATUAL (nunca muda time); a nota diz
+        # quem adicionou (decisão 2 do owner em 18/11, agora regra do sync).
+        add_team = _team_of_roster(ctx, (add or {}).get("roster"))
+        quem = ""
+        if add_team is not None and team is not None and add_team.id != team.id:
+            quem = f" — add por {add_team.name} (r{add['roster']}); time atual via trade"
         note = _short_note(
-            f"Regua OFF26-42: caso 3 (contrato morto) — {decision.get('motivo', '')}",
+            f"Regua OFF26-42: caso 3 (contrato morto){quem} — {decision.get('motivo', '')}",
             event_ref or "")
         record_acquisition(
             team=team,
@@ -1689,6 +1754,16 @@ def _execute_decision(player, team, decision: dict, ctx: dict, season: int,
             event_ref=event_ref,
             notes=note,
         )
+        if store_orig is not None:
+            if float(store_orig[1] or 0) == float(espn_atual or 0):
+                set_espn_value(player, season, store_orig[1], raw=store_orig[0],
+                               is_final=store_orig[2])
+            else:
+                # Coluna × store divergentes: restaurar o store pelo helper mudaria a
+                # coluna do jogador. Não restaura — reporta (fora do escopo da régua).
+                out.setdefault("warnings", []).append(
+                    f"{label}: espn_ref_value {espn_atual} != store {store_orig[1]} - "
+                    f"is_final do store NAO restaurado")
         out.setdefault("contratos_novos", []).append(
             f"{label}: ano 1 · {season} · {decision.get('acq_type')} — "
             f"{decision.get('motivo', '')}")
@@ -1719,16 +1794,113 @@ def _arbitrated_drop_verdict(drop, player):
     return row.verdict if row else None
 
 
-def _process_contract_regua(readds: list, dropped: list, league_data: dict) -> dict:
-    """Passo 8b do sync: aplica a régua aos re-adds e grava os eventos de drop.
+_TOKEN_TX_RE = re.compile(r"\[ref:tx:([^\]]+)\]")
+
+REGUA_TX_ENV = "REGUA_POR_TRANSACAO"
+
+
+def regua_por_transacao() -> bool:
+    """OFF26-42 — chave de LIBERAÇÃO da detecção por transação (env, não AppConfig: o
+    app_config é contrato externo replicado ao Optimizer). '1' liga; ausente/qualquer
+    outro valor = só re-adds observados. Reverter = remover a env no Render."""
+    return os.environ.get(REGUA_TX_ENV, "") == "1"
+
+
+def _dt_ms(dt) -> int:
+    """datetime naive (UTC, como gravado por utcnow) → epoch ms. None → 0."""
+    from datetime import timezone
+    if dt is None:
+        return 0
+    if isinstance(dt, str):
+        dt = datetime.fromisoformat(dt)
+    return int(dt.replace(tzinfo=timezone.utc).timestamp() * 1000)
+
+
+def _load_decision_markers() -> dict:
+    """player_id → o que o banco registra de decisões da régua (uma leitura por sync):
+    tokens `[ref:tx:<add>]` do auction_log, eventos de manter com marcador D2 (ou frase
+    legada), pendências (tx, kind, status, add do contexto) e os carimbos de TODA
+    aquisição registrada (guarda d)."""
+    import contract_regua as cr
+    from models import AuctionLog, PlayerHistory, ContractPendency
+    out = {}
+
+    def m(pid):
+        return out.setdefault(pid, {"tokens": set(), "manter": set(), "pend": [],
+                                    "acq_ms": []})
+    for pid, notes, created in db.session.query(
+            AuctionLog.player_id, AuctionLog.notes, AuctionLog.created_at).all():
+        if pid is None:
+            continue
+        mm = m(pid)
+        mm["tokens"].update(_TOKEN_TX_RE.findall(notes or ""))
+        mm["acq_ms"].append(_dt_ms(created))
+    for pid, ref, notes in db.session.query(
+            PlayerHistory.player_id, PlayerHistory.sleeper_event_ref, PlayerHistory.notes
+    ).filter(PlayerHistory.sleeper_event_ref.like("tx:%"),
+             PlayerHistory.event_type != "drop").all():
+        tx = ref[3:]
+        if cr.notes_mark_manter(notes, tx):
+            m(pid)["manter"].add(tx)
+    for row in ContractPendency.query.all():
+        try:
+            ctx_add = ((json.loads(row.context_json or "{}").get("add")) or {}).get("tx_id")
+        except (ValueError, AttributeError):
+            ctx_add = None
+        m(row.player_id)["pend"].append({"tx": row.sleeper_transaction_id, "kind": row.kind,
+                                         "status": row.status, "ctx_add": ctx_add})
+    return out
+
+
+def _mark_of(mk: dict, add: dict, drop, floor_ms: int):
+    """A marca de UM add (contract_regua.MARK_*) a partir dos registros do banco."""
+    import contract_regua as cr
+    if not mk:
+        return None
+    tx = add["tx_id"]
+    if tx in mk["tokens"]:
+        return cr.MARK_TOKEN
+    if tx in mk["manter"]:
+        return cr.MARK_MANTER
+    for p in mk["pend"]:
+        if p["tx"] == tx:
+            return cr.MARK_PEND_ABERTA if p["status"] == "aberta" else cr.MARK_PEND_FECHADA
+        if drop and p["tx"] == drop["tx_id"] and p["kind"] == cr.KIND_COMISSARIO_DROP:
+            if p["status"] == "aberta":
+                return cr.MARK_PEND_ABERTA
+            if p["ctx_add"] == tx:     # arbitrada COM este add: a consequência já rodou
+                return cr.MARK_PEND_FECHADA
+            # arbitrada antes do add existir: não marca — o veredito alimenta a régua.
+    # Guarda (d): o contrato vigente nasceu DEPOIS do drop que precede o add (aquisição
+    # canônica registrada — leilão importado, porta do /auction, runner). O add é a
+    # materialização desse contrato na liga real, não a ressurreição do morto. Sem esta
+    # guarda, o arremate do FA auction da intertemporada (contrato do importador, ref
+    # draft:) seria reescrito a $1 pelo caso 3.
+    ref_ms = drop["ts"] if drop else floor_ms
+    if any(a >= ref_ms for a in mk["acq_ms"]):
+        return cr.MARK_ANCORA
+    return None
+
+
+def _process_contract_regua(readds: list, dropped: list, league_data: dict,
+                            rostered: list = None) -> dict:
+    """Passo 8b do sync: aplica a régua por TRANSAÇÃO e grava os eventos de drop.
 
     readds: [(Player, Team)] com transição dropado→rosterado observada neste sync.
     dropped: [Player] recém-marcados is_dropped=True no passo 8.
-    Decisão 7: varredura/insumo indisponível → skipped com motivo, NADA muda."""
+    rostered: [(Player, Team)] de TODOS os jogadores hoje em roster (passo 7). OFF26-42
+        (18/11/2026): os candidatos vêm da VARREDURA de transações — todo add que não é
+        trade, depois do corte D1, de jogador que já existia antes do add — e não mais
+        só da transição observada (modo A: drop+add inteiros entre dois syncs; modo B: 8b
+        pulado consumia a transição). A escolha dos adds é `contract_regua.plan_chain`;
+        a decisão de cada um continua sendo `decide_readd` (fonte única).
+    Decisão 7: varredura/insumo indisponível → skipped com motivo, NADA muda — e, como a
+    detecção não depende mais do `is_dropped`, o sync seguinte decide o mesmo caso."""
     import contract_regua as cr
     from models import get_current_season, get_config
     out = {"mantidos": [], "contratos_novos": [], "pendencias": [],
-           "drop_events": 0, "add_events": 0, "warnings": [], "skipped": None}
+           "drop_events": 0, "add_events": 0, "warnings": [], "skipped": None,
+           "bloqueados": [], "drops_retroativos": [], "superados": 0}
 
     ctx, err = _build_regua_context(league_data)
     if err:
@@ -1765,18 +1937,69 @@ def _process_contract_regua(readds: list, dropped: list, league_data: dict) -> d
         if _write_drop_event(p, rec, ctx, season):
             out["drop_events"] += 1
 
-    # Re-adds: a régua vivo × morto — decisão no helper, execução aqui.
-    for p, team in readds:
-        sid = p.sleeper_player_id
-        entry = ctx["index"].get(sid) or {}
-        add = cr.latest_before(entry.get("adds"))
-        drop = cr.latest_before(entry.get("drops"),
-                                before_ts_ms=add["ts"] if add else None)
-        decision = cr.decide_readd(
-            add=add, drop=drop,
-            window_ms=ctx["window_ms"], start_ms=ctx["start_ms"],
-            drop_verdict=_arbitrated_drop_verdict(drop, p))
-        _execute_decision(p, team, decision, ctx, season, out, add=add, drop=drop)
+    # Re-adds por TRANSAÇÃO: cadeia de adds de cada candidato → plano puro → executor.
+    floor_ms = cr.tx_floor_ms()
+    markers = _load_decision_markers()
+    observed = {p.id for p, _t in readds}
+    cands = {}
+    for p, team in list(readds) + list(rostered or []):
+        if p.sleeper_player_id and p.id not in cands:
+            cands[p.id] = (p, team)
+    for pid, (p, team) in cands.items():
+        entry = ctx["index"].get(p.sleeper_player_id) or {}
+        all_adds = sorted(entry.get("adds") or [], key=lambda a: int(a.get("ts") or 0))
+        adds = [a for a in all_adds if int(a.get("ts") or 0) >= floor_ms]
+        if pid in observed:
+            # Transição observada AGORA: por definição não decidida — vale o último add
+            # mesmo se anterior ao corte (comportamento de 09/09, preservado).
+            if not adds and all_adds:
+                adds = [all_adds[-1]]
+        else:
+            # Add em que o jogador NASCEU (stub criado pelo sync depois do add) não é
+            # re-add: quem cuida é a revisão do stub.
+            born = _dt_ms(p.created_at)
+            adds = [a for a in adds if int(a.get("ts") or 0) >= born]
+        if not adds:
+            if pid in observed:
+                out["warnings"].append(
+                    f"{p.name} ({p.sleeper_player_id}): re-add sem transação de add na "
+                    f"varredura da season — contrato intocado, reportado")
+            continue
+        mk = markers.get(pid)
+        items, open_tx = [], set()
+        for a in adds:
+            drop = cr.latest_before(entry.get("drops"), before_ts_ms=a["ts"])
+            items.append({"add": a, "drop": drop,
+                          "mark": _mark_of(mk, a, drop, floor_ms),
+                          "drop_verdict": _arbitrated_drop_verdict(drop, p)})
+            open_tx.add(a["tx_id"])
+            if drop:
+                open_tx.add(drop["tx_id"])
+        orphan = any(pp["status"] == "aberta" and pp["tx"] not in open_tx
+                     for pp in (mk or {}).get("pend", []))
+
+        # D3 (owner, 18/11/2026): drop pós-corte que antecede um add da cadeia e não tem
+        # evento → evento retroativo (fato + fase). Comissário fica sem evento até o
+        # veredito, como no passo 8.
+        for it in items:
+            d = it["drop"]
+            if (d and int(d.get("ts") or 0) >= floor_ms and d.get("type") != "commissioner"
+                    and _write_drop_event(p, d, ctx, season)):
+                out["drop_events"] += 1
+                out["drops_retroativos"].append(
+                    f"{p.name} ({p.sleeper_player_id}): drop {_fmt_tx_ts(d['ts'])} tx {d['tx_id']}")
+
+        plan = cr.plan_chain(items, window_ms=ctx["window_ms"], start_ms=ctx["start_ms"],
+                             orphan_open_pendency=orphan)
+        if plan["bloqueado"]:
+            out["bloqueados"].append(f"{p.name} ({p.sleeper_player_id}): {plan['bloqueado']}")
+            continue
+        out["superados"] += len(plan["superados"])
+        steps = ([plan["novo"]] if plan["novo"] is not None else []) + plan["manter"] + \
+            ([plan["pendencia"]] if plan["pendencia"] is not None else [])
+        for i in steps:
+            _execute_decision(p, team, plan["decisions"][i], ctx, season, out,
+                              add=items[i]["add"], drop=items[i]["drop"])
 
     return out
 
