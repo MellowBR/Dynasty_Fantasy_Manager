@@ -288,6 +288,23 @@ class TestApply(Base):
         self.assertEqual(out2.count("ja registrado"), 4)
         self.assertEqual(self.player("12495")[1:4], (1, 2026, "free_agent"))
 
+    def test_check_apos_parcial_conta_ja_registrados_como_ok(self):
+        rc, out = self.apply("--exclude", "12495")
+        self.assertEqual(rc, 0, out)
+        rc2, out2 = run(["--check", "--db", str(self.db)])
+        self.assertEqual(rc2, 0, out2)
+        self.assertIn("1/1 a corrigir; 4 ja registrado(s); 0 bloqueado(s)", out2)
+        rc3, out3 = run(["--check", "--db", str(self.db), "--exclude", "12495"])
+        self.assertEqual(rc3, 0, out3)
+        self.assertIn("0/0 a corrigir; 4 ja registrado(s)", out3)
+
+    def test_check_com_bloqueio_nao_e_ok(self):
+        lv = live_ok()
+        lv["9511"] = dict(lv["9511"], roster_owner=OWNERS[2])
+        rc, out = run(["--check", "--db", str(self.db)], live=lv)
+        self.assertEqual(rc, 1)
+        self.assertIn("1 bloqueado(s)", out)
+
     def test_exclude_fora_da_lista_recusa(self):
         rc, out = self.apply("--exclude", "96")
         self.assertEqual(rc, 2)

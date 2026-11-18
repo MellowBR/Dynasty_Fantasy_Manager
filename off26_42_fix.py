@@ -497,9 +497,12 @@ def cmd_check(db_path: Path, excluded: set, live=None, offline: bool = False) ->
         after[st["team_id"]] = after.get(st["team_id"], 0.0) + DUE["salary"] - float(st["salary"])
     print("\nFolha por time (projetada se aplicar):")
     _print_payroll(snap["teams"], snap["payroll"], after)
-    expected_n = len([t for t in COHORT if t["sid"] not in excluded])
-    ok = len(eligible) == expected_n and not div
+    done = [s for s in skipped if s["kind"] == "ja_registrado"]
+    blocked = [s for s in skipped if s["kind"] == "bloqueio"]
+    expected_n = len([t for t in COHORT if t["sid"] not in excluded]) - len(done)
+    ok = len(eligible) == expected_n and not blocked and not div
     print(f"\n--check: {'OK' if ok else 'ATENCAO'} - {len(eligible)}/{expected_n} a corrigir; "
+          f"{len(done)} ja registrado(s); {len(blocked)} bloqueado(s); "
           f"{len(div)} divergencia(s) nos controles")
     return 0 if ok else 1
 
