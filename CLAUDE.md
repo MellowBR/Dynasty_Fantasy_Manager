@@ -65,6 +65,14 @@ python keeper_exclusion_test.py
 # núcleo puro + ORM em memória + guardas AST)
 python contract_regua_test.py
 
+# Run re-add pelas transações no sync (MAN-OFF26-42 — 29 testes; McLaurin, cadeia, marcadores,
+# corte, guarda (d), drop retroativo, modo B, chave de liberação; ORM em memória, sem rede)
+python off26_42_tx_test.py
+
+# Run ensaio do sync da régua numa CÓPIA do banco (nunca o vivo) / comparação backup × vivo
+python tools/regua_sync_ensaio.py --sync --db <abs> --confirm-db <abs>
+python tools/regua_sync_ensaio.py --compare --before <abs> --after <abs>   # só leitura
+
 # Run backfill dos eventos de rollover 2026 (OFF26-36 Parte 4 — 8 testes)
 python off26_36_backfill_test.py
 
@@ -97,7 +105,8 @@ python seed_users.py --list
   - **IR é read-only no Manager** (IR-CLEANUP): `Player.is_on_ir` só é escrito pelo sync, a partir do array `reserve` de cada roster. Não existe toggle na UI — mudar IR se faz **no Sleeper**, e reflete aqui no sync seguinte
 - **Local DB (`dynasty.db`)** is authoritative for: salaries, contract years, acquisition types, ESPN ref values
 - **Sleeper sync never overwrites salary/contract data** — com UMA exceção canônica (OFF26-42):
-  o **re-add de jogador dropado** passa pela régua vivo × morto e, no caso 3 (contrato morto),
+  o **re-add** (add sem trade de jogador que já tinha contrato, detectado pelas **transações** do
+  Sleeper desde 18/11/2026) passa pela régua vivo × morto e, no caso 3 (contrato morto),
   abre ano 1 novo **pela porta `record_acquisition`** (nunca escrita direta). Ver a subseção da
   régua abaixo.
 
@@ -111,9 +120,43 @@ O discriminante é o ESTADO do contrato, não o canal nem o time.
   Janela = `settings.waiver_clear_days` da liga na API × 24h — ⛔ **nenhum literal de janela no
   código**. Timestamps: **`created` nos DOIS lados** (é o que reproduz o precedente arbitrado
   Jones×Goff; `status_updated` é processamento em lote e inverteria vereditos de prod).
-- **Passo 8b do sync:** transição dropado→rosterado capturada no passo 7; varredura COMPLETA das
-  transações da season (legs 0–18, `status='complete'` obrigatório); sem drop na varredura =
-  morto por dedução; **falha de API em qualquer leg = nenhum contrato muda** + reporte.
+- **Passo 8b do sync: detecção por TRANSAÇÃO, não por transição** (MAN-OFF26-42, 18/11/2026;
+  liberado em prod em 19/11). O 8b roda em **todo** sync.
+  - **Varredura:** COMPLETA das transações da season (legs 0–18, `status='complete'` obrigatório,
+    trades excluídas). **Falha de API em qualquer leg = nenhum contrato muda**, e o SyncLog grava
+    "Regua PULADA: <motivo>"; o sync seguinte decide.
+  - **Candidatos:** todos os jogadores hoje em roster (passo 7). Para cada um, a cadeia de adds
+    sem trade a partir do **corte `contract_regua.TX_FLOOR_DATE = "2026-09-09"`**. É uma virada
+    única, não "por temporada"; o que é anterior ao corte foi tratado por outros caminhos.
+    - Add em que o jogador nasce (add anterior ao `Player.created_at`) não entra: é a revisão do
+      stub que cuida dele.
+  - ⛔ **A detecção não depende de `is_dropped`.** Drop e add entre dois syncs (modo A) e 8b pulado
+    (modo B) eram as duas portas abertas.
+  - **Quais adds decidir:** `contract_regua.plan_chain` (puro). Contrato novo só no **último caso
+    3** da cadeia pendente, e os ambíguos antes dele ficam superados. Depois dele, caso 2 vira
+    evento de manter, e o 1º ambíguo vira pendência (e a cadeia para ali).
+    - Uma pendência aberta só bloqueia quando nenhum caso 3 vem depois dela.
+    - A decisão de cada add continua **só** em `decide_readd`, e a execução só em
+      `_execute_decision`.
+  - **Marcadores de "add já decidido"** (fonte: `_load_decision_markers`):
+    - token `[ref:tx:<add>]` no `AuctionLog`;
+    - marcador **`[regua:manter:tx:<id>]`** no início da nota do evento de manter. A frase legada
+      "caso 2 da régua" também é lida, e as duas formas estão travadas por teste;
+    - pendência ligada ao add;
+    - **guarda (d):** existe aquisição registrada depois do drop que precede o add (protege o
+      arremate do FA auction, cujo ref é `draft:`, de ser reescrito a $1).
+    - ⛔ Uma ref `tx:` sozinha **não** marca nada, porque o rebuild F8 emite a mesma ref.
+  - **Drop retroativo:** todo drop a partir do corte que antecede um add da cadeia ganha evento,
+    com o time do roster que dropou. A deduplicação é por **(jogador, tipo, ref)**, sem
+    `team_name`.
+  - **ESPN:** o caso 3 restaura `(raw, adjusted, is_final)` do store depois da porta (armadilha 3
+    do OFF26-39).
+  - Sem drop na varredura = morto por dedução.
+  - **Chave de liberação:** env **`REGUA_POR_TRANSACAO=1`** no Render (⛔ não fica no AppConfig,
+    que é replicado ao Optimizer). Sem ela, só os re-adds observados viram candidatos. A retirada,
+    que torna o comportamento padrão, é pendência do OFF26-42.
+  - **Ensaio:** `tools/regua_sync_ensaio.py` (`--sync` numa cópia, recusando o banco vivo e o
+    diretório dele; `--compare` backup × vivo, só leitura).
 - **Transação de comissário NUNCA muda contrato no sync**: vira pendência em
   `ContractPendency` → fila `/admin/arbitragem` (molde M2, race guard 409), com veredito
   **sugerido** pela âncora do congelamento da lista de exclusão (OFF26-11; sem âncora → sem
@@ -412,6 +455,10 @@ fantasy_manager/
   keeper_audit_stage_test.py        # OFF26-22: camada de LEITURA — estágio × autoridade (25)
   keeper_exclusion.py               # OFF26-11: sheet CONGELADA = lista de exclusão do importador
   keeper_exclusion_test.py          # OFF26-11: discriminador keeper × arremate (36)
+  contract_regua.py                 # OFF26-42: régua vivo × morto (decide_readd) + plan_chain,
+                                    #   corte TX_FLOOR_DATE e marcador de manter (núcleo puro)
+  off26_42_tx_test.py               # MAN-OFF26-42: re-add pelas transações no sync (29)
+  tools/regua_sync_ensaio.py        # MAN-OFF26-42: ensaio do sync da régua em cópia + --compare
   nfl_context.py                    # O2 B1: idade + depth chart do POOL (núcleo puro + leitura
                                     #   do cache F13 SEM rede; página nunca baixa o pool)
   nfl_context_test.py               # O2 B1: núcleo puro do contexto NFL (19)

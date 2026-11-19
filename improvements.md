@@ -1,12 +1,12 @@
 ﻿# improvements.md — Fantasy Manager
 
 > Backlog vivo de melhorias, bugs e features pendentes.
+> Atualizado em: 19/11/2026 (sessão **MAN-OFF26-42-CLOSE**, **docs-only: zero código do app, zero banco, nada executado pelo Code**). Registro da **liberação em produção** do [[OFF26-42]] feita pelo owner: deploy `45774c4` conferido; ensaio na cópia às 15:03 UTC (0 contratos · 2 manter · 3 pendências · 14 drops, todos CONFERE; 2º sync com zero escrita; vivo intacto); backup 950.272 B; chave `REGUA_POR_TRANSACAO=1`; sync às 15:10 UTC com o `--compare` reproduzindo o conjunto; smoke OK. Guarda (d) e chave ratificadas. O item **segue ⚠️**, com 2 pendências: (a) Gordon e (b) retirar a chave depois de um ciclo de waiver sem ocorrência. **`CLAUDE.md` atualizado a pedido do owner** (passo 8b por transações, corte 09/09, marcadores de decisão, chave, suíte `off26_42_tx_test.py` e ferramenta de ensaio). Nascem **[[OFF26-45]]** 🔲 Média (a fila de arbitragem só cresce: 33 abertas, 4 superadas, critério da janela é decisão de liga), **[[OFF26-46]]** 🔲 Baixa (timeline do McLaurin fora de ordem) e **[[OFF26-47]]** 🔲 Baixa (8 `unknown` × 0 em revisão; consulta só de leitura na seção). A metade "nome do time" da observação da timeline foi anexada ao **[[S4]]**.)
 > Atualizado em: 18/11/2026-pt4 (sessão **MAN-OFF26-42**, código + testes + docs. ⛔ **Zero escrita em banco real, nada executado no Render**; Sleeper só GET). **A porta do [[OFF26-42]] está fechada no código:** o passo 8b decide re-add pelas **transações** da varredura, não mais pela transição observada, o que fecha o modo A pela detecção e o modo B pelo desenho. A decisão continua só em `decide_readd`. A escolha dos adds é a função pura `contract_regua.plan_chain`, com a regra da cadeia do owner (pendência só depois do último caso 3; pendência aberta só bloqueia sem caso 3 posterior). Também: corte **D1 09/09/2026**, marcador **D2** `[regua:manter:tx:<id>]` com leitura da frase legada, **D3 amplo** com deduplicação por (jogador, tipo, ref), ESPN e `is_final` restaurados no caso 3 do executor (sync e arbitragem) e resultado do 8b no **SyncLog**. ⭐ **Dois acréscimos a ratificar:** (1) a **guarda (d)**, sem a qual o add de um arremate do FA auction de 2027 seria reescrito a $1; (2) a **liberação pela env `REGUA_POR_TRANSACAO=1`**, porque o push já é deploy e o 1º sync real não pode vir antes do ensaio aprovado. **Conjunto declarado do 1º sync em prod** (5 consultas read-only do owner): **0 contratos · 2 manter · 3 pendências · 14 drops**. Ferramenta `tools/regua_sync_ensaio.py` (`--sync` em cópia, `--compare` só leitura), com a mecânica ensaiada localmente (guardas, 22 casos 3 com o ESPN idêntico, 2º sync com zero escrita). `off26_42_tx_test.py` com 29 testes; os 38 da régua sem alteração; 33 suítes verdes. Premissa "preservar a marca de dropado" refutada e aceita. Deriva anotada: o `CLAUDE.md` descreve o 8b antigo (não corrigido, porque a redação é do owner). [[OFF26-42]] segue **⚠️**; auditor exit 0; ⛔ zero `.html`/`.css` no diff.)
 > Atualizado em: 18/11/2026-pt3 (sessão **MAN-OFF26-42-PROD-REG**, **docs-only — zero código, zero banco, nada executado pelo Code**). Registro da execução do owner no Render. **Ensaio** em cópias do backup de 18:16: 5/5, 2ª aplicação com zero escrita, parcial sem o Gordon, ESPN idêntico, vivo e backup inalterados. **Produção**: backup `pre_off26_42_fix_apply.db` (946.176 B, 20:12 UTC), `--check` 4/4 com 0 bloqueados e 7/7, `--apply` às 20:13 UTC com **4 no devido** (McLaurin, K. Mitchell, Dell, K. Williams). Folha **t8 168→156**, **t4 245→239**, **liga 2332→2314**. Smoke OK (McLaurin $1, Ano 1/4, IR, proj. 2027 $16). Deploy conferido (`d85e782`, SHA do runner `3aec2d2d…`). [[OFF26-42]] segue **⚠️** com **duas pendências**: o Gordon (aguarda aviso ao dono do time 12) e o fechamento da porta no sync. Observação de campo sem diagnose: Keenan Allen "Startup Auction" Ano 1/4 $5 no time 8, anotada como possível ocorrência do [[OFF26-34]]. Auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff.)
 > Atualizado em: 18/11/2026-pt2 (sessão **MAN-OFF26-42-FIX**, runner + testes + docs. ⛔ **Zero código do app, zero escrita em banco real, nada executado no Render**; Sleeper só GET. Nasce **`off26_42_fix.py`**, o reparo one-shot dos **5 contratos mortos** que sobreviveram ao re-add (McLaurin, K. Mitchell, Dell, K. Williams, Gordon), pela porta canônica `record_acquisition` com a marca `tx:<add>` (o formato do caso 3 do sync). Executa as 3 decisões do owner: (1) restaurar `(raw, adjusted, is_final)` do store pelo mesmo helper; (2) Gordon com o time atual, add e trade na nota, `--exclude 12495` para aplicar os 4 sem ele; (3) guarda obrigatória de pendência aberta. ⚠️ **Análise pré-execução:** `app.py` roda `create_app()` no import, contra `DYNASTY_DB`, que no Render é o banco vivo, e o molde caía nessa env sem `--db`. O runner não importa `app.py`, não tem fallback e confere o arquivo aberto por `PRAGMA database_list`. A rota C12 caiu (SSH do Render fecha após autenticar), então o ensaio vai para uma cópia dentro do Render, executada pelo owner. ⭐ **A verificação pós-escrita pegou um caso real no ensaio de mecânica** (`is_my_team` alterado pela porta com a coluna atrasada) e virou guarda. Nova armadilha **(3) no [[OFF26-39]]**: `is_final` rebaixado pela porta, com o mesmo efeito no caso 3 do sync. 31 testes novos; regressão verde (salary_engine 62, contract_regua 38, cap_regua 14, off26_37_a_fix 40); [[OFF26-42]] segue ⚠️; auditor exit 0; ⛔ zero `.html`/`.css` no diff.)
 > Atualizado em: 18/11/2026 (sessão **MAN-MCLAURIN-SALARIO-REG-F1**, **docs-only — zero código, zero escrita em banco, Sleeper só GET**: relato de campo de co-admin (print 18/11: **Terry McLaurin $13** com IR; afirmado: $1) **registrado como OCORRÊNCIA do [[OFF26-42]]**, sem row nova — ⚠️ premissa "o backlog não cobre" **REFUTADA**: a ressalva *"drop+re-add INTEIRO entre dois syncs é invisível"* já estava registrada no item desde 09/09; o McLaurin é a **1ª materialização com efeito de cap** e **reprova a pendência única nomeada** do item (o 1º caso real). ⭐ **Veredito: devido $1, CASO 3** — cadeia da API: drop pelo roster 2 em **20/10 19:15:01 UTC** (`free_agent`, tx `1418350840095260672`) → add pelo roster 8 em **23/10 00:50:18 UTC** (`free_agent`, tx `1419159991641780224`), **Δ 53,6h > janela de 48h** (`waiver_clear_days=2`) e canal FA — os dois sinais concordam; o próprio `decide_readd` sobre a cadeia devolve `contrato_novo caso 3`; **zero transação de comissário**. **Porta:** passo 7 do sync só captura o re-add se `is_dropped=True` já estiver no banco — sem sync entre drop e add, a troca de time 2→8 é **reatribuição silenciosa** (indistinguível de trade) e o contrato $13·cy3·css2024 sobrevive. Segundo modo latente medido: sync que **pula** o 8b já gravou `is_dropped=False` (commit `sync_sleeper.py:399`) → transição **consumida**, nunca reprocessada, e o `skipped` **não vai ao SyncLog**. ⛔ **Banco de prod NÃO lido** (sem Render Shell na sessão) — cópia local = réplica de 22/09 (último sync 18/09 16:38 UTC); SQL read-only deixado para o owner discriminar os dois modos. **Coorte** (79 rosterados com último add não-trade ≥ 26/08, régua aplicada um a um): **2 com efeito de cap** — McLaurin (−$12, Trust The Process, confirmado pelo print) e **Keaton Mitchell** (sid 9511, mongoloides a carreta, $7→$1, **presumido**, estado de prod não lido) — + **11 só de contagem** ($1 = devido). Réplicas da decisão: **nenhuma** (helper único; 3 chamadas). Achado lateral: **23 de 26 pendências** que a régua gera na coorte são `sinal_divergente` de **waiver com Δ>48h** — na temporada o canal waiver deixa de corroborar. [[OFF26-42]] segue **⚠️ Alta**; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff.)
-> Atualizado em: 21/09/2026 (sessão **MAN-FLAGS-CICLO-REG-F1**, **docs-only — zero código, zero escrita em banco**: processamento do handoff cruzado do Optimizer (OPT-C12-F1). Nasce **[[OFF26-44]] 🔲 Média** — a CLASSE "flags de ciclo do AppConfig sem evento de reset", com F1 read-only na mesma sessão: **seis** flags na classe (`offseason_mode`, `rollover_done`, `rookie_draft_done`, `auction_done`, `espn_values_updated`, `season_locked`) + duas mortas (`season_closed`, `offseason_step`) + `playoffs_started` sem evento + agenda da urna; escritores/leitores por âncora, réplicas em JS inline/scripts/consumidor externo. ⭐ **Veredito do flip de `offseason_mode` em prod: sem gate funcional interno** (banner, alerta de cap, log do sync e contrato externo) — premissa de 17/06 CONFIRMADA; "nenhum código grava false" CONFIRMADA; "admin desliga manualmente" **REFUTADA** (não há interruptor). [[M1-FOLLOWUP]] repriorizado **Baixa→Média**; cross-refs em [[OFF26-43]]/[[L4]]. Contagem medida: **24 models ↔ 24 tabelas** — `CLAUDE.md` corrigido (23→24, + `ContractPendency`). Adendo no [[OPS1]] (nenhuma F2 executada; lição do VACUUM; cópia de prod na raiz do workspace; histórico git limpo; convenção de cópia SANITIZADA de prod no `dynasty.db` local + ressalva do seed versionado). 191→192 rows · 88→89 seções; auditor exit 0; ⛔ zero `.py`/`.html`/`.css` no diff.)
-> 📁 Entradas anteriores em **`improvements_sessions.md`** (108 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
+> 📁 Entradas anteriores em **`improvements_sessions.md`** (109 fechamentos, movidos verbatim — MAN-UX10-UX11-REG, MAN-UX12-REG/F1/REFINE, MAN-O2-F2-B1/B1-DONE, MAN-M10-F2).
 > Registro durável de decisões: log do `manager_devplan.md` + `git log`.
 > Convenções: 🔲 pendente | ⚠️ parcial | ✅ concluído
 
@@ -24,7 +24,7 @@
 | S1 | Sync detecta trades do Sleeper e move contratos automaticamente | Alta | ✅ 22/04/2026 |
 | S2 | Sync ingere trocas administrativas de picks (as criadas no Sleeper só para montar a ordem do rookie draft) → dono de pick errado no Manager; recorrência anual a cada montagem de ordem — MAN-S2-REG/F1a/F1b/F2/DONE | Alta | ✅ 02/08/2026 (desconto determinístico `board_mirror.py`: π = S⁻¹∘L derivado das fontes canônicas, bijeção obrigatória, armado por **season** — o rollover desarma sozinho. Smoke prod sobre hash `9b4bcf1` (backup `/data/dynasty_pre_s2_smoke_2026-08-02.db`): as **4 posições convergiram para o alvo da F1b** — pos. 2 = Fazenda sem troca, pos. 5 = 3 peat → Cangaceiros (re-rótulo da trade de 29/07), pos. 3/4 corretas; cruzamento com o board do Sleeper confere (`1.05` via `fernandoxmf`); **2ª execução sem alteração** (idempotência em prod); verify do lottery conferindo; pos. 1 e 6–12 + R2/R3 + futuras intactas. Fatia F2-3 desmembrada como [[S5]]. Detalhe no archive) |
 | S5 | Tela que **prescreve** a permutação do board ao co-admin (ex-fatia F2-3 do [[S2]]): hoje a montagem é conhecimento tácito e o desconto assume que ela seguiu π; a tela calcula π, emite a lista de permutações e arma o toggle no mesmo fluxo — **não bloqueia** (o desconto já exige bijeção e desliga em board meio-montado) — MAN-S2-DONE | Média | 🔲 |
-| S4 | `PlayerHistory` e `Trade` identificam time **só por nome** (sem chave estável no schema); o nome está **dentro do índice UNIQUE de dedupe** do [[F8]]a → pós-rename o mesmo evento não colide e a **idempotência do histórico cai**; `Trade.team_a/team_b` string também quebra a contraparte no timeline (`roster.py:245-250`) — achado colateral da **S3-F1** | Média | 🔲 |
+| S4 | `PlayerHistory` e `Trade` identificam time **só por nome** (sem chave estável no schema); o nome está **dentro do índice UNIQUE de dedupe** do [[F8]]a → pós-rename o mesmo evento não colide e a **idempotência do histórico cai**; `Trade.team_a/team_b` string também quebra a contraparte no timeline (`roster.py:245-250`) — achado colateral da **S3-F1**. Ocorrência de 19/11/2026 (McLaurin): o drop retroativo mostra o nome atual do time 2 e a trade, o nome antigo; anexada sem diagnose — MAN-OFF26-42-CLOSE | Média | 🔲 |
 | S3 | Rename de time no Sleeper quebra o match de picks (`Pick` casada por `original_team_name` string; `Team.name` é renomeado e não cascateia) → sync **criaria picks duplicadas**; classe "Brown" (identidade por string) — MAN-S2-F1a/F1b + MAN-S3-F1/F2/DONE | Alta | ✅ 02/08/2026 (match por **id** nos 2 sítios do sync + join da projeção por `team_id` + nome vira display refrescado no passo 11b + `_resolve_traded_pick_identity` como costura do [[S2]]-F2; **sem schema, sem migração**. Smoke prod sobre hash `89dc08d` (gate PROC1, backup `/data/dynasty_pre_s3_smoke_2026-08-02.db`): `/picks` 12 linhas/temporada e 108 picks, `/league` correto, verify do lottery conferindo, dynasty resolvendo no `/trades`. **Sync religado** e a 1ª execução real ingeriu o rename do time 9 **sem duplicação**, projeção #11 preservada. Detalhe no archive) |
 | T1 | Redesign Trade Manager: simulador multi-owner + link compartilhável | Alta | ✅ 22/04/2026 |
 | T2 | Integrar valores dynasty FantasyCalc no preview de trade | Média | ✅ 22/04/2026 |
@@ -200,9 +200,12 @@
 | OFF26-39 | ⭐ **Família de armadilhas de `record_acquisition` — a porta canônica de aquisição destrói dois dados quando o chamador não a conhece** (as duas medidas no arco [[OFF26-37]], uma delas por teste que a pegou em flagrante). **(1) O token de idempotência é DECEPADO por nota longa:** a porta monta `notes + " [ref:<event_ref>]"` e **só então** trunca em 200 ([models.py:445](models.py#L445)), enquanto `AuctionLog.notes` é `String(200)` — com nota de 178 chars o total dá **204** e o `[ref:]` some, de modo que `acquisition_already_recorded` deixa de reconhecer o alvo e **a reexecução escreve de novo**. ⛔ **Falha SILENCIOSA de idempotência numa porta que escreve salário.** **(2) O `espn_ref_value` é ZERADO:** `set_espn_value` atribui `player.espn_ref_value = adjusted` **antes** da guarda `if not adjusted: return` ([models.py:764](models.py#L764)) e o parâmetro da porta tem **default `0.0`** — chamar sem repassar o ESPN atual apaga o valor, e todo projetado futuro cai no piso. **Estado hoje:** ⛔ **a porta NÃO foi alterada**; os dois runners do arco a **contornam** (nota curta + `note_fits` que aborta antes de escrever; ESPN relido e repassado), e há **teste que demonstra cada armadilha viva** e teste que falha se o runner cair nela. **O que falta:** decidir se a correção é na porta (truncar preservando o token; exigir ESPN explícito ou não escrever quando ausente) ou se fica como contrato documentado dos chamadores — ⚠️ hoje **as 6 portas de produção** que chamam o helper estão sujeitas às duas. Vizinho do [[OFF26-34]] (o rótulo off-label do mesmo `AuctionLog`). **(3) acrescentada em 18/11/2026 (MAN-OFF26-42-FIX):** o `is_final` da linha do `espn_value_store` é **rebaixado para provisório** mesmo com o ESPN repassado (default `False` em `set_espn_value`); ⚠️ o **caso 3 do sync tem o mesmo efeito** (Bryce Young, `is_final=0` no horário do sync de 18/09); impacto baixo (o badge PROV ignora contratados); contornado no `off26_42_fix.py` com restauração pelo mesmo helper — MAN-CONTRATO-VIVO-F2A/CLOSE | **Alta** (silenciosa, em porta canônica de escrita de contrato) | 🔲 |
 | OFF26-40 | **Caminho de banco RELATIVO no molde de runner cria banco vazio em `instance/` e a execução lê base sem tabela** — medido na F2A: `_db_path` devolvia o caminho como veio, e com `--db dynasty.db` o Flask-SQLAlchemy reescreve `sqlite:///dynasty.db` para dentro do `instance/` da app, **criando o arquivo lá**; o runner então falha com `sqlite3.OperationalError: no such table: players` — ou, pior, **leria um banco vazio como se fosse o alvo**. ⛔ **Em produção não dispara** (o caminho vem absoluto de `DYNASTY_DB`), o que manteve a armadilha **latente** desde o molde original. **Corrigido só no runner novo** (`.resolve()` em `off26_37_a_fix.py` e `off26_37_b_fix.py`, com o porquê no docstring e teste `test_db_path_e_sempre_absoluto`); ⛔ **`off26_32_fix.py`, `off26_20_fix.py`, `wv1_fix_coorte*.py` NÃO foram tocados — são artefatos já executados em produção**, e alterá-los criaria arquivo cujo comportamento não é mais o que foi executado (a mesma decisão que originou o `wv1_fix_coorte_b.py`). **O que falta:** decidir se o `.resolve()` entra nos runners antigos (contra a regra do artefato congelado) ou se vira só convenção do próximo molde — MAN-CONTRATO-VIVO-F2A/CLOSE | Baixa (só em ensaio local com `--db` relativo; produção imune) | 🔲 |
 | OFF26-41 | **Deriva de documentação: o `CLAUDE.md` registra 54 testes do motor salarial e a suíte roda 62** — medido em 26/08/2026 (`python salary_engine_test.py` → `Ran 62 tests ... OK`). ⛔ **Registrado como item, não corrigido por conta própria**: a redação do `CLAUDE.md` é decisão do owner (restrição explícita da sessão MAN-CONTRATO-VIVO-CLOSE). ⚠️ **A classe importa mais que o número:** o bloco de comandos do `CLAUDE.md` fixa contagens de **14 suítes** e nada as verifica — cada uma pode ter derivado do mesmo jeito, silenciosamente, e a contagem citada é o que uma sessão futura usa para decidir se uma suíte "está verde na contagem vigente". Candidato natural a carona no [[O5]] (o auditor poka-yoke já existe e é read-only) — MAN-CONTRATO-VIVO-CLOSE | Baixa | 🔲 |
-| OFF26-42 | ⭐ **Régua vivo × morto NO SYNC + arbitragem de comissário + fila de pendências** — fecha a porta que o [[OFF26-37]] mediu e deixou aberta (`is_dropped = False` sem consultar contrato): a transição dropado→rosterado agora passa por `contract_regua.decide_readd` (helper ÚNICO — janela `waiver_clear_days` da API ×24h, `created` nos DOIS lados; ⚠️ **refutação MEDIDA da decisão 8 do owner**: `status_updated` no add daria Goff Δ53,1h e INVERTERIA o veredito arbitrado em prod, e nos dois lados inverteria Jones Δ47,2h — só `created` reproduz o precedente canônico 69,2h/12,3h; **✅ `created` RATIFICADO pelo owner em 09/09/2026**). Caso 2 mantém + evento; caso 3 = ano 1 via `record_acquisition` com **canal real** (off-label [[OFF26-34]] fechado p/ chamadores novos); **comissário NUNCA muda contrato no sync** → pendência na fila `/admin/arbitragem` (tabela ADITIVA `ContractPendency`, molde M2 com race guard 409; veredito SUGERIDO pela âncora do congelamento [[OFF26-11]], degrada sem âncora; arbitragem SEMPRE humana: real×manobra / vivo×morto p/ sinais divergentes Δ×canal); pendência bloqueia SÓ o jogador dela, badge no roster. Decisão 7: varredura completa legs 0-18 (`status=complete` obrigatório; leg 0 medida VAZIA, intertemporada inteira na leg 1) — sem drop na varredura = morto por dedução; falha de API = nada muda + reporte. Fase pela DATA da tx × `season_start_date` do `/state/nfl` (offseason_mode NÃO é fonte, divergência só log). 38 testes novos (`contract_regua_test.py`, incl. guardas AST) — MAN-OFF26-36 (09/09/2026, decisão do owner sobre comissário do mesmo dia) | Alta | ⚠️ **implementado 09/09/2026; deploy `d115949` no ar e sync pós-deploy limpo (0 transições, fila vazia — CONFORME O DESENHO: a fila nasce de transições observadas, não de varredura retroativa). Pendência ÚNICA E NOMEADA: o primeiro caso REAL** — re-add pela régua (waiver de terça) e/ou transação de comissário na fila — a arbitragem só se prova com dado real. ⛔ **1º caso real com efeito de cap REPROVA (18/11/2026, MAN-MCLAURIN-SALARIO-REG-F1):** Terry McLaurin (5927, Trust The Process) exibido **$13 · cy3 · css2024** quando o devido é **$1 · ano 1 · 2026 · free_agent** (caso 3: drop 20/10 19:15 → add FA 23/10 00:50, Δ 53,6h > 48h) — a ressalva "drop+re-add inteiro entre dois syncs é invisível" materializou; coorte com cap = 2 (McLaurin −$12 confirmado; Keaton Mitchell −$6 presumido) + 11 só de contagem; reparo e conserto da porta = decisão do owner (seção). **Reparo construído e ensaiado na mecânica (18/11, MAN-OFF26-42-FIX):** `off26_42_fix.py` (5 alvos pela porta canônica, marca `tx:<add>`, ESPN e `is_final` restaurados, `--exclude 12495` p/ o Gordon, guardas de banco/pendência/régua ao vivo/`is_my_team`); 31 testes; prod pendente: ensaio na cópia dentro do Render → aprovação → execução pelo owner. **PRODUÇÃO (18/11, owner, MAN-OFF26-42-PROD-REG): 4 de 5 aplicados às 20:13 UTC** (McLaurin, K. Mitchell, Dell, K. Williams → $1·ano 1·2026·free_agent; folha t8 168→156, t4 245→239, liga 2332→2314; smoke OK: McLaurin $1, IR, proj. 2027 $16). **Abertos:** Gordon (aguarda aviso ao dono do time 12) e fechamento da porta no sync. **Porta fechada no código (18/11, MAN-OFF26-42):** o sync decide re-add pelas TRANSAÇÕES (corte D1 09/09, marcador D2, D3 amplo, regra da cadeia do owner, guarda (d) do arremate, ESPN restaurado, SyncLog), liberação pela env `REGUA_POR_TRANSACAO=1`; conjunto declarado do 1º sync = 0 contratos · 2 manter · 3 pendências · 14 drops; 29 testes novos, 33 suítes verdes; prod pendente: ensaio na cópia → aprovação → env → `--compare` → smoke |
+| OFF26-42 | ⭐ **Régua vivo × morto NO SYNC + arbitragem de comissário + fila de pendências** — fecha a porta que o [[OFF26-37]] mediu e deixou aberta (`is_dropped = False` sem consultar contrato): a transição dropado→rosterado agora passa por `contract_regua.decide_readd` (helper ÚNICO — janela `waiver_clear_days` da API ×24h, `created` nos DOIS lados; ⚠️ **refutação MEDIDA da decisão 8 do owner**: `status_updated` no add daria Goff Δ53,1h e INVERTERIA o veredito arbitrado em prod, e nos dois lados inverteria Jones Δ47,2h — só `created` reproduz o precedente canônico 69,2h/12,3h; **✅ `created` RATIFICADO pelo owner em 09/09/2026**). Caso 2 mantém + evento; caso 3 = ano 1 via `record_acquisition` com **canal real** (off-label [[OFF26-34]] fechado p/ chamadores novos); **comissário NUNCA muda contrato no sync** → pendência na fila `/admin/arbitragem` (tabela ADITIVA `ContractPendency`, molde M2 com race guard 409; veredito SUGERIDO pela âncora do congelamento [[OFF26-11]], degrada sem âncora; arbitragem SEMPRE humana: real×manobra / vivo×morto p/ sinais divergentes Δ×canal); pendência bloqueia SÓ o jogador dela, badge no roster. Decisão 7: varredura completa legs 0-18 (`status=complete` obrigatório; leg 0 medida VAZIA, intertemporada inteira na leg 1) — sem drop na varredura = morto por dedução; falha de API = nada muda + reporte. Fase pela DATA da tx × `season_start_date` do `/state/nfl` (offseason_mode NÃO é fonte, divergência só log). 38 testes novos (`contract_regua_test.py`, incl. guardas AST) — MAN-OFF26-36 (09/09/2026, decisão do owner sobre comissário do mesmo dia) | Alta | ⚠️ **implementado 09/09/2026; deploy `d115949` no ar e sync pós-deploy limpo (0 transições, fila vazia — CONFORME O DESENHO: a fila nasce de transições observadas, não de varredura retroativa). Pendência ÚNICA E NOMEADA: o primeiro caso REAL** — re-add pela régua (waiver de terça) e/ou transação de comissário na fila — a arbitragem só se prova com dado real. ⛔ **1º caso real com efeito de cap REPROVA (18/11/2026, MAN-MCLAURIN-SALARIO-REG-F1):** Terry McLaurin (5927, Trust The Process) exibido **$13 · cy3 · css2024** quando o devido é **$1 · ano 1 · 2026 · free_agent** (caso 3: drop 20/10 19:15 → add FA 23/10 00:50, Δ 53,6h > 48h) — a ressalva "drop+re-add inteiro entre dois syncs é invisível" materializou; coorte com cap = 2 (McLaurin −$12 confirmado; Keaton Mitchell −$6 presumido) + 11 só de contagem; reparo e conserto da porta = decisão do owner (seção). **Reparo construído e ensaiado na mecânica (18/11, MAN-OFF26-42-FIX):** `off26_42_fix.py` (5 alvos pela porta canônica, marca `tx:<add>`, ESPN e `is_final` restaurados, `--exclude 12495` p/ o Gordon, guardas de banco/pendência/régua ao vivo/`is_my_team`); 31 testes; prod pendente: ensaio na cópia dentro do Render → aprovação → execução pelo owner. **PRODUÇÃO (18/11, owner, MAN-OFF26-42-PROD-REG): 4 de 5 aplicados às 20:13 UTC** (McLaurin, K. Mitchell, Dell, K. Williams → $1·ano 1·2026·free_agent; folha t8 168→156, t4 245→239, liga 2332→2314; smoke OK: McLaurin $1, IR, proj. 2027 $16). **Abertos:** Gordon (aguarda aviso ao dono do time 12) e fechamento da porta no sync. **Porta fechada no código (18/11, MAN-OFF26-42):** o sync decide re-add pelas TRANSAÇÕES (corte D1 09/09, marcador D2, D3 amplo, regra da cadeia do owner, guarda (d) do arremate, ESPN restaurado, SyncLog), liberação pela env `REGUA_POR_TRANSACAO=1`; conjunto declarado do 1º sync = 0 contratos · 2 manter · 3 pendências · 14 drops; 29 testes novos, 33 suítes verdes. **LIBERADO EM PRODUÇÃO (19/11, owner, MAN-OFF26-42-CLOSE):** deploy `45774c4` conferido; ensaio na cópia às 15:03 UTC (0·2·3·14 CONFERE, 2º sync com zero escrita, vivo intacto); backup 950.272 B; chave ligada; sync às 15:10 UTC com o `--compare` reproduzindo o conjunto nas 4 classes; smoke OK (33 em arbitragem, Trust The Process $156, drop de 20/10 do McLaurin na timeline); guarda (d) e chave ratificadas. **Abertos:** (a) Gordon (12495, aguarda aviso ao dono do time 12); (b) retirar a chave depois de um ciclo de waiver sem ocorrência. Registrados à parte: [[OFF26-45]], [[OFF26-46]], [[OFF26-47]] |
 | OFF26-43 | **O painel de intertemporada não sabe que a temporada começou** — junta [[M1-FOLLOWUP]] e o achado (a) do [[UX33]] numa raiz só: `offseason_mode` é setada `"true"` SÓ no rollover e **nunca revertida por código** (F1 do [[OFF26-9]]; medido de novo em 09/09 — `true` com a temporada em curso, e o sync da régua [[OFF26-42]] loga a divergência a cada execução), e o **passo 6** exibe Pendente para sempre por derivar de `CutWindowAudit`, artefato **aposentado em 07/08** ([[OFF26-1]] ETAPA2). **Direção do owner (09/09/2026):** passo 6 passa a derivar do artefato que o fluxo de 2026 realmente produz (`LateDropAudit` da urna e/ou lista de exclusão congelada [[OFF26-11]]) e o painel ganha ação explícita **"encerrar intertemporada"** que desliga `offseason_mode`; [[M1-FOLLOWUP]] e [[UX33]](a) **fecham por absorção** quando este fechar; UX33(b) segue separado. Medida provisória (UPDATE manual no Render Shell) documentada na seção — MAN-OFF26-36-CLOSE. Flip re-medido em 21/09 pela F1 do [[OFF26-44]]: sem gate funcional interno | Média | 🔲 |
 | OFF26-44 | **Flags de ciclo do AppConfig sem evento de reset (a classe)** — gravadas uma vez por ciclo, nada as devolve ao estado inicial do ciclo seguinte. F1 (21/09) mediu **seis** na classe: `offseason_mode` ([[OFF26-43]]), `rollover_done` ([[L4]]), `rookie_draft_done`, `auction_done`, `espn_values_updated`, `season_locked`; mais duas mortas (`season_closed`, `offseason_step`), `playoffs_started` sem evento e a agenda da urna. **Motivação nova:** `app_config` é **contrato externo** e a réplica do `dynasty.db` de prod pelo Optimizer faz das flags insumo de valoração (fase decidida por `offseason_mode`). Premissa "admin desliga manualmente" **refutada**: não há interruptor para `offseason_mode` nem `rollover_done`. Escopo: decidir e implementar o evento de reset de cada flag (ou derivá-la por evidência + season, molde [[OFF26-29]]); decisão do owner, flag a flag. [[M1-FOLLOWUP]] repriorizado Baixa→Média — MAN-FLAGS-CICLO-REG-F1 | Média | 🔲 |
+| OFF26-45 | **A fila de arbitragem só cresce** — 33 pendências abertas em 19/11, nenhuma com veredito desde setembro; 4 já superadas por um caso 3 posterior (11539, 2505, 7839, 96); cada rodada de waiver acrescenta claims com Δ > 48h desde o drop, que caem em `sinal_divergente`. Questão de fundo = critério da janela (estrita × ciente do lock semanal), decisão de LIGA; a política da fila é do owner. Só registro, sem diagnose — MAN-OFF26-42-CLOSE | Média | 🔲 |
+| OFF26-46 | **Timeline do McLaurin fora de ordem:** o evento de valorização do ano 3 (rollover de agosto) aparece depois do add de outubro. Observação de campo do owner no smoke de 19/11, só registro, sem diagnose. A metade "nome do time" da mesma observação foi anexada ao [[S4]] — MAN-OFF26-42-CLOSE | Baixa | 🔲 |
+| OFF26-47 | **Verificação: 8 jogadores com aquisição `unknown` (18/11) × 0 em revisão pendente no painel (19/11)** — sids 12634, 12491, 13297, 13333, 7562, 12961, 5119, 11593; a consulta só de leitura para o owner está na seção. Só registro, sem diagnose — MAN-OFF26-42-CLOSE | Baixa | 🔲 |
 | SEA26-1 | **Cadastro de ligas/participantes + ingestão de confrontos via Sleeper** — base da campanha [[SEA26]]: ligas configuráveis (id, plataforma, tipo **confrontos × guilhotina**, semanas de playoff e formato da chave), **mapa usuário↔time POR LIGA** (⚠️ os participantes diferem entre ligas, e o `User.team_id` de hoje é **um** time só — [[M12]]/[[M17]]), leitura de matchups por semana + resultado (quem venceu; quem foi eliminado). **Só Sleeper** (Dynasty e Chopp); ESPN entra pelo gate do [[SEA26-4]]. Tabelas **aditivas** — ⛔ zero efeito em cap/contrato/salário e no `dynasty.db` que o Optimizer lê. **Absorve [[L2]]** — MAN-SEA26-REG | Alta | 🔲 |
 | SEA26-2 | **Pick'em semanal (as 3 ligas)** — regras **fechadas pelo owner em 09/09/2026** e transcritas na seção: palpite no vencedor de cada confronto (6/semana; playoffs 15–17 só chave de cima, 2+2+1) e, no Chopp, no **eliminado** (semanas 1–12); 1 ponto por confronto; Chopp vale nº de sobreviventes com **mínimo 3**; tetos **89/89/81**. ⭐ **Aritmética conferida nesta sessão — fecha, e DERIVA dois fatos que o enunciado não declarava**: temporada regular = **semanas 1–14** (único valor que dá 89) e **Chopp não tem palpite de confronto** (81 = só eliminações). Lock único no **kickoff do 1º jogo da semana** (molde da urna [[OFF26-10]]: lock por horário, sem revelação antes do lock); ranking por liga + geral (soma das 3, teto **259**, só quem joga as três, sem prêmio); desempate: acertos em playoffs → acertos na semana mais recente; backfill manual da semana 1 marcado como backfill. Depende do [[SEA26-1]] — MAN-SEA26-REG | Alta | 🔲 |
 | SEA26-3 | **Tela de confrontos para o podcast** — escalações lado a lado por confronto, pontos reais e **projeção da própria plataforma** (Sleeper), legível em desktop; a MESMA tela alimenta o palpite do [[SEA26-2]] (uma superfície, dois usos). Depende do [[SEA26-1]] — MAN-SEA26-REG | Média | 🔲 |
@@ -1736,6 +1739,13 @@ de 19/08 — *Fazenda Pederasta* → **Julia Mendes**, *Miller Time!* → **Hali
 Consequência operacional imediata, já sentida: **toda releitura de tabela antiga precisa usar os
 nomes de prod** — as agregações "por time" da F1 do [[WV1]] saíram com os nomes velhos e tiveram de
 ser relidas. ⛔ Nenhuma correção feita; o item segue 🔲.
+
+**Nota de ocorrência (19/11/2026, smoke do [[OFF26-42]]; registro MAN-OFF26-42-CLOSE, sem
+diagnose):** na timeline do **McLaurin** (5927), o evento de **drop** mostra o nome **atual** do time
+2, e o de **trade** mostra o nome **antigo**. Os dois eventos foram gravados em momentos diferentes:
+o drop é um evento retroativo, gravado no sync de 19/11. Isso casa com a classe deste item (o nome do
+time copiado no momento da gravação, sem chave estável). ⛔ Não diagnosticado nem corrigido; o item
+segue 🔲. A outra metade da mesma observação (a ordem dos eventos) é o [[OFF26-46]].
 
 **DEPENDÊNCIAS**
 - Depende de: nada (independente). Relaciona-se com [[S3]] (mesma classe, chave estável ausente em
@@ -9307,6 +9317,12 @@ apareceu).
 
 ### OFF26-42 — Régua vivo × morto no sync + arbitragem de comissário + fila de pendências
 
+⚠️ **Estado em 19/11/2026:** a porta está fechada e **liberada em produção**. O sync decide o re-add
+pelas transações, e o 1º sync às 15:10 UTC conferiu o conjunto declarado (subseção "Liberação em
+PRODUÇÃO"). **Abertos:** (a) Gordon e (b) retirar a chave de ambiente. ⛔ O parágrafo "por que o sync
+de 09/09 não gerou pendência" abaixo descreve o **desenho antigo** (transição observada), superado em
+18/11; fica como registro.
+
 ⚠️ **Implementado em 09/09/2026 (MAN-OFF26-36; commits `b06cf36` + `38cccdb`); deploy `d115949`
 confirmado no `/admin` e sync manual pós-deploy (11:28) limpo. Pendência ÚNICA E NOMEADA
 (MAN-OFF26-36-CLOSE): o primeiro caso REAL** — um re-add decidido pela régua (waiver de terça
@@ -9747,7 +9763,7 @@ com o sync real contra a API:
 - O conjunto declarado **diverge na réplica**, como esperado: ela está 2 meses atrás de prod. Prova
   a mecânica, não os valores.
 
-**Testes:** `off26_42_tx_test.py`, **27 testes**:
+**Testes:** `off26_42_tx_test.py`, **29 testes**:
 - McLaurin partindo do estado anterior ao drop → $1 · ano 1 · 2026 · free_agent, com marca, ESPN
   17/20/definitivo idêntico, drop retroativo e projeção 2027 $16;
 - waiver em 48h; trade sem drop (régua não chamada); comissário vira pendência; classe Gordon;
@@ -9756,18 +9772,55 @@ com o sync real contra a API:
 
 Os **38 da régua passam sem alteração**, e **33 suítes verdes** (salary_engine 62).
 
-**Pendente:** ensaio dentro do Render numa cópia do banco vivo, conferindo o conjunto declarado →
-aprovação no chat de planejamento → deploy liberado em produção (o 1º sync real) → conferência com
-`--compare` → smoke. ⛔ Segue ⚠️.
+**Pendente (em 18/11):** ensaio na cópia dentro do Render → aprovação → liberação → `--compare` →
+smoke. **Executado em 19/11**, ver a subseção seguinte.
 
-**Deriva de documentação:** o `CLAUDE.md` ainda descreve o passo 8b como "transição dropado→rosterado
-capturada no passo 7" e não lista a suíte nova. ⛔ Não corrigido: a redação do `CLAUDE.md` é decisão
-do owner (precedente do [[OFF26-41]]).
+**Deriva de documentação (18/11):** o `CLAUDE.md` descrevia o passo 8b antigo e não listava a suíte
+nova. **Corrigida em 19/11 (MAN-OFF26-42-CLOSE), a pedido do owner.**
 
 **Observação de campo (18/11, smoke), SEM diagnose:** Keenan Allen aparece no roster do time 8 como
 **Ano 1/4** com aquisição **"Startup Auction", $5**. Anotado como **possível ocorrência do
 [[OFF26-34]]** (classificação errada do import do leilão de 2026, item 🔲). ⛔ Não diagnosticado nem
 corrigido nesta sessão.
+
+#### Liberação em PRODUÇÃO (19/11/2026, owner; registro MAN-OFF26-42-CLOSE)
+
+Execução do owner no Render, com o ensaio e o smoke aprovados no chat de planejamento. ⛔ O Code não
+executou nada em produção.
+
+- **Deploy conferido:** commit `45774c4780a69b52afa1b5aaf058daa4b13103fc`. Os hashes de
+  `sync_sleeper.py` e `tools/regua_sync_ensaio.py` batem com os do relatório.
+- **Ensaio na cópia (19/11, 15:03 UTC):**
+  - 1º sync com **contratos 0 · manter 2 · pendências 3 · drops 14**, todos `[CONFERE]`;
+  - ESPN sem alteração; intocáveis sem alteração;
+  - 2º sync com **zero escrita da régua**;
+  - banco vivo inalterado.
+- **Produção:**
+  - backup `/data/pre_off26_42_regua_tx.db` (**950.272 bytes**, 15:04 UTC);
+  - chave `REGUA_POR_TRANSACAO=1` ligada e conferida no Shell;
+  - **um sync às 15:10 UTC**;
+  - o `--compare` backup × vivo **reproduziu o conjunto declarado nas quatro classes**;
+  - o SyncLog traz o resultado da régua.
+- **Smoke em tela (owner):**
+  - painel com **33 em arbitragem** (30 de antes + 3 novas);
+  - folha do Trust The Process em **$156**;
+  - timeline do McLaurin com o **drop de 20/10 entre a trade e o add**.
+- **Ratificados pelo owner:** a **guarda (d)** (um add com aquisição registrada depois do drop fica
+  ancorado) e a **liberação pela chave de ambiente**.
+
+**O que mantém o OFF26-42 ⚠️ (duas pendências, explícitas):**
+- **(a) Gordon (sid 12495):** aguarda o aviso do owner ao dono do time 12. Segue manual, por
+  `off26_42_fix.py` sem `--exclude` (o corte D1 não o alcança).
+- **(b) Retirar a chave de ambiente**, para que a detecção por transações vire o comportamento
+  padrão. Executar **depois de um ciclo completo de waiver sem ocorrência**.
+  - ⛔ Não retirada nesta sessão.
+  - A retirada é uma mudança de código: o `regua_por_transacao()` sai e o 8b passa `rostered`
+    sempre. Junto saem a guarda de fonte que trava a chave e a menção dela na ferramenta de ensaio.
+
+**Registrados à parte nesta sessão** (sem diagnose):
+- [[OFF26-45]]: a fila de arbitragem só cresce;
+- [[OFF26-46]]: ordem dos eventos na timeline do McLaurin (o nome do time foi anexado ao [[S4]]);
+- [[OFF26-47]]: os 8 `unknown` × 0 em revisão pendente.
 
 **Testes:** `contract_regua_test.py` — 38 (núcleo puro c/ precedente Jones×Goff em timestamps
 reais + ORM em memória + guardas AST). 29 suítes pré-existentes verdes, incl.
@@ -9939,6 +9992,91 @@ absorvido pelo OFF26-43; repriorizado nesta sessão), [[OFF26-9]] (a F1 de 17/06
 o molde), [[M16]] (projeção de picks que lê `season_locked`).
 
 **Fases:** F1 ✅ (21/09/2026, esta seção) → decisão de desenho do owner (flag a flag) → F2.
+
+---
+
+### OFF26-45 — A fila de arbitragem só cresce: claims depois de 48h viram sinal divergente
+
+🔲 **Registrado em 19/11/2026 (MAN-OFF26-42-CLOSE), só registro: sem diagnose, sem decisão.**
+Prioridade **Média**.
+- Cada pendência aberta bloqueia só o contrato do seu jogador, e todas estão a $1.
+- Mas a fila deixa de ser um instrumento de arbitragem quando ninguém consegue esvaziá-la.
+
+**O que se observa (smoke de 19/11, owner):**
+- **33 pendências abertas** em `/admin/arbitragem`, **nenhuma com veredito desde setembro**.
+- **4 já superadas** por um caso 3 posterior aplicado: sids **11539, 2505, 7839, 96**. Seguem abertas,
+  e o OFF26-42 deixou de propósito sem tocá-las (fora do escopo).
+- **A fila cresce a cada rodada de waiver.** Na temporada, o Sleeper põe todo FA em waiver no lock
+  semanal. Então um claim feito **mais de 48h depois do drop** chega pelo canal `waiver`, mas com
+  Δ acima da janela, e cai em `sinal_divergente`.
+- Insumo já medido: o achado lateral da ocorrência McLaurin no [[OFF26-42]] (23 de 26 da coorte eram
+  `sinal_divergente` de waiver, com Δ de 68h a 1283h).
+
+**A questão de fundo é uma decisão de LIGA, não de código:** o critério da janela.
+- **Estrita:** Δ ≤ `waiver_clear_days` × 24h, a partir do drop. É a régua canônica do [[OFF26-37]].
+- **Ciente do lock semanal:** o jogador dropado fica em waiver até o processamento seguinte, e o
+  claim nesse processamento conta como "dentro da janela".
+
+⛔ A régua do [[OFF26-37]] é fechada; mudar o critério exige uma decisão explícita da liga. A
+política da fila (o que fazer com as superadas e as abertas por waiver tardio) é decisão do owner.
+
+**Não fazer neste item sem decisão:** fechar, decidir ou reclassificar as pendências existentes;
+alterar `decide_readd` ou a janela.
+
+**Cross-refs:** [[OFF26-42]] (a fila e a régua no sync), [[OFF26-37]] (a régua canônica, no
+archive), [[REG1]] (pauta de regulamento vizinha: FA add × waiver claim), [[M2]] (molde da fila).
+
+---
+
+### OFF26-46 — Timeline do McLaurin: valorização do ano 3 aparece depois do add de outubro
+
+🔲 **Registrado em 19/11/2026 (MAN-OFF26-42-CLOSE), observação de campo do owner no smoke; só
+registro, sem diagnose.** Prioridade **Baixa** (display; nenhum contrato ou folha muda).
+
+**O que se observa:** na página do **McLaurin** (5927), o evento de **valorização do ano 3**, gravado
+no rollover de **agosto**, aparece **depois** do add de **outubro** na ordem da timeline. A ordem
+esperada é a cronológica: rollover (ago) → trade → drop (20/10) → add (23/10).
+
+**Não presumir a causa.** Candidatos a medir na F1, sem preferência:
+- o critério de ordenação da timeline;
+- a data que o evento de rollover carrega: gravado ao vivo, pelo backfill do [[OFF26-36]] ou pelo
+  rebuild do [[F8]];
+- a interação com o evento retroativo de drop do [[OFF26-42]].
+
+**Metade irmã da mesma observação:** o drop mostra o nome atual do time 2 e a trade mostra o nome
+antigo. Está anexada ao [[S4]] (o nome do time copiado no momento da gravação), não a este item.
+
+**Cross-refs:** [[OFF26-36]] (evento de rollover na timeline, no archive), [[OFF26-42]] (D3, drop
+retroativo), [[S4]], [[UX13]] (outro achado de exibição da timeline).
+
+---
+
+### OFF26-47 — Verificação: 8 jogadores com aquisição `unknown` × 0 em revisão pendente
+
+🔲 **Registrado em 19/11/2026 (MAN-OFF26-42-CLOSE), dúvida a verificar; só registro, sem
+diagnose.** Prioridade **Baixa** até a leitura: pode ser só uma revisão concluída.
+
+**A dúvida:**
+- **Em 18/11**, produção tinha **8 jogadores com `acquisition_type = 'unknown'`**: sids **12634,
+  12491, 13297, 13333, 7562, 12961, 5119, 11593**.
+- **Em 19/11**, o painel mostra **0 em revisão pendente**.
+- Não se sabe se os 8 foram revisados (o tipo continua `unknown`, com `needs_review` limpo), se foram
+  reclassificados ou se saíram da contagem por outro motivo.
+  - Exemplo de outro motivo: a fila do [[M2]] conta só `needs_review=1 AND is_dropped=0`.
+- ⛔ O sync de 19/11 não escreve `acquisition_type` fora do caso 3 da régua, que deu 0 contratos.
+
+**Consulta só de leitura para o owner** (Render Shell do Manager). Ela não escreve nada (`-readonly`):
+```
+sqlite3 -readonly -header -column /data/dynasty.db "SELECT p.sleeper_player_id AS sid, p.name, p.team_id, p.acquisition_type AS acq, p.needs_review AS rev, p.is_dropped AS dropado, p.salary, p.contract_year AS ano, p.contract_start_season AS css, p.updated_at FROM players p WHERE p.sleeper_player_id IN ('12634','12491','13297','13333','7562','12961','5119','11593') ORDER BY p.sleeper_player_id;"
+sqlite3 -readonly -header -column /data/dynasty.db "SELECT p.sleeper_player_id AS sid, h.event_type, h.season, h.salary, h.created_at, substr(h.notes,1,80) AS notas FROM player_history h JOIN players p ON p.id = h.player_id WHERE p.sleeper_player_id IN ('12634','12491','13297','13333','7562','12961','5119','11593') AND (h.event_type = 'review_approved' OR h.created_at >= '2026-11-18') ORDER BY p.sleeper_player_id, h.created_at;"
+```
+**Leitura:**
+- `rev = 1` e `dropado = 0` em algum deles → a contagem do painel diverge (item ganha diagnose);
+- `rev = 0` com `review_approved` → foram revisados mantendo `unknown`;
+- `acq` diferente de `unknown` → foram reclassificados (a 2ª consulta mostra por qual evento).
+
+**Cross-refs:** [[M2]] (a fila de revisão), [[OFF26-42]] (o smoke onde a dúvida apareceu),
+[[OFF26-26]] (a classe de stubs `unknown` criados pelo sync).
 
 ---
 
